@@ -1,3 +1,23 @@
+//! # Where
+//!
+//! Selects elements from X or Y based on condition (ternary operator).
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Where.html>
+//!
+//! ## Attributes
+//! None
+//!
+//! ## Inputs
+//! - `condition` (B): Boolean condition tensor
+//! - `X` (T): Values when condition is true
+//! - `Y` (T): Values when condition is false
+//!
+//! ## Outputs
+//! - `output` (T): Selected elements
+//!
+//! ## Opset Versions
+//! - Opset 9+
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{
     NodeProcessor, OutputPreferences, ProcessError, compute_broadcast_rank,
@@ -79,14 +99,6 @@ impl NodeProcessor for WhereProcessor {
             });
         };
 
-        log::debug!(
-            "Where input ranks for {}: condition={}, x={}, y={}",
-            node.name,
-            condition.rank(),
-            x.rank(),
-            y.rank()
-        );
-
         let output_rank = compute_broadcast_rank(&node.inputs);
 
         // Determine output type
@@ -96,11 +108,6 @@ impl NodeProcessor for WhereProcessor {
             // If both inputs are Shape types and output is 1D int64, preserve Shape type
             let shape_size = get_shape_size(x).max(get_shape_size(y));
             node.outputs[0].ty = ArgType::Shape(shape_size);
-            log::debug!(
-                "Where result for {} is Shape({}) type",
-                node.name,
-                shape_size
-            );
         } else {
             // Try to propagate static shape using the shared broadcast helper
             let static_shape = compute_broadcast_static_shape(&node.inputs);
@@ -110,12 +117,6 @@ impl NodeProcessor for WhereProcessor {
                 rank: output_rank,
                 static_shape,
             });
-            log::debug!(
-                "Where result for {} is tensor with rank {}, static_shape: {:?}",
-                node.name,
-                output_rank,
-                node.outputs[0].ty.static_shape()
-            );
         }
 
         Ok(())

@@ -1,7 +1,44 @@
-//! Processor for basic arithmetic operations (Add, Sub, Mul, Div)
+//! # Arithmetic Operations (Add, Sub, Mul, Div)
 //!
-//! These operations perform element-wise arithmetic with broadcasting support.
-//! Special handling for Shape and Scalar types to preserve semantics through arithmetic.
+//! Implements element-wise binary arithmetic operations with multidirectional (Numpy-style)
+//! broadcasting support. These operators share the same type propagation semantics and handle
+//! special cases for Shape and Scalar types to preserve semantics through arithmetic operations.
+//!
+//! **ONNX Specs**:
+//! - Add: <https://onnx.ai/onnx/operators/onnx__Add.html>
+//! - Sub: <https://onnx.ai/onnx/operators/onnx__Sub.html>
+//! - Mul: <https://onnx.ai/onnx/operators/onnx__Mul.html>
+//! - Div: <https://onnx.ai/onnx/operators/onnx__Div.html>
+//!
+//! ## Attributes
+//!
+//! None - these operators have no attributes.
+//!
+//! ## Inputs
+//!
+//! - `A` (T): First operand, any rank
+//! - `B` (T): Second operand, any rank (must be type-compatible with A)
+//!
+//! ## Outputs
+//!
+//! - `C` (T): Result of element-wise operation (supports multidirectional broadcasting)
+//!
+//! ## Type Constraints
+//!
+//! T: Numeric tensor types (float16, float32, float64, int8, int16, int32, int64, uint8, uint16, uint32, uint64)
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 1-6**: Limited broadcast support
+//! - **Opset 7**: Added multidirectional (Numpy-style) broadcasting (Add, Sub, Div)
+//! - **Opset 13**: Multidirectional broadcasting for all operators (Add, Sub, Mul, Div)
+//! - **Opset 14**: Extended type support to include uint8, int8, uint16, int16
+//!
+//! ## Special Handling
+//!
+//! This implementation includes type preference propagation for:
+//! - **Shape arithmetic**: When operating on Shape types with constants, prefers constants as Shape
+//! - **Scalar arithmetic**: When operating on Scalar types with constants, prefers constants as Scalar
 
 use crate::ir::Node;
 use crate::processor::{

@@ -1,3 +1,38 @@
+//! # Softmax
+//!
+//! Applies the Softmax activation function along a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Softmax.html>
+//!
+//! ## Formula
+//! ```text
+//! Softmax(input, axis) = Exp(input) / ReduceSum(Exp(input), axis=axis, keepdims=1)
+//! ```
+//!
+//! For each element:
+//! ```text
+//! softmax(x_i) = exp(x_i) / Σ_j exp(x_j)
+//! ```
+//!
+//! ## Attributes
+//! - `axis` (int, default=-1): The dimension along which Softmax will be performed.
+//!   Negative values mean counting dimensions from the back. Accepted range is [-r, r-1]
+//!   where r = rank(input).
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor of rank >= axis
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor with the same shape as the input tensor
+//!
+//! ## Type Constraints
+//! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
+//!
+//! ## Opset Versions
+//! - **Opset 13+**: Current behavior with configurable axis attribute
+//! - **Opset 11-12**: Coerces input into 2D tensor before applying softmax
+//! - **Opset 1-10**: Earlier versions with different axis handling
+
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;

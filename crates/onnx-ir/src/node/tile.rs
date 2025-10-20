@@ -1,3 +1,30 @@
+//! # Tile
+//!
+//! Constructs a tensor by tiling the input tensor along specified axes.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Tile.html>
+//!
+//! ## Attributes
+//! None
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor of any shape to be tiled
+//! - `repeats` (tensor(int64)): 1D tensor specifying the number of repetitions for each axis.
+//!   Must have the same length as the input's rank. Each element indicates how many times
+//!   to repeat the input along that dimension.
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor with the same type as input. For each dimension i,
+//!   `output_shape[i] = input_shape[i] * repeats[i]`
+//!
+//! ## Opset Versions
+//! - Opset 6+: Current version with repeats as input (opset 1 used repeats as attribute)
+//! - Opset 13+: Added support for more data types including bfloat16
+//!
+//! ## Example
+//! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
+//! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
+
 use crate::ir::RuntimeInputRef;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{Node, NodeConfig};

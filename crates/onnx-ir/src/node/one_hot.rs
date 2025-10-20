@@ -1,3 +1,23 @@
+//! # OneHot
+//!
+//! Produces a one-hot encoded tensor from input indices.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__OneHot.html>
+//!
+//! ## Attributes
+//! - `axis` (int, default=-1): Axis for one-hot encoding
+//!
+//! ## Inputs
+//! - `indices` (T1): Input indices tensor
+//! - `depth` (T2): Number of classes (scalar or rank-1 tensor)
+//! - `values` (T3): \[off_value, on_value\] tensor
+//!
+//! ## Outputs
+//! - `output` (T3): One-hot encoded tensor
+//!
+//! ## Opset Versions
+//! - Opset 9+
+
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -48,7 +68,6 @@ pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
             });
         }
     };
-    log::debug!("OneHot input rank for {}: {}", node.name, input_rank);
 
     let output_rank = input_rank + 1;
 

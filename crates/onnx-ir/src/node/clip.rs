@@ -1,3 +1,40 @@
+//! # Clip
+//!
+//! Clips (limits) the values in the input tensor to a specified min/max range. Values below the minimum
+//! are set to the minimum value, and values above the maximum are set to the maximum value.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Clip.html>
+//!
+//! ## Attributes
+//!
+//! - `min` (float, optional, Opset 6-10 only): Minimum value. Elements below this are clipped to min.
+//! - `max` (float, optional, Opset 6-10 only): Maximum value. Elements above this are clipped to max.
+//!
+//! Note: At least one of `min` or `max` must be specified. If both are provided and min > max,
+//! all values are set to max.
+//!
+//! ## Inputs
+//!
+//! - `input` (T): Input tensor whose elements will be clipped.
+//! - `min` (T, optional, Opset 11+): Minimum value as a scalar tensor. Default: numeric_limits::lowest()
+//! - `max` (T, optional, Opset 11+): Maximum value as a scalar tensor. Default: numeric_limits::max()
+//!
+//! ## Outputs
+//!
+//! - `output` (T): Output tensor with the same shape and type as input, containing clipped values.
+//!
+//! ## Type Constraints
+//!
+//! - T: tensor(float16), tensor(float), tensor(double), tensor(int8), tensor(int16), tensor(int32),
+//!   tensor(int64), tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(bfloat16)
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 6**: Initial version with `min` and `max` as attributes (float values only).
+//! - **Opset 11**: Changed `min` and `max` from attributes to optional inputs, allowing runtime values.
+//! - **Opset 12**: Extended type support to include integer types (int8, int16, int32, int64, uint8, uint16, uint32, uint64).
+//! - **Opset 13**: Added bfloat16 support. Defined behavior when min > max: all values set to max.
+
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;

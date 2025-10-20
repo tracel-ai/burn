@@ -1,3 +1,25 @@
+//! # Dropout
+//!
+//! Dropout regularization (identity during inference, random zeroing during training).
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Dropout.html>
+//!
+//! ## Attributes
+//! - `ratio` (float, default=0.5, Opset 1-11): Dropout probability
+//! - `seed` (int, optional, Opset 12+): Random seed
+//!
+//! ## Inputs
+//! - `data` (T): Input tensor
+//! - `ratio` (T1, optional, Opset 12+): Dropout probability, default 0.5
+//! - `training_mode` (T2, optional, Opset 12+): Training mode flag, default false
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor
+//! - `mask` (T2, optional): Dropout mask
+//!
+//! ## Opset Versions
+//! - Opset 1+
+
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;

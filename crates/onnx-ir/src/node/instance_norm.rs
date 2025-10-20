@@ -1,3 +1,33 @@
+//! # InstanceNormalization
+//!
+//! Applies instance normalization to the input as described in
+//! <https://arxiv.org/abs/1607.08022>.
+//!
+//! The operation normalizes each channel in each data instance independently:
+//! `y = scale * (x - mean) / sqrt(variance + epsilon) + B`, where mean and
+//! variance are computed per instance per channel.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__InstanceNormalization.html>
+//!
+//! ## Attributes
+//! - `epsilon` (float, default=1e-5): Small constant for numerical stability to avoid division by zero
+//!
+//! ## Inputs
+//! - `input` (T): Input data tensor with dimensions (N x C x D1 x D2 ... Dn),
+//!   where N is the batch size and C is the number of channels
+//! - `scale` (T): 1-dimensional scale tensor of size C
+//! - `B` (T): 1-dimensional bias tensor of size C
+//!
+//! ## Outputs
+//! - `output` (T): Normalized output tensor with the same shape as input
+//!
+//! ## Type Constraints
+//! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
+//!
+//! ## Opset Versions
+//! - Since version 6 (minimum supported)
+//! - Version 22: Current version
+
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;

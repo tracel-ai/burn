@@ -1,3 +1,31 @@
+//! # TopK
+//!
+//! Retrieves the top-K largest or smallest elements along a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__TopK.html>
+//!
+//! ## Attributes
+//! - `axis` (int, default=-1): Dimension on which to do the sort
+//! - `largest` (int, default=1): If 1 (default), return k largest elements. If 0, return k smallest elements
+//! - `sorted` (int, default=1): If 1 (default), resulting k elements will be sorted. If 0, order is undefined
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor of shape [a_0, a_1, ..., a_{n-1}]
+//! - `K` (tensor(int64)): A 1-D tensor containing a single positive value corresponding to the number of top elements to retrieve
+//!
+//! ## Outputs
+//! - `Values` (T): Tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] containing top K values
+//! - `Indices` (I): Tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] containing indices of top K values (always int64)
+//!
+//! ## Opset Versions
+//! - **Opset 10**: Basic TopK with float types (float16, float, double)
+//! - **Opset 11+**: Added `largest` and `sorted` attributes, support for integer types (int8, int16, int32, int64, uint8, uint16, uint32, uint64)
+//!
+//! ## Type Constraints
+//! - **T** (Opset 10): tensor(float16), tensor(float), tensor(double)
+//! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
+//! - **I**: tensor(int64) for indices output
+
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -92,9 +120,7 @@ impl NodeProcessor for TopKProcessor {
         };
 
         // Infer output types
-
         let rank = data_tensor.rank;
-        log::debug!("TopK input rank for {}: {}", node.name, rank);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: node.inputs[0].ty.elem_type().clone(),
@@ -106,12 +132,6 @@ impl NodeProcessor for TopKProcessor {
             rank,
             static_shape: None,
         });
-
-        log::debug!(
-            "TopK output rank for {}: {} (both outputs)",
-            node.name,
-            rank
-        );
 
         Ok(())
     }

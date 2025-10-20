@@ -1,3 +1,21 @@
+//! # Flatten
+//!
+//! Flattens input tensor into a 2D matrix by splitting at a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Flatten.html>
+//!
+//! ## Attributes
+//! - `axis` (int64, default=1): Dimension to split at (supports negative indexing)
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor
+//!
+//! ## Outputs
+//! - `output` (T): 2D output tensor
+//!
+//! ## Opset Versions
+//! - Opset 1+
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;

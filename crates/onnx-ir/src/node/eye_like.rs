@@ -1,3 +1,27 @@
+//! # EyeLike
+//!
+//! Generates a 2D tensor (matrix) with ones on the diagonal and zeros everywhere else.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__EyeLike.html>
+//!
+//! ## Attributes
+//! - `dtype` (int, optional): Data type for output. Must be a valid data type from TensorProto.
+//!   If not specified, the type of the input tensor is used.
+//! - `k` (int, default=0): Index of the diagonal to populate with ones.
+//!   - `k=0`: Main diagonal (default)
+//!   - `k>0`: Upper diagonal (k positions above main)
+//!   - `k<0`: Lower diagonal (k positions below main)
+//!
+//! ## Inputs
+//! - `input` (T1): 2D input tensor used only for shape reference. Must be rank 2.
+//!
+//! ## Outputs
+//! - `output` (T2): 2D output tensor with the same shape as input, containing ones on diagonal k
+//!   and zeros everywhere else.
+//!
+//! ## Opset Versions
+//! - Available since opset 9
+
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::proto_conversion::element_type_from_proto;
@@ -68,7 +92,6 @@ impl NodeProcessor for EyeLikeProcessor {
             rank: input_rank,
             static_shape: input_static_shape,
         });
-        log::debug!("EyeLike output tensor rank: {}", input_rank);
 
         Ok(())
     }

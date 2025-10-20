@@ -1,3 +1,29 @@
+//! # ConvTranspose (1D)
+//!
+//! 1D transposed convolution (deconvolution) operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ConvTranspose.html>
+//!
+//! ## Attributes
+//! - `kernel_shape` (optional): Kernel size \[width\]
+//! - `strides` (optional): Stride \[width\], default \[1\]
+//! - `pads` (optional): Padding \[left, right\], default \[0, 0\] (must be symmetric)
+//! - `dilations` (optional): Dilation \[width\], default \[1\]
+//! - `group` (optional): Number of groups, default 1
+//! - `output_padding` (optional): Output padding \[width\], default \[0\]
+//! - `auto_pad` (optional): Padding mode (only `NOTSET` supported)
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor (N x C x L)
+//! - `W` (T): Weight tensor (C x M/group x kL)
+//! - `B` (T, optional): Bias tensor (M)
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor
+//!
+//! ## Opset Versions
+//! - Opset 1+
+
 use crate::ir::{Node, NodeConfig};
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

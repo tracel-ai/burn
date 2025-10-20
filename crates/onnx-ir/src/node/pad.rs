@@ -1,3 +1,24 @@
+//! # Pad
+//!
+//! Pads input tensor with additional values at borders.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Pad.html>
+//!
+//! ## Attributes
+//! - `mode` (string, default="constant"): Padding mode (constant/reflect/edge, only constant supported)
+//!
+//! ## Inputs
+//! - `data` (T): Input tensor
+//! - `pads` (tensor(int64)): Padding amounts \[x1_begin, x2_begin, ..., x1_end, x2_end, ...\]
+//! - `constant_value` (T, optional): Constant fill value, default 0
+//! - `axes` (tensor(int64), optional): Axes to apply pads (not supported)
+//!
+//! ## Outputs
+//! - `output` (T): Padded tensor
+//!
+//! ## Opset Versions
+//! - Opset 11+
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig, RuntimeInputRef};

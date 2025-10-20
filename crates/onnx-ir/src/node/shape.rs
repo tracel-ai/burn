@@ -1,3 +1,26 @@
+//! # Shape
+//!
+//! Extracts the shape of an input tensor as a 1D int64 tensor.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Shape.html>
+//!
+//! ## Attributes
+//! - `start` (int, optional, opset 15+): Starting dimension for partial shape extraction.
+//!   If omitted, defaults to 0. Negative values count from the end. Values are clamped to [0, rank].
+//! - `end` (int, optional, opset 15+): Ending dimension (exclusive) for partial shape extraction.
+//!   If omitted, defaults to rank. Negative values count from the end. Values are clamped to [0, rank].
+//!
+//! ## Inputs
+//! - `data` (T): Input tensor of arbitrary type and rank.
+//!
+//! ## Outputs
+//! - `shape` (T1): 1D int64 tensor containing the shape dimensions (or a slice of them).
+//!
+//! ## Opset Versions
+//! - **Opset 1**: Initial version - outputs full shape as 1D int64 tensor.
+//! - **Opset 15**: Added `start` and `end` attributes for partial shape extraction.
+//! - **Opset 19, 21, 23**: Maintained same functionality with broader type support.
+
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{
     NodeProcessor, OutputPreferences, ProcessError, validate_input_count, validate_opset,
@@ -61,8 +84,6 @@ impl NodeProcessor for ShapeProcessor {
 
         // Infer output type - Shape always outputs Shape type
         node.outputs[0].ty = ArgType::Shape(dim);
-
-        log::debug!("Shape node '{}': outputting Shape({})", node.name, dim);
 
         Ok(())
     }

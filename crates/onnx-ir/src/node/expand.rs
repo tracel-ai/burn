@@ -1,3 +1,22 @@
+//! # Expand
+//!
+//! Broadcasts input tensor to a target shape using numpy-style broadcasting.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Expand.html>
+//!
+//! ## Attributes
+//! None
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor
+//! - `shape` (tensor(int64)): Target shape (1-D tensor)
+//!
+//! ## Outputs
+//! - `output` (T): Expanded tensor
+//!
+//! ## Opset Versions
+//! - Opset 8+
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     ElementType,
@@ -45,8 +64,6 @@ impl NodeProcessor for ExpandProcessor {
     ) -> Result<(), ProcessError> {
         // Validate opset
         crate::processor::validate_opset(opset, 8)?;
-
-        log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
 
         // Validate input count
         crate::processor::validate_input_count(node, 2)?;

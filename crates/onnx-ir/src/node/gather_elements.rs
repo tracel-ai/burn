@@ -1,3 +1,35 @@
+//! # GatherElements
+//!
+//! Gathers data from the input tensor at indices specified by the indices tensor along a given axis.
+//! Unlike `Gather`, which uses array indexing, `GatherElements` performs per-element indexing where
+//! each element in the indices tensor specifies which element to select from the corresponding position
+//! in the input tensor along the specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__GatherElements.html>
+//!
+//! ## Key Difference from Gather
+//! - `Gather`: Uses array-style indexing to select entire slices. Output rank = indices_rank + data_rank - 1
+//! - `GatherElements`: Uses per-element indexing. Output shape = indices shape, same rank as indices
+//!
+//! ## Attributes
+//! - `axis` (int64, default=0): Axis along which to gather. Negative values count from the end.
+//!   Accepted range is [-r, r-1] where r = rank(data).
+//!
+//! ## Inputs
+//! - `data` (T): Input data tensor of rank r >= 1
+//! - `indices` (Tind): Indices tensor of rank r (same rank as data). Element type must be int32 or int64
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor with same shape as indices and same element type as data
+//!
+//! ## Type Constraints
+//! - T: All tensor types
+//! - Tind: int32, int64
+//!
+//! ## Opset Versions
+//! - Since version 13 (current)
+//! - Previous versions: 11
+
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;

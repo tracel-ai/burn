@@ -1,3 +1,33 @@
+//! # Reshape
+//!
+//! Reshapes the input tensor to a new shape specified by the shape input.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Reshape.html>
+//!
+//! ## Attributes
+//! - `allowzero` (int64, default=0): By default (allowzero=0), when any value in the 'shape'
+//!   input is 0, the corresponding dimension value is copied from the input tensor. When
+//!   allowzero=1, if any value in the 'shape' input is 0, the dimension will be set explicitly
+//!   to zero (similar to NumPy). Note: If allowzero is set, it is invalid for the shape to
+//!   contain both a zero value and -1.
+//!
+//! ## Inputs
+//! - `data` (T): Input tensor to reshape
+//! - `shape` (tensor(int64)): Target shape specification. Can contain special values:
+//!   - `-1`: At most one dimension can be -1, which will be inferred from the tensor size
+//!     and remaining dimensions
+//!   - `0`: When allowzero=0 (default), copies the corresponding dimension from input tensor.
+//!     When allowzero=1, sets the dimension to zero explicitly
+//!   - Empty shape: Converts tensor to a scalar
+//!
+//! ## Outputs
+//! - `reshaped` (T): Reshaped tensor with the same number of elements as the input
+//!
+//! ## Opset Versions
+//! - Opset 5+: Shape moved from attribute to input (opset 1-4 used a 'shape' attribute)
+//! - Opset 14+: Added 'allowzero' attribute
+//! - Opset 19, 21, 23, 24: Minor updates and clarifications
+
 use crate::ir::{
     ArgType, Argument, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,
 };
@@ -82,7 +112,6 @@ fn determine_output_type(
 ) -> ArgType {
     // Case 1: Scalar output (rank 0)
     if output_rank == 0 {
-        log::debug!("Reshape node {} outputs a scalar", node.name);
         return ArgType::Scalar(input_info.elem_type.clone());
     }
 
@@ -92,12 +121,6 @@ fn determine_output_type(
         let output_size =
             calculate_shape_output_size(input_info.shape_size.unwrap_or(1), node, &static_shape);
 
-        log::debug!(
-            "Reshape node {} with Shape({}) input outputs Shape({})",
-            node.name,
-            input_info.shape_size.unwrap_or(1),
-            output_size
-        );
         return ArgType::Shape(output_size);
     }
 

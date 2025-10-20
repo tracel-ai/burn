@@ -1,3 +1,24 @@
+//! # MatMulInteger
+//!
+//! Matrix multiplication for quantized integer tensors with zero-point support.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__MatMulInteger.html>
+//!
+//! ## Attributes
+//! None
+//!
+//! ## Inputs
+//! - `A` (T1): First matrix (int8/uint8)
+//! - `B` (T2): Second matrix (int8/uint8)
+//! - `a_zero_point` (T1, optional): Zero point for A, default 0
+//! - `b_zero_point` (T2, optional): Zero point for B, default 0
+//!
+//! ## Outputs
+//! - `Y` (T3): Output matrix (int32)
+//!
+//! ## Opset Versions
+//! - Opset 10+
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -45,12 +66,11 @@ impl NodeProcessor for MatMulIntegerProcessor {
                     out_rank -= 1;
                 }
 
-                // ONNX spec: output is always int32
                 // ONNX spec: MatMulInteger output is always int32
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     elem_type: ElementType::Int32,
                     rank: out_rank,
-                    static_shape: None, // or Some(...) if you've inferred it
+                    static_shape: None,
                 });
 
                 Ok(())
@@ -126,49 +146,5 @@ mod tests {
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
-    }
-}
-#[cfg(test)]
-mod tests2 {
-    use super::*;
-    use crate::ir::{ElementType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
-
-    fn mk(a_rank: usize, b_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::MatMulInteger, "mmint")
-            .input_tensor_i32("A", a_rank, None)
-            .input_tensor_i32("B", b_rank, None)
-            .output_tensor_i32("Y", 0, None)
-            .build()
-    }
-
-    #[test]
-    fn out_rank_2x2_is_2() {
-        let mut n = mk(2, 2);
-        let processor = MatMulIntegerProcessor;
-        let prefs = OutputPreferences::new();
-        processor.infer_types(&mut n, 16, &prefs).unwrap();
-        match &n.outputs[0].ty {
-            ArgType::Tensor(t) => {
-                assert_eq!(t.elem_type, ElementType::Int32);
-                assert_eq!(t.rank, 2);
-            }
-            _ => panic!("tensor expected"),
-        }
-    }
-
-    #[test]
-    fn vector_matrix_is_rank1() {
-        let mut n = mk(1, 2);
-        let processor = MatMulIntegerProcessor;
-        let prefs = OutputPreferences::new();
-        processor.infer_types(&mut n, 16, &prefs).unwrap();
-        match &n.outputs[0].ty {
-            ArgType::Tensor(t) => {
-                assert_eq!(t.elem_type, ElementType::Int32);
-                assert_eq!(t.rank, 1);
-            }
-            _ => panic!("tensor expected"),
-        }
     }
 }

@@ -1,3 +1,35 @@
+//! # BitShift
+//!
+//! Performs element-wise bitwise shift operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__BitShift.html>
+//!
+//! ## Attributes
+//! - `direction` (string, required): Direction of moving bits. Can be either "RIGHT" (for right shift)
+//!   or "LEFT" (for left shift). When direction is "RIGHT", the operator moves the binary
+//!   representation toward the right side, effectively decreasing the input value. When direction
+//!   is "LEFT", bits move toward the left side, increasing the actual value.
+//!
+//! ## Inputs
+//! - `X` (T, required): Tensor to be shifted
+//! - `Y` (T, required): Tensor specifying the amounts of shifting (number of bits to shift)
+//!
+//! ## Outputs
+//! - `Z` (T): Output tensor with shifted values
+//!
+//! ## Type Constraints
+//! - T in (tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64))
+//!
+//! ## Broadcasting
+//! This operator supports multidirectional (i.e., Numpy-style) broadcasting.
+//!
+//! ## Opset Versions
+//! - Since version 11 (current)
+//!
+//! ## Examples
+//! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
+//! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
+
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

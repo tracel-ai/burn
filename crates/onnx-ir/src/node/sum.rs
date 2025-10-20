@@ -1,4 +1,35 @@
-//! Processor for Sum operation
+//! # Sum
+//!
+//! Element-wise sum of each of the input tensors with multidirectional (Numpy-style)
+//! broadcasting support. All inputs and outputs must have the same data type.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Sum.html>
+//!
+//! ## Attributes
+//!
+//! None - this operator has no attributes.
+//!
+//! ## Inputs
+//!
+//! - Variable number of input tensors: `data_0`, `data_1`, ..., `data_N` (T)
+//!   - Minimum: 1 input
+//!   - Maximum: 2147483647 inputs
+//!   - All inputs must have compatible shapes for broadcasting
+//!
+//! ## Outputs
+//!
+//! - `sum` (T): Element-wise sum of all input tensors (supports multidirectional broadcasting)
+//!
+//! ## Type Constraints
+//!
+//! T: Numeric tensor types (bfloat16, float16, float32, float64)
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 1-5**: Basic element-wise sum
+//! - **Opset 6-7**: Improved broadcasting support
+//! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
+//! - **Opset 13**: Extended type support including bfloat16
 
 use crate::ir::Node;
 use crate::processor::{
@@ -7,7 +38,6 @@ use crate::processor::{
 };
 
 /// Node processor for Sum operation
-/// Note: Sum is variadic (can take multiple inputs), not strictly binary
 pub struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {

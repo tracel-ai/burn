@@ -1,3 +1,43 @@
+//! # Range
+//!
+//! Generates a tensor containing a sequence of numbers that begin at `start` and extends by
+//! increments of `delta` up to `limit` (exclusive).
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Range.html>
+//!
+//! ## Description
+//!
+//! The Range operator generates a 1-D tensor containing a sequence of evenly spaced values.
+//! The generated sequence starts at `start` and increments by `delta` until reaching `limit`
+//! (exclusive). This is similar to Python's `range()` function or NumPy's `arange()`.
+//!
+//! The number of elements in the output is computed as:
+//! `number_of_elements = max(ceil((limit - start) / delta), 0)`
+//!
+//! Note that `limit` is **exclusive** - the output will not include the limit value itself.
+//!
+//! ## Attributes
+//!
+//! None
+//!
+//! ## Inputs
+//!
+//! - `start` (T): Starting value of the sequence (scalar tensor)
+//! - `limit` (T): Exclusive upper limit of the sequence (scalar tensor)
+//! - `delta` (T): Step size for incrementing the sequence (scalar tensor)
+//!
+//! ## Outputs
+//!
+//! - `output` (T): 1-D tensor containing the generated range of values
+//!
+//! ## Type Constraints
+//!
+//! - T: tensor(double), tensor(float), tensor(int16), tensor(int32), tensor(int64)
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 11**: Initial version - introduced Range operator
+
 use crate::ir::{
     ArgType, Data, ElementType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,
 };
@@ -64,11 +104,7 @@ impl NodeProcessor for RangeProcessor {
         // Validate input count
         crate::processor::validate_input_count(node, 3)?;
 
-        log::debug!(
-            "Range operation always produces rank 1 tensor for {}",
-            node.name
-        );
-
+        // Range operation always produces rank 1 tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: ElementType::Int64,
             rank: 1,

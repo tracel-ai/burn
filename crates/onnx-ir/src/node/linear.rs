@@ -1,3 +1,25 @@
+//! # Linear
+//!
+//! Linear transformation: Y = X * W^T + b
+//!
+//! **Note**: This is a Burn-specific node type created by fusing ONNX Gemm or MatMul+Add operations.
+//! See the node_conversion phase where Gemm (with alpha=1, beta=1, transB=1) is converted to Linear,
+//! and MatMul followed by Add is fused into Linear.
+//!
+//! **Related ONNX Specs**:
+//! - Gemm: <https://onnx.ai/onnx/operators/onnx__Gemm.html>
+//! - MatMul: <https://onnx.ai/onnx/operators/onnx__MatMul.html>
+//!
+//! ## Attributes (None - converted from source operators)
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor
+//! - `W` (T): Weight matrix (transposed during conversion)
+//! - `b` (T, optional): Bias vector
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -73,8 +95,6 @@ impl NodeProcessor for LinearProcessor {
                 });
             }
         };
-
-        log::debug!("Linear input rank for {}: {}", node.name, tensor.rank);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: tensor.elem_type.clone(),

@@ -1,4 +1,70 @@
-//! Processors for element-wise operations
+//! # Element-wise Operations
+//!
+//! Processors for element-wise unary and binary operations that operate on tensors element-by-element.
+//!
+//! **ONNX Specs**: Multiple operations with varying opset requirements
+//!
+//! ## Unary Operations
+//!
+//! **Common Pattern:**
+//! - Single input tensor
+//! - Single output tensor with same shape and type
+//! - No attributes (except Round which has an optional mode attribute)
+//! - Output shape identical to input shape
+//!
+//! **Opset 6+ Operations:**
+//! - **Abs**: Absolute value |x|
+//! - **Ceil**: Round up to nearest integer
+//! - **Floor**: Round down to nearest integer
+//! - **Exp**: Exponential e^x
+//! - **Log**: Natural logarithm ln(x)
+//! - **Neg**: Negation -x
+//! - **Reciprocal**: Reciprocal 1/x
+//! - **Sqrt**: Square root √x
+//!
+//! **Opset 7+ Operations (Trigonometric):**
+//! - **Acos**: Arc cosine
+//! - **Asin**: Arc sine
+//! - **Atan**: Arc tangent
+//! - **Cos**: Cosine
+//! - **Sin**: Sine
+//! - **Tan**: Tangent
+//!
+//! **Opset 9+ Operations:**
+//! - **Erf**: Error function
+//! - **Sign**: Sign function (-1, 0, or 1)
+//!
+//! **Opset 11+ Operations:**
+//! - **Round**: Round to nearest integer
+//!
+//! **Opset 1+ Operations:**
+//! - **Not**: Logical NOT
+//!
+//! ## Binary Operations
+//!
+//! **Common Pattern:**
+//! - Two input tensors (supports broadcasting)
+//! - Single output tensor
+//! - No attributes (except PRelu which has a slope parameter)
+//! - Output shape follows standard ONNX broadcasting semantics
+//!
+//! **Supported Operations:**
+//! - **Pow**: Element-wise power a^b
+//! - **Max**: Element-wise maximum
+//! - **Min**: Element-wise minimum
+//! - **And**: Logical AND
+//! - **Or**: Logical OR
+//! - **Xor**: Logical XOR
+//! - **BitwiseAnd**: Bitwise AND
+//! - **BitwiseOr**: Bitwise OR
+//! - **BitwiseXor**: Bitwise XOR
+//! - **PRelu**: Parametric ReLU (slope input is lifted to static)
+//!
+//! ## Type Inference
+//!
+//! - **Unary**: Output type and shape identical to input
+//! - **Binary**: Output type matches inputs, shape follows broadcasting rules
+//! - **PRelu**: Slope parameter (second input) is lifted to static constant
 
 use crate::ir::Node;
 use crate::processor::{

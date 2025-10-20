@@ -1,3 +1,38 @@
+//! # Reduce Operations (ReduceSum, ReduceMean, ReduceMax, ReduceMin, ReduceProd, ReduceSumSquare)
+//!
+//! Reduction operations that compute aggregates along specified axes of a tensor. These operations
+//! reduce the input tensor by applying an aggregation function (sum, mean, max, min, product, or
+//! sum of squares) along the specified axes.
+//!
+//! **ONNX Specs**:
+//! - ReduceSum: <https://onnx.ai/onnx/operators/onnx__ReduceSum.html>
+//! - ReduceMean: <https://onnx.ai/onnx/operators/onnx__ReduceMean.html>
+//! - ReduceMax: <https://onnx.ai/onnx/operators/onnx__ReduceMax.html>
+//! - ReduceMin: <https://onnx.ai/onnx/operators/onnx__ReduceMin.html>
+//! - ReduceProd: <https://onnx.ai/onnx/operators/onnx__ReduceProd.html>
+//! - ReduceSumSquare: <https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html>
+//!
+//! ## Common Attributes
+//! - `axes` (ints, optional): List of integers indicating the dimensions to reduce. If not specified,
+//!   all dimensions are reduced. For opset >= 18, axes can be provided as an optional input instead.
+//! - `keepdims` (int, default=1): Whether to keep the reduced dimensions (with size 1) in the output.
+//!   If set to 0, the reduced dimensions are removed from the output shape.
+//!
+//! ## Inputs
+//! - `data` (T): Input tensor to be reduced.
+//! - `axes` (optional, int64): Axes along which to reduce (opset >= 18).
+//!
+//! ## Outputs
+//! - `reduced` (T): Reduced output tensor. If all dimensions are reduced and keepdims=0, the output
+//!   will be a scalar.
+//!
+//! ## Opset Versions
+//! - Supported from opset 11 onwards
+//! - Opset 18+ allows axes to be provided as an input tensor
+//!
+//! ## Type Constraints
+//! - T: tensor(float16), tensor(float32), tensor(float64), tensor(int32), tensor(int64)
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{ArgType, Node, NodeConfig, TensorType};
 use std::any::Any;
@@ -71,32 +106,11 @@ impl NodeProcessor for ReduceProcessor {
             0
         };
 
-        log::debug!(
-            "{} input rank for {}: {}",
-            node.node_type,
-            node.name,
-            tensor_rank
-        );
-        log::debug!(
-            "{} config for {}: keepdims={}, dims={:?}",
-            node.node_type,
-            node.name,
-            keepdims == 1,
-            dims
-        );
-        log::debug!(
-            "{} static_shape for {}: {:?}",
-            node.node_type,
-            node.name,
-            tensor_static_shape
-        );
-
         // Determine if the output should be a scalar
         let should_be_scalar = keepdims == 0 && (dims.is_empty() || dims.len() == tensor_rank);
 
         if should_be_scalar {
             // Output is a scalar
-            log::debug!("{} output is scalar for node {}", node.node_type, node.name);
             node.outputs[0].ty = ArgType::Scalar(tensor_elem_type);
         } else {
             // Output is a tensor
@@ -108,35 +122,13 @@ impl NodeProcessor for ReduceProcessor {
 
             // Infer static shape based if given
             let output_shape = tensor_static_shape.and_then(|mut shape| {
-                log::debug!(
-                    "{} processing static_shape for {}: shape.len()={}, dims={:?}",
-                    node.node_type,
-                    node.name,
-                    shape.len(),
-                    dims
-                );
-
                 // Only process static shape if it's complete (matches tensor rank)
                 if shape.len() != tensor_rank {
-                    log::debug!(
-                        "{} skipping static_shape for {}: shape.len()={} != rank={}",
-                        node.node_type,
-                        node.name,
-                        shape.len(),
-                        tensor_rank
-                    );
                     return None;
                 }
 
                 if keepdims == 1 {
                     for dim in &dims {
-                        log::debug!(
-                            "{} setting shape[{}] = 1 for {} (shape.len()={})",
-                            node.node_type,
-                            dim,
-                            node.name,
-                            shape.len()
-                        );
                         shape[*dim] = 1;
                     }
                     Some(shape)
@@ -147,13 +139,6 @@ impl NodeProcessor for ReduceProcessor {
                     Some(shape)
                 }
             });
-
-            log::debug!(
-                "{} output rank for {}: {}",
-                node.node_type,
-                node.name,
-                output_rank
-            );
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: tensor_elem_type,

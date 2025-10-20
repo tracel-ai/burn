@@ -1,3 +1,32 @@
+//! # Squeeze
+//!
+//! Removes single-dimensional entries from the shape of a tensor.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Squeeze.html>
+//!
+//! ## Attributes
+//!
+//! None in opset 13+. In earlier versions (opset 11 and below), `axes` was an attribute.
+//!
+//! ## Inputs
+//!
+//! - `data` (T): Tensor with at least max(axes) dimensions
+//! - `axes` (tensor(int64), optional): List of integers indicating the dimensions to squeeze.
+//!   Negative values count dimensions from the back. Accepted range is [-r, r-1] where r = rank(data).
+//!   If not provided, all dimensions of size 1 will be removed.
+//!
+//! ## Outputs
+//!
+//! - `squeezed` (T): Reshaped tensor with same data as input, with specified dimensions of size 1 removed
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 13+**: `axes` is an optional input (allows dynamic specification)
+//! - **Opset 11**: `axes` was an attribute (fixed at graph construction time)
+//!
+//! The change from attribute to input in opset 13 provides greater flexibility,
+//! enabling dynamic axes specification at runtime.
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorType};
@@ -65,11 +94,8 @@ impl NodeProcessor for SqueezeProcessor {
             None => None,
         };
 
-        log::debug!("Squeeze axes for {}: {:?}", node.name, axes_vec);
-
         match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
-                log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
                 let output_rank = match axes_vec {
                     None => {
                         // When axes is None, ONNX spec squeezes all dimensions of size 1
@@ -101,8 +127,6 @@ impl NodeProcessor for SqueezeProcessor {
                 });
             }
             ArgType::Shape(shape_rank) => {
-                log::debug!("Squeeze input is Shape({}) for {}", shape_rank, node.name);
-
                 if let Some(ref axes_vec) = axes_vec
                     && !axes_vec.is_empty()
                     && (axes_vec.len() != 1 || axes_vec[0] != 0)
@@ -115,15 +139,12 @@ impl NodeProcessor for SqueezeProcessor {
 
                 if *shape_rank == 1 {
                     node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
-                    log::debug!("Squeeze Shape(1) to Scalar for {}", node.name);
                 } else {
                     node.outputs[0].ty = ArgType::Shape(*shape_rank);
-                    log::debug!("Squeeze Shape({}) unchanged for {}", shape_rank, node.name);
                 }
             }
             ArgType::Scalar(scalar_type) => {
                 node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
-                log::debug!("Squeeze Scalar unchanged for {}", node.name);
             }
         }
 

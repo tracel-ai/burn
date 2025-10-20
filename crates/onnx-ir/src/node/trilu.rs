@@ -1,3 +1,35 @@
+//! # Trilu
+//!
+//! Returns the upper or lower triangular part of a 2-D matrix or batches of 2-D matrices.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Trilu.html>
+//!
+//! ## Attributes
+//! - `upper` (int, default=1): Boolean indicating whether to return upper (1) or lower (0) triangular part.
+//!   Any non-zero value is treated as true.
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor of rank 2 or higher (at least 2D for the last two dimensions).
+//! - `k` (tensor(int64), optional): A 0-D tensor containing the diagonal offset:
+//!   - 0 = main diagonal (default)
+//!   - Positive k = diagonals above main diagonal
+//!   - Negative k = diagonals below main diagonal
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor with the same shape as input, containing the triangular part.
+//!   Elements outside the triangle are set to zero.
+//!
+//! ## Behavior
+//! - If `upper=1` (true):
+//!   - Positive k: Retains upper triangle excluding main diagonal and (k-1) diagonals above it
+//!   - Negative k: Retains upper triangle including main diagonal and |k| diagonals below it
+//! - If `upper=0` (false):
+//!   - Positive k: Retains lower triangle including main diagonal and k diagonals above it
+//!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
+//!
+//! ## Opset Versions
+//! - Available since opset version 14
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{Data, Node, NodeConfig, TensorData};

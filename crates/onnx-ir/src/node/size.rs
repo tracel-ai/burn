@@ -1,3 +1,21 @@
+//! # Size
+//!
+//! Returns the total number of elements in the input tensor as a scalar int64 value.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Size.html>
+//!
+//! ## Attributes (None)
+//!
+//! ## Inputs
+//! - `data` (T): An input tensor of arbitrary type
+//!
+//! ## Outputs
+//! - `size` (T1): Total number of elements; output is a scalar (int64) representing the total number of elements
+//!
+//! ## Opset Versions
+//! - **Since version 23**: Current version
+//! - **Since version 1**: Initial implementation
+
 use crate::ir::{ArgType, ElementType, Node};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

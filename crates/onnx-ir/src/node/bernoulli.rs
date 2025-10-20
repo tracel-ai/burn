@@ -1,3 +1,29 @@
+//! # Bernoulli
+//!
+//! Draws binary random numbers (0 or 1) from a Bernoulli distribution.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Bernoulli.html>
+//!
+//! ## Attributes
+//!
+//! - `dtype` (int64, optional): The data type for the elements of the output tensor.
+//!   If not specified, the data type of the input tensor is used.
+//! - `seed` (float, optional): Optional seed to the random generator.
+//!   If not specified, one will be auto-generated.
+//!
+//! ## Inputs
+//!
+//! - `input` (T1): Input tensor containing probabilities in the range [0, 1].
+//!   Each value p represents the probability of drawing 1 (with probability p) or 0 (with probability 1-p).
+//!
+//! ## Outputs
+//!
+//! - `output` (T2): Output tensor with same shape as input, containing only values 0 or 1.
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 15**: Initial version of Bernoulli operator
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -36,8 +62,6 @@ impl NodeProcessor for BernoulliProcessor {
             .get("dtype")
             .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap());
 
-        log::debug!("Bernoulli: dtype for {}: {:?}", node.name, dtype);
-
         let elem_type = dtype.map_or(tensor.elem_type.clone(), |dtype| match dtype {
             DataType::FLOAT => ElementType::Float32,
             DataType::INT32 => ElementType::Int32,
@@ -46,7 +70,6 @@ impl NodeProcessor for BernoulliProcessor {
             DataType::BOOL => ElementType::Bool,
             _ => tensor.elem_type.clone(), // Fallback to input type for unsupported dtype
         });
-        log::debug!("Bernoulli: elem type for {}: {:?}", node.name, elem_type);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type,

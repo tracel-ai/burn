@@ -1,3 +1,63 @@
+//! # Comparison Operations (Equal, Greater, Less, GreaterOrEqual, LessOrEqual)
+//!
+//! Comparison operators perform element-wise comparisons between two input tensors and return
+//! boolean tensors indicating the result of the comparison at each position. These operations
+//! support broadcasting according to ONNX broadcasting rules.
+//!
+//! **ONNX Specs**:
+//! - Equal: <https://onnx.ai/onnx/operators/onnx__Equal.html>
+//! - Greater: <https://onnx.ai/onnx/operators/onnx__Greater.html>
+//! - Less: <https://onnx.ai/onnx/operators/onnx__Less.html>
+//! - GreaterOrEqual: <https://onnx.ai/onnx/operators/onnx__GreaterOrEqual.html>
+//! - LessOrEqual: <https://onnx.ai/onnx/operators/onnx__LessOrEqual.html>
+//!
+//! ## Attributes
+//!
+//! None of these operations have attributes.
+//!
+//! ## Inputs
+//!
+//! - **A** (T): First operand tensor
+//! - **B** (T): Second operand tensor
+//!
+//! ## Outputs
+//!
+//! - **C** (T1): Boolean tensor with the result of the element-wise comparison. The output shape
+//!   follows broadcasting rules based on the input shapes.
+//!
+//! ## Opset Versions
+//!
+//! - **Equal**: Opset 7+, 11+, 13+, 19+
+//!   - Opset 7: Initial version
+//!   - Opset 11: Added support for more types
+//!   - Opset 13: Added bfloat16 support
+//!   - Opset 19: Added int4, uint4 support
+//!
+//! - **Greater**: Opset 7+, 9+, 13+
+//!   - Opset 7: Initial version
+//!   - Opset 9: Added support for more types
+//!   - Opset 13: Added bfloat16 support
+//!
+//! - **Less**: Opset 7+, 9+, 13+
+//!   - Opset 7: Initial version
+//!   - Opset 9: Added support for more types
+//!   - Opset 13: Added bfloat16 support
+//!
+//! - **GreaterOrEqual**: Opset 12+, 16+
+//!   - Opset 12: Initial version
+//!   - Opset 16: Added bfloat16 support
+//!
+//! - **LessOrEqual**: Opset 12+, 16+
+//!   - Opset 12: Initial version
+//!   - Opset 16: Added bfloat16 support
+//!
+//! ## Implementation Notes
+//!
+//! - All comparison operations output boolean tensors (element type: bool)
+//! - The output rank is determined by the maximum rank of the input tensors
+//! - When both inputs are scalars, the output is a scalar boolean
+//! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -13,7 +73,6 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
         // Get the dimension from the first Shape input
         if let ArgType::Shape(dim) = &node.inputs[0].ty {
             node.outputs[0].ty = ArgType::Shape(*dim);
-            log::debug!("Shape result for node {} with dimension {}", node.name, dim);
             return;
         }
     }
@@ -32,11 +91,6 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
             rank: max_rank,
             static_shape: None,
         });
-        log::debug!(
-            "Tensor boolean result for node {} with rank {}",
-            node.name,
-            max_rank
-        );
     }
 }
 
@@ -71,7 +125,6 @@ impl NodeProcessor for ComparisonProcessor {
             // Get the dimension from the first Shape input
             if let ArgType::Shape(dim) = &node.inputs[0].ty {
                 node.outputs[0].ty = ArgType::Shape(*dim);
-                log::debug!("Shape result for node {} with dimension {}", node.name, dim);
                 return Ok(());
             }
         }
@@ -90,11 +143,6 @@ impl NodeProcessor for ComparisonProcessor {
                 rank: max_rank,
                 static_shape: None,
             });
-            log::debug!(
-                "Tensor boolean result for node {} with rank {}",
-                node.name,
-                max_rank
-            );
         }
 
         Ok(())

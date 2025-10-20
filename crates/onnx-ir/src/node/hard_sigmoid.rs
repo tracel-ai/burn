@@ -1,3 +1,31 @@
+//! # HardSigmoid
+//!
+//! Applies the HardSigmoid function element-wise to the input tensor, which is a piecewise linear
+//! approximation of the sigmoid function. The function clips a linear transformation to the range [0, 1].
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__HardSigmoid.html>
+//!
+//! ## Formula
+//! ```text
+//! y = max(0, min(1, alpha * x + beta))
+//! ```
+//!
+//! ## Attributes
+//! - `alpha` (float, default=0.2): Slope coefficient
+//! - `beta` (float, default=0.5): Intercept coefficient
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor of any shape
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor with the same shape and type as input
+//!
+//! ## Type Constraints
+//! - `T`: float16, float32, float64, bfloat16
+//!
+//! ## Opset Versions
+//! - **Opset 6+**: Current version with alpha and beta attributes
+
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

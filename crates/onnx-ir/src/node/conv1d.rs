@@ -1,10 +1,35 @@
+//! # Conv (1D)
+//!
+//! 1D convolution operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Conv.html>
+//!
+//! ## Attributes
+//! - `kernel_shape` (optional): Kernel size \[width\]
+//! - `strides` (optional): Stride \[width\], default \[1\]
+//! - `pads` (optional): Padding \[left, right\], default \[0, 0\]
+//! - `dilations` (optional): Dilation \[width\], default \[1\]
+//! - `group` (optional): Number of groups, default 1
+//! - `auto_pad` (optional): Padding mode (only `NOTSET` supported)
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor (N x C x L)
+//! - `W` (T): Weight tensor (M x C/group x kW)
+//! - `B` (T, optional): Bias tensor (M)
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor
+//!
+//! ## Opset Versions
+//! - Opset 1+
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
-/// Configuration for Conv1d operations extracted from ONNX nodes
+/// Configuration for Conv1d operations
 #[derive(Debug, Clone)]
 pub struct Conv1dConfig {
     /// Input channels
@@ -61,6 +86,7 @@ impl NodeConfig for Conv1dConfig {
     }
 }
 
+/// Node processor for Conv1d operation
 pub struct Conv1dProcessor;
 
 impl NodeProcessor for Conv1dProcessor {

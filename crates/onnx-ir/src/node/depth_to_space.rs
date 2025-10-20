@@ -1,3 +1,28 @@
+//! # DepthToSpace
+//!
+//! Rearranges (permutes) data from depth into blocks of spatial data. This operation
+//! moves values from the depth/channel dimension into spatial blocks in the height and
+//! width dimensions. It is the reverse transformation of SpaceToDepth.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__DepthToSpace.html>
+//!
+//! ## Attributes
+//! - `blocksize` (int, required): Blocks of [blocksize, blocksize] are moved from depth to spatial dimensions
+//! - `mode` (string, default="DCR"): Data rearrangement mode
+//!   - "DCR": Depth-Column-Row order rearrangement (default)
+//!   - "CRD": Column-Row-Depth order rearrangement
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor of shape [N, C, H, W] where N is batch, C is channel/depth, H is height, W is width
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor of shape [N, C/(blocksize * blocksize), H * blocksize, W * blocksize]
+//!
+//! ## Opset Versions
+//! - Since opset 1
+//! - Opset 11: Additional type support
+//! - Opset 13: Current version with full type support
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{
@@ -100,12 +125,6 @@ impl NodeProcessor for DepthToSpaceProcessor {
                 "DepthToSpace: only rank 4 tensors are supported".to_string(),
             ));
         }
-
-        log::debug!(
-            "DepthToSpace blocksize from attribute for {}: {:?}",
-            &node.name,
-            block_size
-        );
 
         // Infer static shape based on rank and block size
         let static_shape = tensor.static_shape.clone().map(|shape| {

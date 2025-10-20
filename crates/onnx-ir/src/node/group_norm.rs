@@ -1,3 +1,25 @@
+//! # GroupNormalization
+//!
+//! Group normalization operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__GroupNormalization.html>
+//!
+//! ## Attributes
+//! - `epsilon` (float, default=1e-5): Numerical stability constant
+//! - `num_groups` (int, required): Number of groups
+//! - `stash_type` (int, optional): Intermediate calculation precision
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor (N x C x H x W)
+//! - `scale` (T): Scale tensor (C)
+//! - `bias` (T): Bias tensor (C)
+//!
+//! ## Outputs
+//! - `Y` (T): Normalized output tensor
+//!
+//! ## Opset Versions
+//! - Opset 18+
+
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;

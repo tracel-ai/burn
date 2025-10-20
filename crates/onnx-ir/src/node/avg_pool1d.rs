@@ -1,3 +1,26 @@
+//! # AveragePool (1D)
+//!
+//! 1D average pooling operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__AveragePool.html>
+//!
+//! ## Attributes
+//! - `kernel_shape` (ints, required): Kernel size
+//! - `strides` (ints, default=1): Stride
+//! - `pads` (ints, default=0): Padding
+//! - `auto_pad` (string, default="NOTSET"): Padding mode (only `NOTSET` supported)
+//! - `count_include_pad` (int, default=0): Include padding in average calculation
+//! - `ceil_mode` (int, default=0): Use ceil for output shape (not supported)
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor (N x C x L)
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor
+//!
+//! ## Opset Versions
+//! - Opset 11+
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::padding_config_1d;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

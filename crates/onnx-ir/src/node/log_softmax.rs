@@ -1,3 +1,21 @@
+//! # LogSoftmax
+//!
+//! Computes log(softmax(x)) along specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__LogSoftmax.html>
+//!
+//! ## Attributes
+//! - `axis` (int, default=-1): Axis for log-softmax computation
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor
+//!
+//! ## Opset Versions
+//! - Opset 1+
+
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

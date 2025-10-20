@@ -1,3 +1,44 @@
+//! # Gather
+//!
+//! Gathers elements from input tensor along a specified axis using indices.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Gather.html>
+//!
+//! ## Description
+//!
+//! Given `data` tensor of rank r >= 1, and `indices` tensor of rank q, gather entries of the
+//! axis dimension of `data` (by default outer-most one as axis=0) indexed by `indices`, and
+//! concatenates them in an output tensor of rank q + (r - 1).
+//!
+//! ## Attributes
+//!
+//! - `axis` (int64, default=0): Which axis to gather on. Negative value means counting
+//!   dimensions from the back. Accepted range is [-r, r-1] where r = rank(data).
+//!
+//! ## Inputs
+//!
+//! - `data` (T): Tensor of rank r >= 1
+//! - `indices` (Tind): Tensor of int32/int64 indices, of any rank q. All index values are
+//!   expected to be within bounds [-s, s-1] along axis of size s. It is an error if any of
+//!   the index values are out of bounds.
+//!
+//! ## Outputs
+//!
+//! - `output` (T): Tensor of rank q + (r - 1)
+//!
+//! ## Type Constraints
+//!
+//! - T: tensor(bfloat16), tensor(bool), tensor(complex128), tensor(complex64), tensor(double),
+//!   tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8),
+//!   tensor(string), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+//! - Tind: tensor(int32), tensor(int64)
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 1**: Initial version, basic gather functionality
+//! - **Opset 11**: Added support for negative indices; out-of-bounds indices now raise an error
+//! - **Opset 13**: Added bfloat16 type support
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -90,30 +131,19 @@ impl NodeProcessor for GatherProcessor {
             });
         }
 
-        // Get reference to config for type inference (not directly used, but extracted for consistency)
-        let _config = node.config::<GatherConfig>();
-        log::debug!("Gather indices input for {}: using config", node.name);
-
         // Infer output type based on indices rank
         let indices_rank = match &node.inputs[1].ty {
             ArgType::Tensor(tensor) => tensor.rank,
             ArgType::Scalar(_) => 0,
-            ArgType::Shape(shape_rank) => {
+            ArgType::Shape(_shape_rank) => {
                 // Shape is always a 1D array, but when used as indices for Gather,
                 // we treat it as rank 1 for the ONNX gather formula
-                log::debug!("Gather indices are Shape({}) for {}", shape_rank, node.name);
                 1 // Shape indices are always treated as rank 1 for gather
             }
         };
-        log::debug!("Gather indices rank for {}: {}", node.name, indices_rank);
 
         match &node.inputs[0].ty {
             ArgType::Tensor(input_tensor) => {
-                log::debug!(
-                    "Gather input tensor rank for {}: {}",
-                    node.name,
-                    input_tensor.rank
-                );
                 // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
                 let output_rank = indices_rank + input_tensor.rank - 1;
 
@@ -127,15 +157,9 @@ impl NodeProcessor for GatherProcessor {
                         rank: output_rank,
                         static_shape: None,
                     });
-                    log::debug!(
-                        "Gather result for {} is tensor with rank {}",
-                        node.name,
-                        output_rank
-                    );
                 }
             }
             ArgType::Shape(_shape_rank) => {
-                log::debug!("Gather input is shape for {}", node.name);
                 // When gathering from a shape:
                 // - If indices are scalar (rank 0), output is a scalar (single dimension value)
                 // - Otherwise, output is a shape with same dimension as indices
@@ -149,11 +173,6 @@ impl NodeProcessor for GatherProcessor {
                         _ => indices_rank,
                     };
                     node.outputs[0].ty = ArgType::Shape(output_shape_rank);
-                    log::debug!(
-                        "Gather result for {} is shape with rank {} (from shape)",
-                        node.name,
-                        output_shape_rank
-                    );
                 }
             }
             ty => {

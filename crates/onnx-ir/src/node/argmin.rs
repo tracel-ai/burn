@@ -1,3 +1,31 @@
+//! # ArgMin
+//!
+//! Computes the indices of the minimum elements along a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ArgMin.html>
+//!
+//! ## Attributes
+//!
+//! - `axis` (int, default=0): The axis along which to compute the arg indices. Accepted range is
+//!   [-r, r-1] where r = rank(data).
+//! - `keepdims` (int, default=1): Keep the reduced dimension or not. 1 means keep reduced dimension.
+//! - `select_last_index` (int, default=0): Whether to select the last index or the first index if
+//!   the minimum appears in multiple indices. 0 (default) selects the first index.
+//!
+//! ## Inputs
+//!
+//! - `data` (T): An input tensor.
+//!
+//! ## Outputs
+//!
+//! - `reduced` (tensor(int64)): Reduced output tensor with integer data type.
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 11**: Initial supported version.
+//! - **Opset 12**: Added `select_last_index` attribute.
+//! - **Opset 13**: No significant changes (added bfloat16 type support).
+
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -70,8 +98,6 @@ impl NodeProcessor for ArgMinProcessor {
             }
         };
 
-        log::debug!("ArgMin input rank for {}: {}", node.name, tensor.rank);
-
         // Get config values before mutating node
         let keepdims = node.config::<ArgMinConfig>().keepdims;
 
@@ -95,13 +121,6 @@ impl NodeProcessor for ArgMinProcessor {
                 static_shape: None,
             });
         }
-
-        log::debug!(
-            "ArgMin output for {} (keepdims={}): {:?}",
-            node.name,
-            keepdims,
-            node.outputs[0].ty
-        );
 
         Ok(())
     }

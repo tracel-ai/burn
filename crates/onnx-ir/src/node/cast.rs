@@ -1,3 +1,39 @@
+//! # Cast
+//!
+//! Casts the elements of a given input tensor to a specified data type.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Cast.html>
+//!
+//! ## Attributes
+//! - `to` (required): Target data type specified as an integer from the TensorProto DataType enum.
+//!   Supported types include: bool, float16, float32, float64, int8, int16, int32, int64,
+//!   uint8, uint16, uint32, uint64, string, and various float8 formats.
+//! - `saturate` (optional, since opset 19): Defines conversion behavior when input value is out of
+//!   range of destination type. Only applies for float8 conversions. Default: true.
+//! - `round_mode` (optional, since opset 21): Rounding mode for float8e8m0 conversion.
+//!   Values: "up" (default), "down", "nearest".
+//!
+//! ## Inputs
+//! - `input` (T1): Input tensor to be cast. Supports heterogeneous types including all numeric types,
+//!   bool, and string. Casting from complex types is not supported.
+//!
+//! ## Outputs
+//! - `output` (T2): Output tensor with the same shape as input but with the target data type.
+//!   Supports casting to all numeric types, bool, and string. Casting to complex types is not supported.
+//!
+//! ## Opset Versions
+//! - **Opset 21+**: Added `round_mode` attribute for float8e8m0 conversion
+//! - **Opset 19+**: Added `saturate` attribute for float8 conversions
+//! - **Opset 13+**: Added support for bfloat16
+//! - **Opset 9+**: Added float8 types (e4m3fn, e4m3fnuz, e5m2, e5m2fnuz)
+//! - **Opset 6+**: Extended type support
+//! - **Opset 1+**: Basic cast operation
+//!
+//! ## Special Features
+//! - Supports casting from string tensor in plain (e.g., "3.14", "1000") and scientific notation
+//!   (e.g., "1e-5", "1E8") to float types.
+//! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
+
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::proto_conversion::element_type_from_proto;
@@ -53,14 +89,6 @@ impl NodeProcessor for CastProcessor {
         let input = &mut node.inputs[0];
         let output = &mut node.outputs[0];
 
-        log::debug!(
-            "Cast infer_types for node {}: input.ty={:?}, output.ty={:?}, target={:?}",
-            node.name,
-            input.ty,
-            output.ty,
-            elem_type
-        );
-
         match input.ty.clone() {
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
@@ -80,11 +108,6 @@ impl NodeProcessor for CastProcessor {
             ArgType::Shape(rank) => {
                 // When casting Shape to float or bool types, convert to 1D tensor
                 // This allows Shape values to be used in tensor operations
-                log::debug!(
-                    "Cast: input is Shape({}), target elem_type is {:?}",
-                    rank,
-                    elem_type
-                );
                 match elem_type {
                     ElementType::Float32
                     | ElementType::Float64
@@ -95,21 +118,13 @@ impl NodeProcessor for CastProcessor {
                             rank: 1,
                             static_shape: Some(vec![rank]),
                         });
-                        log::debug!(
-                            "Cast converting Shape({}) to rank-1 tensor of {:?}, output.ty is now {:?}",
-                            rank,
-                            elem_type,
-                            output.ty
-                        );
                     }
                     _ => {
                         // For int types, keep as Shape
                         // This matches Burn's representation where shapes are always [i64; N]
-                        log::debug!("Cast: keeping Shape({}) for int type {:?}", rank, elem_type);
                         output.ty = ArgType::Shape(rank);
                     }
                 }
-                log::debug!("Cast: output type set to {:?}", output.ty);
             }
         }
 

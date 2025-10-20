@@ -1,3 +1,24 @@
+//! # Concat
+//!
+//! Concatenates a list of tensors into a single tensor along a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Concat.html>
+//!
+//! ## Attributes
+//! - `axis` (int64, required): Axis to concatenate on. Negative values count from the end.
+//!   Accepted range is [-r, r-1] where r = rank(inputs).
+//!
+//! ## Inputs
+//! - Variable number of input tensors (1 to 2147483647)
+//! - All inputs must have the same shape except for the dimension on the concatenation axis
+//!
+//! ## Outputs
+//! - Single concatenated tensor
+//!
+//! ## Opset Versions
+//! - Since version 13 (current)
+//! - Previous versions: 11, 4, 1
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -98,13 +119,6 @@ impl NodeProcessor for ConcatProcessor {
                         // For dynamic tensors, assume 1 element (will be corrected after conversion)
                         let contribution = input.value().as_ref().map(|v| v.shape[0]).unwrap_or(1);
                         provisional_rank += contribution;
-
-                        log::debug!(
-                            "Concat {}: rank-1 tensor {} contributes {} to provisional rank",
-                            node.name,
-                            input.name,
-                            contribution
-                        );
                     }
                     _ => {
                         return Err(ProcessError::TypeMismatch {
@@ -118,11 +132,6 @@ impl NodeProcessor for ConcatProcessor {
             // Output as Shape type since we have Shape inputs
             // The rank is provisional and will be corrected after constant conversion
             node.outputs[0].ty = ArgType::Shape(provisional_rank);
-            log::debug!(
-                "Concat {} has mixed Shape/Tensor inputs, using provisional Shape({}) output",
-                node.name,
-                provisional_rank
-            );
             return Ok(());
         }
 
@@ -131,25 +140,13 @@ impl NodeProcessor for ConcatProcessor {
 
         match first_input_type {
             ArgType::Tensor(tensor) => {
-                log::debug!(
-                    "Concat using tensor input rank for {}: {}",
-                    node.name,
-                    tensor.rank
-                );
-
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type.clone(),
                     rank: tensor.rank,
                     static_shape: None,
                 });
             }
-            ArgType::Shape(shape_rank) => {
-                log::debug!(
-                    "Concat using shape input rank for {}: {}",
-                    node.name,
-                    shape_rank
-                );
-
+            ArgType::Shape(_) => {
                 // When concatenating shapes, we sum up their ranks
                 let total_rank: usize = node
                     .inputs

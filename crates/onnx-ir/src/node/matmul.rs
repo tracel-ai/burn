@@ -1,3 +1,27 @@
+//! # MatMul
+//!
+//! Matrix product that behaves like numpy.matmul.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__MatMul.html>
+//!
+//! **Note**: In the node_conversion phase, MatMul nodes with constant weights may be converted to Linear nodes.
+//!
+//! ## Attributes (None)
+//!
+//! ## Inputs
+//! - `A` (T): N-dimensional matrix A
+//! - `B` (T): N-dimensional matrix B
+//!
+//! ## Outputs
+//! - `Y` (T): Matrix multiply results from A * B
+//!
+//! ## Type Constraints
+//! - T: tensor(float), tensor(double), tensor(float16), tensor(bfloat16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+//!
+//! ## Opset Versions
+//! - Since version 13 (current)
+//! - Previous versions: 9, 1
+
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use core::cmp::max;
@@ -17,20 +41,9 @@ impl NodeProcessor for MatMulProcessor {
 
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
-                log::debug!(
-                    "MatMul input ranks for {}: a.rank={}, b.rank={}",
-                    node.name,
-                    a.rank,
-                    b.rank
-                );
-
                 let mut out_rank = max(a.rank, b.rank);
                 if (a.rank >= 2 && b.rank == 1) || (a.rank == 1 && b.rank >= 2) {
                     out_rank -= 1;
-                    log::debug!(
-                        "MatMul special case for node {}: reducing output rank",
-                        node.name
-                    );
                 }
 
                 node.outputs[0].ty = ArgType::Tensor(TensorType {

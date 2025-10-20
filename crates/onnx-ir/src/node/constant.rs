@@ -1,3 +1,29 @@
+//! # Constant
+//!
+//! Produces a constant tensor with fixed values.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Constant.html>
+//
+//! ## Inputs
+//!
+//! Added input with value from attributes
+//!
+//! ## Outputs
+//!
+//! - `output` (T): Output constant tensor of any type
+//!
+//! ## Type Constraints
+//!
+//! - T: Any ONNX type
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 1-8**: Basic constant with `value` attribute only
+//! - **Opset 9-10**: Same as opset 1-8
+//! - **Opset 11-12**: Added `sparse_value` attribute support
+//! - **Opset 13+**: Added `value_*` attribute family (value_float, value_floats, value_int, value_ints,
+//!   value_string, value_strings)
+
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -26,18 +52,10 @@ impl NodeProcessor for ConstantProcessor {
             ProcessError::MissingAttribute("value (from central store)".to_string())
         })?;
 
-        log::debug!("Constant found data in central store: true");
-
         // First, determine the base type from the tensor data
         let base_type = if tensor_data.shape.is_empty() {
-            log::debug!("Constant as scalar for {}", node.name);
             ArgType::Scalar(tensor_data.elem_type())
         } else {
-            log::debug!(
-                "Constant tensor with rank {} for {}",
-                tensor_data.shape.len(),
-                node.name
-            );
             ArgType::Tensor(TensorType {
                 elem_type: tensor_data.elem_type(),
                 rank: tensor_data.shape.len(),
@@ -66,50 +84,24 @@ impl NodeProcessor for ConstantProcessor {
                 ArgType::Tensor(tensor) if tensor.rank == 1 && wants_shape => {
                     if let Some(shape) = tensor.static_shape.as_ref() {
                         if let Some(&shape_rank) = shape.first() {
-                            log::debug!(
-                                "Converting constant {} from Tensor(rank=1) to Shape({})",
-                                node.name,
-                                shape_rank
-                            );
                             ArgType::Shape(shape_rank)
                         } else {
                             // Empty shape for rank-1 tensor is invalid, keep as Tensor
-                            log::warn!(
-                                "Constant {} has rank 1 but empty static_shape, keeping as Tensor",
-                                node.name
-                            );
                             base_type
                         }
                     } else {
                         // No static shape info, keep as Tensor
-                        log::warn!(
-                            "Constant {} lacks static_shape information, keeping as Tensor",
-                            node.name
-                        );
                         base_type
                     }
                 }
                 // Convert scalar-compatible tensor to Scalar if requested
                 ArgType::Tensor(tensor) if tensor.rank == 0 && wants_scalar => {
-                    log::debug!(
-                        "Converting constant {} from Tensor(rank=0) to Scalar",
-                        node.name
-                    );
                     ArgType::Scalar(tensor.elem_type.clone())
                 }
                 // Otherwise keep base type
-                _ => {
-                    log::debug!(
-                        "Constant {} keeping base type {:?} (preferences: {:?})",
-                        node.name,
-                        base_type,
-                        preferences
-                    );
-                    base_type
-                }
+                _ => base_type,
             }
         } else {
-            log::debug!("Constant {} has no preferences, using base type", node.name);
             base_type
         };
 

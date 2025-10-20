@@ -1,3 +1,44 @@
+//! # RandomLike Operations (RandomUniformLike, RandomNormalLike)
+//!
+//! Generates random tensors with the same shape as the input tensor, drawing values
+//! from either a uniform or normal distribution.
+//!
+//! **ONNX Specs**:
+//! - RandomUniformLike: <https://onnx.ai/onnx/operators/onnx__RandomUniformLike.html>
+//! - RandomNormalLike: <https://onnx.ai/onnx/operators/onnx__RandomNormalLike.html>
+//!
+//! ## Attributes
+//!
+//! ### Common Attributes
+//! - `dtype` (int, optional): The data type for the elements of the output tensor.
+//!   If not specified, uses the data type of the input tensor.
+//!   - Supported types: float16, float32 (float), float64 (double)
+//! - `seed` (float, optional): Seed to the random generator. If not specified, one
+//!   will be auto-generated.
+//!
+//! ### RandomUniformLike Specific
+//! - `high` (float, optional): Upper boundary of the uniform distribution. Default: 1.0
+//! - `low` (float, optional): Lower boundary of the uniform distribution. Default: 0.0
+//!
+//! ### RandomNormalLike Specific
+//! - `mean` (float, optional): The mean of the normal distribution. Default: 0.0
+//! - `scale` (float, optional): The standard deviation of the normal distribution. Default: 1.0
+//!
+//! ## Inputs
+//! - `input` (T1): Input tensor used to copy shape and optionally type information.
+//!
+//! ## Outputs
+//! - `output` (T2): Random tensor with same shape as input, containing values drawn
+//!   from the specified distribution (uniform or normal).
+//!
+//! ## Type Constraints
+//! - T1: Any tensor type
+//! - T2: float16, float32, or float64 tensor
+//!
+//! ## Opset Versions
+//! - Available since opset version 1
+//! - Current version: 22
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
@@ -21,7 +62,6 @@ impl NodeProcessor for RandomLikeProcessor {
             .get("dtype")
             .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
             .unwrap_or(DataType::FLOAT);
-        log::debug!("RandomLike dtype for {}: {:?}", node.name, dtype);
 
         let elem_type = match dtype {
             DataType::FLOAT => ElementType::Float32,
@@ -36,8 +76,6 @@ impl NodeProcessor for RandomLikeProcessor {
         };
 
         if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-            log::debug!("RandomLike input rank for {}: {}", node.name, tensor.rank);
-
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type,
                 rank: tensor.rank,

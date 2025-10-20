@@ -1,3 +1,38 @@
+//! # Slice
+//!
+//! Extracts a slice from the input tensor along multiple axes.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Slice.html>
+//!
+//! ## Attributes
+//!
+//! None in opset 10+. In earlier opset versions (< 10), `starts`, `ends`, `axes`, and `steps`
+//! were attributes. Starting from opset 10, these became inputs to enable dynamic slicing.
+//!
+//! ## Inputs
+//!
+//! - `data` (T): Input tensor to extract slices from
+//! - `starts` (Tind): 1-D tensor of starting indices of corresponding axis in axes
+//! - `ends` (Tind): 1-D tensor of ending indices (exclusive) of corresponding axis in axes
+//! - `axes` (Tind, optional): 1-D tensor of axes that `starts` and `ends` apply to. Negative value means counting dimensions from the back. If omitted, defaults to [0, ..., ndim-1]
+//! - `steps` (Tind, optional): 1-D tensor of slice step of corresponding axis in axes. Negative value means slicing backward. Cannot be 0. Defaults to 1s
+//!
+//! ## Outputs
+//!
+//! - `output` (T): Sliced tensor with same type as input
+//!
+//! ## Type Constraints
+//!
+//! - T: tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(int8), tensor(int16), tensor(int32), tensor(int64), tensor(bfloat16), tensor(float16), tensor(float), tensor(double), tensor(string), tensor(bool), tensor(complex64), tensor(complex128)
+//! - Tind: tensor(int32), tensor(int64)
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 1-9**: `starts`, `ends`, and `axes` were attributes (static only)
+//! - **Opset 10**: Changed to inputs for dynamic slicing support
+//! - **Opset 11**: Added `steps` input
+//! - **Opset 13**: Added bfloat16 support
+
 use crate::ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorData};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -31,18 +66,10 @@ pub enum SliceInput {
 }
 
 /// Normalize negative axes to positive indices based on tensor rank.
-fn normalize_axes(axes: &mut [i64], rank: usize, node_name: &str) {
+fn normalize_axes(axes: &mut [i64], rank: usize, _node_name: &str) {
     for axis in axes.iter_mut() {
         if *axis < 0 {
-            let normalized = rank as i64 + *axis;
-            log::debug!(
-                "Slice node {}: normalizing negative axis {} to {} (rank={})",
-                node_name,
-                *axis,
-                normalized,
-                rank
-            );
-            *axis = normalized;
+            *axis += rank as i64;
         }
     }
 }
@@ -54,7 +81,7 @@ fn calculate_shape_slice_output_len(
     end: i64,
     step: i64,
     shape_rank: usize,
-    node_name: &str,
+    _node_name: &str,
 ) -> usize {
     let shape_len = shape_rank as i64;
 
@@ -76,33 +103,12 @@ fn calculate_shape_slice_output_len(
 
     // Calculate output length considering step
     let range_len = (norm_end - norm_start).max(0);
-    let output_len = if step.abs() == 1 {
+
+    if step.abs() == 1 {
         range_len as usize
     } else {
         ((range_len + step.abs() - 1) / step.abs()) as usize
-    };
-
-    log::debug!(
-        "Shape slice for node {}: [{}, {}, step={}] -> [{}, {}] on rank {} = output length {}",
-        node_name,
-        start,
-        end,
-        step,
-        norm_start,
-        norm_end,
-        shape_rank,
-        output_len
-    );
-
-    // Special case logging for common patterns
-    if start == -1 && (end == i64::MAX || end >= shape_len) && step == 1 {
-        log::debug!(
-            "Slice pattern [-1:] detected for node {} - getting last element",
-            node_name
-        );
     }
-
-    output_len
 }
 
 pub struct SliceProcessor;
@@ -173,13 +179,10 @@ impl NodeProcessor for SliceProcessor {
             ArgType::Tensor(_) => {
                 // Slicing a tensor preserves its type and rank during rank inference.
                 // Shape inference pass will handle the actual shape changes.
-                log::debug!("Slice input for {} is Tensor, preserving type", node.name);
                 node.outputs[0].ty = input_ty;
             }
             ArgType::Shape(shape_rank) => {
                 // Slicing a Shape extracts a sub-part, resulting in a Shape.
-                log::debug!("Slice input for {} is Shape", node.name);
-
                 // Only static slicing is supported for Shape inputs
                 let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
                     (SliceInput::Static(s), SliceInput::Static(e), steps_opt) => {
@@ -218,12 +221,6 @@ impl NodeProcessor for SliceProcessor {
                 });
             }
         }
-
-        log::debug!(
-            "Slice output type determined for {}: {:?}",
-            node.name,
-            node.outputs[0].ty
-        );
 
         Ok(())
     }

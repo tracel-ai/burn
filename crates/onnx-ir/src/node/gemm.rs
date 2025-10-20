@@ -1,3 +1,47 @@
+//! # Gemm
+//!
+//! General Matrix Multiplication: Y = alpha * A' * B' + beta * C
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Gemm.html>
+//!
+//! ## Description
+//! Computes Y = alpha * A' * B' + beta * C, where:
+//! - Input tensor A has shape (M, K) or (K, M) if transposed
+//! - Input tensor B has shape (K, N) or (N, K) if transposed
+//! - Input tensor C is broadcastable to shape (M, N)
+//! - Output tensor Y has shape (M, N)
+//!
+//! ## Attributes
+//! - `alpha` (float, default=1.0): Scalar multiplier for the product of input tensors A * B
+//! - `beta` (float, default=1.0): Scalar multiplier for input tensor C
+//! - `transA` (int, default=0): Whether to transpose A before computation (non-zero = transpose)
+//! - `transB` (int, default=0): Whether to transpose B before computation (non-zero = transpose)
+//!
+//! ## Inputs
+//! - `A` (T): Input tensor A. Shape is (M, K) if transA=0, or (K, M) if transA is non-zero
+//! - `B` (T): Input tensor B. Shape is (K, N) if transB=0, or (N, K) if transB is non-zero
+//! - `C` (T, optional): Optional input tensor C. If not specified, computation uses scalar 0. Shape should be unidirectional broadcastable to (M, N)
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor of shape (M, N)
+//!
+//! ## Type Constraints
+//! - T: tensor(float), tensor(double), tensor(float16), tensor(bfloat16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+//!
+//! ## Opset Versions
+//! - Opset 13+: Current version
+//! - Opset 11-12: Earlier versions with same semantics
+//! - Opset 7-10: Earlier versions
+//! - Opset 1-6: Initial versions
+//!
+//! ## Notes
+//! In the node conversion phase, Gemm nodes are converted to Linear nodes when:
+//! - `alpha` = 1.0
+//! - `beta` = 1.0
+//! - `transB` = 1
+//!
+//! This optimization allows the use of optimized Linear layer implementations in Burn.
+
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use core::cmp::max;
@@ -55,13 +99,6 @@ impl NodeProcessor for GemmProcessor {
                 });
             }
         };
-
-        log::debug!(
-            "Gemm input ranks for {}: a_rank={}, b_rank={}",
-            node.name,
-            a_rank,
-            b_rank
-        );
 
         let output_rank = max(a_rank, b_rank);
 

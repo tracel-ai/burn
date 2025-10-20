@@ -1,3 +1,27 @@
+//! # LayerNormalization
+//!
+//! Layer normalization operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__LayerNormalization.html>
+//!
+//! ## Attributes
+//! - `epsilon` (float, default=1e-5): Numerical stability constant
+//! - `axis` (int, default=-1): First normalization dimension
+//! - `stash_type` (int, default=1): Computation precision
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor
+//! - `Scale` (T): Scale tensor (gamma)
+//! - `B` (T, optional): Bias tensor (beta)
+//!
+//! ## Outputs
+//! - `Y` (T): Normalized output tensor
+//! - `Mean` (U, optional): Mean values
+//! - `InvStdDev` (U, optional): Inverse standard deviation
+//!
+//! ## Opset Versions
+//! - Opset 17+
+
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;

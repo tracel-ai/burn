@@ -1,3 +1,32 @@
+//! # Split
+//!
+//! Splits a tensor into multiple output tensors along a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Split.html>
+//!
+//! ## Attributes
+//! - `axis` (int, default=0): Axis along which to split the input tensor. Negative values count
+//!   from the end (e.g., -1 is the last axis). Accepted range is [-rank, rank-1].
+//! - `num_outputs` (int, optional, opset 18+): Number of outputs to split the tensor into. If
+//!   specified, the tensor is split into equal-sized parts. If the tensor is not evenly divisible,
+//!   the last chunk will be smaller.
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor to split
+//! - `split` (tensor(int64), optional, opset 13+): Lengths of each output along the split axis.
+//!   If not specified, the tensor is split into equal-sized parts.
+//!
+//! ## Outputs
+//! - Multiple outputs: List of tensors resulting from splitting the input. The number of outputs
+//!   is determined by either `num_outputs` attribute or the length of `split` input.
+//!
+//! ## Opset Versions
+//! - **Opset 1-2**: Initial implementation with `split` as an attribute
+//! - **Opset 11**: Refinements to split behavior
+//! - **Opset 13**: **BREAKING CHANGE** - `split` changed from attribute to optional input to
+//!   support dynamic shapes. This enables runtime determination of split sizes.
+//! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits
+
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
@@ -67,17 +96,7 @@ impl NodeProcessor for SplitProcessor {
             }
         };
 
-        // Get reference to config for type inference (not directly used, but extracted for consistency)
-        let _config = node.config::<SplitConfig>();
-
-        // Infer output types
-        log::debug!("Split input rank for {}: {}", node.name, tensor.rank);
-        log::debug!(
-            "Split will generate {} outputs for {}",
-            node.outputs.len(),
-            node.name
-        );
-
+        // Infer output types - all outputs have the same rank and element type as input
         for output_arg in node.outputs.iter_mut() {
             output_arg.ty = ArgType::Tensor(TensorType {
                 elem_type: tensor.elem_type.clone(),

@@ -1,3 +1,28 @@
+//! # Resize
+//!
+//! Resizes input tensor using various interpolation methods.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Resize.html>
+//!
+//! ## Attributes
+//! - `mode` (string, required): Interpolation mode (nearest/linear/cubic)
+//! - `coordinate_transformation_mode` (string, default="half_pixel"): Coordinate transformation
+//! - `nearest_mode` (string, default="round_prefer_floor"): Nearest neighbor rounding
+//! - `cubic_coeff_a` (float, default=-0.75): Cubic interpolation coefficient
+//! - `antialias` (int, default=0): Use antialiasing when downscaling
+//!
+//! ## Inputs
+//! - `X` (T1): Input tensor
+//! - `roi` (T2, optional): Region of interest
+//! - `scales` (tensor(float), optional): Scale factors (one of scales/sizes required)
+//! - `sizes` (tensor(int64), optional): Target output sizes (one of scales/sizes required)
+//!
+//! ## Outputs
+//! - `Y` (T1): Resized tensor
+//!
+//! ## Opset Versions
+//! - Opset 11+
+
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorData};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -223,10 +248,11 @@ impl NodeProcessor for ResizeProcessor {
                     });
                 }
                 "coordinate_transformation_mode" => {
-                    log::warn!("Resize: coordinate_transformation_mode is ignored")
+                    // Ignored: approximate results are acceptable
                 }
-
-                "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
+                "cubic_coeff_a" => {
+                    // Ignored: approximate results are acceptable
+                }
                 "exclude_outside" => {
                     if value.clone().into_i32() != 0 {
                         return Err(ProcessError::InvalidAttribute {
@@ -255,8 +281,9 @@ impl NodeProcessor for ResizeProcessor {
                     }
                 }
                 "mode" => {} // Validated in extract_config
-                "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
-
+                "nearest_mode" => {
+                    // Ignored: approximate results are acceptable
+                }
                 _ => {}
             }
         }

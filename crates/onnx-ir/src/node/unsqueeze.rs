@@ -1,9 +1,36 @@
-//! Unsqueeze operation implementation for ONNX graphs.
+//! # Unsqueeze
 //!
-//! This module handles the unsqueeze operation which adds dimensions of size 1 to tensors.
-//! It includes an important optimization for Int scalar to Shape conversion, which is the
-//! reverse of the squeeze operation and critical for efficient dynamic shape handling in
-//! ONNX models.
+//! Inserts single-dimensional entries (dimensions of size 1) at specified positions in the tensor's shape.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Unsqueeze.html>
+//!
+//! ## Attributes
+//!
+//! None in opset 13+. In earlier versions (opset 11 and below), `axes` was an attribute.
+//!
+//! ## Inputs
+//!
+//! - `data` (T): Original tensor
+//! - `axes` (tensor(int64)): List of integers indicating the dimensions to be inserted.
+//!   Negative values count dimensions from the back. Accepted range is [-r, r-1] where r = rank(expanded).
+//!   The order of values in axes does not matter and can come in any order.
+//!
+//! ## Outputs
+//!
+//! - `expanded` (T): Reshaped tensor with same data as input, with dimensions of size 1 inserted at specified positions
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 13+**: `axes` is a required input (allows dynamic specification)
+//! - **Opset 11**: `axes` was an attribute (fixed at graph construction time)
+//!
+//! The change from attribute to input in opset 13 provides greater flexibility,
+//! enabling dynamic axes specification at runtime.
+//!
+//! ## Special Optimizations
+//!
+//! This module includes an important optimization for Int scalar to Shape conversion, which is the
+//! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{

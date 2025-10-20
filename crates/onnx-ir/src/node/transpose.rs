@@ -1,3 +1,31 @@
+//! # Transpose
+//!
+//! Transposes the input tensor by permuting its dimensions, similar to numpy.transpose.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Transpose.html>
+//!
+//! ## Attributes
+//! - `perm` (list of ints, optional): A list of integers specifying the permutation of the axes.
+//!   By default, reverses the dimensions (e.g., for a 3D tensor, defaults to [2, 1, 0]).
+//!   When provided, the length must equal the rank of the input tensor.
+//!
+//! ## Inputs
+//! - `data` (T): Input tensor to be transposed
+//!
+//! ## Outputs
+//! - `transposed` (T): Transposed tensor with permuted dimensions
+//!
+//! ## Type Constraints
+//! - T: All tensor types (float16, float32, float64, int8, int16, int32, int64, uint8, uint16,
+//!   uint32, uint64, bool, complex64, complex128, bfloat16, string)
+//!
+//! ## Opset Versions
+//! - Available since opset version 1
+//! - Updated in opset versions 13, 21, 23
+//!
+//! ## Example
+//! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
+
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;

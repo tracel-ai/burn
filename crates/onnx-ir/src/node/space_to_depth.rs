@@ -1,3 +1,28 @@
+//! # SpaceToDepth
+//!
+//! Rearranges blocks of spatial data into depth. This operation moves values from the
+//! height and width dimensions into the depth/channel dimension. It is the reverse
+//! transformation of DepthToSpace.
+//!
+//! More specifically, this operator outputs a copy of the input tensor where values from
+//! the height and width dimensions are moved to the depth dimension. The spatial dimensions
+//! are reduced by a factor of `blocksize`, while the depth is increased by `blocksize^2`.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__SpaceToDepth.html>
+//!
+//! ## Attributes
+//! - `blocksize` (int, required): Blocks of [blocksize, blocksize] are moved from spatial to depth dimension
+//!
+//! ## Inputs
+//! - `input` (T): Input tensor of shape [N, C, H, W] where N is batch, C is channel/depth, H is height, W is width
+//!
+//! ## Outputs
+//! - `output` (T): Output tensor of shape [N, C * blocksize * blocksize, H/blocksize, W/blocksize]
+//!
+//! ## Opset Versions
+//! - Since opset 1
+//! - Opset 13: Current version with full type support
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{
@@ -77,12 +102,6 @@ impl NodeProcessor for SpaceToDepthProcessor {
                 "SpaceToDepth: only rank 4 tensors are supported".to_string(),
             ));
         }
-
-        log::debug!(
-            "SpaceToDepth blocksize from attribute for {}: {:?}",
-            &node.name,
-            block_size
-        );
 
         // Infer static shape based on rank and block size
         let static_shape = tensor.static_shape.clone().map(|shape| {

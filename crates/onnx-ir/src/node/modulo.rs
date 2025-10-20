@@ -1,3 +1,25 @@
+//! # Mod
+//!
+//! Element-wise binary modulus operation with Numpy-style broadcasting support.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Mod.html>
+//!
+//! ## Attributes
+//! - `fmod` (int, default=0): Whether to use fmod (C-style) or integer modulo (Python-style)
+//!   - `0` (default): Integer modulo - sign follows divisor (Python `%` operator)
+//!   - `1`: Floating-point modulo - follows C `fmod` function, sign follows dividend
+//!
+//! ## Inputs
+//! - `A` (T): Dividend tensor
+//! - `B` (T): Divisor tensor
+//!
+//! ## Outputs
+//! - `C` (T): Remainder tensor
+//!
+//! ## Opset Versions
+//! - Since opset 10: Initial implementation
+//! - Opset 13: Added support for additional types (bfloat16)
+
 use crate::ir::{AttributeValue, Node, NodeConfig};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 

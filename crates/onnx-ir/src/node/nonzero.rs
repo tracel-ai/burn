@@ -1,3 +1,21 @@
+//! # NonZero
+//!
+//! Returns indices of non-zero elements.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__NonZero.html>
+//!
+//! ## Attributes
+//! None
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor
+//!
+//! ## Outputs
+//! - `Y` (int64): Indices tensor, shape \[rank(X), num_non_zero\]
+//!
+//! ## Opset Versions
+//! - Opset 9+
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -15,7 +33,7 @@ impl NodeProcessor for NonZeroProcessor {
         crate::processor::validate_output_count(node, 1)?;
 
         match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => {
+            ArgType::Tensor(_tensor) => {
                 // Output is always a 2D Int64 tensor
                 // Shape: [input_tensor_rank, num_nonzero_elements]
                 // First dimension equals input tensor rank
@@ -25,7 +43,6 @@ impl NodeProcessor for NonZeroProcessor {
                     rank: 2,
                     static_shape: None, // Dynamic shape - second dimension depends on number of nonzero elements
                 });
-                log::debug!("NonZero output tensor shape: [{}, -1]", tensor.rank);
             }
             _ => {
                 return Err(ProcessError::TypeMismatch {

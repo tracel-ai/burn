@@ -1,3 +1,26 @@
+//! # LeakyRelu
+//!
+//! Applies the Leaky Rectified Linear Unit (Leaky ReLU) activation function element-wise.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__LeakyRelu.html>
+//!
+//! ## Attributes
+//! - `alpha` (float, default=0.01): Coefficient of leakage for negative input values
+//!
+//! ## Inputs
+//! - `X` (T): Input tensor of any shape
+//!
+//! ## Outputs
+//! - `Y` (T): Output tensor with the same shape and type as input
+//!
+//! ## Type Constraints
+//! - `T`: Constrained to float tensors (float16, float32, float64, bfloat16)
+//!
+//! ## Opset Versions
+//! - Available since opset version 1
+//! - Updated in opset version 6
+//! - Current version: opset 16
+
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

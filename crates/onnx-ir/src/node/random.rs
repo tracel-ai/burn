@@ -1,3 +1,20 @@
+//! # Random Tensor Generation (RandomNormal, RandomUniform)
+//!
+//! This module implements processors for ONNX random tensor generation operations that create
+//! tensors with random values sampled from specified distributions.
+//!
+//! **ONNX Specs**:
+//! - RandomNormal: <https://onnx.ai/onnx/operators/onnx__RandomNormal.html>
+//! - RandomUniform: <https://onnx.ai/onnx/operators/onnx__RandomUniform.html>
+//!
+//! ## Supported Operations
+//!
+//! - **RandomNormal**: Generates a tensor with values drawn from a normal distribution
+//! - **RandomUniform**: Generates a tensor with values drawn from a uniform distribution
+//!
+//! Both operations require a `shape` attribute and support an optional `dtype` attribute
+//! (defaults to FLOAT if not specified).
+
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
@@ -20,7 +37,6 @@ impl NodeProcessor for RandomProcessor {
             .get("dtype")
             .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
             .unwrap_or(DataType::FLOAT);
-        log::debug!("Random dtype for {}: {:?}", node.name, dtype);
 
         let shape = node
             .attrs
@@ -28,7 +44,6 @@ impl NodeProcessor for RandomProcessor {
             .ok_or_else(|| ProcessError::Custom("required shape attribute missing".to_string()))?
             .clone()
             .into_i64s();
-        log::debug!("Random shape for {}: {:?}", node.name, shape);
 
         let elem_type = match dtype {
             DataType::FLOAT => ElementType::Float32,

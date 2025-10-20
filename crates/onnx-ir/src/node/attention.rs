@@ -1,3 +1,35 @@
+//! # Attention
+//!
+//! Multi-head attention with support for MHA, GQA, and MQA variants.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Attention.html>
+//!
+//! ## Attributes
+//!
+//! - `is_causal` (int64, default=0): Enable causal masking (lower triangular)
+//! - `kv_num_heads` (int64, optional): Number of key/value heads (required for 3D inputs)
+//! - `q_num_heads` (int64, optional): Number of query heads (required for 3D inputs)
+//! - `qk_matmul_output_mode` (int64, default=0): Which intermediate to output (0-3)
+//! - `scale` (float, optional): Scaling factor for Q*K^T
+//! - `softcap` (float, default=0.0): Softcap value for attention weights
+//! - `softmax_precision` (int64, optional): Precision mode for softmax
+//!
+//! ## Inputs
+//!
+//! - `Q`, `K`, `V` (T): Query, key, value tensors (rank 3 or 4)
+//! - `attention_mask` (optional): Boolean or float mask
+//! - `past_key`, `past_value` (optional): KV cache inputs
+//!
+//! ## Outputs
+//!
+//! - `Y` (T): Attention output (rank 3 or 4)
+//! - `present_key`, `present_value` (optional): Updated KV cache
+//! - `qk_matmul_output` (optional): Intermediate result
+//!
+//! ## Opset Versions
+//!
+//! - Opset 23+
+
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
 use std::any::Any;
