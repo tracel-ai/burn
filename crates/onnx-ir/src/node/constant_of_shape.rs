@@ -20,7 +20,7 @@
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -75,10 +75,10 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                         "ConstantOfShape: shape tensor must be 1D".to_string(),
                     ));
                 }
-                if !matches!(tensor.elem_type, ElementType::Int64) {
+                if !matches!(tensor.dtype, DType::I64) {
                     return Err(ProcessError::TypeMismatch {
                         expected: "Int64".to_string(),
-                        actual: format!("{:?}", tensor.elem_type),
+                        actual: format!("{:?}", tensor.dtype),
                     });
                 }
             }
@@ -99,7 +99,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             .attrs
             .get("value")
             .map(|v| v.clone().into_tensor().elem_type())
-            .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
+            .unwrap_or(DType::F32); // If not given, defaults to 0 as float32
 
         let rank = match &node.inputs[0].ty {
             ArgType::Shape(rank) => *rank,
@@ -148,7 +148,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         // in ONNX models where ConstantOfShape is used to create shape arrays.
         // Downstream operations can cast to tensor if needed.
         // This optimization improves performance by keeping shape operations in the Shape domain.
-        if rank == 1 && value_type == ElementType::Int64 {
+        if rank == 1 && value_type == DType::I64 {
             // Special optimization for Shape(1) with Int64 values
             node.outputs[0].ty = ArgType::Shape(1);
         } else if rank == 0 {
@@ -157,7 +157,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         } else {
             // General case: output is a tensor
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: value_type,
+                dtype: value_type,
                 rank,
                 static_shape: None,
             });
@@ -212,7 +212,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output"),
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn test_tensor_input_with_static_shape() {
         let mut node = create_test_node(ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
+            dtype: DType::I64,
             rank: 1,
             static_shape: Some(vec![4]),
         }))
@@ -233,7 +233,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 4);
             }
             _ => panic!("Expected tensor output"),
@@ -253,7 +253,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_invalid_input_type() {
-        let mut node = create_test_node(ArgType::Scalar(ElementType::Float32)).build();
+        let mut node = create_test_node(ArgType::Scalar(DType::F32)).build();
         let processor = ConstantOfShapeProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
@@ -286,7 +286,7 @@ mod tests {
         // Verify the output has the correct rank
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 3); // Output rank should be 3
             }
             _ => panic!("Expected tensor output"),
@@ -303,7 +303,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Expected scalar output for rank 0 input"),
         }
@@ -313,7 +313,7 @@ mod tests {
     fn test_scalar_output_with_tensor_shape_0() {
         // Test when input is a tensor with static shape [0], output should be Scalar
         let mut node = create_test_node(ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
+            dtype: DType::I64,
             rank: 1,
             static_shape: Some(vec![0]), // Shape is [0], meaning rank-0 output
         }))
@@ -324,7 +324,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Expected scalar output for rank 0 input"),
         }
@@ -344,7 +344,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Int64);
+                assert_eq!(*elem_type, DType::I64);
             }
             _ => panic!("Expected scalar output for rank 0 input"),
         }
@@ -384,7 +384,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected Tensor output for Shape(1) input with Float32 value"),
@@ -402,7 +402,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected Tensor output for Shape(1) input with default Float32 value"),

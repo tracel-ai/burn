@@ -122,7 +122,7 @@ impl NodeProcessor for SqueezeProcessor {
                 };
 
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: tensor.elem_type.clone(),
+                    dtype: tensor.dtype,
                     rank: output_rank,
                     static_shape: None,
                 });
@@ -139,13 +139,13 @@ impl NodeProcessor for SqueezeProcessor {
                 }
 
                 if *shape_rank == 1 {
-                    node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
+                    node.outputs[0].ty = ArgType::Scalar(crate::ir::DType::I64);
                 } else {
                     node.outputs[0].ty = ArgType::Shape(*shape_rank);
                 }
             }
             ArgType::Scalar(scalar_type) => {
-                node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
+                node.outputs[0].ty = ArgType::Scalar(*scalar_type);
             }
         }
 

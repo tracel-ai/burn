@@ -137,7 +137,7 @@ impl NodeProcessor for AvgPool1dProcessor {
 
         // AvgPool1d preserves rank (same as input)
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
+            dtype: tensor.dtype,
             rank: tensor.rank,
             static_shape: None,
         });

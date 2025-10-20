@@ -17,7 +17,7 @@
 //! - **Opset 9**: Initial version. Returns 2D tensor with shape [rank(X), num_non_zero].
 //! - **Opset 13**: Added support for bfloat16 input type.
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct NonZeroProcessor;
@@ -42,7 +42,7 @@ impl NodeProcessor for NonZeroProcessor {
                 // First dimension equals input tensor rank
                 // Second dimension is dynamic (depends on data)
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
+                    dtype: DType::I64,
                     rank: 2,
                     static_shape: None, // Dynamic shape - second dimension depends on number of nonzero elements
                 });
@@ -62,7 +62,7 @@ impl NodeProcessor for NonZeroProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     #[test]
@@ -78,7 +78,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, None); // Dynamic shape
             }
@@ -99,7 +99,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, None); // Dynamic shape
             }
@@ -120,7 +120,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, None); // Dynamic shape
             }

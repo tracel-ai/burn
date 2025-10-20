@@ -16,7 +16,7 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use crate::ir::{ArgType, ElementType, Node};
+use crate::ir::{ArgType, DType, Node};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct SizeProcessor;
@@ -32,7 +32,7 @@ impl NodeProcessor for SizeProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+        node.outputs[0].ty = ArgType::Scalar(DType::I64);
 
         Ok(())
     }
@@ -60,9 +60,6 @@ mod tests {
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert!(matches!(
-            &node.outputs[0].ty,
-            ArgType::Scalar(ElementType::Int64)
-        ));
+        assert!(matches!(&node.outputs[0].ty, ArgType::Scalar(DType::I64)));
     }
 }

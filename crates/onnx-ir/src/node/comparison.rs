@@ -58,7 +58,7 @@
 //! - When both inputs are scalars, the output is a scalar boolean
 //! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
@@ -84,10 +84,10 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
     });
 
     if max_rank == 0 {
-        node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
+        node.outputs[0].ty = ArgType::Scalar(DType::Bool);
     } else {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Bool,
+            dtype: DType::Bool,
             rank: max_rank,
             static_shape: None,
         });
@@ -138,10 +138,10 @@ impl NodeProcessor for ComparisonProcessor {
         });
 
         if max_rank == 0 {
-            node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
+            node.outputs[0].ty = ArgType::Scalar(DType::Bool);
         } else {
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
+                dtype: DType::Bool,
                 rank: max_rank,
                 static_shape: None,
             });
@@ -175,7 +175,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.dtype, DType::Bool);
                 assert_eq!(tensor.rank, 3); // max(2, 3) = 3
             }
             _ => panic!("Expected tensor output"),
@@ -187,8 +187,8 @@ mod tests {
         let mut node = create_test_node(0, 0);
 
         // Convert inputs to scalars
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        node.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
+        node.inputs[1].ty = ArgType::Scalar(DType::F32);
 
         let processor = ComparisonProcessor;
         let prefs = OutputPreferences::new();
@@ -196,7 +196,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Bool);
+                assert_eq!(*elem_type, DType::Bool);
             }
             _ => panic!("Expected scalar output"),
         }
@@ -214,7 +214,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.dtype, DType::Bool);
                 assert_eq!(tensor.rank, 2); // max(1, 2) = 2 (Shape is rank 1, Tensor is rank 2)
             }
             _ => panic!("Expected tensor output"),

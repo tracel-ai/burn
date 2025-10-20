@@ -32,7 +32,7 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -129,12 +129,12 @@ impl NodeProcessor for TopKProcessor {
         let rank = data_tensor.rank;
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[0].ty.elem_type().clone(),
+            dtype: node.inputs[0].ty.elem_type(),
             rank,
             static_shape: None,
         });
         node.outputs[1].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
+            dtype: DType::I64,
             rank,
             static_shape: None,
         });
@@ -256,7 +256,7 @@ mod tests {
         // Check first output (values)
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output for values"),
@@ -265,7 +265,7 @@ mod tests {
         // Check second output (indices)
         match &node.outputs[1].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output for indices"),
@@ -276,7 +276,7 @@ mod tests {
     fn test_topk_invalid_input() {
         let mut node = create_test_node(3, None, None).build();
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
         let processor = TopKProcessor;
         let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
@@ -443,7 +443,7 @@ mod tests {
         // Test with invalid input type
         let mut node = create_test_node(2, None, None).build();
         node.attrs.insert("k".to_string(), AttributeValue::Int64(3));
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
 
         let node = node;
         let processor = TopKProcessor;

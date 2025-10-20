@@ -308,10 +308,10 @@ impl From<&onnx_ir::ir::Argument> for Type {
                 if tensor.rank == 0 {
                     Type::Scalar(ScalarType::new(
                         arg.name.clone(),
-                        ScalarKind::from(&tensor.elem_type),
+                        ScalarKind::from(&tensor.dtype),
                     ))
                 } else {
-                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let kind: TensorKind = tensor.dtype.clone().into();
                     let rank = tensor.rank;
                     let name = arg.name.clone();
                     Type::Tensor(TensorType::new(name, rank, kind))
@@ -326,35 +326,34 @@ impl From<&onnx_ir::ir::Argument> for Type {
     }
 }
 
-impl From<&onnx_ir::ir::ElementType> for ScalarKind {
-    fn from(elem_type: &onnx_ir::ir::ElementType) -> Self {
-        use onnx_ir::ir::ElementType;
+impl From<&onnx_ir::ir::DType> for ScalarKind {
+    fn from(dtype: &onnx_ir::ir::DType) -> Self {
+        use onnx_ir::ir::DType;
 
         match elem_type {
-            ElementType::Float32 => ScalarKind::Float32,
-            ElementType::Float64 => ScalarKind::Float64,
-            ElementType::Int32 => ScalarKind::Int32,
-            ElementType::Int64 => ScalarKind::Int64,
-            ElementType::Bool => ScalarKind::Bool,
-            ElementType::Uint16 => ScalarKind::Int32,
-            ElementType::Int8 | ElementType::Uint8 => ScalarKind::Int32,
-            ElementType::String => panic!("String tensor unsupported"),
-            ElementType::Float16 => panic!("Float16 tensor unsupported"),
+            DType::F32 => ScalarKind::Float32,
+            DType::F64 => ScalarKind::Float64,
+            DType::I32 => ScalarKind::Int32,
+            DType::I64 => ScalarKind::Int64,
+            DType::Bool => ScalarKind::Bool,
+            DType::U16 => ScalarKind::Int32,
+            DType::I8 | DType::U8 => ScalarKind::Int32,
+            DType::F16 => panic!("Float16 tensor unsupported"),
         }
     }
 }
 
-impl From<onnx_ir::ir::ElementType> for TensorKind {
-    fn from(elem_type: onnx_ir::ir::ElementType) -> Self {
-        use onnx_ir::ir::ElementType;
+impl From<onnx_ir::ir::DType> for TensorKind {
+    fn from(dtype: onnx_ir::ir::DType) -> Self {
+        use onnx_ir::ir::DType;
 
-        match elem_type {
-            ElementType::Float32 => TensorKind::Float,
-            ElementType::Float64 => TensorKind::Float,
-            ElementType::Int32 => TensorKind::Int,
-            ElementType::Int64 => TensorKind::Int,
-            ElementType::Int8 | ElementType::Uint8 => TensorKind::Int,
-            ElementType::Bool => TensorKind::Bool,
+        match dtype {
+            DType::F32 => TensorKind::Float,
+            DType::F64 => TensorKind::Float,
+            DType::I32 => TensorKind::Int,
+            DType::I64 => TensorKind::Int,
+            DType::I8 | DType::U8 => TensorKind::Int,
+            DType::Bool => TensorKind::Bool,
             _ => panic!("Unsupported tensor type"),
         }
     }
@@ -362,29 +361,27 @@ impl From<onnx_ir::ir::ElementType> for TensorKind {
 
 fn tensor_type_from_elem_and_rank(
     name: String,
-    elem: &onnx_ir::ir::ElementType,
+    elem: &onnx_ir::ir::DType,
     rank: usize,
 ) -> TensorType {
-    use onnx_ir::ir::ElementType;
+    use onnx_ir::ir::DType;
 
     match elem {
-        ElementType::Uint8
-        | ElementType::Int8
-        | ElementType::Uint16
-        | ElementType::Int32
-        | ElementType::Int64 => TensorType::new(name, rank, TensorKind::Int),
+        DType::U8
+        | DType::I8
+        | DType::U16
+        | DType::I32
+        | DType::I64 => TensorType::new(name, rank, TensorKind::Int),
 
-        ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => {
+        DType::F16 | DType::F32 | DType::F64 => {
             // If you have TensorType::new_float, use that; otherwise:
             // TensorType::new(name, rank, TensorKind::Float)
             TensorType::new(name, rank, TensorKind::Float)
         }
 
-        ElementType::Bool => TensorType::new(name, rank, TensorKind::Bool),
+        DType::Bool => TensorType::new(name, rank, TensorKind::Bool),
 
-        ElementType::String => {
-            panic!("String element type cannot be converted to Burn TensorType")
-        }
+        _ => panic!("Unsupported element type for Burn TensorType"),
     }
 }
 

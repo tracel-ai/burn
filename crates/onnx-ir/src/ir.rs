@@ -3,6 +3,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, fmt::Formatter, rc::Rc}
 use strum::{Display, EnumString};
 
 // burn-tensor integration
+pub use burn_tensor::DType;
 use burn_tensor::Element;
 
 /// Reference to a runtime input by name and index.
@@ -97,7 +98,7 @@ impl Argument {
 /// The type of an argument.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArgType {
-    Scalar(ElementType),
+    Scalar(DType),
     Shape(Rank),
     Tensor(TensorType),
 }
@@ -117,26 +118,11 @@ pub enum AttributeValue {
 
 pub type Attributes = HashMap<String, AttributeValue>;
 
-/// The type of an element.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ElementType {
-    Float32,
-    Float64,
-    Int32,
-    Int64,
-    String,
-    Float16,
-    Bool,
-    Uint16,
-    Uint8,
-    Int8,
-}
-
 /// Represents the type of a tensor.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TensorType {
-    /// The element type of the tensor values (e.g. Float32, Int64, etc.)
-    pub elem_type: ElementType,
+    /// The data type of the tensor values (e.g. F32, F64, I64, etc.)
+    pub dtype: DType,
 
     /// The number of dimensions in the tensor
     pub rank: Rank,
@@ -145,9 +131,13 @@ pub struct TensorType {
     pub static_shape: Option<Vec<usize>>,
 }
 
-impl Default for ElementType {
+impl Default for TensorType {
     fn default() -> Self {
-        Self::Float32
+        Self {
+            dtype: DType::F32,
+            rank: 0,
+            static_shape: None,
+        }
     }
 }
 
@@ -182,12 +172,12 @@ impl ArgType {
         }
     }
 
-    /// Get the element type
-    pub fn elem_type(&self) -> &ElementType {
+    /// Get the data type
+    pub fn elem_type(&self) -> DType {
         match self {
-            ArgType::Scalar(s) => s,
-            ArgType::Shape(_) => panic!("ArgType::Shape has no ElementType"),
-            ArgType::Tensor(t) => &t.elem_type,
+            ArgType::Scalar(s) => *s,
+            ArgType::Shape(_) => panic!("ArgType::Shape has no DType"),
+            ArgType::Tensor(t) => t.dtype,
         }
     }
 
@@ -326,24 +316,14 @@ impl TensorData {
         &self.inner.shape
     }
 
-    /// The element type of the tensor (ONNX ElementType, not burn DType)
-    /// TODO consider deleting it
-    pub fn elem_type(&self) -> ElementType {
-        match self.inner.dtype {
-            burn_tensor::DType::Bool => ElementType::Bool,
-            burn_tensor::DType::F16 => ElementType::Float16,
-            burn_tensor::DType::F32 => ElementType::Float32,
-            burn_tensor::DType::F64 => ElementType::Float64,
-            burn_tensor::DType::U8 => ElementType::Uint8,
-            burn_tensor::DType::U16 => ElementType::Uint16,
-            burn_tensor::DType::I8 => ElementType::Int8,
-            burn_tensor::DType::I32 => ElementType::Int32,
-            burn_tensor::DType::I64 => ElementType::Int64,
-            // burn-tensor has these but ONNX ElementType doesn't
-            burn_tensor::DType::U32 => panic!("U32 not supported in ONNX ElementType"),
-            burn_tensor::DType::I16 => panic!("I16 not supported in ONNX ElementType"),
-            _ => panic!("Unsupported dtype for ONNX: {:?}", self.inner.dtype),
-        }
+    /// The data type of the tensor
+    pub fn dtype(&self) -> DType {
+        self.inner.dtype
+    }
+
+    /// Alias for dtype() for backward compatibility
+    pub fn elem_type(&self) -> DType {
+        self.dtype()
     }
 
     /// Get data as Vec (copying)
@@ -887,7 +867,7 @@ impl From<AttributeValue> for Argument {
 
         match attr {
             AttributeValue::Float32(_value) => Argument {
-                ty: ArgType::Scalar(ElementType::Float32),
+                ty: ArgType::Scalar(DType::F32),
                 name,
                 data_id: None,
                 value_source: ValueSource::Optional,
@@ -896,7 +876,7 @@ impl From<AttributeValue> for Argument {
             AttributeValue::Float32s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
                     rank: 1,
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
@@ -905,7 +885,7 @@ impl From<AttributeValue> for Argument {
                 value_store: None,
             },
             AttributeValue::Int64(_value) => Argument {
-                ty: ArgType::Scalar(ElementType::Int64),
+                ty: ArgType::Scalar(DType::I64),
                 name,
                 data_id: None,
                 value_source: ValueSource::Optional,
@@ -914,7 +894,7 @@ impl From<AttributeValue> for Argument {
             AttributeValue::Int64s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
                     rank: 1,
-                    elem_type: ElementType::Int64,
+                    dtype: DType::I64,
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
@@ -922,24 +902,16 @@ impl From<AttributeValue> for Argument {
                 value_source: ValueSource::Optional,
                 value_store: None,
             },
-            AttributeValue::String(_value) => Argument {
-                ty: ArgType::Scalar(ElementType::String),
-                name,
-                data_id: None,
-                value_source: ValueSource::Optional,
-                value_store: None,
-            },
-            AttributeValue::Strings(values) => Argument {
-                ty: ArgType::Tensor(TensorType {
-                    rank: 1,
-                    elem_type: ElementType::String,
-                    static_shape: Some(vec![values.len()]),
-                }),
-                name,
-                data_id: None,
-                value_source: ValueSource::Optional,
-                value_store: None,
-            },
+            AttributeValue::String(_value) => {
+                panic!(
+                    "String type not supported in DType - use AttributeValue directly for strings"
+                )
+            }
+            AttributeValue::Strings(_values) => {
+                panic!(
+                    "String type not supported in DType - use AttributeValue directly for strings"
+                )
+            }
             AttributeValue::Tensor(tensor) => {
                 if tensor.shape().is_empty() {
                     // Handle scalar tensors by converting them to scalar arguments
@@ -955,7 +927,7 @@ impl From<AttributeValue> for Argument {
                     Argument {
                         ty: ArgType::Tensor(TensorType {
                             rank: tensor.shape().len(),
-                            elem_type: tensor.elem_type(),
+                            dtype: tensor.elem_type(),
                             static_shape: Some(tensor.shape().to_vec()),
                         }),
                         name,

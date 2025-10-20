@@ -303,21 +303,21 @@ pub fn same_as_input_broadcast(node: &mut Node) {
     let max_rank = compute_broadcast_rank(&node.inputs);
 
     if max_rank == 0 {
-        node.outputs[0].ty = ArgType::Scalar(node.inputs[0].ty.elem_type().clone());
+        node.outputs[0].ty = ArgType::Scalar(node.inputs[0].ty.elem_type());
     } else {
         let elem_type = node
             .inputs
             .iter()
             .find_map(|input| match &input.ty {
-                ArgType::Tensor(tensor) => Some(tensor.elem_type.clone()),
+                ArgType::Tensor(tensor) => Some(tensor.dtype),
                 _ => None,
             })
-            .unwrap_or_else(|| node.inputs[0].ty.elem_type().clone());
+            .unwrap_or_else(|| node.inputs[0].ty.elem_type());
 
         let static_shape = compute_broadcast_static_shape(&node.inputs);
 
         node.outputs[0].ty = ArgType::Tensor(crate::ir::TensorType {
-            elem_type,
+            dtype: elem_type,
             rank: max_rank,
             static_shape,
         });
@@ -327,7 +327,7 @@ pub fn same_as_input_broadcast(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, ElementType, Node, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, Node, NodeType, TensorType};
     use crate::registry::ProcessorRegistry;
 
     struct TestProcessor;
@@ -357,7 +357,7 @@ mod tests {
             inputs: vec![Argument {
                 name: "input".to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 2,
                     static_shape: None,
                 }),
@@ -409,7 +409,7 @@ mod tests {
             inputs: vec![Argument {
                 name: "input".to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 3,
                     static_shape: None,
                 }),
@@ -434,7 +434,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.rank, 3);
-                assert_eq!(t.elem_type, ElementType::Float32);
+                assert_eq!(t.dtype, DType::F32);
             }
             _ => panic!("Expected tensor output"),
         }

@@ -39,7 +39,7 @@
 //! - Available since opset version 1
 //! - Current version: 22
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
@@ -70,9 +70,9 @@ impl NodeProcessor for RandomLikeProcessor {
             .unwrap_or(DataType::FLOAT);
 
         let elem_type = match dtype {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::FLOAT16 => ElementType::Float16,
-            DataType::DOUBLE => ElementType::Float64,
+            DataType::FLOAT => DType::F32,
+            DataType::FLOAT16 => DType::F16,
+            DataType::DOUBLE => DType::F64,
             _ => {
                 return Err(ProcessError::InvalidAttribute {
                     name: "dtype".to_string(),
@@ -83,7 +83,7 @@ impl NodeProcessor for RandomLikeProcessor {
 
         if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type,
+                dtype: elem_type,
                 rank: tensor.rank,
                 static_shape: tensor.static_shape.clone(),
             });
@@ -131,7 +131,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output"),
@@ -147,7 +147,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float64);
+                assert_eq!(tensor.dtype, DType::F64);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![5, 10]));
             }
@@ -158,7 +158,7 @@ mod tests {
     #[test]
     fn test_random_like_invalid_input() {
         let mut node = create_test_node(DataType::FLOAT.value(), 2, None);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
         let processor = RandomLikeProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

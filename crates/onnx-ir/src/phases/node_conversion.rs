@@ -136,7 +136,7 @@ fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<Graph
                 crate::ir::ArgType::Scalar(tensor_data.elem_type())
             } else {
                 crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                    elem_type: tensor_data.elem_type(),
+                    dtype: tensor_data.elem_type(),
                     rank: tensor_data.shape().len(),
                     static_shape: Some(tensor_data.shape().to_vec()),
                 })
@@ -344,17 +344,17 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
     let new_shape = vec![shape[1], shape[0]];
 
     let new_tensor_data = match tensor_data.elem_type() {
-        crate::ir::ElementType::Float32 => {
+        crate::ir::DType::F32 => {
             let data: Vec<f32> = tensor_data.to_vec().unwrap();
             let data_t = transpose_flattened(data, shape[0], shape[1]);
             TensorData::new(data_t, new_shape)
         }
-        crate::ir::ElementType::Float64 => {
+        crate::ir::DType::F64 => {
             let data: Vec<f64> = tensor_data.to_vec().unwrap();
             let data_t = transpose_flattened(data, shape[0], shape[1]);
             TensorData::new(data_t, new_shape)
         }
-        crate::ir::ElementType::Float16 => {
+        crate::ir::DType::F16 => {
             let data: Vec<half::f16> = tensor_data.to_vec().unwrap();
             let data_t = transpose_flattened(data, shape[0], shape[1]);
             TensorData::new(data_t, new_shape)

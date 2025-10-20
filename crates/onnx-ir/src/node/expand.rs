@@ -20,7 +20,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
-    ElementType,
+    DType,
     ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType},
 };
 use std::any::Any;
@@ -80,7 +80,7 @@ impl NodeProcessor for ExpandProcessor {
                         "Expand: shape tensor must be 1D".to_string(),
                     ));
                 }
-                if !matches!(tensor.elem_type, ElementType::Int64) {
+                if !matches!(tensor.dtype, DType::I64) {
                     return Err(ProcessError::Custom(
                         "Expand: shape tensor must have element type int64".to_string(),
                     ));
@@ -102,7 +102,7 @@ impl NodeProcessor for ExpandProcessor {
 
         // Get input element type - Expand should preserve the input's element type
         let input_elem_type = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+            ArgType::Tensor(tensor) => tensor.dtype,
             _ => {
                 return Err(ProcessError::TypeMismatch {
                     expected: "Tensor".to_string(),
@@ -115,7 +115,7 @@ impl NodeProcessor for ExpandProcessor {
         match config {
             ExpandShape::Static(shape) => {
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: input_elem_type,
+                    dtype: input_elem_type,
                     rank: shape.len(),
                     static_shape: Some(shape.iter().map(|&dim| dim as usize).collect()),
                 });
@@ -149,7 +149,7 @@ impl NodeProcessor for ExpandProcessor {
                 };
 
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: input_elem_type,
+                    dtype: input_elem_type,
                     rank: output_rank,
                     static_shape: None,
                 });
@@ -186,7 +186,7 @@ impl NodeProcessor for ExpandProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
@@ -223,7 +223,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
                 assert_eq!(tensor.static_shape, Some(vec![2, 3, 4]));
             }
@@ -243,7 +243,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
                 assert_eq!(tensor.static_shape, None);
             }
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn test_expand_config_with_invalid_shape_rank() {
         let invalid_shape_type = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
+            dtype: DType::I64,
             rank: 2, // Invalid rank, should be 1
             static_shape: None,
         });
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn test_expand_config_with_invalid_shape_type() {
         let invalid_shape_type = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Float32, // Invalid element type, should be Int64
+            dtype: DType::F32, // Invalid element type, should be Int64
             rank: 1,
             static_shape: None,
         });
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_expand_config_with_invalid_input_type() {
-        let invalid_shape_type = ArgType::Scalar(ElementType::Int64);
+        let invalid_shape_type = ArgType::Scalar(DType::I64);
         let node = create_test_node(2, None, Some(invalid_shape_type)).build();
         let mut node = node;
         let processor = ExpandProcessor;
@@ -409,7 +409,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 4); // Shape(4) means output will be rank 4
                 assert_eq!(tensor.static_shape, None); // Dynamic shape
             }
@@ -434,7 +434,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
                 assert_eq!(tensor.static_shape, Some(vec![5, 10, 15]));
             }
@@ -456,7 +456,7 @@ mod tests {
 
             // Initially set output to wrong type
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64, // Wrong type
+                dtype: DType::I64, // Wrong type
                 rank: 0,
                 static_shape: None,
             });
@@ -470,8 +470,8 @@ mod tests {
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
                     assert_eq!(
-                        tensor.elem_type,
-                        ElementType::Float32,
+                        tensor.dtype,
+                        DType::F32,
                         "Expand should preserve Float32 input type"
                     );
                     assert_eq!(tensor.rank, 3);
@@ -490,7 +490,7 @@ mod tests {
 
             // Initially set output to wrong type
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32, // Wrong type
+                dtype: DType::F32, // Wrong type
                 rank: 0,
                 static_shape: None,
             });
@@ -504,8 +504,8 @@ mod tests {
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
                     assert_eq!(
-                        tensor.elem_type,
-                        ElementType::Int64,
+                        tensor.dtype,
+                        DType::I64,
                         "Expand should preserve Int64 input type"
                     );
                     assert_eq!(tensor.rank, 3);
@@ -524,7 +524,7 @@ mod tests {
 
             // Initially set output to wrong type
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32, // Wrong type
+                dtype: DType::F32, // Wrong type
                 rank: 0,
                 static_shape: None,
             });
@@ -538,8 +538,8 @@ mod tests {
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
                     assert_eq!(
-                        tensor.elem_type,
-                        ElementType::Bool,
+                        tensor.dtype,
+                        DType::Bool,
                         "Expand should preserve Bool input type"
                     );
                     assert_eq!(tensor.rank, 3);
@@ -568,8 +568,8 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(
-                    tensor.elem_type,
-                    ElementType::Int64,
+                    tensor.dtype,
+                    DType::I64,
                     "Expand should use input type (Int64) not initial output type (Float32)"
                 );
                 assert_eq!(tensor.rank, 2);

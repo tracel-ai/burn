@@ -318,7 +318,7 @@ impl NodeProcessor for SliceProcessor {
 
 #[cfg(test)]
 mod tests {
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     use super::*;
@@ -519,7 +519,7 @@ mod tests {
 
         // After calling, output should be the same type as input
         assert!(
-            matches!(&node.outputs[0].ty, ArgType::Tensor(tensor_type) if tensor_type.elem_type == ElementType::Float32 && tensor_type.rank == 3)
+            matches!(&node.outputs[0].ty, ArgType::Tensor(tensor_type) if tensor_type.dtype == DType::F32 && tensor_type.rank == 3)
         );
     }
 

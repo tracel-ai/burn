@@ -62,7 +62,7 @@ impl NodeProcessor for IsNaNProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, ElementType, NodeType};
+    use crate::ir::{ArgType, DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     #[test]
@@ -79,7 +79,7 @@ mod tests {
         // Output should be boolean with same rank as input
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.dtype, DType::Bool);
                 assert_eq!(tensor.rank, 4);
             }
             _ => panic!("Expected tensor output"),
@@ -89,8 +89,8 @@ mod tests {
     #[test]
     fn test_is_nan_scalar() {
         let mut node = NodeBuilder::new(NodeType::IsNaN, "test_is_nan")
-            .add_input("data", ArgType::Scalar(ElementType::Float32))
-            .add_output("output", ArgType::Scalar(ElementType::Bool))
+            .add_input("data", ArgType::Scalar(DType::F32))
+            .add_output("output", ArgType::Scalar(DType::Bool))
             .build();
 
         let processor = IsNaNProcessor;
@@ -100,7 +100,7 @@ mod tests {
         // Output should be boolean scalar
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Bool);
+                assert_eq!(*elem_type, DType::Bool);
             }
             _ => panic!("Expected scalar output"),
         }

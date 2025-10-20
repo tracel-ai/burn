@@ -251,7 +251,7 @@ mod tests {
         node.inputs.push(crate::ir::Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                elem_type: crate::ir::ElementType::Float32,
+                dtype: crate::ir::DType::F32,
                 rank: 4,
                 static_shape: None,
             }),

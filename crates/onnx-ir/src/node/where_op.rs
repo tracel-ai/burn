@@ -18,33 +18,28 @@
 //! ## Opset Versions
 //! - **Opset 9**: Initial version with broadcasting support for all three inputs.
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{
     NodeProcessor, OutputPreferences, ProcessError, compute_broadcast_rank,
     compute_broadcast_static_shape,
 };
 
 /// Get element type from ArgType, handling Shape types specially
-fn get_elem_type(arg_type: &ArgType) -> ElementType {
+fn get_elem_type(arg_type: &ArgType) -> DType {
     match arg_type {
-        ArgType::Scalar(elem_type) => elem_type.clone(),
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
-        ArgType::Shape(_) => ElementType::Int64, // Shape types are always i64
+        ArgType::Scalar(elem_type) => *elem_type,
+        ArgType::Tensor(tensor) => tensor.dtype,
+        ArgType::Shape(_) => DType::I64, // Shape types are always i64
     }
 }
 
 /// Check if output should be a Shape type
-fn should_output_shape(
-    x: &ArgType,
-    y: &ArgType,
-    output_rank: usize,
-    elem_type: &ElementType,
-) -> bool {
+fn should_output_shape(x: &ArgType, y: &ArgType, output_rank: usize, dtype: &DType) -> bool {
     // Output Shape if both inputs are Shape and output would be 1D int64
     matches!(x, ArgType::Shape(_))
         && matches!(y, ArgType::Shape(_))
         && output_rank == 1
-        && *elem_type == ElementType::Int64
+        && *dtype == DType::I64
 }
 
 /// Get size of Shape type, or 1 for other types
@@ -79,7 +74,7 @@ impl NodeProcessor for WhereProcessor {
         let y_elem_type = get_elem_type(y);
         let condition_elem_type = get_elem_type(condition);
 
-        if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != ElementType::Bool {
+        if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != DType::Bool {
             return Err(ProcessError::TypeMismatch {
                 expected: "Bool".to_string(),
                 actual: format!("{:?}", condition_elem_type),
@@ -113,7 +108,7 @@ impl NodeProcessor for WhereProcessor {
             let static_shape = compute_broadcast_static_shape(&node.inputs);
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type,
+                dtype: elem_type,
                 rank: output_rank,
                 static_shape,
             });
@@ -148,7 +143,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3); // max(2, max(3, 2)) = 3
             }
             _ => panic!("Expected tensor output"),
@@ -165,7 +160,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Expected scalar output"),
         }
@@ -249,7 +244,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![2, 2]));
             }
@@ -274,7 +269,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
                 // Since X and Y have the same static shape, it should propagate
                 assert_eq!(tensor.static_shape, Some(vec![3, 4]));

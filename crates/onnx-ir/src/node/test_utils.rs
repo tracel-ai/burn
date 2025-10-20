@@ -1,6 +1,4 @@
-use crate::ir::{
-    ArgType, Argument, AttributeValue, ElementType, Node, NodeType, TensorData, TensorType,
-};
+use crate::ir::{ArgType, Argument, AttributeValue, DType, Node, NodeType, TensorData, TensorType};
 use std::collections::HashMap;
 
 /// Builder for creating test node instances with convenient defaults and simple API.
@@ -60,7 +58,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank,
                 static_shape,
             }),
@@ -77,7 +75,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float64,
+                dtype: DType::F64,
                 rank,
                 static_shape,
             }),
@@ -94,7 +92,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int32,
+                dtype: DType::I32,
                 rank,
                 static_shape,
             }),
@@ -111,7 +109,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank,
                 static_shape,
             }),
@@ -128,7 +126,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
+                dtype: DType::Bool,
                 rank,
                 static_shape,
             }),
@@ -145,43 +143,37 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float16,
+                dtype: DType::F16,
                 rank,
                 static_shape,
             }),
         )
     }
 
-    /// Add a string tensor input with the given name and rank
+    /// Add a string tensor input with the given name and rank (not supported)
     pub fn input_tensor_string(
         self,
         name: &str,
         rank: usize,
         static_shape: Option<Vec<usize>>,
     ) -> Self {
-        self.add_input(
-            name,
-            ArgType::Tensor(TensorType {
-                elem_type: ElementType::String,
-                rank,
-                static_shape,
-            }),
-        )
+        // String tensors not supported in burn-tensor DType
+        panic!("String tensors not supported - use a different type")
     }
 
-    /// Add a scalar input with the given name and element type
-    pub fn input_scalar(self, name: &str, elem_type: ElementType) -> Self {
-        self.add_input(name, ArgType::Scalar(elem_type))
+    /// Add a scalar input with the given name and data type
+    pub fn input_scalar(self, name: &str, dtype: DType) -> Self {
+        self.add_input(name, ArgType::Scalar(dtype))
     }
 
     /// Add a float32 scalar input with the given name
     pub fn input_scalar_f32(self, name: &str) -> Self {
-        self.input_scalar(name, ElementType::Float32)
+        self.input_scalar(name, DType::F32)
     }
 
     /// Add an int64 scalar input with the given name
     pub fn input_scalar_i64(self, name: &str) -> Self {
-        self.input_scalar(name, ElementType::Int64)
+        self.input_scalar(name, DType::I64)
     }
 
     /// Add a shape input with the given name and rank
@@ -197,14 +189,14 @@ impl NodeBuilder {
     pub fn input_tensor_with_data(
         mut self,
         name: &str,
-        elem_type: ElementType,
+        dtype: DType,
         rank: usize,
         tensor_data: TensorData,
     ) -> Self {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type,
+                dtype,
                 rank,
                 static_shape: None,
             }),
@@ -221,13 +213,13 @@ impl NodeBuilder {
     /// Add a float32 tensor input with data values
     pub fn input_tensor_f32_data(self, name: &str, data: Vec<f32>, shape: Vec<usize>) -> Self {
         let tensor_data = TensorData::new(data, shape.clone());
-        self.input_tensor_with_data(name, ElementType::Float32, shape.len(), tensor_data)
+        self.input_tensor_with_data(name, DType::F32, shape.len(), tensor_data)
     }
 
     /// Add an int64 tensor input with data values
     pub fn input_tensor_i64_data(self, name: &str, data: Vec<i64>, shape: Vec<usize>) -> Self {
         let tensor_data = TensorData::new(data, shape.clone());
-        self.input_tensor_with_data(name, ElementType::Int64, shape.len(), tensor_data)
+        self.input_tensor_with_data(name, DType::I64, shape.len(), tensor_data)
     }
 
     /// Add a float32 scalar tensor input (rank 0)
@@ -243,7 +235,7 @@ impl NodeBuilder {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank: 0,
                 static_shape: None,
             }),
@@ -273,7 +265,7 @@ impl NodeBuilder {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank: 0,
                 static_shape: None,
             }),
@@ -330,7 +322,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank,
                 static_shape,
             }),
@@ -347,7 +339,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float64,
+                dtype: DType::F64,
                 rank,
                 static_shape,
             }),
@@ -364,7 +356,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int32,
+                dtype: DType::I32,
                 rank,
                 static_shape,
             }),
@@ -381,7 +373,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank,
                 static_shape,
             }),
@@ -398,7 +390,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
+                dtype: DType::Bool,
                 rank,
                 static_shape,
             }),
@@ -415,43 +407,37 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float16,
+                dtype: DType::F16,
                 rank,
                 static_shape,
             }),
         )
     }
 
-    /// Add a string tensor output with the given name and rank
+    /// Add a string tensor output with the given name and rank (not supported)
     pub fn output_tensor_string(
         self,
         name: &str,
         rank: usize,
         static_shape: Option<Vec<usize>>,
     ) -> Self {
-        self.add_output(
-            name,
-            ArgType::Tensor(TensorType {
-                elem_type: ElementType::String,
-                rank,
-                static_shape,
-            }),
-        )
+        // String tensors not supported in burn-tensor DType
+        panic!("String tensors not supported - use a different type")
     }
 
-    /// Add a scalar output with the given name and element type
-    pub fn output_scalar(self, name: &str, elem_type: ElementType) -> Self {
-        self.add_output(name, ArgType::Scalar(elem_type))
+    /// Add a scalar output with the given name and data type
+    pub fn output_scalar(self, name: &str, dtype: DType) -> Self {
+        self.add_output(name, ArgType::Scalar(dtype))
     }
 
     /// Add a float32 scalar output with the given name
     pub fn output_scalar_f32(self, name: &str) -> Self {
-        self.output_scalar(name, ElementType::Float32)
+        self.output_scalar(name, DType::F32)
     }
 
     /// Add an int64 scalar output with the given name
     pub fn output_scalar_i64(self, name: &str) -> Self {
-        self.output_scalar(name, ElementType::Int64)
+        self.output_scalar(name, DType::I64)
     }
 
     /// Add a shape output with the given name and rank

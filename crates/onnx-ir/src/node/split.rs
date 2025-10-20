@@ -100,7 +100,7 @@ impl NodeProcessor for SplitProcessor {
         // Infer output types - all outputs have the same rank and element type as input
         for output_arg in node.outputs.iter_mut() {
             output_arg.ty = ArgType::Tensor(TensorType {
-                elem_type: tensor.elem_type.clone(),
+                dtype: tensor.dtype,
                 rank: tensor.rank,
                 static_shape: None,
             });
@@ -216,7 +216,7 @@ impl NodeProcessor for SplitProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, AttributeValue, ElementType, NodeType};
+    use crate::ir::{ArgType, AttributeValue, DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 
@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(node.outputs.len(), 1);
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output"),
@@ -296,7 +296,7 @@ mod tests {
         for output in &node.outputs {
             match &output.ty {
                 ArgType::Tensor(tensor) => {
-                    assert_eq!(tensor.elem_type, ElementType::Float32);
+                    assert_eq!(tensor.dtype, DType::F32);
                     assert_eq!(tensor.rank, 4);
                 }
                 _ => panic!("Expected tensor output"),
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_split_invalid_input() {
         let mut node = create_test_node(3, 2, Some(vec![10, 20, 30]), None, None).build();
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
 
         let processor = SplitProcessor;
         let _prefs = OutputPreferences::new();
@@ -496,7 +496,7 @@ mod tests {
     fn test_split_config_invalid_input_type() {
         // Test with invalid input type - extract_config should fail
         let mut node = create_test_node(3, 2, Some(vec![10, 20, 30]), None, None).build();
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
 
         let node = node;
         let processor = SplitProcessor;

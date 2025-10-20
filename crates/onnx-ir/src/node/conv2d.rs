@@ -123,7 +123,7 @@ impl NodeProcessor for Conv2dProcessor {
 
         // Conv2d preserves rank (same as input)
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
+            dtype: tensor.dtype,
             rank: tensor.rank,
             static_shape: None,
         });

@@ -153,11 +153,11 @@ impl NodeProcessor for GatherProcessor {
 
                 if output_rank == 0 {
                     // Output is scalar when gathering a single element
-                    node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+                    node.outputs[0].ty = ArgType::Scalar(input_tensor.dtype);
                 } else {
                     // Output is tensor
                     node.outputs[0].ty = ArgType::Tensor(TensorType {
-                        elem_type: input_tensor.elem_type.clone(),
+                        dtype: input_tensor.dtype,
                         rank: output_rank,
                         static_shape: None,
                     });
@@ -168,7 +168,7 @@ impl NodeProcessor for GatherProcessor {
                 // - If indices are scalar (rank 0), output is a scalar (single dimension value)
                 // - Otherwise, output is a shape with same dimension as indices
                 if indices_rank == 0 {
-                    node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
+                    node.outputs[0].ty = ArgType::Scalar(crate::ir::DType::I64);
                 } else {
                     // For Shape indices, use the actual shape rank (number of elements)
                     let output_shape_rank = match &node.inputs[1].ty {
@@ -312,7 +312,7 @@ mod tests {
         let mut node = NodeBuilder::new(NodeType::Gather, "test_scalar_gather")
             .attr_int("axis", 0)
             .input_tensor_f32("data", 1, None)
-            .add_input("indices", ArgType::Scalar(crate::ir::ElementType::Int64))
+            .add_input("indices", ArgType::Scalar(crate::ir::DType::I64))
             .output_tensor_f32("output", 1, None)
             .build();
 
@@ -325,7 +325,7 @@ mod tests {
         // Should output scalar, not tensor
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, crate::ir::ElementType::Float32);
+                assert_eq!(*elem_type, crate::ir::DType::F32);
             }
             other => panic!("Expected scalar output, got {:?}", other),
         }
@@ -351,7 +351,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 2);
-                assert_eq!(tensor.elem_type, crate::ir::ElementType::Float32);
+                assert_eq!(tensor.dtype, crate::ir::DType::F32);
             }
             other => panic!("Expected tensor output, got {:?}", other),
         }
@@ -390,7 +390,7 @@ mod tests {
         let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_scalar")
             .attr_int("axis", 0)
             .input_shape("data", 2) // Shape input (represents shape of a 2D tensor)
-            .add_input("indices", ArgType::Scalar(crate::ir::ElementType::Int64)) // Scalar indices
+            .add_input("indices", ArgType::Scalar(crate::ir::DType::I64)) // Scalar indices
             .output_tensor_i64("output", 0, None) // Will be updated by gather_update_outputs
             .build();
 
@@ -403,7 +403,7 @@ mod tests {
         // Should output scalar when gathering from shape with scalar indices
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(*elem_type, crate::ir::DType::I64);
             }
             other => panic!("Expected scalar output, got {:?}", other),
         }

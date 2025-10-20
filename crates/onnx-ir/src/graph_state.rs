@@ -245,7 +245,7 @@ fn create_test_constant(
     let shape = tensor_data.shape().to_vec();
 
     let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
-        elem_type,
+        dtype: elem_type,
         rank: shape.len(),
         static_shape: Some(shape.clone()),
     });

@@ -225,7 +225,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 
 impl OnnxIntoNode for ConstantNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::{ArgType, ElementType};
+        use onnx_ir::ir::{ArgType, DType};
 
         let input = node.inputs.first().unwrap();
         let output = node.outputs.first().unwrap();
@@ -242,33 +242,33 @@ impl OnnxIntoNode for ConstantNode {
 
         // Helper to map elem type to ConstantValue (single scalar)
         // Helper to extract scalar from TensorData
-        fn scalar_from_tensor_data(elem: ElementType, tensor_data: &onnx_ir::TensorData) -> ConstantValue {
+        fn scalar_from_tensor_data(elem: DType, tensor_data: &onnx_ir::TensorData) -> ConstantValue {
             match elem {
-                ElementType::Float64 => {
+                DType::F64 => {
                     let val = tensor_data.inner.as_slice::<f64>().unwrap()[0];
                     ConstantValue::Float64(val)
                 }
-                ElementType::Float32 => {
+                DType::F32 => {
                     let val = tensor_data.inner.as_slice::<f32>().unwrap()[0];
                     ConstantValue::Float32(val)
                 }
-                ElementType::Int64 => {
+                DType::I64 => {
                     let val = tensor_data.inner.as_slice::<i64>().unwrap()[0];
                     ConstantValue::Int64(val)
                 }
-                ElementType::Int32 => {
+                DType::I32 => {
                     let val = tensor_data.inner.as_slice::<i32>().unwrap()[0];
                     ConstantValue::Int32(val)
                 }
-                ElementType::Bool => {
+                DType::Bool => {
                     let val = tensor_data.inner.as_slice::<bool>().unwrap()[0];
                     ConstantValue::Bool(val)
                 }
-                ElementType::Uint8 => {
+                DType::U8 => {
                     let val = tensor_data.inner.as_slice::<u8>().unwrap()[0] as i32;
                     ConstantValue::Int32(val)
                 }
-                ElementType::Int8 => {
+                DType::I8 => {
                     let val = tensor_data.inner.as_slice::<i8>().unwrap()[0] as i32;
                     ConstantValue::Int32(val)
                 }
@@ -292,24 +292,24 @@ impl OnnxIntoNode for ConstantNode {
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
                     // Extract scalar data from tensor_data
-                    scalar_from_tensor_data(tensor.elem_type.clone(), &tensor_data)
+                    scalar_from_tensor_data(tensor.dtype.clone(), &tensor_data)
                 } else {
-                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let kind: TensorKind = tensor.dtype.clone().into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
 
-                    let serialized_data = match &tensor.elem_type {
-                        ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
+                    let serialized_data = match &tensor.dtype {
+                        DType::F32 | DType::F64 | DType::F16 => {
                             tensor_data.inner.clone().convert::<f32>()
                         }
-                        ElementType::Int32
-                        | ElementType::Int64
-                        | ElementType::Uint16
-                        | ElementType::Uint8
-                        | ElementType::Int8 => {
+                        DType::I32
+                        | DType::I64
+                        | DType::U16
+                        | DType::U8
+                        | DType::I8 => {
                             tensor_data.inner.clone().convert::<i32>()
                         }
-                        ElementType::Bool => {
+                        DType::Bool => {
                             tensor_data.inner.clone()
                         }
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
@@ -334,16 +334,16 @@ impl OnnxIntoNode for ConstantNode {
                 | ConstantValue::Int64(_)
                 | ConstantValue::Bool(_),
             ) if t.rank == 0 => {
-                let scalar_kind = match t.elem_type {
-                    ElementType::Float32 => {
+                let scalar_kind = match t.dtype {
+                    DType::F32 => {
                         ScalarType::new(output.name.clone(), ScalarKind::Float32)
                     }
-                    ElementType::Float64 => {
+                    DType::F64 => {
                         ScalarType::new(output.name.clone(), ScalarKind::Float64)
                     }
-                    ElementType::Int32 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
-                    ElementType::Int64 => ScalarType::new(output.name.clone(), ScalarKind::Int64),
-                    ElementType::Bool => ScalarType::new(output.name.clone(), ScalarKind::Bool),
+                    DType::I32 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
+                    DType::I64 => ScalarType::new(output.name.clone(), ScalarKind::Int64),
+                    DType::Bool => ScalarType::new(output.name.clone(), ScalarKind::Bool),
                     _ => panic!("Unsupported scalar type for rank-0 tensor"),
                 };
                 Type::Scalar(scalar_kind)

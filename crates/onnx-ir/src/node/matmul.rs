@@ -59,7 +59,7 @@ impl NodeProcessor for MatMulProcessor {
                 }
 
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: a.elem_type.clone(),
+                    dtype: a.dtype,
                     rank: out_rank,
                     static_shape: None,
                 });
@@ -79,7 +79,7 @@ impl NodeProcessor for MatMulProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(a_rank: usize, b_rank: usize) -> Node {
@@ -100,7 +100,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -117,7 +117,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output"),
@@ -136,7 +136,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected tensor output"),
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn test_matmul_invalid_input() {
         let mut node = create_test_node(2, 2);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
         let processor = MatMulProcessor;
 
         let prefs = OutputPreferences::new();

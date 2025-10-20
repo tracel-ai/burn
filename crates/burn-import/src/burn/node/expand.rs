@@ -88,7 +88,7 @@ impl OnnxIntoNode for ExpandNode {
 #[cfg(test)]
 mod tests {
     use burn::record::FullPrecisionSettings;
-    use onnx_ir::{ArgType, Argument, ElementType};
+    use onnx_ir::{ArgType, Argument, DType};
 
     use super::*;
     use crate::burn::{
@@ -194,7 +194,7 @@ mod tests {
 
         let mut arg = Argument::new("tensor3".to_string());
         arg.ty = ArgType::Tensor(onnx_ir::TensorType {
-            elem_type: ElementType::Int32,
+            dtype: DType::I32,
             rank: 1,
             static_shape: None,
         });

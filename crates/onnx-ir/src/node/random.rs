@@ -23,7 +23,7 @@
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
@@ -58,8 +58,8 @@ impl NodeProcessor for RandomProcessor {
             .into_i64s();
 
         let elem_type = match dtype {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::DOUBLE => ElementType::Float64,
+            DataType::FLOAT => DType::F32,
+            DataType::DOUBLE => DType::F64,
             _ => {
                 return Err(ProcessError::InvalidAttribute {
                     name: "dtype".to_string(),
@@ -71,7 +71,7 @@ impl NodeProcessor for RandomProcessor {
         let rank = shape.len();
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type,
+            dtype: elem_type,
             rank,
             static_shape: None,
         });
@@ -113,7 +113,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output"),
@@ -129,7 +129,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float64);
+                assert_eq!(tensor.dtype, DType::F64);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected tensor output"),

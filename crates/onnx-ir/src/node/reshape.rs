@@ -85,7 +85,7 @@ pub fn reshape_update_outputs(node: &mut Node) {
 
 /// Extract relevant information from input argument
 struct InputInfo {
-    elem_type: crate::ElementType,
+    dtype: crate::DType,
     is_shape: bool,
     shape_size: Option<usize>,
 }
@@ -93,12 +93,12 @@ struct InputInfo {
 fn extract_input_info(input: &Argument) -> InputInfo {
     match &input.ty {
         ArgType::Tensor(tensor) => InputInfo {
-            elem_type: tensor.elem_type.clone(),
+            dtype: tensor.dtype,
             is_shape: false,
             shape_size: None,
         },
         ArgType::Shape(size) => InputInfo {
-            elem_type: crate::ElementType::Int64,
+            dtype: crate::DType::I64,
             is_shape: true,
             shape_size: Some(*size),
         },
@@ -118,12 +118,11 @@ fn determine_output_type(
 ) -> ArgType {
     // Case 1: Scalar output (rank 0)
     if output_rank == 0 {
-        return ArgType::Scalar(input_info.elem_type.clone());
+        return ArgType::Scalar(input_info.dtype);
     }
 
     // Case 2: Shape input -> Shape output (optimization)
-    if input_info.is_shape && output_rank == 1 && input_info.elem_type == crate::ElementType::Int64
-    {
+    if input_info.is_shape && output_rank == 1 && input_info.dtype == crate::DType::I64 {
         let output_size =
             calculate_shape_output_size(input_info.shape_size.unwrap_or(1), node, &static_shape);
 
@@ -134,7 +133,7 @@ fn determine_output_type(
     ArgType::Tensor(TensorType {
         rank: output_rank,
         static_shape,
-        elem_type: input_info.elem_type.clone(),
+        dtype: input_info.dtype,
     })
 }
 
@@ -372,7 +371,7 @@ impl NodeProcessor for ReshapeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ElementType;
+    use crate::DType;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
@@ -471,7 +470,7 @@ mod tests {
             .input_tensor_f32("data", 4, None)
             .input_tensor_with_data(
                 "shape",
-                ElementType::Int64,
+                DType::I64,
                 2,                                                     // 2D tensor (rank 2)
                 crate::ir::TensorData::new(vec![2i64, 3], vec![2, 1]), // 2D shape - this should cause panic
             )
@@ -494,7 +493,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, None);
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -505,7 +504,7 @@ mod tests {
     fn test_reshape_update_outputs_int() {
         let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         node.inputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int32,
+            dtype: DType::I32,
             rank: 4,
             static_shape: None,
         });
@@ -514,7 +513,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, None);
-                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.dtype, DType::I32);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -545,7 +544,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, None);
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2); // Should get rank from Shape(2) input
             }
             _ => panic!("Expected tensor output"),
@@ -564,7 +563,7 @@ mod tests {
         reshape_update_outputs(&mut node);
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Expected scalar output"),
         }

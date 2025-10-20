@@ -199,14 +199,14 @@ impl NodeProcessor for AttentionProcessor {
         // Infer output types
         let q_rank = q.rank;
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[0].ty.elem_type().clone(),
+            dtype: node.inputs[0].ty.elem_type(),
             rank: q_rank,
             static_shape: None,
         });
 
         if let Some(present_key) = node.outputs.get_mut(1) {
             present_key.ty = ArgType::Tensor(TensorType {
-                elem_type: node.inputs[4].ty.elem_type().clone(),
+                dtype: node.inputs[4].ty.elem_type(),
                 rank: 4,
                 static_shape: None,
             });
@@ -214,7 +214,7 @@ impl NodeProcessor for AttentionProcessor {
 
         if let Some(present_value) = node.outputs.get_mut(2) {
             present_value.ty = ArgType::Tensor(TensorType {
-                elem_type: node.inputs[5].ty.elem_type().clone(),
+                dtype: node.inputs[5].ty.elem_type(),
                 rank: 4,
                 static_shape: None,
             });
@@ -222,7 +222,7 @@ impl NodeProcessor for AttentionProcessor {
 
         if let Some(qk_matmul_output) = node.outputs.get_mut(3) {
             qk_matmul_output.ty = ArgType::Tensor(TensorType {
-                elem_type: node.inputs[0].ty.elem_type().clone(),
+                dtype: node.inputs[0].ty.elem_type(),
                 rank: 4,
                 static_shape: None,
             });
@@ -288,14 +288,14 @@ impl NodeProcessor for AttentionProcessor {
 #[allow(clippy::too_many_arguments)]
 mod tests {
     use super::*;
-    use crate::{ElementType, NodeType, node::test_utils::NodeBuilder};
+    use crate::{DType, NodeType, node::test_utils::NodeBuilder};
     use rstest::rstest;
 
     fn create_test_node(
         q: Option<usize>,
         k: Option<usize>,
         v: Option<usize>,
-        attn_mask: Option<(ElementType, usize)>,
+        attn_mask: Option<(DType, usize)>,
         past_key: Option<usize>,
         past_value: Option<usize>,
         y: Option<usize>,
@@ -325,7 +325,7 @@ mod tests {
             builder = builder.add_input(
                 "attn_mask",
                 ArgType::Tensor(TensorType {
-                    elem_type: ty,
+                    dtype: ty,
                     rank,
                     static_shape: None,
                 }),
@@ -412,9 +412,9 @@ mod tests {
     #[case(Some(4), Some(4), None, None, None, None, Some(4), None, None)]
     #[case(Some(4), Some(4), Some(4), None, None, None, None, None, None)]
     #[case(Some(4), Some(4), None, None, None, None, None, None, None)]
-    #[case(Some(4), Some(4), Some(4), Some((ElementType::Bool,2)), Some(2), None, Some(4), None, None)]
+    #[case(Some(4), Some(4), Some(4), Some((DType::Bool,2)), Some(2), None, Some(4), None, None)]
     #[case(Some(4), Some(4), Some(4), None, None, None, Some(4), Some(2), None)]
-    #[case(Some(4), Some(4), Some(4), Some((ElementType::Bool,2)), Some(2), Some(2), Some(4), None, None)]
+    #[case(Some(4), Some(4), Some(4), Some((DType::Bool,2)), Some(2), Some(2), Some(4), None, None)]
     // Mismatched ranks
     #[case(Some(4), Some(3), Some(3), None, None, None, Some(3), None, None)]
     #[case(Some(3), Some(4), Some(3), None, None, None, Some(4), None, None)]
@@ -425,7 +425,7 @@ mod tests {
         #[case] q: Option<usize>,
         #[case] k: Option<usize>,
         #[case] v: Option<usize>,
-        #[case] attn_mask: Option<(ElementType, usize)>,
+        #[case] attn_mask: Option<(DType, usize)>,
         #[case] past_key: Option<usize>,
         #[case] past_value: Option<usize>,
         #[case] y: Option<usize>,

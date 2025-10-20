@@ -313,7 +313,7 @@ impl NodeProcessor for PadProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, ElementType, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
@@ -564,7 +564,7 @@ mod tests {
     fn test_pad_config_invalid_input_type() {
         let mut node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
         let node = node;
         let processor = PadProcessor;
         let _prefs = OutputPreferences::new();
@@ -580,7 +580,7 @@ mod tests {
         node.inputs.push(Argument {
             name: "axes".to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank: 1,
                 static_shape: None,
             }),

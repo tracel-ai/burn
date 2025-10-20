@@ -34,7 +34,7 @@
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 
-use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, AttributeValue, DType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::proto_conversion::element_type_from_proto;
 use std::any::Any;
@@ -43,12 +43,12 @@ use std::any::Any;
 #[derive(Debug, Clone)]
 pub struct CastConfig {
     /// Target element type to cast to
-    pub to: ElementType,
+    pub to: DType,
 }
 
 impl CastConfig {
     /// Create a new CastConfig
-    pub fn new(to: ElementType) -> Self {
+    pub fn new(to: DType) -> Self {
         Self { to }
     }
 }
@@ -87,7 +87,7 @@ impl NodeProcessor for CastProcessor {
 
         // Get reference to config for type inference
         let config = node.config::<CastConfig>();
-        let elem_type = config.to.clone();
+        let elem_type = config.to;
 
         // Infer output type based on input type
         let input = &mut node.inputs[0];
@@ -98,11 +98,11 @@ impl NodeProcessor for CastProcessor {
                 if tensor.rank == 0 {
                     // treat 0-dim tensor as scalar
                     output.ty = ArgType::Scalar(elem_type);
-                    input.ty = ArgType::Scalar(tensor.elem_type);
+                    input.ty = ArgType::Scalar(tensor.dtype);
                 } else {
                     // Cast input and output are the same shape, but possibly different types
                     output.ty = ArgType::Tensor(TensorType {
-                        elem_type,
+                        dtype: elem_type,
                         rank: tensor.rank,
                         static_shape: tensor.static_shape, // keep it
                     });
@@ -113,12 +113,9 @@ impl NodeProcessor for CastProcessor {
                 // When casting Shape to float or bool types, convert to 1D tensor
                 // This allows Shape values to be used in tensor operations
                 match elem_type {
-                    ElementType::Float32
-                    | ElementType::Float64
-                    | ElementType::Float16
-                    | ElementType::Bool => {
+                    DType::F32 | DType::F64 | DType::F16 | DType::Bool => {
                         output.ty = ArgType::Tensor(TensorType {
-                            elem_type: elem_type.clone(),
+                            dtype: elem_type,
                             rank: 1,
                             static_shape: Some(vec![rank]),
                         });
@@ -198,7 +195,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<CastConfig>();
-        assert_eq!(config.to, ElementType::Int64);
+        assert_eq!(config.to, DType::I64);
 
         let mut node = create_test_node(2, DataType::FLOAT.value() as i64);
 
@@ -209,7 +206,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<CastConfig>();
-        assert_eq!(config.to, ElementType::Float32);
+        assert_eq!(config.to, DType::F32);
 
         let mut node = create_test_node(2, DataType::BOOL.value() as i64);
 
@@ -220,7 +217,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<CastConfig>();
-        assert_eq!(config.to, ElementType::Bool);
+        assert_eq!(config.to, DType::Bool);
     }
 
     #[test]
@@ -235,7 +232,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -254,14 +251,14 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Bool);
+                assert_eq!(*elem_type, DType::Bool);
             }
             _ => panic!("Expected scalar output for 0-rank tensor"),
         }
 
         match &node.inputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Input should have been converted to scalar"),
         }
@@ -273,7 +270,7 @@ mod tests {
         node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank: 1,
                 static_shape: None,
             }),
@@ -308,7 +305,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Bool);
+                assert_eq!(*elem_type, DType::Bool);
             }
             _ => panic!("Expected scalar output"),
         }
@@ -330,7 +327,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 1);
                 assert_eq!(tensor.static_shape, Some(vec![3]));
             }
@@ -376,7 +373,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.dtype, DType::Bool);
                 assert_eq!(tensor.rank, 1);
                 assert_eq!(tensor.static_shape, Some(vec![3]));
             }

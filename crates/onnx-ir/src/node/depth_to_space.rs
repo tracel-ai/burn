@@ -145,7 +145,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
         });
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
+            dtype: tensor.dtype,
             rank: tensor.rank,
             static_shape,
         });
@@ -188,7 +188,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ElementType;
+    use crate::DType;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
@@ -269,7 +269,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, vec![2, 1, 4, 6].into());
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 4);
             }
             _ => panic!("Expected tensor output"),

@@ -87,11 +87,7 @@ impl NodeProcessor for ReduceProcessor {
 
         // Validate input type and extract tensor info
         let (tensor_rank, tensor_elem_type, tensor_static_shape) = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => (
-                tensor.rank,
-                tensor.elem_type.clone(),
-                tensor.static_shape.clone(),
-            ),
+            ArgType::Tensor(tensor) => (tensor.rank, tensor.dtype, tensor.static_shape.clone()),
             _ => {
                 return Err(ProcessError::TypeMismatch {
                     expected: "Tensor".to_string(),
@@ -143,7 +139,7 @@ impl NodeProcessor for ReduceProcessor {
             });
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: tensor_elem_type,
+                dtype: tensor_elem_type,
                 rank: output_rank,
                 static_shape: output_shape,
             });

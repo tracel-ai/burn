@@ -24,7 +24,7 @@
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::protos::tensor_proto::DataType;
@@ -65,17 +65,17 @@ impl NodeProcessor for BernoulliProcessor {
             .get("dtype")
             .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap());
 
-        let elem_type = dtype.map_or(tensor.elem_type.clone(), |dtype| match dtype {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::INT32 => ElementType::Int32,
-            DataType::INT64 => ElementType::Int64,
-            DataType::DOUBLE => ElementType::Float64,
-            DataType::BOOL => ElementType::Bool,
-            _ => tensor.elem_type.clone(), // Fallback to input type for unsupported dtype
+        let elem_type = dtype.map_or(tensor.dtype, |dtype| match dtype {
+            DataType::FLOAT => DType::F32,
+            DataType::INT32 => DType::I32,
+            DataType::INT64 => DType::I64,
+            DataType::DOUBLE => DType::F64,
+            DataType::BOOL => DType::Bool,
+            _ => tensor.dtype, // Fallback to input type for unsupported dtype
         });
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type,
+            dtype: elem_type,
             rank,
             static_shape,
         });
@@ -112,7 +112,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.dtype, DType::I32);
                 assert_eq!(tensor.static_shape, Some(vec![3, 4, 2]));
                 assert_eq!(tensor.rank, 4);
             }
@@ -129,7 +129,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 4);
             }
             _ => panic!("Expected tensor output"),
@@ -145,7 +145,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 4);
             }
             _ => panic!("Expected tensor output"),
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn test_bernoulli_invalid_input() {
         let mut node = create_test_node(Some(DataType::FLOAT.value()), None);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
         let processor = BernoulliProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

@@ -26,7 +26,7 @@
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
 
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
@@ -109,17 +109,17 @@ impl NodeProcessor for ArgMinProcessor {
         if keepdims {
             // keepdims=true: output rank same as input rank (dimension becomes 1)
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank: tensor.rank,
                 static_shape: None,
             });
         } else if tensor.rank == 1 {
             // keepdims=false on 1D tensor: output is scalar
-            node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+            node.outputs[0].ty = ArgType::Scalar(DType::I64);
         } else {
             // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank: tensor.rank - 1,
                 static_shape: None,
             });
@@ -171,7 +171,7 @@ mod tests {
     #![allow(clippy::bool_assert_comparison)]
 
     use super::*;
-    use crate::ir::{Argument, ElementType, NodeType};
+    use crate::ir::{Argument, DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> Node {
@@ -226,7 +226,7 @@ mod tests {
         node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank: 1,
                 static_shape: None,
             }),
@@ -339,7 +339,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 1);
-                assert_eq!(tensor.elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(tensor.dtype, crate::ir::DType::I64);
             }
             other => panic!("Expected tensor output, got {:?}", other),
         }
@@ -368,7 +368,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 3);
-                assert_eq!(tensor.elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(tensor.dtype, crate::ir::DType::I64);
             }
             other => panic!("Expected tensor output, got {:?}", other),
         }
@@ -396,7 +396,7 @@ mod tests {
         // Should output scalar (rank 0)
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(*elem_type, crate::ir::DType::I64);
             }
             other => panic!("Expected scalar output, got {:?}", other),
         }

@@ -78,7 +78,7 @@ impl NodeProcessor for ConstantProcessor {
             ArgType::Scalar(tensor_data.elem_type())
         } else {
             ArgType::Tensor(TensorType {
-                elem_type: tensor_data.elem_type(),
+                dtype: tensor_data.elem_type(),
                 rank: tensor_data.shape().len(),
                 static_shape: Some(tensor_data.shape().to_vec()),
             })
@@ -117,7 +117,7 @@ impl NodeProcessor for ConstantProcessor {
                 }
                 // Convert scalar-compatible tensor to Scalar if requested
                 ArgType::Tensor(tensor) if tensor.rank == 0 && wants_scalar => {
-                    ArgType::Scalar(tensor.elem_type.clone())
+                    ArgType::Scalar(tensor.dtype)
                 }
                 // Otherwise keep base type
                 _ => base_type,
@@ -133,7 +133,7 @@ impl NodeProcessor for ConstantProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node_with_data(tensor_data: crate::ir::TensorData) -> Node {
@@ -157,7 +157,7 @@ mod tests {
             crate::ir::ArgType::Scalar(elem_type)
         } else {
             crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                elem_type,
+                dtype: elem_type,
                 rank: shape.len(),
                 static_shape: Some(shape),
             })
@@ -206,7 +206,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Expected scalar output"),
         }
@@ -225,7 +225,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -283,7 +283,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 1);
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
             }
             other => panic!("Expected Tensor output, got {:?}", other),
         }
@@ -309,7 +309,7 @@ mod tests {
         // Should already be Scalar (rank 0 tensor is treated as scalar by default)
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, ElementType::Float32);
+                assert_eq!(*elem_type, DType::F32);
             }
             other => panic!("Expected Scalar output, got {:?}", other),
         }
@@ -336,7 +336,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 2);
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
             }
             other => panic!("Expected Tensor output, got {:?}", other),
         }

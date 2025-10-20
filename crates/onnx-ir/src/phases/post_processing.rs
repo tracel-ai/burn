@@ -265,7 +265,7 @@ pub(crate) fn post_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, ElementType, Node, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, Node, NodeType, TensorType};
 
     fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> Node {
         Node {
@@ -274,7 +274,7 @@ mod tests {
             inputs: vec![Argument {
                 name: input_name.to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 2,
                     static_shape: None,
                 }),
@@ -285,7 +285,7 @@ mod tests {
             outputs: vec![Argument {
                 name: output_name.to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 2,
                     static_shape: None,
                 }),
@@ -306,7 +306,7 @@ mod tests {
                 Argument {
                     name: input1.to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -317,7 +317,7 @@ mod tests {
                 Argument {
                     name: input2.to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -329,7 +329,7 @@ mod tests {
             outputs: vec![Argument {
                 name: output.to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 2,
                     static_shape: None,
                 }),
@@ -384,7 +384,7 @@ mod tests {
         let mut outputs = vec![Argument {
             name: "add1_out".to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank: 2,
                 static_shape: None,
             }),

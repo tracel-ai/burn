@@ -128,7 +128,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, ElementType, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
 
     #[test]
     fn test_arithmetic_add() {
@@ -142,7 +142,7 @@ mod tests {
                 Argument {
                     name: "a".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -153,7 +153,7 @@ mod tests {
                 Argument {
                     name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -193,7 +193,7 @@ mod tests {
                 Argument {
                     name: "a".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 3,
                         static_shape: None,
                     }),
@@ -204,7 +204,7 @@ mod tests {
                 Argument {
                     name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 3,
                         static_shape: None,
                     }),
@@ -244,7 +244,7 @@ mod tests {
                 Argument {
                     name: "a".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 4,
                         static_shape: None,
                     }),
@@ -255,7 +255,7 @@ mod tests {
                 Argument {
                     name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 4,
                         static_shape: None,
                     }),
@@ -295,7 +295,7 @@ mod tests {
                 Argument {
                     name: "a".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -306,7 +306,7 @@ mod tests {
                 Argument {
                     name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -346,7 +346,7 @@ mod tests {
                 Argument {
                     name: "a".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -357,7 +357,7 @@ mod tests {
                 Argument {
                     name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -398,7 +398,7 @@ mod tests {
             inputs: vec![Argument {
                 name: "a".to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 2,
                     static_shape: None,
                 }),

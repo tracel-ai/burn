@@ -106,7 +106,7 @@ impl NodeProcessor for GemmProcessor {
         let output_rank = max(a_rank, b_rank);
 
         let elem_type = match &node.inputs[0].ty {
-            ArgType::Tensor(t) => t.elem_type.clone(),
+            ArgType::Tensor(t) => t.dtype,
             _ => {
                 return Err(ProcessError::TypeMismatch {
                     expected: "Tensor".to_string(),
@@ -118,7 +118,7 @@ impl NodeProcessor for GemmProcessor {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             rank: output_rank,
             static_shape: None,
-            elem_type,
+            dtype: elem_type,
         });
 
         Ok(())

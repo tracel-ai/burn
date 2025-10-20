@@ -22,7 +22,7 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::proto_conversion::element_type_from_proto;
 
@@ -32,7 +32,7 @@ use std::any::Any;
 #[derive(Debug, Clone, new)]
 pub struct EyeLikeConfig {
     /// Data type of the output tensor (optional, defaults to input type)
-    pub dtype: Option<ElementType>,
+    pub dtype: Option<DType>,
     /// Diagonal offset (0 = main diagonal, >0 = upper, <0 = lower)
     pub k: i64,
 }
@@ -67,11 +67,7 @@ impl NodeProcessor for EyeLikeProcessor {
                         "EyeLike operation requires 2D tensor input".to_string(),
                     ));
                 }
-                (
-                    tensor.rank,
-                    tensor.elem_type.clone(),
-                    tensor.static_shape.clone(),
-                )
+                (tensor.rank, tensor.dtype, tensor.static_shape.clone())
             }
             _ => {
                 return Err(ProcessError::TypeMismatch {
@@ -85,10 +81,10 @@ impl NodeProcessor for EyeLikeProcessor {
         let config = node.config::<EyeLikeConfig>();
 
         // Output type is either specified dtype or input type
-        let output_type = config.dtype.clone().unwrap_or(input_elem_type);
+        let output_type = config.dtype.unwrap_or(input_elem_type);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: output_type,
+            dtype: output_type,
             rank: input_rank,
             static_shape: input_static_shape,
         });
@@ -132,7 +128,7 @@ impl NodeProcessor for EyeLikeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use crate::protos::tensor_proto::DataType;
     use protobuf::Enum;
@@ -152,7 +148,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![3, 3]));
             }
@@ -199,7 +195,7 @@ mod tests {
 
         let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, -1);
-        assert_eq!(config.dtype, Some(ElementType::Int64));
+        assert_eq!(config.dtype, Some(DType::I64));
     }
 
     #[test]
@@ -218,7 +214,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.dtype, DType::I32);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![3, 3]));
             }

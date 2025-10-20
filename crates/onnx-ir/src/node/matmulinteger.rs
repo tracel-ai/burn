@@ -24,7 +24,7 @@
 //! The spec allows 2-4 inputs (optional zero-point tensors), but implementation only validates minimum
 //! of 2 inputs (see FIXME at line 44).
 
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
@@ -77,7 +77,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
 
                 // ONNX spec: MatMulInteger output is always int32
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int32,
+                    dtype: DType::I32,
                     rank: out_rank,
                     static_shape: None,
                 });
@@ -104,7 +104,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(a_rank: usize, b_rank: usize) -> Node {
@@ -124,7 +124,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.dtype, DType::I32);
                 assert_eq!(tensor.rank, 2);
             }
             _ => panic!("Expected tensor output"),
@@ -140,7 +140,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.dtype, DType::I32);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected tensor output"),
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn test_invalid_input() {
         let mut node = create_test_node(2, 2);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
+        node.inputs[0].ty = ArgType::Scalar(DType::I32);
         let processor = MatMulIntegerProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

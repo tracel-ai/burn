@@ -83,7 +83,7 @@ impl NodeProcessor for GatherElementsProcessor {
             && let crate::ir::ArgType::Tensor(indices_tensor) = &node.inputs[1].ty
         {
             node.outputs[0].ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                elem_type: data_tensor.elem_type.clone(),
+                dtype: data_tensor.dtype,
                 rank: indices_tensor.rank,
                 static_shape: indices_tensor.static_shape.clone(),
             });

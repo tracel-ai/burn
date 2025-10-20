@@ -2,8 +2,7 @@ use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, TensorData,
-    TensorType,
+    ArgType, Argument, AttributeValue, Attributes, Node, NodeType, TensorData, TensorType,
 };
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
@@ -23,36 +22,20 @@ pub enum ParseError {
     VariantNotFound(String),
 }
 
-/// Convert ONNX protobuf DataType to ElementType
-pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
+/// Convert ONNX protobuf DataType to DType
+pub fn element_type_from_proto(dt_i32: i32) -> Result<DType, String> {
     match DT::from_i32(dt_i32).ok_or_else(|| format!("unknown dtype {}", dt_i32))? {
-        DT::FLOAT => Ok(ElementType::Float32),
-        DT::DOUBLE => Ok(ElementType::Float64),
-        DT::FLOAT16 => Ok(ElementType::Float16),
-        DT::INT64 => Ok(ElementType::Int64),
-        DT::INT32 => Ok(ElementType::Int32),
-        DT::UINT16 => Ok(ElementType::Uint16),
-        DT::UINT8 => Ok(ElementType::Uint8),
-        DT::INT8 => Ok(ElementType::Int8),
-        DT::BOOL => Ok(ElementType::Bool),
-        DT::STRING => Ok(ElementType::String),
+        DT::FLOAT => Ok(DType::F32),
+        DT::DOUBLE => Ok(DType::F64),
+        DT::FLOAT16 => Ok(DType::F16),
+        DT::INT64 => Ok(DType::I64),
+        DT::INT32 => Ok(DType::I32),
+        DT::UINT16 => Ok(DType::U16),
+        DT::UINT8 => Ok(DType::U8),
+        DT::INT8 => Ok(DType::I8),
+        DT::BOOL => Ok(DType::Bool),
+        DT::STRING => Err("String tensors not supported".to_string()),
         other => Err(format!("unsupported dtype {:?}", other)),
-    }
-}
-
-/// Convert ONNX ElementType to burn-tensor DType
-fn element_type_to_dtype(elem: &ElementType) -> Option<DType> {
-    match elem {
-        ElementType::Float32 => Some(DType::F32),
-        ElementType::Float64 => Some(DType::F64),
-        ElementType::Float16 => Some(DType::F16),
-        ElementType::Int64 => Some(DType::I64),
-        ElementType::Int32 => Some(DType::I32),
-        ElementType::Uint16 => Some(DType::U16),
-        ElementType::Uint8 => Some(DType::U8),
-        ElementType::Int8 => Some(DType::I8),
-        ElementType::Bool => Some(DType::Bool),
-        ElementType::String => None, // Not supported
     }
 }
 
@@ -83,7 +66,7 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                 Argument {
                     name,
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: td.elem_type(),
+                        dtype: td.elem_type(),
                         rank: td.shape().len(),
                         static_shape: Some(td.shape().to_vec()),
                     }),
@@ -152,48 +135,35 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
 
             // 2.b) Accept EMPTY tensors: dim_elems == 0 with payload_len == 0.
             if dim_elems == 0 && payload_len == 0 && !dims.is_empty() {
-                // Map ONNX data_type -> ElementType.
+                // Map ONNX data_type -> DType.
                 // (Covers common types used in initializers; extend as needed.)
-                let elem = match initializer.data_type {
-                    1 => ElementType::Float32,  // FLOAT
-                    2 => ElementType::Uint8,    // UINT8
-                    3 => ElementType::Int8,     // INT8
-                    4 => ElementType::Uint16,   // UINT16
-                    6 => ElementType::Int32,    // INT32
-                    7 => ElementType::Int64,    // INT64
-                    9 => ElementType::Bool,     // BOOL
-                    10 => ElementType::Float16, // FLOAT16
-                    11 => ElementType::Float64, // DOUBLE
-                    8 => ElementType::String,   // STRING (rare as tensor; empty ok)
-                    // If you need more (e.g., UINT32/UINT64), add them here.
-                    other => panic!(
-                        "unsupported empty-tensor data_type={} for '{}'",
-                        other, name
-                    ),
-                };
+                let dtype = element_type_from_proto(initializer.data_type).unwrap_or_else(|e| {
+                    panic!(
+                        "unsupported empty-tensor data_type={} for '{}': {}",
+                        initializer.data_type, name, e
+                    )
+                });
 
                 // Build empty tensor using burn-tensor
                 let shape_usize: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
 
-                let td = match elem {
-                    ElementType::Float32 => TensorData::new(Vec::<f32>::new(), shape_usize.clone()),
-                    ElementType::Float64 => TensorData::new(Vec::<f64>::new(), shape_usize.clone()),
-                    ElementType::Float16 => {
-                        TensorData::new(Vec::<half::f16>::new(), shape_usize.clone())
-                    }
-                    ElementType::Int32 => TensorData::new(Vec::<i32>::new(), shape_usize.clone()),
-                    ElementType::Int64 => TensorData::new(Vec::<i64>::new(), shape_usize.clone()),
-                    ElementType::Uint16 => TensorData::new(Vec::<u16>::new(), shape_usize.clone()),
-                    ElementType::Uint8 => TensorData::new(Vec::<u8>::new(), shape_usize.clone()),
-                    ElementType::Int8 => TensorData::new(Vec::<i8>::new(), shape_usize.clone()),
-                    ElementType::Bool => TensorData::new(Vec::<bool>::new(), shape_usize.clone()),
-                    ElementType::String => panic!("String tensors not supported in burn-tensor"),
+                let td = match dtype {
+                    DType::F32 => TensorData::new(Vec::<f32>::new(), shape_usize.clone()),
+                    DType::F64 => TensorData::new(Vec::<f64>::new(), shape_usize.clone()),
+                    DType::F16 => TensorData::new(Vec::<half::f16>::new(), shape_usize.clone()),
+                    DType::I32 => TensorData::new(Vec::<i32>::new(), shape_usize.clone()),
+                    DType::I64 => TensorData::new(Vec::<i64>::new(), shape_usize.clone()),
+                    DType::U16 => TensorData::new(Vec::<u16>::new(), shape_usize.clone()),
+                    DType::U8 => TensorData::new(Vec::<u8>::new(), shape_usize.clone()),
+                    DType::I8 => TensorData::new(Vec::<i8>::new(), shape_usize.clone()),
+                    DType::Bool => TensorData::new(Vec::<bool>::new(), shape_usize.clone()),
+                    _ => panic!("Unsupported dtype {:?} for empty tensor", dtype),
                 };
 
                 let arg = Argument {
                     name,
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: elem,
+                        dtype,
                         rank: shape_usize.len(),
                         static_shape: Some(shape_usize),
                     }),
@@ -225,60 +195,57 @@ impl TryFrom<TensorProto> for TensorData {
         // Optimize using burn-tensor's from_bytes_vec for direct byte conversion
         if !tensor.raw_data.is_empty() {
             // Types that can use zero-copy or minimal-copy from raw bytes
-            if let Some(dtype) = element_type_to_dtype(&elem) {
-                match elem {
-                    // These types can use from_bytes_vec directly (just reinterpret bytes)
-                    ElementType::Float32
-                    | ElementType::Float64
-                    | ElementType::Float16
-                    | ElementType::Int32
-                    | ElementType::Int64
-                    | ElementType::Uint16
-                    | ElementType::Uint8 => {
-                        // Use from_bytes_vec to avoid intermediate typed Vec allocation
-                        Ok(TensorData {
-                            inner: burn_tensor::TensorData::from_bytes_vec(
-                                tensor.raw_data,
-                                shape,
-                                dtype,
-                            ),
-                        })
-                    }
-                    // These types need element-wise conversion
-                    ElementType::Int8 => {
-                        let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
-                        Ok(TensorData::new(data, shape))
-                    }
-                    ElementType::Bool => {
-                        let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
-                        Ok(TensorData::new(data, shape))
-                    }
-                    ElementType::String => unreachable!(), // Handled by element_type_to_dtype
+            match elem {
+                // These types can use from_bytes_vec directly (just reinterpret bytes)
+                DType::F32
+                | DType::F64
+                | DType::F16
+                | DType::I32
+                | DType::I64
+                | DType::U16
+                | DType::U8 => {
+                    // Use from_bytes_vec to avoid intermediate typed Vec allocation
+                    Ok(TensorData {
+                        inner: burn_tensor::TensorData::from_bytes_vec(
+                            tensor.raw_data,
+                            shape,
+                            elem,
+                        ),
+                    })
                 }
-            } else {
-                Err(ParseError::VariantNotFound(
-                    "String tensors not supported in burn-tensor".into(),
-                ))
+                // These types need element-wise conversion
+                DType::I8 => {
+                    let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
+                    Ok(TensorData::new(data, shape))
+                }
+                DType::Bool => {
+                    let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
+                    Ok(TensorData::new(data, shape))
+                }
+                _ => Err(ParseError::VariantNotFound(format!(
+                    "Unsupported dtype {:?}",
+                    elem
+                ))),
             }
         } else {
             match elem {
-                ElementType::Float32 if !tensor.float_data.is_empty() => {
+                DType::F32 if !tensor.float_data.is_empty() => {
                     Ok(TensorData::new(tensor.float_data, shape))
                 }
-                ElementType::Float64 if !tensor.double_data.is_empty() => {
+                DType::F64 if !tensor.double_data.is_empty() => {
                     Ok(TensorData::new(tensor.double_data, shape))
                 }
-                ElementType::Int32 if !tensor.int32_data.is_empty() => {
+                DType::I32 if !tensor.int32_data.is_empty() => {
                     Ok(TensorData::new(tensor.int32_data, shape))
                 }
-                ElementType::Int64 if !tensor.int64_data.is_empty() => {
+                DType::I64 if !tensor.int64_data.is_empty() => {
                     Ok(TensorData::new(tensor.int64_data, shape))
                 }
-                ElementType::Bool if !tensor.int32_data.is_empty() => {
+                DType::Bool if !tensor.int32_data.is_empty() => {
                     let data: Vec<bool> = tensor.int32_data.into_iter().map(|x| x != 0).collect();
                     Ok(TensorData::new(data, shape))
                 }
-                ElementType::Uint8 => {
+                DType::U8 => {
                     // accept weird exporters that stuff zp as int32_data
                     if !tensor.int32_data.is_empty() {
                         let data: Vec<u8> =
@@ -288,7 +255,7 @@ impl TryFrom<TensorProto> for TensorData {
                         Err(ParseError::VariantNotFound("no data for UINT8".into()))
                     }
                 }
-                ElementType::Int8 => {
+                DType::I8 => {
                     if !tensor.int32_data.is_empty() {
                         let data: Vec<i8> =
                             tensor.int32_data.into_iter().map(|x| x as i8).collect();
@@ -462,7 +429,7 @@ impl TryFrom<ValueInfoProto> for Argument {
 
             ArgType::Tensor(TensorType {
                 rank: tensor_proto.shape.dim.len(),
-                elem_type,
+                dtype: elem_type,
                 static_shape,
             })
         };

@@ -170,7 +170,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, ElementType, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
 
     #[test]
     fn test_elementwise_binary_processor() {
@@ -184,7 +184,7 @@ mod tests {
                 Argument {
                     name: "a".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -195,7 +195,7 @@ mod tests {
                 Argument {
                     name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
+                        dtype: DType::F32,
                         rank: 2,
                         static_shape: None,
                     }),
@@ -234,7 +234,7 @@ mod tests {
             inputs: vec![Argument {
                 name: "a".to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 3,
                     static_shape: None,
                 }),
@@ -259,7 +259,7 @@ mod tests {
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.rank, 3);
-                assert_eq!(t.elem_type, ElementType::Float32);
+                assert_eq!(t.dtype, DType::F32);
             }
             _ => panic!("Expected tensor output"),
         }
@@ -276,7 +276,7 @@ mod tests {
             inputs: vec![Argument {
                 name: "a".to_string(),
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
+                    dtype: DType::F32,
                     rank: 2,
                     static_shape: None,
                 }),

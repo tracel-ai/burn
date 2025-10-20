@@ -38,7 +38,7 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -108,7 +108,7 @@ impl NodeProcessor for RangeProcessor {
 
         // Range operation always produces rank 1 tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
+            dtype: DType::I64,
             rank: 1,
             static_shape: None,
         });
@@ -183,7 +183,7 @@ mod tests {
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected tensor output"),
