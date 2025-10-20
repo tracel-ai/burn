@@ -57,9 +57,8 @@ fn new_quantized<R: CubeRuntime>(
 
     let data_size = match scheme.store {
         QuantStore::U32 => {
-            let per_byte = 8 / scheme.size_bits_value();
-            if !shape_last.is_multiple_of(per_byte) {
-                panic!("sub-byte quantization must have the shape aligned to a full byte")
+            if !shape_last.is_multiple_of(scheme.num_quants()) {
+                panic!("shape must be aligned to storage packing")
             }
             shape_value.dims[rank - 1] = shape_last.div_ceil(num_quants);
             size_of::<u32>()
