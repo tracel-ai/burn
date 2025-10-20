@@ -139,7 +139,8 @@ impl NumericEntry {
 }
 
 impl NumericEntry {
-    pub(crate) fn serialize(&self) -> String {
+    /// Returns a String representing the NumericEntry
+    pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
             Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
