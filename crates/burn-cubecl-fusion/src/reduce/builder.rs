@@ -9,6 +9,7 @@ use crate::{
         builder::FuseOptimizationBuilder,
         ir::FusePrecision,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
+        trace::FuseTrace,
     },
 };
 
@@ -17,6 +18,7 @@ use super::optimization::{FusedReduce, ReduceOptimization};
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {
     builder: FuseOptimizationBuilder,
+    trace_read: Option<FuseTrace>,
     builder_read_fallback: FuseOptimizationBuilder,
     builder_write_fallback: FuseOptimizationBuilder,
     device: R::Device,
@@ -26,6 +28,7 @@ pub struct ReduceBuilder<R: Runtime> {
 impl<R: Runtime> Clone for ReduceBuilder<R> {
     fn clone(&self) -> Self {
         Self {
+            trace_read: self.trace_read.clone(),
             builder: self.builder.clone(),
             builder_read_fallback: self.builder_read_fallback.clone(),
             builder_write_fallback: self.builder_write_fallback.clone(),
@@ -56,6 +59,7 @@ impl<R: Runtime> ReduceBuilder<R> {
         };
 
         Self {
+            trace_read: None,
             builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_read),
             builder_read_fallback: FuseOptimizationBuilder::new(
                 max_bindings,
@@ -91,16 +95,6 @@ impl<R: Runtime> ReduceBuilder<R> {
         let output = self.builder.output_unhandled(&op.out);
         let axis = op.axis;
 
-        // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-        // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
-        //
-        // We could still fuse some output operations, but it would probably lead to worse performance.
-        let fuse_on_write_activated = axis != op.input.shape.rank() - 1;
-
-        if !fuse_on_write_activated {
-            self.builder.close();
-        }
-
         let acc = match inst {
             ReduceInstruction::Mean | ReduceInstruction::Prod | ReduceInstruction::Sum => {
                 match input.precision() {
@@ -125,6 +119,7 @@ impl<R: Runtime> ReduceBuilder<R> {
             },
             inst,
         ));
+        self.trace_read = Some(self.builder.clone().build());
         self.builder_read_fallback.close();
     }
 
@@ -242,9 +237,11 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         let trace_read_fallback = self.builder_read_fallback.build();
         let trace_write_fallback = self.builder_write_fallback.build();
         let fuse_reduce = self.reduce.as_ref().unwrap();
+        let trace_read = self.trace_read.as_ref().unwrap().clone();
 
         let reduce = ReduceOptimization::<R>::new(
             trace,
+            trace_read,
             trace_read_fallback,
             trace_write_fallback,
             client,
@@ -261,6 +258,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         self.builder.reset();
         self.builder_read_fallback.reset();
         self.builder_write_fallback.reset();
+        self.trace_read = None;
         self.reduce = None;
     }
 
@@ -272,6 +270,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         let mut properties = self.builder.properties();
 
         if self.reduce.is_some() {
+            assert!(self.trace_read.is_some(), "Trace read set");
             properties.ready = true;
             properties.score += 1;
         } else {

@@ -41,12 +41,18 @@ pub struct ReduceOptimization<R: Runtime> {
 
 pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) trace: FuseTrace,
+    trace_read: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) len_read: usize,
+    pub(crate) variants: ReduceVariants,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct ReduceVariants {
     pub(crate) reduce: FusedReduce,
     pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
@@ -76,11 +82,10 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
 #[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
     trace: FuseTrace,
+    trace_read: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
-    pub(crate) reduce: FusedReduce,
-    pub(crate) reduce_plane: FusedReduce,
-    pub(crate) reduce_shared_plane: FusedReduce,
+    pub(crate) variants: ReduceVariants,
     len: usize,
     len_read: usize,
 }
@@ -127,7 +132,7 @@ pub enum FusedReduceError {
 }
 
 impl<R: Runtime> ReduceOptimizationTuneArg<R> {
-    pub fn execute_fused_reduce<BT: CubeElement>(
+    pub fn execute_fused<BT: CubeElement, S: ReduceVariantSelection>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
@@ -136,34 +141,34 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
             &self.info.client,
             &self.info.device,
             context,
-            &self.info.reduce,
+            S::select(&self.info.variants),
         )
     }
 
-    pub fn execute_fused_reduce_plane<BT: CubeElement>(
+    pub fn execute_fused_on_read<BT: CubeElement, S: ReduceVariantSelection>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.info.trace,
+        let output = FuseTrace::run::<R, BT, FusedReduce>(
+            &self.info.trace_read,
             &self.info.client,
             &self.info.device,
             context,
-            &self.info.reduce_plane,
-        )
-    }
+            S::select(&self.info.variants),
+        )?;
 
-    pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.info.trace,
-            &self.info.client,
-            &self.info.device,
-            context,
-            &self.info.reduce_shared_plane,
-        )
+        let output_write = self
+            .info
+            .trace_write_fallback
+            .run::<R, BT, ElemwiseRunner>(
+                &self.info.client,
+                &self.info.device,
+                context,
+                &ElemwiseRunner,
+            )
+            .unwrap();
+
+        Ok(output.merge(output_write))
     }
 
     pub fn execute_fallback<BT: CubeElement>(
@@ -215,7 +220,10 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 #[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceOptimization<R> {
     pub fn new(
+        // the trace that fuses everything.
         trace: FuseTrace,
+        // the trace what only fuse on read.
+        trace_read: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
         client: ComputeClient<R::Server>,
@@ -233,17 +241,22 @@ impl<R: Runtime> ReduceOptimization<R> {
             shared: true,
         });
 
+        let variants = ReduceVariants {
+            reduce,
+            reduce_plane,
+            reduce_shared_plane,
+        };
+
         let info = ReduceOptimizationInfo {
             trace,
+            trace_read,
             trace_read_fallback,
             trace_write_fallback,
             client,
             device,
             len,
             len_read,
-            reduce,
-            reduce_plane,
-            reduce_shared_plane,
+            variants,
         };
 
         Self {
@@ -279,11 +292,10 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
             trace: self.info.trace.clone(),
+            trace_read: self.info.trace_read.clone(),
             trace_read_fallback: self.info.trace_read_fallback.clone(),
             trace_write_fallback: self.info.trace_write_fallback.clone(),
-            reduce: self.info.reduce.clone(),
-            reduce_plane: self.info.reduce_plane.clone(),
-            reduce_shared_plane: self.info.reduce_shared_plane.clone(),
+            variants: self.info.variants.clone(),
             len: self.info.len,
             len_read: self.info.len_read,
         }
@@ -294,11 +306,10 @@ impl<R: Runtime> ReduceOptimization<R> {
 
         let info = ReduceOptimizationInfo {
             trace: state.trace,
+            trace_read: state.trace_read,
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
-            reduce: state.reduce,
-            reduce_plane: state.reduce_plane,
-            reduce_shared_plane: state.reduce_shared_plane,
+            variants: state.variants.clone(),
             len: state.len,
             len_read: state.len_read,
             client,
@@ -502,4 +513,30 @@ pub fn reduce_kernel<R: ReduceFamily>(
         params,
         config,
     );
+}
+
+pub(crate) trait ReduceVariantSelection {
+    fn select(variants: &ReduceVariants) -> &FusedReduce;
+}
+
+pub(crate) struct Normal;
+pub(crate) struct Plane;
+pub(crate) struct SharedPlane;
+
+impl ReduceVariantSelection for Normal {
+    fn select(variants: &ReduceVariants) -> &FusedReduce {
+        &variants.reduce
+    }
+}
+
+impl ReduceVariantSelection for Plane {
+    fn select(variants: &ReduceVariants) -> &FusedReduce {
+        &variants.reduce_plane
+    }
+}
+
+impl ReduceVariantSelection for SharedPlane {
+    fn select(variants: &ReduceVariants) -> &FusedReduce {
+        &variants.reduce_shared_plane
+    }
 }

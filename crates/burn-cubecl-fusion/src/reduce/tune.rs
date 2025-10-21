@@ -1,5 +1,6 @@
 use crate::{
     CubeFusionHandle,
+    reduce::optimization::{Normal, Plane, ReduceVariantSelection, SharedPlane},
     shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
@@ -34,9 +35,12 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R>, input_gen::<R>)
             .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
-            .with(Tunable::new(tune_reduce::<R, BT>))
-            .with(Tunable::new(tune_reduce_plane::<R, BT>))
-            .with(Tunable::new(tune_reduce_shared_plane::<R, BT>))
+            .with(Tunable::new(tune_reduce::<R, BT, Normal>))
+            .with(Tunable::new(tune_reduce::<R, BT, Plane>))
+            .with(Tunable::new(tune_reduce::<R, BT, SharedPlane>))
+            .with(Tunable::new(tune_reduce_on_read::<R, BT, Normal>))
+            .with(Tunable::new(tune_reduce_on_read::<R, BT, Plane>))
+            .with(Tunable::new(tune_reduce_on_read::<R, BT, SharedPlane>))
     });
 
     TUNER.execute(
@@ -56,16 +60,22 @@ pub(crate) fn create_key<R: Runtime>(
         TuneContext::Fork(_) => panic!("Not supported when generating key"),
     };
 
-    let input = context.tensors.get(&opt.info.reduce.op.input.id).unwrap();
-    let out = context.tensors.get(&opt.info.reduce.op.out.id).unwrap();
-    let acc = opt.info.reduce.acc.into_elem();
+    let input = context
+        .tensors
+        .get(&opt.info.variants.reduce.op.input.id)
+        .unwrap();
+    let out = context
+        .tensors
+        .get(&opt.info.variants.reduce.op.out.id)
+        .unwrap();
+    let acc = opt.info.variants.reduce.acc.into_elem();
     let key = ReduceAutotuneKey::generate(
         input.dtype.into(),
         out.dtype.into(),
         acc,
         &input.shape.dims,
-        opt.info.reduce.axis == input.shape.rank() - 1,
-        opt.info.reduce.axis,
+        opt.info.variants.reduce.axis == input.shape.rank() - 1,
+        opt.info.variants.reduce.axis,
     );
     let read = &opt.info.trace.blocks[0];
     let write = &opt.info.trace.blocks[1];
@@ -85,48 +95,31 @@ fn input_gen<R: Runtime>(
     input.clone()
 }
 
-fn tune_reduce<R: Runtime, BT: CubeElement>(
+fn tune_reduce<R: Runtime, BT: CubeElement, S: ReduceVariantSelection>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_fused::<BT, S>(context),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce::<BT>(&mut context_owned.as_context())
+            optimization.execute_fused::<BT, S>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
+fn tune_reduce_on_read<R: Runtime, BT: CubeElement, S: ReduceVariantSelection>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce_plane::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_fused_on_read::<BT, S>(context),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce_plane::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
-fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
-) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => {
-            optimization.execute_fused_reduce_shared_plane::<BT>(context)
-        }
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce_shared_plane::<BT>(&mut context_owned.as_context())
+            optimization.execute_fused_on_read::<BT, S>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))
