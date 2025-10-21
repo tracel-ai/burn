@@ -43,7 +43,12 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         const PRIORITY_MIN: u8 = 0;
 
         let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
-            if matches!(key.matmul_key.analysis.kind, MatmulKind::General) {
+            if matches!(
+                key.matmul_key.analysis.kind,
+                MatmulKind::General
+                // Those variants are just because the unit alternatives aren't very good yet.
+                | MatmulKind::VecMat | MatmulKind::MatVec
+            ) {
                 PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
