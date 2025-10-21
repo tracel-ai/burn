@@ -332,18 +332,16 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
 
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
             matrix_batch_layout(lhs_strides)
+            && transposed
         {
-            if transposed {
-                axis.insert(lhs_id_global, lhs_strides.len() - 2);
-            }
+            axis.insert(lhs_id_global, lhs_strides.len() - 2);
         }
 
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
             matrix_batch_layout(rhs_strides)
+            && transposed
         {
-            if transposed {
-                axis.insert(rhs_id_global, rhs_strides.len() - 2);
-            }
+            axis.insert(rhs_id_global, rhs_strides.len() - 2);
         }
 
         axis
