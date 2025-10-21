@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
-pub(crate) struct LaunchPlan<'a, R: Runtime> {
+pub struct LaunchPlan<'a, R: Runtime> {
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
@@ -21,7 +21,7 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
 }
 
 #[derive(Debug)]
-pub(crate) struct BlockPlan<'a> {
+pub struct BlockPlan<'a> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
     pub potential_reference_input: Option<InputReference>,
     pub reference: ReferenceSelection,

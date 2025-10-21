@@ -2,10 +2,7 @@ use super::{
     super::ir::{FuseBlockConfig, GlobalArgsLaunch},
     vectorization::{Vect, vectorization_default},
 };
-use crate::{
-    CubeFusionHandle,
-    shared::{ir::Arg, trace::LaunchPlan},
-};
+use crate::{CubeFusionHandle, shared::trace::LaunchPlan};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;

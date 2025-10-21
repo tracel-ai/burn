@@ -42,6 +42,7 @@ pub struct LineSizeOverrides {
     default: Option<Vec<u8>>,
 }
 
+#[allow(unused)]
 impl LineSizeOverrides {
     pub fn overrides(&mut self, tensor_id: &TensorId, line_sizes: Vec<u8>) {
         let map = match &mut self.state {

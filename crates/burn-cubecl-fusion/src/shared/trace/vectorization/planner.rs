@@ -212,6 +212,33 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
         let mut previous_width = 1;
 
+        // Unhandled inputs might not get included in any fused blocks for now.
+        //
+        // So we ensure they are vectorized by setting their vectorization before we set the
+        // vectorizations in blocks.
+        //
+        // Unhandled Outputs are correctly vectorized, so this is only necessary for inputs.
+        for input in self.resources.inputs_unhandled.iter() {
+            let pos = self.resources.inputs.get_index(*input).unwrap();
+            let input_global = context.tensors.get(input).unwrap();
+
+            match plan.vectorizations.get(&input_global.id).unwrap() {
+                Vect::Aligned(vect) => {
+                    let handle = &mut plan.handle_inputs[pos as usize];
+                    match handle {
+                        HandleInput::Normal(handle) => {
+                            handle.vectorization = *vect;
+                        }
+                        HandleInput::QuantValues(handle) => {
+                            handle.vectorization = *vect;
+                        }
+                        HandleInput::QuantParams(_) => {}
+                    }
+                }
+                Vect::Broadcasted => {}
+            }
+        }
+
         for ((tmp, block_plan), block) in block_vectorization
             .into_iter()
             .zip(plan.blocks.iter_mut())
