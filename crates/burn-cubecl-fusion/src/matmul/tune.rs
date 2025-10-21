@@ -87,7 +87,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         }
 
         TunableSet::new(create_key::<R>, input_gen::<R>)
-            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
+            // .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
             .with(Tunable::new(tune_fused::<R, BT, SimpleUnit>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(tune_fused::<R, BT, SimpleVecMat>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(tune_fused::<R, BT, DoubleVecMat>).group(&unit, |_| PRIORITY_MAX))
