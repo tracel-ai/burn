@@ -1,5 +1,12 @@
 //! SafeTensors store implementation using the official safetensors crate.
 
+// Conditional imports for safetensors based on std/no-std
+// See: https://github.com/huggingface/safetensors/issues/650
+#[cfg(feature = "std")]
+use safetensors_std as safetensors;
+#[cfg(all(not(feature = "std"), feature = "safetensors"))]
+use safetensors_nostd as safetensors;
+
 use crate::{
     ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
     TensorSnapshot,

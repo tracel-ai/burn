@@ -1029,7 +1029,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "memmap2",
  "regex",
- "safetensors 0.6.2-dev.0",
+ "safetensors 0.6.2",
  "serde",
  "tempfile",
  "zip 6.0.0",
@@ -7100,8 +7100,9 @@ dependencies = [
 
 [[package]]
 name = "safetensors"
-version = "0.6.2-dev.0"
-source = "git+https://github.com/huggingface/safetensors?rev=0816a1a#0816a1ae1d6b731cefd67f061d80d1cadd0dd7bb"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "172dd94c5a87b5c79f945c863da53b2ebc7ccef4eca24ac63cca66a41aab2178"
 dependencies = [
  "hashbrown 0.15.5",
  "serde",
