@@ -132,7 +132,7 @@ impl HuberLoss {
         // Moreover |r| = sign(r) * r
         let outside = softsign.mul(residuals.clone()).sub_scalar(self.lin_bias);
 
-        let inside = residuals.powi_scalar(2).mul_scalar(0.5);
+        let inside = residuals.square().mul_scalar(0.5);
         inside.mask_where(is_large, outside)
     }
 }

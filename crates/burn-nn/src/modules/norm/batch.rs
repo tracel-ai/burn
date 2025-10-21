@@ -142,7 +142,7 @@ impl<B: Backend> BatchNorm<B> {
         let var = input
             .clone()
             .sub(mean.clone())
-            .powi_scalar(2)
+            .square()
             .swap_dims(0, 1)
             .reshape([channels, flatten_size])
             .mean_dim(1)
