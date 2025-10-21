@@ -129,7 +129,7 @@ where
     ///
     /// * `logger_train` - The training logger.
     /// * `logger_valid` - The validation logger.
-    pub fn with_metric_logger<ML, MV>(mut self, logger_train: ML) -> Self
+    pub fn with_metric_logger<ML>(mut self, logger_train: ML) -> Self
     where
         ML: MetricLogger + 'static,
     {
