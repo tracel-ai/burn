@@ -55,7 +55,7 @@ pub struct VectorizationAxis {
 
 impl VectorizationAxis {
     pub fn get<F: FnOnce() -> usize>(&self, id: TensorId, default: F) -> usize {
-        self.axis.get(&id).map(Clone::clone).unwrap_or_else(default)
+        self.axis.get(&id).copied().unwrap_or_else(default)
     }
     pub fn insert(&mut self, id: TensorId, axis: usize) {
         self.axis.insert(id, axis);
