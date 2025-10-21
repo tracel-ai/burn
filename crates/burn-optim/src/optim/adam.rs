@@ -142,7 +142,7 @@ impl AdaptiveMomentum {
             state.moment_2 = state
                 .moment_2
                 .mul_scalar(self.beta_2)
-                .add(grad.powi_scalar(2).mul_scalar(factor));
+                .add(grad.square().mul_scalar(factor));
 
             state.time += 1;
 
@@ -152,7 +152,7 @@ impl AdaptiveMomentum {
             let moment_1 = grad.clone().mul_scalar(factor);
 
             let factor = 1.0 - self.beta_2;
-            let moment_2 = grad.powi_scalar(2).mul_scalar(factor);
+            let moment_2 = grad.square().mul_scalar(factor);
 
             AdaptiveMomentumState::new(1, moment_1, moment_2)
         };

@@ -38,7 +38,7 @@ mod tests {
     fn should_support_neg_values_with_even_power() {
         let tensor = QTensor::<TestBackend, 2>::int8([[0.0, -1.0, -2.0], [-3.0, -4.0, -5.0]]);
 
-        let output = tensor.powf_scalar(2.0);
+        let output = tensor.square();
         let expected = TensorData::from([[0., 1., 4.], [9., 16., 25.]]);
 
         // Precision 1 to approximate de/quantization errors
