@@ -94,6 +94,6 @@ impl Metric for CpuUse {
 
 impl Numeric for CpuUse {
     fn value(&self) -> NumericEntry {
-        NumericEntry::Value(self.current as f64)
+        NumericEntry::Value(self.current)
     }
 }
