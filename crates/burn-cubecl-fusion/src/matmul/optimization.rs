@@ -95,7 +95,7 @@ pub struct MatmulOptimizationState {
 }
 
 impl MatmulVariants {
-    pub fn from_default<R: Runtime>(matmul: &FusedMatmul, _trace: &FuseTrace) -> Self {
+    pub fn from_default(matmul: &FusedMatmul, _trace: &FuseTrace) -> Self {
         let selector = |selector: FusedMatmulSelector| {
             let mut matmul = matmul.clone();
             matmul.selector = selector;
@@ -193,7 +193,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         len: usize,
         matmul: FusedMatmul,
     ) -> Self {
-        let variants = MatmulVariants::from_default::<R>(&matmul, &trace);
+        let variants = MatmulVariants::from_default(&matmul, &trace);
 
         let info = MatmulOptimizationInfo {
             trace,
