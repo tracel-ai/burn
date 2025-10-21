@@ -101,9 +101,9 @@ pub mod pytorch;
 #[cfg(feature = "pytorch")]
 pub use pytorch::{PytorchStore, PytorchStoreError};
 
-#[cfg(feature = "safetensors")]
+#[cfg(any(feature = "std", feature = "safetensors"))]
 mod safetensors;
-#[cfg(feature = "safetensors")]
+#[cfg(any(feature = "std", feature = "safetensors"))]
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 
 #[cfg(feature = "burnpack")]

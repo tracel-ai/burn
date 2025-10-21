@@ -2,10 +2,10 @@
 
 // Conditional imports for safetensors based on std/no-std
 // See: https://github.com/huggingface/safetensors/issues/650
-#[cfg(feature = "std")]
-use safetensors_std as safetensors;
 #[cfg(all(not(feature = "std"), feature = "safetensors"))]
 use safetensors_nostd as safetensors;
+#[cfg(feature = "std")]
+use safetensors_std as safetensors;
 
 use crate::{
     ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
@@ -581,13 +581,26 @@ impl ModuleStore for SafetensorsStore {
             Self::Memory(p) => {
                 // For memory, we need to serialize to bytes
                 let tensors = snapshots_to_safetensors(snapshots)?;
-                // For no-std, serialize still needs std HashMap when std feature is enabled
+
                 #[cfg(feature = "std")]
-                let data = safetensors::serialize(tensors, Some(std_metadata))?;
+                {
+                    let data = safetensors::serialize(tensors, Some(std_metadata))?;
+                    p.data = Some(Arc::new(data));
+                }
 
                 #[cfg(not(feature = "std"))]
-                let data = safetensors::serialize(tensors, Some(metadata))?;
-                p.data = Some(Arc::new(data));
+                {
+                    // For no-std, convert our hashbrown::HashMap to safetensors' hashbrown::HashMap
+                    // Since safetensors uses hashbrown in its no-std API, we need to ensure we use
+                    // the same version. Both use hashbrown 0.15.5, so a simple collect should work.
+                    let safetensors_metadata: hashbrown::HashMap<String, String> = metadata
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    let data = safetensors::serialize(tensors, Some(safetensors_metadata))?;
+                    p.data = Some(Arc::new(data));
+                }
+
                 Ok(())
             }
         }
