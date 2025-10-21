@@ -158,7 +158,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                     };
                     let val = match val {
                         Vect::Broadcasted => Vect::Aligned(1),
-                        Vect::Aligned(val) => Vect::Aligned(val / num_quants),
+                        Vect::Aligned(val) => Vect::Aligned(val.div_ceil(num_quants)),
                     };
                     vectorizations.insert(tensor_ir.id, val);
                 }

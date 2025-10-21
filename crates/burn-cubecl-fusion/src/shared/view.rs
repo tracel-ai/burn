@@ -65,15 +65,15 @@ impl GlobalInput {
     }
 }
 
-impl<E: CubePrimitive> ViewOperations<Line<E>, Coords1d> for GlobalInput {}
-impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputExpand {
+impl<E: CubePrimitive> ViewOperations<E, Coords1d> for GlobalInput {}
+impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     #[allow(clippy::too_many_arguments)]
     fn __expand_read_method(
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<u32>,
-    ) -> <Line<E> as CubeType>::ExpandType {
-        ViewOperationsExpand::<Line<E>, Coords1d>::__expand_read_unchecked_method(self, scope, pos)
+    ) -> <E as CubeType>::ExpandType {
+        ViewOperationsExpand::<E, Coords1d>::__expand_read_unchecked_method(self, scope, pos)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -81,9 +81,9 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputEx
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<u32>,
-    ) -> <Line<E> as CubeType>::ExpandType {
-        let zero = Line::<E>::__expand_cast_from(scope, 0.into());
-        self.__expand_read_masked_method(scope, pos, zero)
+    ) -> <E as CubeType>::ExpandType {
+        let zero = E::__expand_cast_from(scope, 0.into());
+        ViewOperationsExpand::<E, Coords1d>::__expand_read_masked_method(self, scope, pos, zero)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -91,16 +91,16 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputEx
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<u32>,
-        value: <Line<E> as CubeType>::ExpandType,
-    ) -> <Line<E> as CubeType>::ExpandType {
-        let in_bounds = ViewOperationsExpand::<Line<E>, Coords1d>::__expand_is_in_bounds_method(
+        value: <E as CubeType>::ExpandType,
+    ) -> <E as CubeType>::ExpandType {
+        let in_bounds = ViewOperationsExpand::<E, Coords1d>::__expand_is_in_bounds_method(
             self,
             scope,
             pos.clone(),
         );
         scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
         let slice = input_as_slice::expand(scope, self.inputs.clone(), self.pos);
-        read_masked::expand::<Line<E>>(scope, in_bounds, slice, pos, value)
+        read_masked::expand::<E>(scope, in_bounds, slice, pos, value)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -108,8 +108,8 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputEx
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<u32>,
-    ) -> <Line<E> as CubeType>::ExpandType {
-        read_input::expand(
+    ) -> <E as CubeType>::ExpandType {
+        let value = read_input::expand::<E>(
             scope,
             self.inputs.clone(),
             self.locals.clone(),
@@ -118,7 +118,8 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputEx
             self.layout,
             self.config.clone(),
             self.transform.clone(),
-        )
+        );
+        E::__expand_cast_from(scope, value)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -127,17 +128,14 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputEx
         scope: &mut Scope,
         pos: ExpandElementTyped<u32>,
         end: ExpandElementTyped<u32>,
-    ) -> SliceExpand<Line<E>, ReadOnly> {
+    ) -> SliceExpand<E, ReadOnly> {
         scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
         let end = add::expand(scope, end.clone(), 1.into());
         read_input_window::expand(scope, self.inputs.clone(), self.pos, pos, end)
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_as_tensor_map_method(
-        &self,
-        scope: &mut Scope,
-    ) -> CubeOptionExpand<TensorMap<Line<E>>> {
+    fn __expand_as_tensor_map_method(&self, scope: &mut Scope) -> CubeOptionExpand<TensorMap<E>> {
         CubeOption::__expand_new_None(scope)
     }
 
@@ -146,7 +144,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for GlobalInputEx
         &self,
         _scope: &mut Scope,
         _barrier: BarrierExpand,
-        _shared_memory: SliceExpand<Line<E>, ReadWrite>,
+        _shared_memory: SliceExpand<E, ReadWrite>,
         _pos: ExpandElementTyped<u32>,
     ) {
         panic!("Not a tensor map")

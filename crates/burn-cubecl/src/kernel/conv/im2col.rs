@@ -25,7 +25,7 @@ use crate::{
     },
     ops::{
         max_line_size,
-        numeric::{empty_device, empty_device_strided},
+        numeric::{empty_device, empty_device_optimized},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -157,7 +157,7 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let m = batch_size * out_shape.iter().product::<usize>();
     let shape_col = Shape::new([m, k]);
     let columns =
-        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_col);
+        empty_device_optimized::<R, E>(input.client.clone(), input.device.clone(), shape_col);
 
     let num_elems = columns.shape.num_elements() / line_size as usize;
     while !num_elems.is_multiple_of(elems_per_thread) && elems_per_thread > 1 {

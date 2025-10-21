@@ -1,11 +1,12 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
 use burn_common::tensor::{ReshapeAction, reshape_action};
-use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
-    Shape, TensorData,
+    DType, Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
 };
+use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
+use cubecl_quant::scheme::BlockSize;
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -68,6 +69,29 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     tensor.strides.swap(dim1, dim2);
     tensor.shape = tensor.shape.swap(dim1, dim2).unwrap();
 
+    if let DType::QFloat(scheme) = tensor.dtype
+        && let QuantLevel::Block(block_size) = scheme.level
+    {
+        let rank = tensor.rank();
+        let qparams = tensor.qparams.as_mut().unwrap();
+        let mut block_size = block_size.to_dim_vec(rank);
+        block_size.swap(dim1, dim2);
+
+        // Truncate unit dims from the start
+        let block_size = block_size
+            .into_iter()
+            .skip_while(|it| *it == 1)
+            .collect::<Vec<_>>();
+        if block_size.len() > BlockSize::MAX_DIMS {
+            panic!("Swapped block size would exceed max dims");
+        }
+
+        qparams.scales.shape.dims.swap(dim1, dim2);
+        qparams.scales.strides.swap(dim1, dim2);
+
+        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
+
     tensor
 }
 
@@ -78,6 +102,30 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
 
     // remap shape
     tensor.shape = tensor.shape.permute(axes).unwrap();
+
+    if let DType::QFloat(scheme) = tensor.dtype
+        && let QuantLevel::Block(block_size) = scheme.level
+    {
+        let rank = tensor.rank();
+        let qparams = tensor.qparams.as_mut().unwrap();
+
+        let mut block_size = block_size.to_dim_vec(rank);
+        block_size = axes.iter().map(|i| block_size[*i]).collect();
+
+        // Truncate unit dims from the start
+        let block_size = block_size
+            .into_iter()
+            .skip_while(|it| *it == 1)
+            .collect::<Vec<_>>();
+        if block_size.len() > BlockSize::MAX_DIMS {
+            panic!("Swapped block size would exceed max dims");
+        }
+
+        qparams.scales.strides = axes.iter().map(|i| qparams.scales.strides[*i]).collect();
+        qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
+
+        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
 
     tensor
 }

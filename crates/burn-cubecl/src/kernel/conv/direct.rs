@@ -15,7 +15,7 @@ use crate::{
         into_contiguous_aligned,
         utils::{linear_view, shape_divmod},
     },
-    ops::{max_line_size, numeric::empty_device_strided},
+    ops::{max_line_size, numeric::empty_device_optimized},
     tensor::CubeTensor,
 };
 
@@ -252,8 +252,11 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
     shape_out.extend(out_size.iter().copied());
     shape_out.push(out_channels);
 
-    let output =
-        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_out.into());
+    let output = empty_device_optimized::<R, E>(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out.into(),
+    );
 
     // Need custom line size calculation here to account for the groups division. Need to vectorize
     // over `channels_per_group` instead.

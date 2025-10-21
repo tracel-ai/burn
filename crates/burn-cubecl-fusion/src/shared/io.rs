@@ -163,9 +163,9 @@ fn index_offset_with_quant_layout(
 
     // Handle packed representation in last dim
     let ogwl = offset_ref / locals.ref_strides[end];
-    let shape_last = tensor.tensor.shape(end) / num_quants;
+    let shape_last = tensor.tensor.shape(end).div_ceil(num_quants);
     let stride_last = tensor.tensor.stride(end);
-    offset += (ogwl / num_quants) % shape_last * stride_last;
+    offset += (ogwl.div_ceil(num_quants)) % shape_last * stride_last;
 
     offset / tensor.tensor.line_size()
 }
@@ -236,7 +236,7 @@ pub fn read_input_window<C: CubePrimitive>(
     #[comptime] pos: u32,
     start: u32,
     end: u32,
-) -> Slice<Line<C>> {
+) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
     slice.try_cast_unchecked()

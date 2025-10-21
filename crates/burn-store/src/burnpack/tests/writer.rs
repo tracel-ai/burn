@@ -86,7 +86,7 @@ fn test_writer_to_bytes_empty() {
 #[test]
 fn test_writer_to_bytes_with_tensors() {
     // Add tensors with different data types
-    let f32_data = vec![1.0f32, 2.0, 3.0, 4.0];
+    let f32_data = [1.0f32, 2.0, 3.0, 4.0];
     let f32_bytes: Vec<u8> = f32_data.iter().flat_map(|f| f.to_le_bytes()).collect();
     let snapshot_f32 = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(f32_bytes.clone(), vec![2, 2], DType::F32),
@@ -95,7 +95,7 @@ fn test_writer_to_bytes_with_tensors() {
         burn_core::module::ParamId::new(),
     );
 
-    let i64_data = vec![10i64, 20, 30];
+    let i64_data = [10i64, 20, 30];
     let i64_bytes: Vec<u8> = i64_data.iter().flat_map(|i| i.to_le_bytes()).collect();
     let snapshot_i64 = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(i64_bytes.clone(), vec![3], DType::I64),
@@ -150,12 +150,12 @@ fn test_writer_to_bytes_with_tensors() {
 fn test_writer_all_dtypes() {
     // Test all supported data types
     let test_cases = vec![
-        (DType::F32, 4, vec![1.0f32.to_le_bytes().to_vec()].concat()),
-        (DType::F64, 8, vec![1.0f64.to_le_bytes().to_vec()].concat()),
-        (DType::I32, 4, vec![1i32.to_le_bytes().to_vec()].concat()),
-        (DType::I64, 8, vec![1i64.to_le_bytes().to_vec()].concat()),
-        (DType::U32, 4, vec![1u32.to_le_bytes().to_vec()].concat()),
-        (DType::U64, 8, vec![1u64.to_le_bytes().to_vec()].concat()),
+        (DType::F32, 4, [1.0f32.to_le_bytes().to_vec()].concat()),
+        (DType::F64, 8, [1.0f64.to_le_bytes().to_vec()].concat()),
+        (DType::I32, 4, [1i32.to_le_bytes().to_vec()].concat()),
+        (DType::I64, 8, [1i64.to_le_bytes().to_vec()].concat()),
+        (DType::U32, 4, [1u32.to_le_bytes().to_vec()].concat()),
+        (DType::U64, 8, [1u64.to_le_bytes().to_vec()].concat()),
         (DType::U8, 1, vec![255u8]),
         (DType::Bool, 1, vec![1u8]),
     ];
@@ -288,7 +288,7 @@ fn test_writer_special_characters_in_names() {
 
     assert_eq!(metadata.tensors.len(), 10);
     for (tensor_name, _tensor) in metadata.tensors.iter() {
-        assert!(tensor_name.len() > 0);
+        assert!(!tensor_name.is_empty());
         // Names should be preserved exactly
         assert!(
             tensor_name.contains("layer")
@@ -376,7 +376,7 @@ fn test_writer_lazy_snapshot_evaluation() {
 
     // Verify the data was correctly written
     let tensor_data = &bytes[metadata_end..metadata_end + 16];
-    let expected: Vec<u8> = vec![1.0f32, 2.0, 3.0, 4.0]
+    let expected: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0]
         .iter()
         .flat_map(|f| f.to_le_bytes())
         .collect();

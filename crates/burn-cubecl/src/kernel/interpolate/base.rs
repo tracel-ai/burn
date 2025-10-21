@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime, FloatElement,
-    ops::{numeric::empty_device_strided, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{numeric::empty_device_optimized, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::{
@@ -28,7 +28,7 @@ pub fn interpolate<R: CubeRuntime, E: FloatElement>(
 
     let shape_out = Shape::new([batch_size, out_height, out_width, channels]);
     let output =
-        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_out);
+        empty_device_optimized::<R, E>(input.client.clone(), input.device.clone(), shape_out);
 
     let output = match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_launch::<R, E>(input, output),
@@ -53,7 +53,7 @@ pub fn interpolate_backward<R: CubeRuntime, E: FloatElement>(
 
     let output_shape = input.shape.clone();
     let output =
-        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), output_shape);
+        empty_device_optimized::<R, E>(input.client.clone(), input.device.clone(), output_shape);
 
     let output = match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_backward_launch::<R, E>(out_grad, output),

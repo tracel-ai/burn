@@ -33,6 +33,57 @@ mod tests {
     }
 
     #[test]
+    fn test_matmul_2d_aligned() {
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+        ]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([
+            [2.0, 0.0, 1.0, 0.0],
+            [1.0, 2.0, 0.0, 0.0],
+            [0.0, 1.0, 2.0, 0.0],
+            [1.0, 0.0, 0.0, 1.0],
+        ]);
+        let tensor_3 = tensor_1.matmul(tensor_2);
+
+        let expected = TensorData::from([
+            [8.0, 7.0, 7.0, 4.0],
+            [24.0, 19.0, 19.0, 8.0],
+            [40.0, 31.0, 31.0, 12.0],
+        ]);
+        tensor_3
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
+    }
+
+    #[test]
+    fn test_matmul_2d_aligned_fused() {
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+        ]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([
+            [2.0, 0.0, 1.0, 0.0],
+            [1.0, 2.0, 0.0, 0.0],
+            [0.0, 1.0, 2.0, 0.0],
+            [1.0, 0.0, 0.0, 1.0],
+        ]);
+        let tensor_3 = tensor_1.matmul(tensor_2);
+        let tensor_4 = tensor_3 / 2.0;
+
+        let expected = TensorData::from([
+            [4.0, 3.5, 3.5, 2.0],
+            [12.0, 9.5, 9.5, 4.0],
+            [20.0, 15.5, 15.5, 6.0],
+        ]);
+        tensor_4
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
+    }
+
+    #[test]
     #[ignore]
     fn test_matmul_3d() {
         let tensor_1 = QTensor::<TestBackend, 3>::int8([[[1.0, 6.35], [2.0, 3.0]]]);
@@ -97,21 +148,28 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_matmul_lhs_float_rhs_quantized() {
         // Simulates a typical workflow with linear layers (e.g., transformers), where the rhs
         // represents the weights. The lhs might be a float if a previous operation did not propagate
         // the quantization. We still want to perform an efficient matmul with quantized weights.
-        //
-        // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
-        // more sense to re-quantize the input back at this time. Better usability.
-        //
-        // This might be handled differently in the future (dequantize on read in fusion?).
-        let tensor_1 = TestTensor::<2>::from([[1.0, 6.35], [2.0, 3.0], [1.0, 3.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8([[4.0, 8.0, 12.7], [2.0, 3.0, 6.0]]);
+        let tensor_1 = TestTensor::<2>::from([
+            [1.0, 6.35, 2.0, 3.0],
+            [2.0, 3.0, 4.0, 5.0],
+            [1.0, 3.0, 5.0, 7.0],
+        ]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([
+            [4.0, 8.0, 12.7, 1.6],
+            [2.0, 3.0, 6.0, 4.0],
+            [1.0, 5.0, 9.0, 2.5],
+            [3.0, 7.0, 11.0, 0.5],
+        ]);
         let tensor_3 = tensor_1.matmul(tensor_2);
 
-        let expected = TensorData::from([[16.7, 27.05, 50.8], [14., 25., 43.4], [10., 17., 30.7]]);
+        let expected = TensorData::from([
+            [27.7, 58.05, 101.8, 33.5],
+            [33., 80., 134.4, 27.7],
+            [36., 91., 152.7, 29.6],
+        ]);
         let output = tensor_3.into_data();
         output.assert_approx_eq::<FT>(&expected, Tolerance::default());
 
