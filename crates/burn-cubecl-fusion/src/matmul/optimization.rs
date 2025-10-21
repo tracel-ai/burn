@@ -5,6 +5,8 @@ use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
+use crate::shared::trace::HandleInput;
+use crate::shared::trace::LaunchPlan;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
@@ -14,7 +16,6 @@ use crate::{CubeFusionHandle, matmul::args::MatmulArg};
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use burn_ir::TensorStatus;
 use cubecl::features::TypeUsage;
 use cubecl::matmul::components::AccG;
 use cubecl::matmul::components::AccS;
@@ -300,36 +301,51 @@ impl From<MatmulSetupError> for FusedMatmulError {
 }
 
 impl<R: Runtime> Vectorization<R> for FusedMatmul {
-    fn axis(&self, context: &Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
+    fn axis(&self, plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
         let lhs_id = self.op.lhs.id;
         let rhs_id = self.op.rhs.id;
 
-        let tensor_global_lhs = context.tensors.get(&lhs_id).unwrap();
-        let tensor_global_rhs = context.tensors.get(&rhs_id).unwrap();
-        let handle_lhs = context
-            .handles
-            .get_handle_ref(&tensor_global_lhs.id)
-            .unwrap();
+        let mut tensor_lhs = None;
+        let mut tensor_rhs = None;
+
+        for input in plan.handle_inputs.iter() {
+            match input {
+                HandleInput::Normal(input) => {
+                    if input.relative_id == lhs_id {
+                        tensor_lhs = Some((input.global_ir.id, &input.handle.strides));
+                    } else if input.relative_id == rhs_id {
+                        tensor_rhs = Some((input.global_ir.id, &input.handle.strides));
+                    }
+                }
+                HandleInput::QuantValues(input) => {
+                    if input.relative_id == lhs_id {
+                        tensor_lhs = Some((input.global_ir.id, &input.handle.strides));
+                    } else if input.relative_id == rhs_id {
+                        tensor_rhs = Some((input.global_ir.id, &input.handle.strides));
+                    }
+                }
+                HandleInput::QuantParams(_) => {}
+            }
+        }
+
+        let (lhs_id_global, lhs_strides) = tensor_lhs.unwrap();
+        let (rhs_id_global, rhs_strides) = tensor_rhs.unwrap();
 
         let mut axis = VectorizationAxis::default();
-        match matrix_batch_layout(&handle_lhs.strides) {
+
+        match matrix_batch_layout(lhs_strides) {
             MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
                 if transposed {
-                    axis.insert(tensor_global_lhs.id, handle_lhs.strides.len() - 2);
+                    axis.insert(lhs_id_global, lhs_strides.len() - 2);
                 }
             }
             _ => {}
         };
 
-        let handle_rhs = context
-            .handles
-            .get_handle_ref(&tensor_global_rhs.id)
-            .unwrap();
-
-        match matrix_batch_layout(&handle_rhs.strides) {
+        match matrix_batch_layout(rhs_strides) {
             MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
                 if transposed {
-                    axis.insert(tensor_global_rhs.id, handle_rhs.strides.len() - 2);
+                    axis.insert(rhs_id_global, rhs_strides.len() - 2);
                 }
             }
             _ => {}

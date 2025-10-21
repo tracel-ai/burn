@@ -2,7 +2,10 @@ use super::{
     super::ir::{FuseBlockConfig, GlobalArgsLaunch},
     vectorization::{Vect, vectorization_default},
 };
-use crate::{CubeFusionHandle, shared::ir::Arg};
+use crate::{
+    CubeFusionHandle,
+    shared::{ir::Arg, trace::LaunchPlan},
+};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
@@ -60,7 +63,8 @@ impl VectorizationAxis {
 }
 
 pub trait Vectorization<R: Runtime> {
-    fn axis(&self, _context: &Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
+    /// Returns the vectorization options.
+    fn axis(&self, _plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
         VectorizationAxis::default()
     }
     /// The vectorization factor for all inputs and outputs.

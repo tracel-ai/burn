@@ -125,7 +125,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             None => R::io_optimized_line_sizes_unchecked(&ref_elem.0).collect::<Vec<u8>>(),
         };
 
-        let vectorization_axis = runner.axis(context);
+        let vectorization_axis = runner.axis(plan);
 
         runner.vectorization(
             context,

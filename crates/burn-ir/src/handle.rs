@@ -67,7 +67,7 @@ impl<H: Clone> HandleContainer<H> {
     pub fn get_handle_ref(&self, id: &TensorId) -> Option<&H> {
         self.handles
             .get(id)
-            .filter(|h| matches!(h, Handle::NotInit))
+            .filter(|h| !matches!(h, Handle::NotInit))
             .map(|h| match h {
                 Handle::Existing(handle) => handle,
                 Handle::NotInit => unreachable!(),
