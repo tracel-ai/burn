@@ -249,7 +249,7 @@ impl MetricLogger for FileMetricLogger {
         }
     }
 
-    fn log_metric_definition(&self, definition: MetricDefinition) {}
+    fn log_metric_definition(&self, _definition: MetricDefinition) {}
 }
 
 fn logger_key(name: &str, split: Split) -> String {
@@ -313,5 +313,5 @@ impl MetricLogger for InMemoryMetricLogger {
         }
     }
 
-    fn log_metric_definition(&self, definition: MetricDefinition) {}
+    fn log_metric_definition(&self, _definition: MetricDefinition) {}
 }
