@@ -1,5 +1,4 @@
 use std::any::TypeId;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::FallbackOperation;
@@ -9,16 +8,13 @@ use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
-use crate::shared::trace::VectorizationHandle;
+use crate::shared::trace::VectorizationAxis;
 use crate::shared::trace::vectorization::LineSizeOverrides;
-use crate::shared::trace::vectorization::Vect;
-use crate::shared::trace::vectorization::vectorization_default;
 use crate::{CubeFusionHandle, matmul::args::MatmulArg};
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use burn_ir::TensorId;
-use burn_ir::TensorIr;
+use burn_ir::TensorStatus;
 use cubecl::features::TypeUsage;
 use cubecl::matmul::components::AccG;
 use cubecl::matmul::components::AccS;
@@ -304,44 +300,38 @@ impl From<MatmulSetupError> for FusedMatmulError {
 }
 
 impl<R: Runtime> Vectorization<R> for FusedMatmul {
-    /// The vectorization factor for all inputs and outputs.
-    #[allow(clippy::too_many_arguments)]
-    fn vectorization<'a>(
-        &self,
-        context: &Context<'_, CubeFusionHandle<R>>,
-        vectorizations: &mut BTreeMap<TensorId, Vect>,
-        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
-        outputs: impl Iterator<Item = &'a TensorIr>,
-        reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
-        swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-        line_sizes: &[u8],
-        max: u8,
-        axis: Option<usize>,
-    ) {
-        match &self.selector {
-            FusedMatmulSelector::SimpleUnit(line_size_overrides) => vectorization_default(
-                vectorizations,
-                inputs,
-                outputs,
-                reshaped,
-                swapped,
-                line_sizes,
-                &line_size_overrides.mapping(context),
-                max,
-                axis,
-            ),
-            _ => vectorization_default(
-                vectorizations,
-                inputs,
-                outputs,
-                reshaped,
-                swapped,
-                line_sizes,
-                &Default::default(),
-                max,
-                axis,
-            ),
-        }
+    fn axis(&self, context: &mut Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
+        let lhs_id = self.op.lhs.id;
+        let rhs_id = self.op.rhs.id;
+
+        let tensor_global_lhs = context.tensors.get(&lhs_id).unwrap();
+        let tensor_global_rhs = context.tensors.get(&rhs_id).unwrap();
+        let handle_lhs = context
+            .handles
+            .get_handle(&tensor_global_lhs.id, &TensorStatus::ReadOnly);
+        let handle_rhs = context
+            .handles
+            .get_handle(&tensor_global_rhs.id, &TensorStatus::ReadOnly);
+
+        let mut axis = VectorizationAxis::default();
+        match matrix_batch_layout(&handle_lhs.strides) {
+            MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
+                if transposed {
+                    axis.insert(tensor_global_lhs.id, handle_lhs.strides.len() - 2);
+                }
+            }
+            _ => {}
+        };
+        match matrix_batch_layout(&handle_rhs.strides) {
+            MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
+                if transposed {
+                    axis.insert(tensor_global_rhs.id, handle_rhs.strides.len() - 2);
+                }
+            }
+            _ => {}
+        };
+
+        axis
     }
 }
 

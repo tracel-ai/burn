@@ -5,7 +5,10 @@ use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 use serde::{Deserialize, Serialize};
 
-use crate::{CubeFusionHandle, shared::trace::VectorizationHandle};
+use crate::{
+    CubeFusionHandle,
+    shared::trace::{VectorizationAxis, VectorizationHandle},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Vect {
@@ -106,7 +109,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     line_sizes: &[u8],
     overrides: &LineSizeOverrides,
     max: u8,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
 ) {
     let swapped: Vec<_> = swapped.collect();
 
@@ -218,11 +221,11 @@ fn multi_reads_vectorization_update(
 fn vectorization_input<R: Runtime>(
     handle: &CubeFusionHandle<R>,
     desc: &TensorIr,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| handle.strides.len() - 1);
+    let axis = axis.get(desc.id, || handle.strides.len() - 1);
     let shape_axis = desc.shape[axis];
 
     if shape_axis == 1 {
@@ -264,12 +267,12 @@ fn vectorization_input<R: Runtime>(
 
 fn vectorization_output(
     desc: &TensorIr,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| desc.shape.rank() - 1);
+    let axis = axis.get(desc.id, || desc.shape.rank() - 1);
 
     let inner = |s: u8| {
         // The dimension should be a multiple of the vector size.
@@ -303,12 +306,12 @@ fn vectorization_reshape(
     reshaped: &TensorIr,
     original: &TensorIr,
     multi_reads: bool,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| reshaped.shape.rank() - 1);
+    let axis = axis.get(reshaped.id, || reshaped.shape.rank() - 1);
     let reshape_shape_axis = reshaped.shape[axis];
 
     if !multi_reads && reshape_shape_axis == 1 {
@@ -377,11 +380,11 @@ fn vectorization_swapped<R: Runtime>(
     multi_reads: bool,
     dims: &(u32, u32),
     max: u8,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| swapped.shape.rank() - 1);
+    let axis = axis.get(swapped.id, || swapped.shape.rank() - 1);
 
     let swapped_axis = swapped.shape[axis];
     let shape_axis = original.shape[axis];
