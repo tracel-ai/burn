@@ -60,7 +60,7 @@ impl VectorizationAxis {
 }
 
 pub trait Vectorization<R: Runtime> {
-    fn axis(&self, _context: &mut Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
+    fn axis(&self, _context: &Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
         VectorizationAxis::default()
     }
     /// The vectorization factor for all inputs and outputs.

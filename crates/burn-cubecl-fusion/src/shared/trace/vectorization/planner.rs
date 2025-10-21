@@ -125,6 +125,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             None => R::io_optimized_line_sizes_unchecked(&ref_elem.0).collect::<Vec<u8>>(),
         };
 
+        let vectorization_axis = runner.axis(context);
+
         runner.vectorization(
             context,
             &mut plan.vectorizations,
@@ -153,7 +155,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_swapped,
             &line_sizes,
             u8::MAX,
-            runner.axis(),
+            vectorization_axis,
         );
 
         for tensor in self.resources.indexed.keys() {

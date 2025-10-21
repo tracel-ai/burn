@@ -300,7 +300,7 @@ impl From<MatmulSetupError> for FusedMatmulError {
 }
 
 impl<R: Runtime> Vectorization<R> for FusedMatmul {
-    fn axis(&self, context: &mut Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
+    fn axis(&self, context: &Context<'_, CubeFusionHandle<R>>) -> VectorizationAxis {
         let lhs_id = self.op.lhs.id;
         let rhs_id = self.op.rhs.id;
 
@@ -308,10 +308,8 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
         let tensor_global_rhs = context.tensors.get(&rhs_id).unwrap();
         let handle_lhs = context
             .handles
-            .get_handle(&tensor_global_lhs.id, &TensorStatus::ReadOnly);
-        let handle_rhs = context
-            .handles
-            .get_handle(&tensor_global_rhs.id, &TensorStatus::ReadOnly);
+            .get_handle_ref(&tensor_global_lhs.id)
+            .unwrap();
 
         let mut axis = VectorizationAxis::default();
         match matrix_batch_layout(&handle_lhs.strides) {
@@ -322,6 +320,12 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
             }
             _ => {}
         };
+
+        let handle_rhs = context
+            .handles
+            .get_handle_ref(&tensor_global_rhs.id)
+            .unwrap();
+
         match matrix_batch_layout(&handle_rhs.strides) {
             MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
                 if transposed {
