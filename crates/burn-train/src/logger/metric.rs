@@ -1,5 +1,5 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
-use crate::metric::{MetricEntry, NumericEntry, store::Split};
+use crate::metric::{MetricDefinition, MetricEntry, NumericEntry, store::Split};
 use std::{
     collections::HashMap,
     fs,
@@ -24,6 +24,9 @@ pub trait MetricLogger: Send {
         epoch: usize,
         split: Split,
     ) -> Result<Vec<NumericEntry>, String>;
+
+    /// Logs the metric definition information (name, description, unit, etc.)
+    fn log_metric_definition(&self, definition: MetricDefinition);
 }
 
 /// The file metric logger.
@@ -245,6 +248,8 @@ impl MetricLogger for FileMetricLogger {
             Ok(data)
         }
     }
+
+    fn log_metric_definition(&self, definition: MetricDefinition) {}
 }
 
 fn logger_key(name: &str, split: Split) -> String {
@@ -264,6 +269,7 @@ impl InMemoryMetricLogger {
         Self::default()
     }
 }
+
 impl MetricLogger for InMemoryMetricLogger {
     fn log(&mut self, item: &MetricEntry, epoch: usize, split: Split) {
         if self.last_epoch != Some(epoch) {
@@ -306,4 +312,6 @@ impl MetricLogger for InMemoryMetricLogger {
             None => Ok(Vec::new()),
         }
     }
+
+    fn log_metric_definition(&self, definition: MetricDefinition) {}
 }

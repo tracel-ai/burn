@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use crate::metric::{MetricEntry, NumericEntry};
+use crate::metric::{MetricDefinition, MetricEntry, NumericEntry};
 
 /// Event happening during the training/validation process.
 pub enum Event {
+    /// Signal the iniialization of the metrics
+    MetricsInit(Vec<MetricDefinition>),
     /// Signal that metrics have been updated.
     MetricsUpdate(MetricsUpdate),
     /// Signal the end of an epoch.

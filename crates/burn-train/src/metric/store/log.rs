@@ -15,6 +15,13 @@ impl EventStore for LogEventStore {
         let epoch = *self.epochs.entry(split).or_insert(1);
 
         match event {
+            Event::MetricsInit(definitions) => {
+                definitions.iter().for_each(|def| {
+                    self.loggers
+                        .iter_mut()
+                        .for_each(|logger| logger.log_metric_definition(def.clone()));
+                });
+            }
             Event::MetricsUpdate(update) => {
                 update
                     .entries
@@ -65,4 +72,10 @@ impl LogEventStore {
     pub(crate) fn has_loggers(&self) -> bool {
         !self.loggers.is_empty()
     }
+
+    //    pub(crate) fn log_metric_info(&self) {
+    //self.loggers
+    //.iter()
+    //.for_each(|logger| logger.log_metric_info(name, description, attributes)); // smtg here
+    //}
 }
