@@ -72,10 +72,4 @@ impl LogEventStore {
     pub(crate) fn has_loggers(&self) -> bool {
         !self.loggers.is_empty()
     }
-
-    //    pub(crate) fn log_metric_info(&self) {
-    //self.loggers
-    //.iter()
-    //.for_each(|logger| logger.log_metric_info(name, description, attributes)); // smtg here
-    //}
 }
