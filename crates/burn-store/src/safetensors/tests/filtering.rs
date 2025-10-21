@@ -2,12 +2,6 @@ use crate::{ModuleSnapshot, SafetensorsStore};
 
 use super::round_trip::ComplexModule;
 
-// Import the appropriate safetensors crate for tests
-#[cfg(all(not(feature = "std"), feature = "safetensors"))]
-use safetensors_nostd as safetensors;
-#[cfg(feature = "std")]
-use safetensors_std as safetensors;
-
 type TestBackend = burn_ndarray::NdArray;
 
 #[test]
