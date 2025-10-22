@@ -79,7 +79,7 @@ values, storage format, granularity, and how the values are scaled.
 ```rust
 let scheme = QuantScheme::default()
     .with_mode(QuantMode::Symmetric)         // Quantization mode
-    .with_level(QuantLevel::Block([2, 16]))  // Granularity (per-tensor or per-block)
+    .with_level(QuantLevel::block([2, 16]))  // Granularity (per-tensor or per-block)
     .with_value(QuantValue::Q8S)             // Data type of quantized values, independent of how they're stored
     .with_store(QuantStore::Native)          // Storage format for quantized values
     .with_param(QuantParam::F16);            // Precision for quantization parameters
