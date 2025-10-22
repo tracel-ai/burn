@@ -1,7 +1,6 @@
 /// Test utilities for ONNX-IR integration tests
 ///
 /// Provides helper functions for loading ONNX models and common test assertions.
-
 use std::path::{Path, PathBuf};
 
 /// Load an ONNX model from the tests directory
@@ -41,10 +40,7 @@ pub fn get_model_path(model_name: &str) -> PathBuf {
 ///
 /// # Returns
 /// Number of nodes matching the type
-pub fn count_nodes(
-    graph: &onnx_ir::ir::OnnxGraph,
-    node_type: onnx_ir::ir::NodeType,
-) -> usize {
+pub fn count_nodes(graph: &onnx_ir::ir::OnnxGraph, node_type: onnx_ir::ir::NodeType) -> usize {
     graph
         .nodes
         .iter()
@@ -67,20 +63,13 @@ pub fn count_operation_nodes(graph: &onnx_ir::ir::OnnxGraph) -> usize {
 }
 
 /// Check if a graph contains a specific node type
-pub fn has_node_type(
-    graph: &onnx_ir::ir::OnnxGraph,
-    node_type: onnx_ir::ir::NodeType,
-) -> bool {
+pub fn has_node_type(graph: &onnx_ir::ir::OnnxGraph, node_type: onnx_ir::ir::NodeType) -> bool {
     graph.nodes.iter().any(|n| n.node_type == node_type)
 }
 
 /// Get all unique data types from graph inputs
 pub fn get_input_dtypes(graph: &onnx_ir::ir::OnnxGraph) -> Vec<burn_tensor::DType> {
-    graph
-        .inputs
-        .iter()
-        .map(|inp| inp.ty.elem_type())
-        .collect()
+    graph.inputs.iter().map(|inp| inp.ty.elem_type()).collect()
 }
 
 /// Count outputs by ArgType variant

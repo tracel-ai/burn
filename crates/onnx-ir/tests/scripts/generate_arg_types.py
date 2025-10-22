@@ -95,8 +95,7 @@ def create_arg_types_model():
     )
 
     # Create the model
-    model = helper.make_model(graph, producer_name='onnx-ir-test')
-    model.opset_import[0].version = 16
+    model = helper.make_model(graph, producer_name="onnx-ir-test", opset_imports=[helper.make_opsetid("", 16)])
 
     # Check the model
     onnx.checker.check_model(model)

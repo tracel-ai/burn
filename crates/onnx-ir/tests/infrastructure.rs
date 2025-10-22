@@ -7,7 +7,6 @@
 /// - Pipeline phases (Identity elimination, constant removal)
 ///
 /// These tests focus on HOW the pipeline works, not WHAT operations it supports.
-
 mod test_utils;
 
 use test_utils::*;
@@ -50,10 +49,7 @@ fn test_unreferenced_constant_removal() {
         const_count
     );
 
-    assert!(
-        const_count <= 2,
-        "Unreferenced constant should be removed"
-    );
+    assert!(const_count <= 2, "Unreferenced constant should be removed");
 }
 
 // ============================================================================
@@ -132,20 +128,12 @@ fn test_multiple_inputs_outputs() {
 
     // All inputs should be accessible
     for (i, input) in graph.inputs.iter().enumerate() {
-        assert!(
-            !input.name.is_empty(),
-            "Input {} should have a name",
-            i
-        );
+        assert!(!input.name.is_empty(), "Input {} should have a name", i);
     }
 
     // All outputs should reference valid nodes
     for (i, output) in graph.outputs.iter().enumerate() {
-        assert!(
-            !output.name.is_empty(),
-            "Output {} should have a name",
-            i
-        );
+        assert!(!output.name.is_empty(), "Output {} should have a name", i);
     }
 }
 

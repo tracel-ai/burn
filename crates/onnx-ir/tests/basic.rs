@@ -3,7 +3,6 @@
 /// These tests verify that the ONNX-IR parser can successfully parse
 /// simple ONNX models without errors. They are the most basic sanity checks
 /// to ensure the pipeline works at all.
-
 mod test_utils;
 
 use test_utils::*;
@@ -35,7 +34,10 @@ fn test_parse_multi_io() {
 
     assert_eq!(graph.inputs.len(), 3, "Expected 3 inputs");
     assert_eq!(graph.outputs.len(), 2, "Expected 2 outputs");
-    assert!(count_operation_nodes(&graph) >= 3, "Expected operation nodes");
+    assert!(
+        count_operation_nodes(&graph) >= 3,
+        "Expected operation nodes"
+    );
 }
 
 #[test]
