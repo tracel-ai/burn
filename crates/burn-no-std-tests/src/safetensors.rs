@@ -37,7 +37,7 @@ pub fn test_safetensors_basic<B: Backend>(device: &B::Device) {
     // Save to bytes (no file I/O in no-std)
     let mut save_store = SafetensorsStore::from_bytes(None);
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save model");
 
     // Get the serialized bytes
@@ -47,7 +47,7 @@ pub fn test_safetensors_basic<B: Backend>(device: &B::Device) {
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     loaded_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load model");
 
     // Test that the model still works
@@ -64,7 +64,7 @@ pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
         .with_full_path("linear1.weight")
         .with_full_path("linear1.bias");
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save filtered model");
 
     let bytes = save_store.get_bytes().expect("Failed to get bytes");
@@ -73,7 +73,7 @@ pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes)).allow_partial(true);
     let mut partial_model = TestModel::<B>::new(device);
     let result = partial_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load partial model");
 
     // Verify that only linear1 was loaded
@@ -90,7 +90,7 @@ pub fn test_safetensors_metadata<B: Backend>(device: &B::Device) {
         .metadata("version", "1.0.0")
         .metadata("environment", "no-std");
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save model with metadata");
 
     let bytes = save_store.get_bytes().expect("Failed to get bytes");
@@ -99,7 +99,7 @@ pub fn test_safetensors_metadata<B: Backend>(device: &B::Device) {
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     loaded_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load model with metadata");
 }
 

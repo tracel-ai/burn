@@ -540,13 +540,33 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
-    fn q_matmul(lhs: QuantizedTensor<B>, rhs: QuantizedTensor<B>) -> TensorPrimitive<B> {
-        dequant_op_flow!(
-            ty Self,
-            float_op |lhs, rhs| B::float_matmul(lhs, rhs),
-            lhs,
-            rhs
-        )
+    fn q_matmul(lhs: TensorPrimitive<B>, rhs: TensorPrimitive<B>) -> TensorPrimitive<B> {
+        let mut propagation = QuantPropagation::Inhibit;
+        let mut scheme = QuantScheme::default();
+        let lhs = match lhs {
+            TensorPrimitive::Float(lhs) => lhs,
+            TensorPrimitive::QFloat(lhs) => {
+                propagation = lhs.propagation();
+                scheme = *lhs.scheme();
+                Self::dequantize(lhs)
+            }
+        };
+        let rhs = match rhs {
+            TensorPrimitive::Float(rhs) => rhs,
+            TensorPrimitive::QFloat(rhs) => {
+                propagation = rhs.propagation();
+                scheme = *rhs.scheme();
+                Self::dequantize(rhs)
+            }
+        };
+
+        let out_f = B::float_matmul(lhs, rhs);
+        match propagation {
+            QuantPropagation::Propagate => {
+                TensorPrimitive::QFloat(<Self>::quantize_dynamic(out_f, &scheme))
+            }
+            QuantPropagation::Inhibit => TensorPrimitive::Float(out_f),
+        }
     }
 
     /// Negates a tensor element-wise.

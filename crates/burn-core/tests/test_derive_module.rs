@@ -45,6 +45,7 @@ struct ModuleWithGenericModule<B: Backend, M> {
 }
 
 #[derive(Module, Debug)]
+#[allow(clippy::large_enum_variant)]
 enum ModuleEnum<B: Backend> {
     Basic(ModuleBasic<B>),
     Composed(ModuleComposed<B>),

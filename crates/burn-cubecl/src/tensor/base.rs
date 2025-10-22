@@ -16,7 +16,7 @@ use super::QParams;
 /// The basic tensor primitive struct.
 pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
-    pub client: ComputeClient<R::Server, R::Channel>,
+    pub client: ComputeClient<R::Server>,
     /// The buffer where the data are stored.
     pub handle: Handle,
     /// The shape of the tensor.
@@ -326,7 +326,7 @@ where
 {
     /// Create a new standard tensor
     pub fn new(
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         handle: Handle,
         shape: Shape,
         device: R::Device,
@@ -346,7 +346,7 @@ where
 
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         device: R::Device,
         shape: Shape,
         handle: Handle,
@@ -378,11 +378,7 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(
-        &self,
-        client: ComputeClient<R::Server, R::Channel>,
-        device: R::Device,
-    ) -> Self {
+    pub fn to_client(&self, client: ComputeClient<R::Server>, device: R::Device) -> Self {
         let desc = self
             .handle
             .copy_descriptor(&self.shape.dims, &self.strides, self.elem_size());

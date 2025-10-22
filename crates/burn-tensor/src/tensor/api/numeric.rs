@@ -4472,7 +4472,12 @@ impl<B: Backend> Numeric<B> for Float {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        q_bin_ops!(lhs, rhs, float_matmul, q_matmul)
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+            }
+            (lhs, rhs) => B::q_matmul(lhs, rhs),
+        }
     }
 }
 
