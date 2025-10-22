@@ -38,7 +38,7 @@ models in the cloud, then deploy on customer hardwares, which vary from user to 
 
 ### Supported Backends
 
-Most backends support all operating systems, so we don't mentioned them in the tables below.
+Most backends support all operating systems, so we don't mention them in the tables below.
 
 **GPU Backends:**
 
