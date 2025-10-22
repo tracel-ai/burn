@@ -1,4 +1,4 @@
-# Custom `cubecl` Kernel
+# Custom CubeCL Kernel
 
 In this section, you will learn how to create your own custom operation by writing your own kernel
 with the cubecl compiler frontend. We will take the example of a common workflow in the deep
@@ -7,6 +7,8 @@ this automatically, but a manual implementation might be more efficient in some 
 a matmul kernel followed by an addition and the ReLU activation function, which is commonly found in
 various models. All the code can be found under the
 [examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-cubecl-kernel).
+
+> Note: CubeCL is in active development, so this section may be outdated.
 
 ## Custom Backend Trait
 
@@ -75,8 +77,8 @@ Now, let's proceed to write the fused kernel using the `cubecl` compiler fronten
 simple, we'll create a straightforward matmul kernel without employing any intricate techniques. We
 won't delve into the details of the `cube` macro, but if you're interested to learn more, please see
 [`cubecl` Book](https://github.com/tracel-ai/cubecl/tree/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/cubecl-book).
-The actual matmul, add and relu computations are found at the end, after an extensive prelude
-that serves to correctly map each compute unit to the data it is responsible for, with support for
+The actual matmul, add and relu computations are found at the end, after an extensive prelude that
+serves to correctly map each compute unit to the data it is responsible for, with support for
 batches.
 
 ```rust, ignore
