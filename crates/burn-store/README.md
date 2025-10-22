@@ -22,7 +22,11 @@ interoperability, and advanced tensor management.
 - **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
   predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
-- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM environments
+- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM
+  environments
+
+Note: no-std support for SafeTensors format is temporarily disabled due to
+https://github.com/huggingface/safetensors/issues/650 not released yet.
 
 ### Advanced Features
 
@@ -52,9 +56,11 @@ let mut store = BurnpackStore::from_file("model.bpk");
 model.load_from(&mut store)?;
 ```
 
-**Performance**: Burnpack provides faster loading times and reduced memory overhead compared to other formats.
+**Performance**: Burnpack provides faster loading times and reduced memory overhead compared to
+other formats.
 
-**Training State Persistence**: Burnpack automatically preserves parameter identifiers (ParamId) for stateful training continuation.
+**Training State Persistence**: Burnpack automatically preserves parameter identifiers (ParamId) for
+stateful training continuation.
 
 #### SafeTensors
 
