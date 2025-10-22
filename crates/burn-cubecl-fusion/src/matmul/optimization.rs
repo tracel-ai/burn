@@ -310,14 +310,16 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
                 HandleInput::Normal(input) => {
                     if input.relative_id == lhs_id {
                         tensor_lhs = Some((input.global_ir.id, &input.handle.strides));
-                    } else if input.relative_id == rhs_id {
+                    }
+                    if input.relative_id == rhs_id {
                         tensor_rhs = Some((input.global_ir.id, &input.handle.strides));
                     }
                 }
                 HandleInput::QuantValues(input) => {
                     if input.relative_id == lhs_id {
                         tensor_lhs = Some((input.global_ir.id, &input.handle.strides));
-                    } else if input.relative_id == rhs_id {
+                    }
+                    if input.relative_id == rhs_id {
                         tensor_rhs = Some((input.global_ir.id, &input.handle.strides));
                     }
                 }
