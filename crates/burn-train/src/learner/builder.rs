@@ -129,11 +129,11 @@ where
     ///
     /// * `logger_train` - The training logger.
     /// * `logger_valid` - The validation logger.
-    pub fn with_metric_logger<ML>(mut self, logger_train: ML) -> Self
+    pub fn with_metric_logger<ML>(mut self, logger: ML) -> Self
     where
         ML: MetricLogger + 'static,
     {
-        self.event_store.register_logger(logger_train);
+        self.event_store.register_logger(logger);
         self
     }
 
@@ -350,7 +350,7 @@ where
 
         if !self.event_store.has_loggers() {
             self.event_store
-                .register_logger(FileMetricLogger::new_train(self.directory.clone()));
+                .register_logger(FileMetricLogger::new(self.directory.clone()));
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));

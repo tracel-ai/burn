@@ -87,7 +87,7 @@ impl LearnerSummary {
 
         let mut event_store = LogEventStore::default();
 
-        let logger = FileMetricLogger::new_train(directory);
+        let logger = FileMetricLogger::new(directory);
         if !logger.split_exists(Split::Train) && !logger.split_exists(Split::Valid) {
             return Err(format!(
                 "No training or validation artifacts found at: {}",

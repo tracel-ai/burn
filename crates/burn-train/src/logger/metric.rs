@@ -47,7 +47,7 @@ impl FileMetricLogger {
     /// # Returns
     ///
     /// The file metric logger.
-    pub fn new_train(directory: impl AsRef<Path>) -> Self {
+    pub fn new(directory: impl AsRef<Path>) -> Self {
         Self {
             loggers: HashMap::new(),
             directory: directory.as_ref().to_path_buf(),
