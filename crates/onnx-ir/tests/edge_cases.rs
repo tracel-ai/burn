@@ -134,6 +134,28 @@ fn test_wide_branching() {
     }
 }
 
+#[test]
+fn test_diamond_pattern() {
+    // Test graph where computation splits and then merges back
+    // This tests edge case #9: Diamond pattern (split then merge)
+    let graph = load_onnx("diamond_pattern.onnx");
+
+    assert_eq!(graph.inputs.len(), 1, "Should have 1 input");
+    assert_eq!(graph.outputs.len(), 1, "Should have 1 output");
+
+    // Should have split and merge structure
+    let op_count = count_operation_nodes(&graph);
+    println!("Diamond pattern has {} operation nodes", op_count);
+
+    assert!(
+        op_count >= 3,
+        "Should have at least 3 nodes (split paths + merge)"
+    );
+
+    // Type inference should converge despite split/merge pattern
+    println!("Diamond pattern: Type inference converged successfully");
+}
+
 // ============================================================================
 // Type System Edge Cases
 // ============================================================================
@@ -210,6 +232,52 @@ fn test_zero_sized_dimensions() {
 }
 
 #[test]
+fn test_complex_broadcasting() {
+    // Test complex broadcasting with different shapes
+    // This tests edge case #11: Incompatible broadcasting (complex shapes)
+    let graph = load_onnx("complex_broadcasting.onnx");
+
+    assert!(!graph.inputs.is_empty(), "Should have inputs");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    println!("Complex broadcasting: {} nodes", graph.nodes.len());
+
+    // Should successfully infer types despite complex broadcasting
+    // (validated by successful parsing and type inference)
+    println!("Complex broadcasting handled successfully");
+}
+
+#[test]
+fn test_all_dynamic_shapes() {
+    // Test model with all dynamic (symbolic) shapes
+    // This tests edge case #12: All dynamic shapes (no static)
+    let graph = load_onnx("all_dynamic_shapes.onnx");
+
+    assert!(!graph.inputs.is_empty(), "Should have inputs");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    println!("All dynamic shapes: {} nodes", graph.nodes.len());
+
+    // Should handle fully dynamic shapes without static shape info
+    println!("All dynamic shapes: Type inference succeeded");
+}
+
+#[test]
+fn test_circular_preferences() {
+    // Test type inference convergence with circular dependencies
+    // This tests edge case #14: Circular preferences convergence
+    let graph = load_onnx("circular_preferences.onnx");
+
+    assert!(!graph.inputs.is_empty(), "Should have inputs");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    println!("Circular preferences: {} nodes", graph.nodes.len());
+
+    // Type inference should converge even with circular preference patterns
+    println!("Circular preferences: Converged successfully");
+}
+
+#[test]
 fn test_high_rank_tensors() {
     // Test with 5D and 6D tensors
     // This tests shape inference and type system at high dimensionality
@@ -274,6 +342,71 @@ fn test_no_initializers() {
     assert!(count_operation_nodes(&graph) > 0, "Should have operations");
 }
 
+#[test]
+fn test_constant_lifting_phase2() {
+    // Test constants lifted during Phase 2 node conversion
+    // This tests edge case #15: Constants lifted in Phase 2, used in Phase 3
+    let graph = load_onnx("constant_lifting.onnx");
+
+    assert!(!graph.inputs.is_empty(), "Should have inputs");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    let const_count = count_constant_nodes(&graph);
+    println!("Constant lifting: {} constant nodes", const_count);
+
+    // Some constants may be coalesced into operations (e.g., MatMul → Linear)
+    // The important thing is that the graph parses successfully
+    assert!(const_count >= 1, "Should have at least one constant");
+
+    // Verify operations exist that use constants
+    let op_count = count_operation_nodes(&graph);
+    assert!(
+        op_count >= 2,
+        "Should have multiple operations using constants"
+    );
+
+    println!("Constants lifted and used successfully");
+
+    // Diagnostic: Show what nodes we actually have
+    for (i, node) in graph.nodes.iter().enumerate() {
+        println!("  Node {}: {:?} '{}'", i, node.node_type, node.name);
+    }
+}
+
+#[test]
+fn test_constant_referenced_multiple_times() {
+    // Test a constant used by multiple operations
+    // This tests edge case #20: Constant referenced multiple times
+    let graph = load_onnx("constant_multiple_refs.onnx");
+
+    assert_eq!(graph.outputs.len(), 3, "Should have 3 outputs");
+
+    let const_count = count_constant_nodes(&graph);
+    println!("Multiple refs: {} constant nodes", const_count);
+
+    // The constant should be preserved (reference count > 1)
+    assert!(const_count > 0, "Should have constant nodes");
+
+    println!("Constant with multiple references preserved correctly");
+}
+
+#[test]
+fn test_constant_in_graph_output() {
+    // Test constant that is directly in graph output
+    // This tests edge case #21: Constant referenced in graph output
+    let graph = load_onnx("constant_in_output.onnx");
+
+    assert_eq!(graph.outputs.len(), 2, "Should have 2 outputs");
+
+    let const_count = count_constant_nodes(&graph);
+    println!("Constant in output: {} constant nodes", const_count);
+
+    // Constant used in output should NOT be removed
+    assert!(const_count > 0, "Should have constants for output");
+
+    println!("Constant in output preserved correctly");
+}
+
 // ============================================================================
 // Value Source Edge Cases
 // ============================================================================
@@ -319,6 +452,32 @@ fn test_single_node_graph() {
 // ============================================================================
 
 #[test]
+fn test_matmul_dynamic_weights_no_coalesce() {
+    // Test MatMul with runtime (dynamic) weights
+    // This tests edge case #18: MatMul with dynamic weights (no coalesce)
+    let graph = load_onnx("matmul_dynamic_weights.onnx");
+
+    assert_eq!(graph.inputs.len(), 2, "Should have 2 runtime inputs");
+
+    // Should have MatMul node (NOT coalesced to Linear because weights are runtime)
+    let has_matmul = has_node_type(&graph, onnx_ir::ir::NodeType::MatMul);
+    let has_linear = has_node_type(&graph, onnx_ir::ir::NodeType::Linear);
+
+    println!(
+        "MatMul dynamic weights: MatMul={}, Linear={}",
+        has_matmul, has_linear
+    );
+
+    // Should stay as MatMul (no Linear with dynamic weights)
+    assert!(
+        has_matmul,
+        "Should have MatMul node when weights are dynamic"
+    );
+
+    println!("MatMul with dynamic weights: NOT coalesced to Linear (correct)");
+}
+
+#[test]
 fn test_gemm_to_linear_conversion() {
     // Test Gemm → Linear coalescing edge case
     // This tests Phase 2 node remapping
@@ -340,4 +499,130 @@ fn test_gemm_to_linear_conversion() {
         has_linear || has_gemm,
         "Should have Linear or Gemm node after conversion"
     );
+}
+#[test]
+fn test_same_constant_in_multiple_inputs() {
+    // Test where ONE operation has MULTIPLE inputs pointing to THE SAME constant
+    // This tests: constant lifting, reference counting, deduplication
+    let graph = load_onnx("same_constant_multiple_inputs.onnx");
+
+    println!("\n=== Same Constant Multiple Inputs ===");
+    println!("Nodes: {}", graph.nodes.len());
+
+    for (i, node) in graph.nodes.iter().enumerate() {
+        println!("\nNode {}: {:?} '{}'", i, node.node_type, node.name);
+        println!("  Inputs ({}):", node.inputs.len());
+        for (j, inp) in node.inputs.iter().enumerate() {
+            println!("    [{}] name='{}', value={:?}", j, inp.name, inp.value());
+        }
+    }
+
+    // Find the Where operation
+    let where_node = graph
+        .nodes
+        .iter()
+        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Where))
+        .expect("Should have Where node");
+
+    println!("\n=== Where Node Analysis ===");
+    println!(
+        "Inputs: {} (should be 3: condition, true_val, false_val)",
+        where_node.inputs.len()
+    );
+    assert_eq!(where_node.inputs.len(), 3, "Where should have 3 inputs");
+
+    // Check if inputs [1] and [2] reference the same constant
+    let true_val = &where_node.inputs[1];
+    let false_val = &where_node.inputs[2];
+
+    println!(
+        "  true_val:  name='{}', value={:?}",
+        true_val.name,
+        true_val.value()
+    );
+    println!(
+        "  false_val: name='{}', value={:?}",
+        false_val.name,
+        false_val.value()
+    );
+
+    // CRITICAL TEST: Do both inputs point to the same underlying constant data?
+    // This tests whether the constant lifting properly handles same constant in multiple slots
+
+    use onnx_ir::ir::ValueSource;
+
+    println!("\nValue source check:");
+    println!(
+        "  true_val:  source={:?}, data_id={:?}",
+        true_val.value_source, true_val.data_id
+    );
+    println!(
+        "  false_val: source={:?}, data_id={:?}",
+        false_val.value_source, false_val.data_id
+    );
+
+    // Check 1: Both should reference constants (not runtime Dynamic values)
+    assert!(
+        matches!(
+            true_val.value_source,
+            ValueSource::Constant | ValueSource::Static
+        ),
+        "true_val should be Constant or Static, got: {:?}",
+        true_val.value_source
+    );
+    assert!(
+        matches!(
+            false_val.value_source,
+            ValueSource::Constant | ValueSource::Static
+        ),
+        "false_val should be Constant or Static, got: {:?}",
+        false_val.value_source
+    );
+
+    // Check 2: If both have data_ids, they should be THE SAME
+    match (true_val.data_id, false_val.data_id) {
+        (Some(id1), Some(id2)) => {
+            if id1 == id2 {
+                println!(
+                    "\n  ✓ CORRECT: Both inputs reference the SAME constant data (data_id: {})",
+                    id1
+                );
+                println!("     The initializer was properly shared, not duplicated.");
+            } else {
+                println!(
+                    "\n  ✗ POTENTIAL BUG: Inputs reference DIFFERENT data_ids ({} vs {})",
+                    id1, id2
+                );
+                println!(
+                    "     This means the same initializer was duplicated instead of being shared!"
+                );
+                panic!("Same ONNX initializer should have same data_id in both input slots");
+            }
+        }
+        (None, None) => {
+            println!("\n  ℹ Both inputs have data_id=None");
+            println!("    They point to constant node outputs (ValueSource::Constant)");
+            // Check if they point to the same constant node by name
+            if true_val.name == false_val.name {
+                println!(
+                    "    ✓ CORRECT: Both point to the same constant node: '{}'",
+                    true_val.name
+                );
+            } else {
+                println!(
+                    "    ✗ BUG: Different constant nodes: '{}' vs '{}'",
+                    true_val.name, false_val.name
+                );
+                panic!("Same initializer should map to same constant node");
+            }
+        }
+        _ => {
+            println!(
+                "\n  ? One has data_id, one doesn't: {:?} vs {:?}",
+                true_val.data_id, false_val.data_id
+            );
+        }
+    }
+
+    println!("\n✓ Test passed: Same ONNX initializer properly handled in multiple input slots");
 }

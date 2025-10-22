@@ -1,7 +1,7 @@
 /// Test utilities for ONNX-IR integration tests
 ///
 /// Provides helper functions for loading ONNX models and common test assertions.
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Load an ONNX model from the tests directory
 ///
