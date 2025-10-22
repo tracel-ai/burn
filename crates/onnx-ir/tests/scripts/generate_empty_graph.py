@@ -20,21 +20,17 @@ from onnx import helper, TensorProto
 
 
 def create_empty_graph_model():
-    """Create model where input connects directly to output with no operations."""
+    """Create model where input connects directly to output with ZERO operations."""
 
-    # Input and output with same shape and name
-    # In ONNX, we need at least an Identity node to connect input to output
-    # An empty graph with no nodes would be invalid
-    input_tensor = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 4])
-    output_tensor = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 4])
+    # Input and output are the SAME tensor - no transformation needed
+    # This creates a truly empty graph with no nodes
+    input_tensor = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 4])
+    output_tensor = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 4])
 
-    # Empty nodes list - this creates the minimal valid graph
-    # Note: ONNX requires explicit connection, so we use Identity
-    nodes = [
-        helper.make_node('Identity', ['input'], ['output'], name='passthrough'),
-    ]
+    # ZERO nodes - input IS the output
+    nodes = []
 
-    # Create the graph
+    # Create the graph with no nodes
     graph = helper.make_graph(
         nodes,
         'empty_graph_model',
@@ -45,7 +41,7 @@ def create_empty_graph_model():
     # Create the model
     model = helper.make_model(graph, producer_name="onnx-ir-test", opset_imports=[helper.make_opsetid("", 16)])
 
-    # Check the model
+    # Check the model - this is valid in ONNX!
     onnx.checker.check_model(model)
 
     return model
@@ -61,9 +57,9 @@ def main():
     print(f"Model saved to {output_path}")
 
     print(f"\nModel info:")
-    print(f"  Nodes: {len(model.graph.node)} (minimal Identity)")
-    print(f"  Tests minimal graph structure")
-    print(f"  Tests edge case where graph has no real operations")
+    print(f"  Nodes: {len(model.graph.node)} (ZERO nodes)")
+    print(f"  Input tensor 'data' is directly the output tensor 'data'")
+    print(f"  Tests absolute minimal graph structure with no operations")
 
 
 if __name__ == '__main__':

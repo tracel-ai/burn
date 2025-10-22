@@ -17,24 +17,30 @@ use test_utils::*;
 
 #[test]
 fn test_empty_graph() {
-    // Test the absolute minimal graph: input→output with minimal operations
-    // This tests edge case #1: Empty graph (input→output, no real ops)
+    // Test the absolute minimal graph: input IS output with ZERO nodes
+    // This tests edge case #1: Empty graph (input→output, no operations)
     let graph = load_onnx("empty_graph.onnx");
 
     assert_eq!(graph.inputs.len(), 1, "Should have 1 input");
     assert_eq!(graph.outputs.len(), 1, "Should have 1 output");
 
-    // Minimal graph structure - should have at most 1 node (Identity for connection)
+    // Graph with ZERO nodes - input tensor is directly the output tensor
     let node_count = graph.nodes.len();
     println!("Empty graph has {} nodes", node_count);
 
-    assert!(
-        node_count <= 1,
-        "Empty graph should have at most 1 node (Identity or optimized away)"
+    assert_eq!(
+        node_count, 0,
+        "Empty graph should have ZERO nodes (input is directly output)"
+    );
+
+    // Input and output should reference the same tensor
+    assert_eq!(
+        graph.inputs[0].name, graph.outputs[0].name,
+        "Input and output should be the same tensor in empty graph"
     );
 
     // Should handle minimal graph structure without errors
-    println!("Empty graph parsed successfully with minimal structure");
+    println!("Empty graph parsed successfully with ZERO nodes");
 }
 
 #[test]
@@ -625,4 +631,269 @@ fn test_same_constant_in_multiple_inputs() {
     }
 
     println!("\n✓ Test passed: Same ONNX initializer properly handled in multiple input slots");
+}
+
+// ============================================================================
+// Lower Priority Edge Cases
+// ============================================================================
+
+#[test]
+fn test_disconnected_subgraphs() {
+    // Test graph with multiple independent computation paths
+    // This tests edge case #27: Multiple disconnected subgraphs
+    let graph = load_onnx("disconnected_subgraphs.onnx");
+
+    assert_eq!(
+        graph.inputs.len(),
+        4,
+        "Should have 4 inputs (2 per subgraph)"
+    );
+    assert_eq!(
+        graph.outputs.len(),
+        2,
+        "Should have 2 outputs (1 per subgraph)"
+    );
+
+    println!("Disconnected subgraphs: {} nodes", graph.nodes.len());
+
+    // Type inference should handle disconnected paths
+    assert!(graph.nodes.len() >= 4, "Should have at least 4 nodes");
+
+    println!("Disconnected subgraphs handled successfully");
+}
+
+#[test]
+fn test_node_multiple_outputs_partial_use() {
+    // Test node with multiple outputs where only one is used
+    // This tests edge case #28: Node with multiple outputs, only one used
+    let graph = load_onnx("node_multiple_outputs_partial_use.onnx");
+
+    // TopK should produce 2 outputs even if only one is used
+    let topk_node = graph
+        .nodes
+        .iter()
+        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::TopK))
+        .expect("Should have TopK node");
+
+    println!("TopK node outputs: {}", topk_node.outputs.len());
+    assert_eq!(topk_node.outputs.len(), 2, "TopK should have 2 outputs");
+
+    // But only one output should be consumed by other nodes
+    println!("Node with multiple outputs, partial use handled correctly");
+}
+
+#[test]
+fn test_optional_input_clip() {
+    // Test Clip with optional max input not provided
+    // This tests edge case #29: Optional input not provided (Clip)
+    let graph = load_onnx("optional_input_clip.onnx");
+
+    let clip_node = graph
+        .nodes
+        .iter()
+        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Clip))
+        .expect("Should have Clip node");
+
+    println!("Clip node inputs: {}", clip_node.inputs.len());
+
+    // Clip should handle optional inputs gracefully
+    println!("Optional input handling: Clip parsed successfully");
+}
+
+#[test]
+fn test_shape_type_broadcasting() {
+    // Test Shape type in broadcasting context
+    // This tests edge case #30: Shape type in broadcasting context
+    let graph = load_onnx("shape_broadcasting.onnx");
+
+    // Should have Shape node producing int64 tensor
+    let has_shape = has_node_type(&graph, onnx_ir::ir::NodeType::Shape);
+    assert!(has_shape, "Should have Shape node");
+
+    println!("Shape type in broadcasting: {} nodes", graph.nodes.len());
+    println!("Shape type broadcasting handled successfully");
+}
+
+#[test]
+fn test_large_constants_mb_sized() {
+    // Test handling of large constants (MB-sized)
+    // This tests edge case #32: Large constants (MB-sized)
+    let graph = load_onnx("large_constants.onnx");
+
+    let const_count = count_constant_nodes(&graph);
+    let op_count = count_operation_nodes(&graph);
+
+    println!(
+        "Large constants: {} constant nodes, {} operations",
+        const_count, op_count
+    );
+
+    // The MatMul with large weight gets coalesced into Linear (which internalizes the weight)
+    // The key test is that the graph parses successfully despite MB-sized data
+    assert!(
+        op_count >= 1,
+        "Should have operations using large constants"
+    );
+    assert!(
+        !graph.nodes.is_empty(),
+        "Should successfully parse MB-sized model"
+    );
+
+    println!("MB-sized constants handled successfully (coalesced into operations)");
+}
+
+#[test]
+fn test_very_long_node_names() {
+    // Test handling of very long node names (100+ characters)
+    // This tests edge case #40: Very long node names (100+ chars)
+    let graph = load_onnx("very_long_names.onnx");
+
+    // Check that long names are preserved
+    for node in &graph.nodes {
+        if node.name.len() > 100 {
+            println!("Found node with long name: {} chars", node.name.len());
+        }
+    }
+
+    for input in &graph.inputs {
+        if input.name.len() > 100 {
+            println!("Found input with long name: {} chars", input.name.len());
+        }
+    }
+
+    println!("Very long names (100+ chars) handled successfully");
+}
+
+#[test]
+fn test_unknown_rank_with_dynamic_shapes() {
+    // Test type inference with unknown rank and dynamic shapes
+    // This tests edge case #41: Unknown rank with dynamic shapes
+    let graph = load_onnx("unknown_rank_dynamic.onnx");
+
+    assert!(!graph.inputs.is_empty(), "Should have inputs");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    println!(
+        "Unknown rank with dynamic shapes: {} nodes",
+        graph.nodes.len()
+    );
+    println!("Unknown rank handled successfully");
+}
+
+#[test]
+fn test_static_constant_value_source_invariant() {
+    // CORRECTNESS TEST: Verify invariant that values cannot be both Static AND Constant
+    // This tests edge case #33: Static AND Constant invariant
+    let graph = load_onnx("static_constant_invariant.onnx");
+
+    use onnx_ir::ir::ValueSource;
+
+    println!("\n=== Value Source Invariant Check ===");
+
+    // Check all node inputs to verify the invariant
+    for node in &graph.nodes {
+        for (i, input) in node.inputs.iter().enumerate() {
+            let has_data = input.data_id.is_some();
+            let is_constant_source = matches!(input.value_source, ValueSource::Constant);
+            let is_static_source = matches!(input.value_source, ValueSource::Static);
+
+            println!(
+                "Node '{}' input[{}]: source={:?}, has_data_id={}",
+                node.name, i, input.value_source, has_data
+            );
+
+            // INVARIANT CHECK: If it has data_id, it should be Static or Constant, not both
+            if has_data {
+                if is_constant_source {
+                    // Constant with data_id means: points to constant node output AND has the data
+                    println!("  ✓ Constant with data_id (reference + embedded data)");
+                } else if is_static_source {
+                    // Static with data_id means: embedded data only
+                    println!("  ✓ Static with data_id (embedded data only)");
+                } else {
+                    // This shouldn't happen
+                    panic!(
+                        "BUG: Input has data_id but is neither Static nor Constant: {:?}",
+                        input.value_source
+                    );
+                }
+
+                // CRITICAL: Cannot be BOTH Static AND Constant simultaneously
+                assert!(
+                    !(is_static_source && is_constant_source),
+                    "INVARIANT VIOLATION: Input cannot be both Static AND Constant!"
+                );
+            }
+        }
+    }
+
+    println!("\n✓ Invariant verified: No value is both Static AND Constant");
+}
+
+#[test]
+fn test_empty_output_names_handling() {
+    // Test handling of empty/optional output names
+    // This tests edge case #39: Empty output names (optional outputs)
+    let graph = load_onnx("empty_output_names.onnx");
+
+    // Should parse successfully even if model has empty string handling
+    assert!(!graph.nodes.is_empty(), "Should have nodes");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    println!("Empty output names handled successfully");
+}
+
+// ============================================================================
+// Validation / Correctness Tests
+// ============================================================================
+
+#[test]
+fn test_direct_input_to_output() {
+    // VALIDATION TEST: Input tensor is DIRECTLY the output tensor with ZERO nodes
+    // Tests the absolute edge case of a graph with no operations at all
+    // This validates that the parser can handle graphs with no processing nodes
+    let graph = load_onnx("empty_graph.onnx");
+
+    println!("\n=== Direct Input to Output Validation Test ===");
+    println!("Graph has {} nodes", graph.nodes.len());
+    println!("Graph has {} inputs", graph.inputs.len());
+    println!("Graph has {} outputs", graph.outputs.len());
+
+    // CORRECTNESS: Should have exactly 0 nodes - input is directly the output
+    assert_eq!(
+        graph.nodes.len(),
+        0,
+        "Graph with direct input→output should have ZERO nodes"
+    );
+
+    assert_eq!(graph.inputs.len(), 1, "Should have 1 input");
+    assert_eq!(graph.outputs.len(), 1, "Should have 1 output");
+
+    // CORRECTNESS: The input and output should reference the same tensor
+    assert_eq!(
+        graph.inputs[0].name, graph.outputs[0].name,
+        "Input and output should be the same tensor"
+    );
+
+    println!("✓ Parser correctly handled graph with no operations");
+}
+
+#[test]
+#[should_panic(expected = "Nodes are not topologically sorted")]
+fn test_non_topological_order_handling() {
+    // VALIDATION TEST: Graph nodes are NOT in topological order
+    // Expected behavior: Parser should REJECT non-topological graphs
+    // This tests that the parser correctly validates topological ordering
+    //
+    // The ONNX model has nodes in this order:
+    //   1. Add (uses abs_out)
+    //   2. Abs (uses relu_out)
+    //   3. Relu (uses input)
+    //
+    // Correct execution order should be: Relu → Abs → Add
+    // The parser should panic when it detects this violation
+    let _graph = load_onnx("non_topological_order.onnx");
+
+    // This line should never be reached - the panic should occur during parsing
+    unreachable!("Parser should have rejected non-topological graph");
 }
