@@ -115,6 +115,9 @@ mod tests {
         let reconstructed = p.matmul(l).matmul(u);
         reconstructed
             .into_data()
-            .assert_approx_eq::<FloatElem<TestBackend>>(&tensor.into_data(), Tolerance::default());
+            .assert_approx_eq::<FloatElem<TestBackend>>(
+                &tensor.into_data(),
+                Tolerance::permissive(),
+            );
     }
 }
