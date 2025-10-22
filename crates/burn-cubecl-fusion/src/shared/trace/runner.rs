@@ -2,11 +2,11 @@ use super::{
     super::ir::{FuseBlockConfig, GlobalArgsLaunch},
     vectorization::{Vect, vectorization_default},
 };
-use crate::CubeFusionHandle;
+use crate::{CubeFusionHandle, shared::trace::LaunchPlan};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
@@ -45,9 +45,24 @@ impl<'a, R: Runtime> VectorizationHandle<'a, R> {
     }
 }
 
+#[derive(Default)]
+pub struct VectorizationAxis {
+    axis: HashMap<TensorId, usize>,
+}
+
+impl VectorizationAxis {
+    pub fn get<F: FnOnce() -> usize>(&self, id: TensorId, default: F) -> usize {
+        self.axis.get(&id).copied().unwrap_or_else(default)
+    }
+    pub fn insert(&mut self, id: TensorId, axis: usize) {
+        self.axis.insert(id, axis);
+    }
+}
+
 pub trait Vectorization<R: Runtime> {
-    fn axis(&self) -> Option<usize> {
-        None
+    /// Returns the vectorization options.
+    fn axis(&self, _plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
+        VectorizationAxis::default()
     }
     /// The vectorization factor for all inputs and outputs.
     #[allow(clippy::too_many_arguments)]
@@ -61,7 +76,7 @@ pub trait Vectorization<R: Runtime> {
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
         line_sizes: &[u8],
         max: u8,
-        axis: Option<usize>,
+        axis: VectorizationAxis,
     ) {
         vectorization_default(
             vectorizations,
@@ -72,7 +87,7 @@ pub trait Vectorization<R: Runtime> {
             line_sizes,
             &Default::default(),
             max,
-            axis,
+            &axis,
         )
     }
 }

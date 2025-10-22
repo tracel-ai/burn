@@ -50,7 +50,12 @@ pub fn matmul_autotune<
         const PRIORITY_MIN: u8 = 0;
 
         let cmma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
-            if matches!(key.analysis.kind, MatmulKind::General) {
+            if matches!(
+                key.analysis.kind,
+                MatmulKind::General
+                // Those variants are just because the unit alternatives aren't very good yet.
+                | MatmulKind::VecMat | MatmulKind::MatVec
+            ) {
                 PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
