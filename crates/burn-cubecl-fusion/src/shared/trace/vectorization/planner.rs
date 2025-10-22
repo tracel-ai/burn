@@ -219,7 +219,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         //
         // Unhandled Outputs are correctly vectorized, so this is only necessary for inputs.
         for input in self.resources.inputs_unhandled.iter() {
-            let pos = self.resources.inputs.get_index(*input).unwrap();
+            let pos = self
+                .resources
+                .inputs
+                .get_index(*input)
+                .unwrap_or_else(|| self.resources.inputs.get_index_quant(*input).unwrap());
             let input_global = context.tensors.get(input).unwrap();
 
             match plan.vectorizations.get(&input_global.id).unwrap() {
