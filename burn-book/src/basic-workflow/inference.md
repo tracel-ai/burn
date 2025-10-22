@@ -16,7 +16,7 @@ load our trained model.
 #     prelude::*,
 #     record::{CompactRecorder, Recorder},
 # };
-# 
+#
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
@@ -51,18 +51,18 @@ Add the call to `infer` to the `main.rs` file after the `train` function call:
 # mod inference;
 # mod model;
 # mod training;
-# 
+#
 # use crate::{model::ModelConfig, training::TrainingConfig};
 # use burn::{
 #     backend::{Autodiff, Wgpu},
 #     data::dataset::Dataset,
 #     optim::AdamConfig,
 # };
-# 
+#
 # fn main() {
 #     type MyBackend = Wgpu<f32, i32>;
 #     type MyAutodiffBackend = Autodiff<MyBackend>;
-# 
+#
 #     let device = burn::backend::wgpu::WgpuDevice::default();
 #     let artifact_dir = "/tmp/guide";
 #     crate::training::train::<MyAutodiffBackend>(
@@ -80,5 +80,11 @@ Add the call to `infer` to the `main.rs` file after the `train` function call:
 # }
 ```
 
-The number `42` is the index of the image in the MNIST dataset. You can explore and verify them using
-this [MNIST viewer](https://observablehq.com/@davidalber/mnist-viewer).
+The number `42` is the index of the image in the MNIST dataset. You can explore and verify them
+using this [MNIST viewer](https://observablehq.com/@davidalber/mnist-viewer).
+
+---
+
+In this short guide, we've introduced you to the fundamental building blocks for getting started
+with Burn. While there's still plenty to explore, our goal has been to provide you with the
+essential knowledge to kickstart your productivity within the framework.
