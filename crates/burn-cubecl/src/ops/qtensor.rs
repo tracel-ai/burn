@@ -8,7 +8,7 @@ use burn_tensor::{
 };
 use cubecl::{
     matmul::components::{AccG, AccS, LhsG, LhsS, RhsG, RhsS},
-    server::{Allocation, AllocationDescriptor},
+    server::{Allocation, AllocationDescriptor, AllocationKind},
 };
 use cubecl_quant::scheme::QuantStore;
 
@@ -23,13 +23,33 @@ use crate::{
 use super::{into_data, permute, swap_dims};
 
 /// Create a quantized tensor with packed values (u32).
-fn new_qtensor<R: CubeRuntime>(
+fn new_qtensor_optimized<R: CubeRuntime>(
     data: &[u8],
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
-    new_quantized(shape, scheme, device, Some(data))
+    new_qtensor(data, shape, scheme, device, AllocationKind::Optimized)
+}
+
+/// Create a quantized tensor with packed values (u32).
+fn new_qtensor<R: CubeRuntime>(
+    data: &[u8],
+    shape: impl Into<Shape>,
+    scheme: QuantScheme,
+    device: &R::Device,
+    kind: AllocationKind,
+) -> CubeTensor<R> {
+    new_quantized(shape, scheme, device, Some(data), kind)
+}
+
+/// Create an empty quantized tensor.
+pub fn empty_qtensor_optimized<R: CubeRuntime>(
+    shape: impl Into<Shape>,
+    scheme: QuantScheme,
+    device: &R::Device,
+) -> CubeTensor<R> {
+    empty_qtensor(shape, scheme, device, AllocationKind::Optimized)
 }
 
 /// Create an empty quantized tensor.
@@ -37,8 +57,9 @@ pub fn empty_qtensor<R: CubeRuntime>(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
+    kind: AllocationKind,
 ) -> CubeTensor<R> {
-    new_quantized(shape, scheme, device, None)
+    new_quantized(shape, scheme, device, None, kind)
 }
 
 fn new_quantized<R: CubeRuntime>(
@@ -46,6 +67,7 @@ fn new_quantized<R: CubeRuntime>(
     scheme: QuantScheme,
     device: &R::Device,
     data: Option<&[u8]>,
+    alloc_kind: AllocationKind,
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let shape: Shape = shape.into();
@@ -84,8 +106,9 @@ fn new_quantized<R: CubeRuntime>(
     };
 
     let scales_shape = params_shape(&shape, scheme.level);
-    let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
-    let scales_desc = AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
+    let data_desc = AllocationDescriptor::new(alloc_kind, &shape_value.dims, data_size);
+    let scales_desc =
+        AllocationDescriptor::new(alloc_kind, &scales_shape.dims, scales_dtype.size());
 
     let mut tensors = match data {
         Some(data) => {
@@ -150,7 +173,7 @@ where
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
-                    new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
+                    new_qtensor_optimized(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
             },
             _ => panic!(
@@ -183,7 +206,7 @@ where
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        super::reshape(tensor, shape)
+        super::q_reshape(tensor, shape)
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {

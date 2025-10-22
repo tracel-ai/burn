@@ -1,5 +1,5 @@
-use crate::tensor::CubeTensor;
-use crate::{CubeRuntime, FloatElement, ops::empty_qtensor};
+use crate::{CubeRuntime, FloatElement};
+use crate::{ops::empty_qtensor_optimized, tensor::CubeTensor};
 use burn_tensor::quantization::QuantScheme;
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
@@ -12,7 +12,7 @@ where
     R: CubeRuntime,
     F: FloatElement,
 {
-    let output = empty_qtensor(tensor.shape.clone(), *scheme, &tensor.device);
+    let output = empty_qtensor_optimized(tensor.shape.clone(), *scheme, &tensor.device);
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
 
     cubecl_quant::quantize::launch_ref::<R, F>(
