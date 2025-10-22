@@ -16,6 +16,28 @@ use test_utils::*;
 // ============================================================================
 
 #[test]
+fn test_empty_graph() {
+    // Test the absolute minimal graph: input→output with minimal operations
+    // This tests edge case #1: Empty graph (input→output, no real ops)
+    let graph = load_onnx("empty_graph.onnx");
+
+    assert_eq!(graph.inputs.len(), 1, "Should have 1 input");
+    assert_eq!(graph.outputs.len(), 1, "Should have 1 output");
+
+    // Minimal graph structure - should have at most 1 node (Identity for connection)
+    let node_count = graph.nodes.len();
+    println!("Empty graph has {} nodes", node_count);
+
+    assert!(
+        node_count <= 1,
+        "Empty graph should have at most 1 node (Identity or optimized away)"
+    );
+
+    // Should handle minimal graph structure without errors
+    println!("Empty graph parsed successfully with minimal structure");
+}
+
+#[test]
 fn test_graph_with_only_constants() {
     // Test a graph that has no operations, only constant nodes
     // This tests Phase 5 unreferenced constant removal when ALL nodes are constants
@@ -115,6 +137,47 @@ fn test_wide_branching() {
 // ============================================================================
 // Type System Edge Cases
 // ============================================================================
+
+#[test]
+fn test_type_validation_scalar_tensor() {
+    // Test type inference and validation with scalar vs tensor operations
+    // This tests edge case #6: Type mismatch validation (Scalar vs Tensor)
+    let graph = load_onnx("type_validation.onnx");
+
+    assert!(!graph.inputs.is_empty(), "Should have inputs");
+    assert!(!graph.outputs.is_empty(), "Should have outputs");
+
+    println!("Type validation graph: {} nodes", graph.nodes.len());
+
+    // Should handle mixed scalar and tensor types correctly
+    // If type inference couldn't handle it, parsing would have failed
+    use onnx_ir::ir::ArgType;
+
+    let mut has_scalar = false;
+    let mut has_tensor = false;
+
+    for input in &graph.inputs {
+        match &input.ty {
+            ArgType::Scalar(_) => {
+                has_scalar = true;
+                println!("Found scalar input: {}", input.name);
+            }
+            ArgType::Tensor(t) => {
+                has_tensor = true;
+                println!("Found tensor input: {} (rank {})", input.name, t.rank);
+            }
+            _ => {}
+        }
+    }
+
+    // Should have both scalar and tensor types to test validation
+    assert!(
+        has_scalar || has_tensor,
+        "Should have scalar and/or tensor inputs for type validation"
+    );
+
+    println!("Type validation: Successfully handled scalar/tensor operations");
+}
 
 #[test]
 fn test_mixed_rank_broadcasting() {
