@@ -88,7 +88,7 @@ def main():
     model = create_basic_model()
 
     # Save the model
-    output_path = 'basic_model.onnx'
+    output_path = '../fixtures/basic_model.onnx'
     onnx.save(model, output_path)
     print(f"Model saved to {output_path}")
 
