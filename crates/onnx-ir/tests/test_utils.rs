@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Test utilities for ONNX-IR integration tests
 ///
 /// Provides helper functions for loading ONNX models and common test assertions.
