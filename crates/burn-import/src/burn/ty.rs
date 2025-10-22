@@ -311,7 +311,7 @@ impl From<&onnx_ir::ir::Argument> for Type {
                         ScalarKind::from(&tensor.elem_type),
                     ))
                 } else {
-                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let kind: TensorKind = tensor.elem_type.into();
                     let rank = tensor.rank;
                     let name = arg.name.clone();
                     Type::Tensor(TensorType::new(name, rank, kind))

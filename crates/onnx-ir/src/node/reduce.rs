@@ -95,7 +95,7 @@ pub fn reduce_update_outputs(node: &mut Node) {
     if should_be_scalar {
         // Output is a scalar
         log::debug!("{} output is scalar for node {}", node.node_type, node.name);
-        node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
+        node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
     } else {
         // Output is a tensor
         let output_rank = if config.keepdims {
@@ -154,7 +154,7 @@ pub fn reduce_update_outputs(node: &mut Node) {
         );
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
+            elem_type: tensor.elem_type,
             rank: output_rank,
             static_shape: output_shape,
         });

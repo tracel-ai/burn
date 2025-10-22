@@ -45,7 +45,7 @@ pub fn eye_like_update_output(node: &mut Node) {
 
             let config = eye_like_config(node);
             // Output type is either specified dtype or input type
-            let output_type = config.dtype.unwrap_or_else(|| tensor.elem_type.clone());
+            let output_type = config.dtype.unwrap_or(tensor.elem_type);
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: output_type,

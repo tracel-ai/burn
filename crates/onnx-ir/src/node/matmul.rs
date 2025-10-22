@@ -24,7 +24,7 @@ pub fn matmul_update_outputs(node: &mut Node) {
             }
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: a.elem_type.clone(),
+                elem_type: a.elem_type,
                 rank: out_rank,
                 static_shape: None,
             });

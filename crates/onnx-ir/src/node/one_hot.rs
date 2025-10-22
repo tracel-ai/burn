@@ -38,7 +38,7 @@ pub fn one_hot_output_shape(node: &mut Node) {
     log::debug!("OneHot output rank for {}: {}", node.name, output_rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.outputs[0].ty.elem_type().clone(),
+        elem_type: *node.outputs[0].ty.elem_type(),
         rank: output_rank,
         static_shape: None,
     });

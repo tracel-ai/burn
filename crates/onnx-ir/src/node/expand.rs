@@ -35,7 +35,7 @@ pub fn expand_update_outputs(node: &mut Node) {
 
     // Get input element type - Expand should preserve the input's element type
     let input_elem_type = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Tensor(tensor) => tensor.elem_type,
         _ => panic!("Expand operation requires first input to be a tensor"),
     };
 
@@ -46,7 +46,7 @@ pub fn expand_update_outputs(node: &mut Node) {
 
     if let Some(shape) = shape {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: input_elem_type.clone(),
+            elem_type: input_elem_type,
             rank: shape.len(),
             static_shape: Some(shape.into_iter().map(|dim| dim as usize).collect()),
         });

@@ -63,7 +63,7 @@ pub fn cast_update_outputs(node: &mut Node) {
                 | ElementType::Float16
                 | ElementType::Bool => {
                     output.ty = ArgType::Tensor(TensorType {
-                        elem_type: elem_type.clone(),
+                        elem_type,
                         rank: 1,
                         static_shape: Some(vec![rank]),
                     });

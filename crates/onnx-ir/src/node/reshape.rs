@@ -43,7 +43,7 @@ struct InputInfo {
 fn extract_input_info(input: &Argument) -> InputInfo {
     match &input.ty {
         ArgType::Tensor(tensor) => InputInfo {
-            elem_type: tensor.elem_type.clone(),
+            elem_type: tensor.elem_type,
             is_shape: false,
             shape_size: None,
         },
@@ -69,7 +69,7 @@ fn determine_output_type(
     // Case 1: Scalar output (rank 0)
     if output_rank == 0 {
         log::debug!("Reshape node {} outputs a scalar", node.name);
-        return ArgType::Scalar(input_info.elem_type.clone());
+        return ArgType::Scalar(input_info.elem_type);
     }
 
     // Case 2: Shape input -> Shape output (optimization)
@@ -91,7 +91,7 @@ fn determine_output_type(
     ArgType::Tensor(TensorType {
         rank: output_rank,
         static_shape,
-        elem_type: input_info.elem_type.clone(),
+        elem_type: input_info.elem_type,
     })
 }
 

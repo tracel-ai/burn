@@ -28,7 +28,7 @@ pub fn gemm_output_shape(node: &mut Node) {
         rank: output_rank,
         static_shape: None,
         elem_type: match &node.inputs[0].ty {
-            ArgType::Tensor(t) => t.elem_type.clone(),
+            ArgType::Tensor(t) => t.elem_type,
             _ => panic!("Unexpected type for input A"),
         },
     });

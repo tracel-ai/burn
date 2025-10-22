@@ -199,7 +199,7 @@ pub enum AttributeValue {
 pub type Attributes = HashMap<String, AttributeValue>;
 
 /// The type of an element.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ElementType {
     Float32,
     Float64,

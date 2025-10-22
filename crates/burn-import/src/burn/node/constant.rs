@@ -285,9 +285,9 @@ impl OnnxIntoNode for ConstantNode {
                         .value
                         .as_ref()
                         .expect("Scalar constant should have value");
-                    scalar_from_data(tensor.elem_type.clone(), v.data.clone())
+                    scalar_from_data(tensor.elem_type, v.data.clone())
                 } else {
-                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let kind: TensorKind = tensor.elem_type.into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
                     let tensor_data = attr.value.expect("Constant tensor should have value");

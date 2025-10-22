@@ -220,17 +220,17 @@ pub fn same_as_input_broadcast(node: &mut Node) {
     log::debug!("Max rank for broadcasting node {}: {}", node.name, max_rank);
 
     if max_rank == 0 {
-        node.outputs[0].ty = ArgType::Scalar(node.inputs[0].ty.elem_type().clone());
+        node.outputs[0].ty = ArgType::Scalar(*node.inputs[0].ty.elem_type());
         log::debug!("Scalar result for node {}", node.name);
     } else {
         let elem_type = node
             .inputs
             .iter()
             .find_map(|input| match &input.ty {
-                ArgType::Tensor(tensor) => Some(tensor.elem_type.clone()),
+                ArgType::Tensor(tensor) => Some(tensor.elem_type),
                 _ => None,
             })
-            .unwrap_or_else(|| node.inputs[0].ty.elem_type().clone());
+            .unwrap_or_else(|| *node.inputs[0].ty.elem_type());
 
         // Try to compute static shape from broadcast
         let static_shape = compute_broadcast_static_shape(&node.inputs);

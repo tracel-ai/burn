@@ -17,7 +17,7 @@ pub fn split_update_outputs(node: &mut Node) {
 
     for (i, output_arg) in node.outputs.iter_mut().enumerate() {
         output_arg.ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
+            elem_type: tensor.elem_type,
             rank: tensor.rank,
             static_shape: None,
         });

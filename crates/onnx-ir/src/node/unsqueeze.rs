@@ -91,7 +91,7 @@ pub fn unsqueeze_update_output(node: &mut Node) {
                     node.outputs[0].ty = ArgType::Tensor(TensorType {
                         rank: output_rank,
                         static_shape: None,
-                        elem_type: elem_type.clone(),
+                        elem_type: *elem_type,
                     });
                 }
             }
@@ -99,8 +99,8 @@ pub fn unsqueeze_update_output(node: &mut Node) {
         _ => {
             // Regular tensor or scalar to tensor conversion
             let output_elem = match &node.outputs[0].ty {
-                ArgType::Tensor(_) => node.inputs[0].ty.elem_type().clone(),
-                ArgType::Scalar(elem_type) => elem_type.clone(),
+                ArgType::Tensor(_) => *node.inputs[0].ty.elem_type(),
+                ArgType::Scalar(elem_type) => *elem_type,
                 ArgType::Shape(_) => crate::ir::ElementType::Int64, // Shape elements are always i64
             };
 

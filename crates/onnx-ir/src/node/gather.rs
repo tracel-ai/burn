@@ -50,12 +50,12 @@ pub fn gather_update_outputs(node: &mut Node) {
 
             if output_rank == 0 {
                 // Output is scalar when gathering a single element
-                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type);
                 log::debug!("Gather result for {} is scalar", node.name);
             } else {
                 // Output is tensor
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: input_tensor.elem_type.clone(),
+                    elem_type: input_tensor.elem_type,
                     rank: output_rank,
                     static_shape: None,
                 });

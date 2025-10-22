@@ -11,7 +11,7 @@ pub fn top_k_update_output(node: &mut Node) {
     log::debug!("TopK input rank for {}: {}", node.name, rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.inputs[0].ty.elem_type().clone(),
+        elem_type: *node.inputs[0].ty.elem_type(),
         rank,
         static_shape: None,
     });

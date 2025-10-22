@@ -36,7 +36,7 @@ pub fn linear_update_outputs(node: &mut Node) {
         log::debug!("Linear input rank for {}: {}", node.name, tensor.rank);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
+            elem_type: tensor.elem_type,
             rank: tensor.rank,
             static_shape: None,
         });

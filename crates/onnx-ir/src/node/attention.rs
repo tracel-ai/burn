@@ -121,14 +121,14 @@ pub fn attention_update_output(node: &mut Node) {
     let q = extract_tensor(node.inputs.first(), "Q").unwrap();
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.inputs[0].ty.elem_type().clone(),
+        elem_type: *node.inputs[0].ty.elem_type(),
         rank: q.rank,
         static_shape: None,
     });
 
     if let Some(present_key) = node.outputs.get_mut(1) {
         present_key.ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[4].ty.elem_type().clone(),
+            elem_type: *node.inputs[4].ty.elem_type(),
             rank: 4,
             static_shape: None,
         });
@@ -136,7 +136,7 @@ pub fn attention_update_output(node: &mut Node) {
 
     if let Some(present_value) = node.outputs.get_mut(2) {
         present_value.ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[5].ty.elem_type().clone(),
+            elem_type: *node.inputs[5].ty.elem_type(),
             rank: 4,
             static_shape: None,
         });
@@ -144,7 +144,7 @@ pub fn attention_update_output(node: &mut Node) {
 
     if let Some(qk_matmul_output) = node.outputs.get_mut(3) {
         qk_matmul_output.ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[0].ty.elem_type().clone(),
+            elem_type: *node.inputs[0].ty.elem_type(),
             rank: 4,
             static_shape: None,
         });

@@ -6,8 +6,8 @@ use crate::{
 /// Get element type from ArgType, handling Shape types specially
 fn get_elem_type(arg_type: &ArgType) -> ElementType {
     match arg_type {
-        ArgType::Scalar(elem_type) => elem_type.clone(),
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Scalar(elem_type) => *elem_type,
+        ArgType::Tensor(tensor) => tensor.elem_type,
         ArgType::Shape(_) => ElementType::Int64, // Shape types are always i64
     }
 }

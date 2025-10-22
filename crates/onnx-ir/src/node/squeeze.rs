@@ -60,7 +60,7 @@ pub fn squeeze_update_output(node: &mut Node) {
             log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: tensor.elem_type.clone(),
+                elem_type: tensor.elem_type,
                 rank: output_rank,
                 static_shape: None,
             });
@@ -94,7 +94,7 @@ pub fn squeeze_update_output(node: &mut Node) {
         }
         ArgType::Scalar(scalar_type) => {
             // Scalar squeeze is a no-op
-            node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
+            node.outputs[0].ty = ArgType::Scalar(*scalar_type);
             log::debug!("Squeeze Scalar unchanged for {}", node.name);
         }
     }
