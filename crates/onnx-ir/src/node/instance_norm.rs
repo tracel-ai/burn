@@ -85,7 +85,8 @@ impl NodeProcessor for InstanceNormProcessor {
         const MIN: usize = 6;
 
         crate::processor::validate_opset(opset, MIN)?;
-        crate::processor::validate_min_inputs(node, 3)?;
+        // InstanceNormalization requires exactly 3 inputs: input, scale, and B
+        crate::processor::validate_input_count(node, 3)?;
         crate::processor::validate_output_count(node, 1)?;
 
         // Validate attributes before extracting config

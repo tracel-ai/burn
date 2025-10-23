@@ -113,6 +113,28 @@ impl NodeProcessor for Conv1dProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // Validate attributes before extracting config
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" | "strides" | "pads" | "dilations" | "group" => {}
+                "auto_pad" => {
+                    let auto_pad = value.clone().into_string();
+                    if auto_pad != "NOTSET" {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {auto_pad}"),
+                        });
+                    }
+                }
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Conv1d: {key}"),
+                    });
+                }
+            }
+        }
+
         // Extract input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
@@ -123,6 +145,70 @@ impl NodeProcessor for Conv1dProcessor {
                 });
             }
         };
+
+        // Validate input tensor rank - Conv1d expects rank 3 (N x C x L)
+        if tensor.rank != 3 {
+            return Err(ProcessError::Custom(format!(
+                "Conv1d expects input tensor of rank 3 (N x C x L), got rank {}",
+                tensor.rank
+            )));
+        }
+
+        // Validate weight tensor type and rank
+        let weight_tensor = match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor (weight)".to_string(),
+                    actual: format!("{:?}", node.inputs[1].ty),
+                });
+            }
+        };
+
+        // Weight should be rank 3 (M x C/group x kW)
+        if weight_tensor.rank != 3 {
+            return Err(ProcessError::Custom(format!(
+                "Conv1d expects weight tensor of rank 3 (M x C/group x kW), got rank {}",
+                weight_tensor.rank
+            )));
+        }
+
+        // Validate dtypes match
+        if tensor.dtype != weight_tensor.dtype {
+            return Err(ProcessError::TypeMismatch {
+                expected: format!("Weight tensor with dtype {:?}", tensor.dtype),
+                actual: format!("Weight tensor with dtype {:?}", weight_tensor.dtype),
+            });
+        }
+
+        // Validate bias if present
+        if node.inputs.len() > 2 {
+            let bias_tensor = match &node.inputs[2].ty {
+                ArgType::Tensor(tensor) => tensor,
+                _ => {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Tensor (bias)".to_string(),
+                        actual: format!("{:?}", node.inputs[2].ty),
+                    });
+                }
+            };
+
+            // Bias should be rank 1 (M)
+            if bias_tensor.rank != 1 {
+                return Err(ProcessError::Custom(format!(
+                    "Conv1d expects bias tensor of rank 1 (M), got rank {}",
+                    bias_tensor.rank
+                )));
+            }
+
+            // Validate bias dtype matches
+            if tensor.dtype != bias_tensor.dtype {
+                return Err(ProcessError::TypeMismatch {
+                    expected: format!("Bias tensor with dtype {:?}", tensor.dtype),
+                    actual: format!("Bias tensor with dtype {:?}", bias_tensor.dtype),
+                });
+            }
+        }
 
         // Conv1d preserves rank (same as input)
         node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -162,23 +248,8 @@ impl NodeProcessor for Conv1dProcessor {
                 "pads" => pads = value.clone().into_i64s(),
                 "dilations" => dilations = value.clone().into_i64s(),
                 "group" => group = value.clone().into_i64() as usize,
-                "auto_pad" => {
-                    let auto_pad = value.clone().into_string();
-                    if auto_pad != "NOTSET" {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "auto_pad".to_string(),
-                            reason: format!("Unsupported 'auto_pad' value: {}", auto_pad),
-                        });
-                    }
-                }
-                _ => {
-                    // TODO: According to spec, there may be other valid attributes that are not handled
-                    // Consider logging/warning instead of rejecting unknown attributes
-                    return Err(ProcessError::InvalidAttribute {
-                        name: key.clone(),
-                        reason: format!("Unexpected attribute for Conv1d: {}", key),
-                    });
-                }
+                "auto_pad" => {}
+                _ => {}
             }
         }
 
@@ -415,8 +486,10 @@ mod tests {
             Some("SAME_UPPER"),
         )
         .build_with_graph_data(16);
+        let mut node = node;
         let processor = Conv1dProcessor;
-        let result = processor.extract_config(&node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 

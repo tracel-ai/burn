@@ -99,8 +99,8 @@ impl NodeProcessor for ModuloProcessor {
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 10)?;
 
-        // FIXME: Should validate exactly 2 inputs, not minimum 2 (spec says A and B only)
-        crate::processor::validate_min_inputs(node, 2)?;
+        // Mod requires exactly 2 inputs: A and B
+        crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Add validation that fmod attribute, if present, is either 0 or 1

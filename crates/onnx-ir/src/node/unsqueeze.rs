@@ -57,13 +57,11 @@ impl NodeConfig for UnsqueezeConfig {
 pub struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut Node, opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
-        // Note: axes can also be an attribute, but we only lift the input version
-        // FIXME: The spec states that axes is a required input in opset 13+, but the
-        // extract_config method allows for axes as an attribute (backward compatibility).
-        // The opset validation and axes requirement should be more strictly enforced.
-        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+        // In opset 13+, axes is a required input
+        // In opset <13, axes is an attribute
+        if opset >= 13 && node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
 
@@ -100,22 +98,35 @@ impl NodeProcessor for UnsqueezeProcessor {
     fn extract_config(
         &self,
         node: &Node,
-        _opset: usize,
+        opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        // Check if axes attribute exists
+        // Check if axes attribute exists (only valid in opset <13)
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "axes" {
+                if opset >= 13 {
+                    return Err(ProcessError::Custom(
+                        "Unsqueeze: axes must be provided as input (not attribute) in opset 13+"
+                            .to_string(),
+                    ));
+                }
                 let config = UnsqueezeConfig::Static(value.clone().into_i64s());
                 return Ok(Some(Box::new(config)));
             }
         }
 
-        // Axes must be provided as second input
+        // In opset 13+, axes must be provided as second input
+        // In opset <13, if no axes attribute, axes must be provided as input
         if node.inputs.len() < 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
+            if opset >= 13 {
+                return Err(ProcessError::InvalidInputCount {
+                    expected: 2,
+                    actual: node.inputs.len(),
+                });
+            } else {
+                return Err(ProcessError::Custom(
+                    "Unsqueeze: axes must be provided as either attribute or input".to_string(),
+                ));
+            }
         }
 
         let input_value = &node.inputs[1];
@@ -285,9 +296,10 @@ mod tests {
         let mut node = create_test_node_with_attr(2, vec![0, 3]).build();
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -323,9 +335,10 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(DType::F32);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -342,9 +355,10 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(DType::I64);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -360,9 +374,10 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(DType::I32);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -379,9 +394,10 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(DType::I64);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -398,9 +414,10 @@ mod tests {
         node.inputs[0].ty = ArgType::Shape(1);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.infer_types(&mut node, 13, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
@@ -414,9 +431,10 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
@@ -467,9 +485,10 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
@@ -483,9 +502,10 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
         node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        processor.infer_types(&mut node, 13, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
@@ -500,7 +520,9 @@ mod tests {
         let node = node;
         let processor = UnsqueezeProcessor;
         let _prefs = OutputPreferences::new();
-        let result = processor.extract_config(&node, 16);
+
+        // Test opset 13+ requires axes as input
+        let result = processor.extract_config(&node, 13);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {
@@ -508,6 +530,10 @@ mod tests {
                 actual: 1
             })
         ));
+
+        // Test opset <13 requires axes as either attribute or input
+        let result = processor.extract_config(&node, 11);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
@@ -534,5 +560,18 @@ mod tests {
         let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_unsqueeze_attr_rejected_in_opset_13_plus() {
+        // Test that attributes are rejected in opset 13+
+        let node = create_test_node_with_attr(2, vec![0]).build();
+        let processor = UnsqueezeProcessor;
+
+        let result = processor.extract_config(&node, 13);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
+
+        let result = processor.extract_config(&node, 16);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

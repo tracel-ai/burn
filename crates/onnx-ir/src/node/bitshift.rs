@@ -80,7 +80,8 @@ impl NodeProcessor for BitShiftProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 11)?;
-        crate::processor::validate_min_inputs(node, 2)?;
+        // BitShift requires exactly 2 inputs: X and Y
+        crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Add validation for unexpected attributes

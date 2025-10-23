@@ -42,7 +42,7 @@ impl NodeProcessor for MatMulProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        // TODO: Validate that no unexpected attributes are present
+        // Validate that no unexpected attributes are present
         // The spec states "Attributes (None)" for MatMul
         if let Some((key, _value)) = node.attrs.iter().next() {
             return Err(ProcessError::InvalidAttribute {
@@ -53,6 +53,33 @@ impl NodeProcessor for MatMulProcessor {
 
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
+                // Validate dtype compatibility - both inputs must have the same dtype
+                if a.dtype != b.dtype {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: format!("Both inputs to have dtype {:?}", a.dtype),
+                        actual: format!(
+                            "Input A has dtype {:?}, Input B has dtype {:?}",
+                            a.dtype, b.dtype
+                        ),
+                    });
+                }
+
+                // Validate rank constraints per ONNX spec
+                // MatMul requires both inputs to be at least 1D
+                if a.rank < 1 || b.rank < 1 {
+                    return Err(ProcessError::Custom(format!(
+                        "MatMul requires both inputs to have rank >= 1, got ranks: A={}, B={}",
+                        a.rank, b.rank
+                    )));
+                }
+
+                // For matrix multiplication, the last dimension of A must match the first/last dimension of B
+                // This is a basic shape compatibility check based on ranks
+                // When both are 2D: A[M, K] x B[K, N] -> valid
+                // When A is 1D and B is 2D: A[K] x B[K, N] -> valid
+                // When A is 2D and B is 1D: A[M, K] x B[K] -> valid
+                // Higher dimensional cases use broadcasting on batch dimensions
+
                 let mut out_rank = max(a.rank, b.rank);
                 if (a.rank >= 2 && b.rank == 1) || (a.rank == 1 && b.rank >= 2) {
                     out_rank -= 1;

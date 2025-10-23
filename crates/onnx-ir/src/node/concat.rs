@@ -106,6 +106,39 @@ impl NodeProcessor for ConcatProcessor {
             .iter()
             .any(|i| matches!(&i.ty, ArgType::Tensor(t) if t.rank == 1));
 
+        // Validate all inputs have compatible types (all Tensor or all Shape, except mixed Shape/rank-1 tensor case)
+        if !has_shape && !has_rank1_tensor {
+            // Regular tensor case - validate all inputs are tensors with same dtype
+            let first_dtype = match &node.inputs[0].ty {
+                ArgType::Tensor(t) => t.dtype,
+                _ => {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Tensor".to_string(),
+                        actual: format!("{:?}", node.inputs[0].ty),
+                    });
+                }
+            };
+
+            for (i, input) in node.inputs.iter().enumerate().skip(1) {
+                match &input.ty {
+                    ArgType::Tensor(t) => {
+                        if t.dtype != first_dtype {
+                            return Err(ProcessError::TypeMismatch {
+                                expected: format!("Tensor with dtype {:?}", first_dtype),
+                                actual: format!("Tensor with dtype {:?} at input {}", t.dtype, i),
+                            });
+                        }
+                    }
+                    _ => {
+                        return Err(ProcessError::TypeMismatch {
+                            expected: "Tensor".to_string(),
+                            actual: format!("{:?} at input {}", input.ty, i),
+                        });
+                    }
+                }
+            }
+        }
+
         if has_shape && has_rank1_tensor {
             // Mixed inputs that will be unified after constant conversion
             // Calculate provisional rank by summing Shape ranks and estimating tensor contributions

@@ -96,8 +96,8 @@ impl NodeProcessor for BatchNormProcessor {
         // Validate opset
         crate::processor::validate_opset(opset, 9)?;
 
-        // Validate input count (X, scale, B, mean, var)
-        crate::processor::validate_min_inputs(node, 5)?;
+        // Validate input count (X, scale, B, mean, var) - exactly 5 inputs required
+        crate::processor::validate_input_count(node, 5)?;
 
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;

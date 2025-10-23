@@ -75,11 +75,12 @@ mod tests {
 
     #[test]
     fn test_codegen_pad() {
-        use onnx_ir::node::pad::{ConstantValueInput, PadInput};
+        use onnx_ir::node::pad::{ConstantValueInput, PadInput, PadMode};
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         let config = PadConfig {
             pads: PadInput::Static(vec![1, 2, 3, 4]),
             constant_value: ConstantValueInput::Static(-1.0),
+            mode: PadMode::Constant,
         };
         graph.register(PadNode::new(
             TensorType::new_float("input", 2),

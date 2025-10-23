@@ -86,7 +86,8 @@ impl NodeProcessor for GroupNormProcessor {
         const MIN: usize = 18;
 
         crate::processor::validate_opset(opset, MIN)?;
-        crate::processor::validate_min_inputs(node, 3)?;
+        // GroupNormalization requires exactly 3 inputs: X, scale, and bias
+        crate::processor::validate_input_count(node, 3)?;
         crate::processor::validate_output_count(node, 1)?;
 
         // Validate attributes before extracting config

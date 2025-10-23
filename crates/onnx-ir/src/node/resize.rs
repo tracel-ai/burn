@@ -65,6 +65,18 @@ pub struct ResizeConfig {
     pub mode: ResizeMode,
     pub scales: Option<ResizeScales>,
     pub sizes: Option<ResizeSizes>,
+    /// Coordinate transformation mode (default: "half_pixel")
+    pub coordinate_transformation_mode: String,
+    /// Cubic coefficient for cubic interpolation (default: -0.75)
+    pub cubic_coeff_a: f32,
+    /// Nearest mode rounding strategy (default: "round_prefer_floor")
+    pub nearest_mode: String,
+    /// Exclude outside weights (default: 0)
+    pub exclude_outside: i32,
+    /// Extrapolation value for tf_crop_and_resize mode (default: 0.0)
+    pub extrapolation_value: f32,
+    /// Antialias flag (default: 0) - opset 13+
+    pub antialias: i32,
 }
 
 impl NodeConfig for ResizeConfig {
@@ -334,6 +346,12 @@ impl NodeProcessor for ResizeProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut mode: Option<ResizeMode> = None;
+        let mut coordinate_transformation_mode = "half_pixel".to_string();
+        let mut cubic_coeff_a = -0.75f32;
+        let mut nearest_mode = "round_prefer_floor".to_string();
+        let mut exclude_outside = 0i32;
+        let mut extrapolation_value = 0.0f32;
+        let mut antialias = 0i32;
 
         let input = if let ArgType::Tensor(tensor) = &node
             .inputs
@@ -363,9 +381,24 @@ impl NodeProcessor for ResizeProcessor {
                             })?,
                     )
                 }
-                "coordinate_transformation_mode" => {}
-                "cubic_coeff_a" => {}
-                "nearest_mode" => {}
+                "coordinate_transformation_mode" => {
+                    coordinate_transformation_mode = value.clone().into_string();
+                }
+                "cubic_coeff_a" => {
+                    cubic_coeff_a = value.clone().into_f32();
+                }
+                "nearest_mode" => {
+                    nearest_mode = value.clone().into_string();
+                }
+                "exclude_outside" => {
+                    exclude_outside = value.clone().into_i32();
+                }
+                "extrapolation_value" => {
+                    extrapolation_value = value.clone().into_f32();
+                }
+                "antialias" => {
+                    antialias = value.clone().into_i32();
+                }
                 _ => {}
             }
         }
@@ -382,6 +415,12 @@ impl NodeProcessor for ResizeProcessor {
             mode,
             scales,
             sizes,
+            coordinate_transformation_mode,
+            cubic_coeff_a,
+            nearest_mode,
+            exclude_outside,
+            extrapolation_value,
+            antialias,
         };
         Ok(Some(Box::new(config)))
     }
@@ -458,6 +497,13 @@ mod tests {
             _ => panic!("Expected static scales"),
         }
         assert!(config.sizes.is_none(), "Expected no sizes");
+        // Verify default attribute values
+        assert_eq!(config.coordinate_transformation_mode, "half_pixel");
+        assert_eq!(config.cubic_coeff_a, -0.75);
+        assert_eq!(config.nearest_mode, "round_prefer_floor");
+        assert_eq!(config.exclude_outside, 0);
+        assert_eq!(config.extrapolation_value, 0.0);
+        assert_eq!(config.antialias, 0);
     }
 
     #[test]

@@ -99,9 +99,8 @@ impl NodeProcessor for LayerNormProcessor {
         const MIN: usize = 17;
 
         crate::processor::validate_opset(opset, MIN)?;
-        // FIXME: According to ONNX spec, LayerNormalization has 2-3 inputs (Bias is optional)
-        // but we require all 3 inputs. Should use validate_min_inputs with min=2
-        crate::processor::validate_min_inputs(node, 3)?;
+        // LayerNormalization requires 2-3 inputs: X, Scale, and optionally B (Bias)
+        crate::processor::validate_min_inputs(node, 2)?;
         // FIXME: According to ONNX spec, LayerNormalization can have 1-3 outputs
         // (Y is required, Mean and InvStdDev are optional), but we only validate for 1
         crate::processor::validate_output_count(node, 1)?;

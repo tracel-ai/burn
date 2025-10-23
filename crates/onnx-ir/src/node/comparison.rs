@@ -106,11 +106,12 @@ impl NodeProcessor for ComparisonProcessor {
         // Validate opset based on operation type
         let min_opset = match node.node_type {
             crate::ir::NodeType::Equal => 7,
-            // FIXME: According to spec, Greater and Less should support opset 7+, but currently set to 9
-            crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 9,
+            crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 7,
             crate::ir::NodeType::GreaterOrEqual | crate::ir::NodeType::LessOrEqual => 12,
-            // FIXME: Other comparison operations should not use default opset 1; need specific validation
-            _ => 1,
+            _ => unreachable!(
+                "ComparisonProcessor should only be called for comparison operations, got: {:?}",
+                node.node_type
+            ),
         };
 
         crate::processor::validate_opset(opset, min_opset)?;
@@ -237,5 +238,88 @@ mod tests {
             }
             _ => panic!("Expected shape output"),
         }
+    }
+
+    #[test]
+    fn test_equal_opset_7() {
+        let mut node = NodeBuilder::new(NodeType::Equal, "test_equal")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+
+        let processor = ComparisonProcessor;
+        let prefs = OutputPreferences::new();
+
+        // Should work with opset 7
+        assert!(processor.infer_types(&mut node, 7, &prefs).is_ok());
+
+        // Should fail with opset 6
+        let mut node = NodeBuilder::new(NodeType::Equal, "test_equal")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 6, &prefs).is_err());
+    }
+
+    #[test]
+    fn test_greater_less_opset_7() {
+        let processor = ComparisonProcessor;
+        let prefs = OutputPreferences::new();
+
+        // Test Greater with opset 7
+        let mut node = NodeBuilder::new(NodeType::Greater, "test_greater")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 7, &prefs).is_ok());
+
+        // Test Less with opset 7
+        let mut node = NodeBuilder::new(NodeType::Less, "test_less")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 7, &prefs).is_ok());
+
+        // Should fail with opset 6
+        let mut node = NodeBuilder::new(NodeType::Greater, "test_greater")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 6, &prefs).is_err());
+    }
+
+    #[test]
+    fn test_greater_or_equal_less_or_equal_opset_12() {
+        let processor = ComparisonProcessor;
+        let prefs = OutputPreferences::new();
+
+        // Test GreaterOrEqual with opset 12
+        let mut node = NodeBuilder::new(NodeType::GreaterOrEqual, "test_gte")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 12, &prefs).is_ok());
+
+        // Test LessOrEqual with opset 12
+        let mut node = NodeBuilder::new(NodeType::LessOrEqual, "test_lte")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 12, &prefs).is_ok());
+
+        // Should fail with opset 11
+        let mut node = NodeBuilder::new(NodeType::GreaterOrEqual, "test_gte")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .output_tensor_bool("result", 0, None)
+            .build();
+        assert!(processor.infer_types(&mut node, 11, &prefs).is_err());
     }
 }

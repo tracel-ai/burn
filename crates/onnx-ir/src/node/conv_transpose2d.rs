@@ -118,6 +118,28 @@ impl NodeProcessor for Convtranspose2dProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // Validate attributes before extracting config
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" | "strides" | "pads" | "dilations" | "group" | "output_padding" => {}
+                "auto_pad" => {
+                    let auto_pad = value.clone().into_string();
+                    if auto_pad != "NOTSET" {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {auto_pad}"),
+                        });
+                    }
+                }
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for ConvTranspose2d: {key}"),
+                    });
+                }
+            }
+        }
+
         // Output type inference
         crate::processor::same_as_input(node);
 
@@ -145,23 +167,8 @@ impl NodeProcessor for Convtranspose2dProcessor {
                 "dilations" => dilations = value.clone().into_i64s(),
                 "group" => group = value.clone().into_i64() as usize,
                 "output_padding" => output_padding = value.clone().into_i64s(),
-                "auto_pad" => {
-                    let auto_pad = value.clone().into_string();
-                    if auto_pad != "NOTSET" {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "auto_pad".to_string(),
-                            reason: format!("Unsupported 'auto_pad' value: {auto_pad}"),
-                        });
-                    }
-                }
-                _ => {
-                    // TODO: According to spec, there may be other valid attributes that are not handled
-                    // Consider logging/warning instead of rejecting unknown attributes
-                    return Err(ProcessError::InvalidAttribute {
-                        name: key.clone(),
-                        reason: format!("Unexpected attribute for ConvTranspose2d: {key}"),
-                    });
-                }
+                "auto_pad" => {}
+                _ => {}
             }
         }
 
@@ -474,8 +481,10 @@ mod tests {
             Some("SAME_UPPER"),
         )
         .build_with_graph_data(16);
+        let mut node = node;
         let processor = Convtranspose2dProcessor;
-        let result = processor.extract_config(&node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 

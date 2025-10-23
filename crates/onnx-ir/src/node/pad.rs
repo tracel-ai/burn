@@ -47,6 +47,42 @@ pub enum ConstantValueInput {
     Runtime(RuntimeInputRef),
 }
 
+/// Padding mode for Pad operation.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum PadMode {
+    /// Constant padding (fill with constant value).
+    #[default]
+    Constant,
+    /// Reflect padding (mirror values).
+    Reflect,
+    /// Edge padding (replicate edge values).
+    Edge,
+}
+
+impl std::str::FromStr for PadMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "constant" => Ok(PadMode::Constant),
+            "reflect" => Ok(PadMode::Reflect),
+            "edge" => Ok(PadMode::Edge),
+            _ => Err(format!("Invalid pad mode: {}", s)),
+        }
+    }
+}
+
+impl PadMode {
+    /// Convert PadMode to string for serialization.
+    pub fn as_str(&self) -> &str {
+        match self {
+            PadMode::Constant => "constant",
+            PadMode::Reflect => "reflect",
+            PadMode::Edge => "edge",
+        }
+    }
+}
+
 /// Configuration for the Pad operation.
 #[derive(Debug, Clone)]
 pub struct PadConfig {
@@ -54,6 +90,8 @@ pub struct PadConfig {
     pub pads: PadInput,
     /// The constant value to fill the padded areas with.
     pub constant_value: ConstantValueInput,
+    /// The padding mode (constant, reflect, edge). Default: constant.
+    pub mode: PadMode,
 }
 
 impl NodeConfig for PadConfig {
@@ -110,7 +148,37 @@ impl NodeProcessor for PadProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        // Helper function to get pads
+        // Helper function to get mode
+        fn get_mode(node: &Node) -> Result<PadMode, ProcessError> {
+            use std::str::FromStr;
+
+            // Check for mode attribute (default is "constant")
+            for (key, value) in node.attrs.iter() {
+                if key.as_str() == "mode" {
+                    let mode_str = value.clone().into_string();
+                    let mode = PadMode::from_str(&mode_str).map_err(|e| {
+                        ProcessError::InvalidAttribute {
+                            name: "mode".to_string(),
+                            reason: e,
+                        }
+                    })?;
+
+                    // Current implementation only supports constant mode
+                    if mode != PadMode::Constant {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "mode".to_string(),
+                            reason: format!(
+                                "only constant mode is supported, given mode is {}",
+                                mode.as_str()
+                            ),
+                        });
+                    }
+                    return Ok(mode);
+                }
+            }
+            Ok(PadMode::default())
+        }
+
         fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
             crate::processor::validate_min_inputs(node, 1)?;
             if node.inputs.len() >= 4 {
@@ -128,22 +196,6 @@ impl NodeProcessor for PadProcessor {
                     });
                 }
             };
-
-            // Check for mode attribute
-            for (key, value) in node.attrs.iter() {
-                if key.as_str() == "mode" {
-                    let mode = value.clone().into_string();
-                    if mode != "constant" {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "mode".to_string(),
-                            reason: format!(
-                                "only constant mode is supported, given mode is {}",
-                                mode
-                            ),
-                        });
-                    }
-                }
-            }
 
             // Check for pads attribute first (takes precedence)
             for (key, value) in node.attrs.iter() {
@@ -299,12 +351,14 @@ impl NodeProcessor for PadProcessor {
             Ok(ConstantValueInput::Static(0.0))
         }
 
+        let mode = get_mode(node)?;
         let pads = get_pads(node)?;
         let constant_value = get_constant_value(node)?;
 
         let config = PadConfig {
             pads,
             constant_value,
+            mode,
         };
         Ok(Some(Box::new(config)))
     }
@@ -379,6 +433,7 @@ mod tests {
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)
         );
+        assert_eq!(config.mode, PadMode::Constant);
     }
 
     #[test]

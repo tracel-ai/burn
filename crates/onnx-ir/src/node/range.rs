@@ -38,7 +38,7 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -102,13 +102,15 @@ impl NodeProcessor for RangeProcessor {
         // Validate input count
         crate::processor::validate_input_count(node, 3)?;
 
-        // TODO: Validate that output count is exactly 1
-        // FIXME: Output element type should match input types (T), not hardcoded to Int64
-        // Spec supports float, double, int16, int32, int64 - but we always output Int64
+        // Validate output count
+        crate::processor::validate_output_count(node, 1)?;
+
+        // Infer output dtype from input types (all inputs should have the same type T)
+        let output_dtype = node.inputs[0].ty.elem_type();
 
         // Range operation always produces rank 1 tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dtype: DType::I64,
+            dtype: output_dtype,
             rank: 1,
             static_shape: None,
         });
@@ -162,6 +164,7 @@ impl NodeProcessor for RangeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DType;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 

@@ -302,6 +302,67 @@ impl NodeProcessor for ReshapeProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // Validate shape input type - must be Tensor or Shape
+        match &node.inputs[1].ty {
+            ArgType::Tensor(t) => {
+                // Shape tensor must be 1D and int64 dtype
+                if t.rank != 1 {
+                    return Err(ProcessError::Custom(format!(
+                        "Reshape: shape tensor must be 1D, got rank {}",
+                        t.rank
+                    )));
+                }
+                if t.dtype != crate::DType::I64 {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Shape tensor with dtype I64".to_string(),
+                        actual: format!("Shape tensor with dtype {:?}", t.dtype),
+                    });
+                }
+            }
+            ArgType::Shape(_) => {
+                // Shape type is valid
+            }
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape for shape input".to_string(),
+                    actual: format!("{:?}", node.inputs[1].ty),
+                });
+            }
+        }
+
+        // Validate static shape values if available
+        if let Some(shape_data) = node.inputs[1].value()
+            && let Ok(shape_values) = shape_data.to_i64_vec()
+        {
+            // Count how many -1 values we have (at most one is allowed)
+            let neg_one_count = shape_values.iter().filter(|&&v| v == -1).count();
+            if neg_one_count > 1 {
+                return Err(ProcessError::Custom(
+                    "Reshape: shape can contain at most one -1 value".to_string(),
+                ));
+            }
+
+            // If allowzero attribute is set, validate that we don't have both 0 and -1
+            let mut allowzero = 0i64;
+            for (key, value) in node.attrs.iter() {
+                if key.as_str() == "allowzero" {
+                    allowzero = value.clone().into_i64();
+                    break;
+                }
+            }
+
+            if allowzero == 1 {
+                let has_zero = shape_values.contains(&0);
+                let has_neg_one = shape_values.contains(&(-1));
+                if has_zero && has_neg_one {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: "allowzero".to_string(),
+                        reason: "When allowzero=1, shape cannot contain both 0 and -1".to_string(),
+                    });
+                }
+            }
+        }
+
         // Extract and validate shape input
         let shape = extract_shape_input(node);
         let config = ReshapeConfig { shape };

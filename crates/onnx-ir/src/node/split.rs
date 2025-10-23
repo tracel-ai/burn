@@ -144,6 +144,36 @@ impl NodeProcessor for SplitProcessor {
             }
         }
 
+        // Validate axis before normalizing - must be in range [-rank, rank-1]
+        let rank = tensor.rank as i64;
+        if axis < -rank || axis >= rank {
+            return Err(ProcessError::InvalidAttribute {
+                name: "axis".to_string(),
+                reason: format!(
+                    "Split: axis {} is out of range for tensor of rank {} (valid range: [{}, {}])",
+                    axis,
+                    rank,
+                    -rank,
+                    rank - 1
+                ),
+            });
+        }
+
+        // Adjust axis if negative to count from the end as per ONNX spec
+        if axis < 0 {
+            axis += rank;
+        }
+
+        // Validate num_outputs if provided
+        if let Some(num) = num_outputs
+            && num == 0
+        {
+            return Err(ProcessError::InvalidAttribute {
+                name: "num_outputs".to_string(),
+                reason: "Split: num_outputs must be greater than 0".to_string(),
+            });
+        }
+
         // Handle the case when num_outputs is provided to calculate uniform split size
         if let Some(num_outputs) = num_outputs {
             let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
@@ -151,6 +181,14 @@ impl NodeProcessor for SplitProcessor {
                     "Split: Static shape must be known to calculate split size".to_string(),
                 )
             })?[axis as usize];
+
+            // Validate that dimension size is sufficient for the number of outputs
+            if dim_size == 0 {
+                return Err(ProcessError::Custom(format!(
+                    "Split: cannot split dimension of size 0 into {} outputs",
+                    num_outputs
+                )));
+            }
 
             // Calculate the split size considering any remainder for non-evenly divisible dimensions
             let calculated_split_size =
@@ -160,13 +198,33 @@ impl NodeProcessor for SplitProcessor {
             split_size = Some(calculated_split_size);
         }
 
-        // Adjust axis if negative to count from the end as per ONNX spec
-        if axis < 0 {
-            axis += tensor.rank as i64;
-        }
-
         // Check for custom split sizes provided as a second input
         if node.inputs.len() > 1 {
+            // Validate split input type
+            match &node.inputs[1].ty {
+                ArgType::Tensor(t) => {
+                    // Split tensor must be 1D and int64 dtype
+                    if t.rank != 1 {
+                        return Err(ProcessError::Custom(format!(
+                            "Split: split sizes tensor must be 1D, got rank {}",
+                            t.rank
+                        )));
+                    }
+                    if t.dtype != crate::ir::DType::I64 {
+                        return Err(ProcessError::TypeMismatch {
+                            expected: "Split sizes tensor with dtype I64".to_string(),
+                            actual: format!("Split sizes tensor with dtype {:?}", t.dtype),
+                        });
+                    }
+                }
+                _ => {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Tensor for split sizes input".to_string(),
+                        actual: format!("{:?}", node.inputs[1].ty),
+                    });
+                }
+            }
+
             split_sizes = match node.inputs[1].value() {
                 None => {
                     // Runtime input - no static value available
@@ -177,7 +235,40 @@ impl NodeProcessor for SplitProcessor {
                 }
                 Some(tensor_data) => {
                     let sizes: Vec<i64> = tensor_data.to_vec().unwrap();
+
+                    // Validate that all split sizes are positive
+                    for (i, &size) in sizes.iter().enumerate() {
+                        if size <= 0 {
+                            return Err(ProcessError::Custom(format!(
+                                "Split: split size at index {} must be positive, got {}",
+                                i, size
+                            )));
+                        }
+                    }
+
                     let usizes: Vec<usize> = sizes.into_iter().map(|x| x as usize).collect();
+
+                    // Validate that number of split sizes matches number of outputs
+                    if usizes.len() != node.outputs.len() {
+                        return Err(ProcessError::Custom(format!(
+                            "Split: number of split sizes ({}) must match number of outputs ({})",
+                            usizes.len(),
+                            node.outputs.len()
+                        )));
+                    }
+
+                    // Validate that sum of split sizes matches the dimension size (if static shape is available)
+                    if let Some(static_shape) = &tensor.static_shape {
+                        let dim_size = static_shape[axis as usize];
+                        let total_size: usize = usizes.iter().sum();
+                        if total_size != dim_size {
+                            return Err(ProcessError::Custom(format!(
+                                "Split: sum of split sizes ({}) must equal dimension size ({}) along axis {}",
+                                total_size, dim_size, axis
+                            )));
+                        }
+                    }
+
                     if !usizes.is_empty() {
                         Some(SplitSizesInput::Static(usizes))
                     } else {
@@ -407,7 +498,7 @@ mod tests {
     fn test_split_config_with_split_sizes_input() {
         // Test with explicit split sizes provided as second input
         let static_shape = Some(vec![10, 20, 30]);
-        let split_sizes = vec![5, 15]; // Custom split sizes along default axis
+        let split_sizes = vec![3, 7]; // Custom split sizes along default axis (must sum to 10)
 
         let node = create_test_node(3, 2, static_shape, None, Some(split_sizes.clone()))
             .build_with_graph_data(16);
@@ -423,7 +514,7 @@ mod tests {
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
         assert!(
-            matches!(&config.split_sizes, Some(SplitSizesInput::Static(sizes)) if sizes == &vec![5, 15])
+            matches!(&config.split_sizes, Some(SplitSizesInput::Static(sizes)) if sizes == &vec![3, 7])
         );
     }
 
