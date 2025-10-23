@@ -164,13 +164,7 @@ mod tests {
 
     #[test]
     fn test_linear_config_basic() {
-        let node = create_test_node(false, vec![10, 5]).build_with_graph_data(16);
-        let mut node = node;
-        let processor = LinearProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(false, vec![10, 5]).process(LinearProcessor, 16);
         let config = node.config::<LinearConfig>();
 
         assert_eq!(config.d_input, 10);
@@ -180,13 +174,7 @@ mod tests {
 
     #[test]
     fn test_linear_config_with_bias() {
-        let node = create_test_node(true, vec![10, 5]).build_with_graph_data(16);
-        let mut node = node;
-        let processor = LinearProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(true, vec![10, 5]).process(LinearProcessor, 16);
         let config = node.config::<LinearConfig>();
 
         assert_eq!(config.d_input, 10);
@@ -197,17 +185,15 @@ mod tests {
     #[test]
     #[should_panic(expected = "index out of bounds")]
     fn test_linear_config_invalid_weight_dims() {
-        let node = create_test_node(false, vec![10]).build_with_graph_data(16);
-        let processor = LinearProcessor;
+        let _node = create_test_node(false, vec![10]).process(LinearProcessor, 16);
         // Error should occur in extract_config when accessing weight_shape[1]
-        processor.extract_config(&node, 16).unwrap();
     }
 
     #[test]
     fn test_linear_config_missing_weight() {
         let mut node = create_test_node(false, vec![10, 5]).build_with_graph_data(16);
         node.inputs.remove(1);
-        let mut node = node;
+
         let processor = LinearProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

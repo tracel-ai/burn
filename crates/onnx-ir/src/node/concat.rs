@@ -226,36 +226,23 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> Node {
+    fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> NodeBuilder {
         NodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensors_f32::<Vec<usize>>("data", num_inputs, input_rank, None)
             .output_tensor_f32("output", input_rank, None)
             .attr_int("axis", axis)
-            .build()
     }
 
     #[test]
     fn test_concat_config_basic() {
-        let node = create_test_node(1, 3, 2);
-        let mut node = node;
-        let processor = ConcatProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(1, 3, 2).process(ConcatProcessor, 16);
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
     fn test_concat_config_negative_axis() {
-        let node = create_test_node(-2, 3, 2);
-        let mut node = node;
-        let processor = ConcatProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(-2, 3, 2).process(ConcatProcessor, 16);
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
@@ -267,14 +254,8 @@ mod tests {
             .input_shape("shape2", 3)
             .output_shape("output", 5)
             .attr_int("axis", 0) // Required attribute
-            .build();
+            .process(ConcatProcessor, 16);
 
-        let mut node = node;
-        let processor = ConcatProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 0); // Shape concat uses axis 0
     }
@@ -309,19 +290,13 @@ mod tests {
 
     #[test]
     fn test_concat_update_outputs_shape() {
-        let mut node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .input_shape("shape3", 1)
             .output_shape("output", 0) // Will be updated
             .attr_int("axis", 0) // Required attribute
-            .build();
-
-        let processor = ConcatProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+            .process(ConcatProcessor, 16);
 
         // Check that output is Shape with sum of input ranks
         match &node.outputs[0].ty {
@@ -337,14 +312,8 @@ mod tests {
             .input_shape("shape2", 3)
             .output_shape("output", 5)
             .attr_int("axis", -1) // -1 should become 0 for 1D shapes
-            .build();
+            .process(ConcatProcessor, 16);
 
-        let mut node = node;
-        let processor = ConcatProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 0); // -1 + 1 = 0
     }

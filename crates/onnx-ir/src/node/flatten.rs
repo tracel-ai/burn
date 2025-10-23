@@ -133,43 +133,30 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(axis: i64) -> Node {
+    fn create_test_node(axis: i64) -> NodeBuilder {
         NodeBuilder::new(NodeType::Flatten, "test_flatten")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 2, None)
             .attr_int("axis", axis)
-            .build()
     }
 
     #[test]
     fn test_flatten_config_basic() {
-        let node = create_test_node(1);
-        let mut node = node;
-        let processor = FlattenProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(1).process(FlattenProcessor, 16);
         let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
     fn test_flatten_config_with_negative_axis() {
-        let node = create_test_node(-2);
-        let mut node = node;
-        let processor = FlattenProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(-2).process(FlattenProcessor, 16);
         let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 
     #[test]
     fn test_flatten_config_with_low_rank() {
-        let mut node = create_test_node(1);
+        let mut node = create_test_node(1).build();
         // Replace the input with one that has lower rank
         let input = NodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("x", 1, None)
@@ -178,7 +165,7 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs[0] = input;
-        let mut node = node;
+
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
@@ -189,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_flatten_config_with_multiple_inputs() {
-        let mut node = create_test_node(1);
+        let mut node = create_test_node(1).build();
         // Add an extra input
         let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("extra", 1, None)
@@ -198,7 +185,7 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs.push(extra_input);
-        let mut node = node;
+
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();

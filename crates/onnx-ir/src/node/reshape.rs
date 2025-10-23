@@ -405,12 +405,7 @@ mod tests {
 
     #[test]
     fn test_reshape_config_basic() {
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
-        let processor = ReshapeProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_test_node(0, vec![2, 3]).process(ReshapeProcessor, 16);
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {
@@ -421,23 +416,14 @@ mod tests {
 
     #[test]
     fn test_reshape_config_allowzero_supported() {
-        let mut node = create_test_node(1, vec![2, 3]).build_with_graph_data(16);
-        let processor = ReshapeProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let _node = create_test_node(1, vec![2, 3]).process(ReshapeProcessor, 16);
+        // Test passes if no panic occurs during processing
     }
 
     #[test]
     #[ignore] // TODO: Test needs redesign - runtime reshape requires rank information from output or Shape type input
     fn test_reshape_config_runtime() {
-        let mut node = create_runtime_reshape_node().build();
-        let processor = ReshapeProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_runtime_reshape_node().process(ReshapeProcessor, 16);
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {
@@ -467,7 +453,7 @@ mod tests {
     #[should_panic(expected = "shape tensor must be 1D")]
     fn test_reshape_config_invalid_shape_dim() {
         // Create a node with 2D shape tensor (should trigger panic)
-        let node = NodeBuilder::new(NodeType::Reshape, "test_reshape")
+        let _node = NodeBuilder::new(NodeType::Reshape, "test_reshape")
             .input_tensor_f32("data", 4, None)
             .input_tensor_with_data(
                 "shape",
@@ -476,14 +462,7 @@ mod tests {
                 crate::ir::TensorData::new(vec![2i64, 3], vec![2, 1]), // 2D shape - this should cause panic
             )
             .output_tensor_f32("reshaped", 2, None)
-            .build_with_graph_data(16);
-
-        let mut node = node;
-        let processor = ReshapeProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+            .process(ReshapeProcessor, 16);
     }
 
     #[test]
@@ -523,12 +502,7 @@ mod tests {
 
     #[test]
     fn test_reshape_config_with_shape_type() {
-        let mut node = create_reshape_with_shape_input().build();
-        let processor = ReshapeProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = create_reshape_with_shape_input().process(ReshapeProcessor, 16);
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {

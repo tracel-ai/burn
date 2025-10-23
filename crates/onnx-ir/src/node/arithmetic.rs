@@ -128,52 +128,16 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
+    use crate::ir::{ArgType, NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     #[test]
     fn test_arithmetic_add() {
-        let processor = ArithmeticBinaryProcessor;
-        let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::Node {
-            node_type: NodeType::Add,
-            name: "test_add".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-            config: None,
-        };
-
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = NodeBuilder::new(NodeType::Add, "test_add")
+            .input_tensor_f32("a", 2, None)
+            .input_tensor_f32("b", 2, None)
+            .output_default("c")
+            .process(ArithmeticBinaryProcessor, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 2),
@@ -183,48 +147,11 @@ mod tests {
 
     #[test]
     fn test_arithmetic_sub() {
-        let processor = ArithmeticBinaryProcessor;
-        let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::Node {
-            node_type: NodeType::Sub,
-            name: "test_sub".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 3,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 3,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-            config: None,
-        };
-
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = NodeBuilder::new(NodeType::Sub, "test_sub")
+            .input_tensor_f32("a", 3, None)
+            .input_tensor_f32("b", 3, None)
+            .output_default("c")
+            .process(ArithmeticBinaryProcessor, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 3),
@@ -234,48 +161,11 @@ mod tests {
 
     #[test]
     fn test_arithmetic_mul() {
-        let processor = ArithmeticBinaryProcessor;
-        let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::Node {
-            node_type: NodeType::Mul,
-            name: "test_mul".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 4,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 4,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-            config: None,
-        };
-
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = NodeBuilder::new(NodeType::Mul, "test_mul")
+            .input_tensor_f32("a", 4, None)
+            .input_tensor_f32("b", 4, None)
+            .output_default("c")
+            .process(ArithmeticBinaryProcessor, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 4),
@@ -285,48 +175,11 @@ mod tests {
 
     #[test]
     fn test_arithmetic_div() {
-        let processor = ArithmeticBinaryProcessor;
-        let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::Node {
-            node_type: NodeType::Div,
-            name: "test_div".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-            config: None,
-        };
-
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let node = NodeBuilder::new(NodeType::Div, "test_div")
+            .input_tensor_f32("a", 2, None)
+            .input_tensor_f32("b", 2, None)
+            .output_default("c")
+            .process(ArithmeticBinaryProcessor, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 2),
@@ -336,47 +189,14 @@ mod tests {
 
     #[test]
     fn test_invalid_opset() {
+        let mut node = NodeBuilder::new(NodeType::Add, "test_add")
+            .input_tensor_f32("a", 2, None)
+            .input_tensor_f32("b", 2, None)
+            .output_default("c")
+            .build();
+
         let processor = ArithmeticBinaryProcessor;
         let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::Node {
-            node_type: NodeType::Add,
-            name: "test_add".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    data_id: None,
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-            config: None,
-        };
-
         let result = processor.infer_types(&mut node, 6, &prefs);
         assert!(matches!(
             result,
@@ -389,34 +209,13 @@ mod tests {
 
     #[test]
     fn test_invalid_input_count() {
+        let mut node = NodeBuilder::new(NodeType::Add, "test_add")
+            .input_tensor_f32("a", 2, None)
+            .output_default("c")
+            .build();
+
         let processor = ArithmeticBinaryProcessor;
         let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::Node {
-            node_type: NodeType::Add,
-            name: "test_add".to_string(),
-            inputs: vec![Argument {
-                name: "a".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    dtype: DType::F32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                data_id: None,
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-            config: None,
-        };
-
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(
             result,
