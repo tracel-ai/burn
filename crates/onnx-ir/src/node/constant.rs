@@ -6,6 +6,8 @@
 //!
 //! ## Attributes
 //!
+//!  NOTE: Originally value is stored as an attribute but moved to an input.
+//!
 //! - `value` (tensor, optional): The constant tensor value
 //! - `sparse_value` (sparse_tensor, optional, Opset 11+): Sparse tensor value
 //! - `value_float` (float, optional, Opset 13+): Scalar float value
@@ -19,7 +21,7 @@
 //!
 //! ## Inputs
 //!
-//! None (values come from attributes, stored as pseudo-input in implementation)
+//! An input is added as a pseudo-input in implementation
 //!
 //! ## Outputs
 //!
@@ -48,9 +50,8 @@ impl NodeProcessor for ConstantProcessor {
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // TODO: According to spec, Constant is available since opset 1, not 9
-        // Currently validating opset 9+ which may be too restrictive
-        crate::processor::validate_opset(opset, 9)?;
+        // Spec: Opset 1+ (sparse_value added in opset 11, value_* attributes added in opset 13)
+        crate::processor::validate_opset(opset, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Implementation does not support all attribute types mentioned in spec:

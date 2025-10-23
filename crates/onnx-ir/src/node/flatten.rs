@@ -51,9 +51,8 @@ impl NodeProcessor for FlattenProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // FIXME: Spec says "Opset 1+" but we validate opset 9. Should validate opset 1.
-        // Validate opset
-        crate::processor::validate_opset(opset, 9)?;
+        // Spec: Opset 1+ (negative axis support added in opset 11)
+        crate::processor::validate_opset(opset, 1)?;
 
         // Validate input count
         crate::processor::validate_input_count(node, 1)?;

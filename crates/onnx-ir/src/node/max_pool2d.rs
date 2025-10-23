@@ -98,11 +98,8 @@ impl NodeProcessor for MaxPool2dProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // FIXME: Spec says "Opset 1+" but implementation requires opset 11+.
-        // This discrepancy should be documented or the check should be relaxed to opset 1.
-
-        // MaxPool implementation supports opset 11+ (for enhanced calculations)
-        crate::processor::validate_opset(opset, 11)?;
+        // Spec: Opset 1+ (dilation support added in opset 11)
+        crate::processor::validate_opset(opset, 1)?;
 
         // FIXME: Spec mentions optional second output "Indices" but we only validate 1 output.
         // Should validate that output count is 1 or 2, not exactly 1.
@@ -115,7 +112,17 @@ impl NodeProcessor for MaxPool2dProcessor {
         // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "kernel_shape" | "strides" | "pads" | "dilations" | "storage_order" => {}
+                "kernel_shape" | "strides" | "pads" | "storage_order" => {}
+                "dilations" => {
+                    // Dilation support requires opset 11+
+                    let dilations = value.clone().into_i64s();
+                    if dilations.iter().any(|&d| d != 1) && opset < 11 {
+                        return Err(ProcessError::Custom(format!(
+                            "MaxPool: dilation requires opset 11+, got opset {}",
+                            opset
+                        )));
+                    }
+                }
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {

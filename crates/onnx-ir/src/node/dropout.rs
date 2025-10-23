@@ -81,8 +81,8 @@ impl NodeProcessor for DropoutProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // FIXME: Spec says "Opset 1+" but we validate opset 7. Should validate opset 1.
-        crate::processor::validate_opset(opset, 7)?;
+        // Spec: Opset 1+ (ratio/training_mode moved to inputs in opset 12)
+        crate::processor::validate_opset(opset, 1)?;
         crate::processor::validate_min_inputs(node, 1)?;
 
         // Dropout can have 1 or 2 outputs (second output is optional mask)

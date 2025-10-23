@@ -91,9 +91,8 @@ impl NodeProcessor for GatherProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // FIXME: Spec says "Opset 1" initial version but we validate opset 11. Should validate opset 1.
-        // Validate opset
-        crate::processor::validate_opset(opset, 11)?;
+        // Spec: Opset 1+ (negative indices support added in opset 11)
+        crate::processor::validate_opset(opset, 1)?;
 
         // Validate input count
         crate::processor::validate_input_count(node, 2)?;

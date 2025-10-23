@@ -84,8 +84,8 @@ impl NodeProcessor for DepthToSpaceProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // FIXME: Spec says "Since opset 1" but we validate opset 11. Should validate opset 1.
-        crate::processor::validate_opset(opset, 11)?;
+        // Spec: Opset 1+ (CRD mode added in opset 11)
+        crate::processor::validate_opset(opset, 1)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
@@ -104,6 +104,14 @@ impl NodeProcessor for DepthToSpaceProcessor {
 
         // Get reference to config for type inference
         let config = node.config::<DepthToSpaceConfig>();
+
+        // Validate that if mode is CRD, we need opset 11+
+        if config.mode == DepthToSpaceMode::CRD && opset < 11 {
+            return Err(ProcessError::Custom(format!(
+                "DepthToSpace: CRD mode requires opset 11+, got opset {}",
+                opset
+            )));
+        }
         let block_size = config.block_size;
 
         // Validate block_size
