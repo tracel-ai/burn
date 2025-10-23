@@ -388,9 +388,22 @@ pub fn linear<B: Backend, const D: usize>(
     weight: Tensor<B, 2>,
     bias: Option<Tensor<B, 1>>,
 ) -> Tensor<B, D> {
-    Tensor::new(TensorPrimitive::Float(B::linear(
-        input.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
-    )))
+    if D == 1 {
+        // Insert and remove an extra batch dimension for the batch matmul to work.
+        let input = input.unsqueeze::<2>();
+        let output = linear(input, weight, bias);
+        return output.squeeze::<D>();
+    }
+
+    // Perform broadcasting
+    //
+    // Important to be done before doing operations to easily fuse.
+    let weight = weight.unsqueeze::<D>();
+    let bias = bias.map(|bias| bias.unsqueeze::<D>());
+
+    let output = input.matmul(weight);
+    match bias {
+        Some(bias) => output.add(bias),
+        None => output,
+    }
 }
