@@ -241,21 +241,15 @@ impl TryFrom<TensorProto> for TensorData {
                 DType::F64 if !tensor.double_data.is_empty() => {
                     Ok(TensorData::new(tensor.double_data, shape))
                 }
-                DType::F64 if expected_elems == 0 => {
-                    Ok(TensorData::new(Vec::<f64>::new(), shape))
-                }
+                DType::F64 if expected_elems == 0 => Ok(TensorData::new(Vec::<f64>::new(), shape)),
                 DType::I32 if !tensor.int32_data.is_empty() => {
                     Ok(TensorData::new(tensor.int32_data, shape))
                 }
-                DType::I32 if expected_elems == 0 => {
-                    Ok(TensorData::new(Vec::<i32>::new(), shape))
-                }
+                DType::I32 if expected_elems == 0 => Ok(TensorData::new(Vec::<i32>::new(), shape)),
                 DType::I64 if !tensor.int64_data.is_empty() => {
                     Ok(TensorData::new(tensor.int64_data, shape))
                 }
-                DType::I64 if expected_elems == 0 => {
-                    Ok(TensorData::new(Vec::<i64>::new(), shape))
-                }
+                DType::I64 if expected_elems == 0 => Ok(TensorData::new(Vec::<i64>::new(), shape)),
                 DType::Bool if !tensor.int32_data.is_empty() => {
                     let data: Vec<bool> = tensor.int32_data.into_iter().map(|x| x != 0).collect();
                     Ok(TensorData::new(data, shape))
@@ -286,6 +280,10 @@ impl TryFrom<TensorProto> for TensorData {
                         Err(ParseError::VariantNotFound("no data for INT8".into()))
                     }
                 }
+                DType::F16 if expected_elems == 0 => {
+                    Ok(TensorData::new(Vec::<half::f16>::new(), shape))
+                }
+                DType::U16 if expected_elems == 0 => Ok(TensorData::new(Vec::<u16>::new(), shape)),
                 _ => Err(ParseError::VariantNotFound(format!(
                     "empty/unsupported payload for {:?}",
                     elem
