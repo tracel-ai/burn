@@ -29,6 +29,8 @@ pub struct GraphState {
     node_output_map: HashMap<String, (usize, usize)>,
     /// Central tensor data store
     pub(super) tensor_store: TensorStore,
+    /// Maps ONNX value names to their type info (from value_info)
+    value_info_map: HashMap<String, ArgType>,
 }
 
 impl GraphState {
@@ -37,10 +39,12 @@ impl GraphState {
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
+        value_infos: &[ValueInfoProto],
     ) -> Self {
         let mut tensor_store = TensorStore::new();
         let mut graph_input_map = HashMap::new();
         let mut node_output_map = HashMap::new();
+        let mut value_info_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
         let processed_nodes = process_initializers(initializers, &mut tensor_store);
@@ -48,6 +52,13 @@ impl GraphState {
         // Map initializer names to their constant node outputs
         for (i, initializer) in initializers.iter().enumerate() {
             node_output_map.insert(initializer.name.clone(), (i, 0));
+        }
+
+        // Store value_info for intermediate values
+        for value_info in value_infos {
+            if let Ok(arg) = Argument::try_from(value_info.clone()) {
+                value_info_map.insert(value_info.name.clone(), arg.ty);
+            }
         }
 
         let outputs = outputs
@@ -80,6 +91,7 @@ impl GraphState {
             graph_input_map,
             node_output_map,
             tensor_store,
+            value_info_map,
         }
     }
 
@@ -142,6 +154,11 @@ impl GraphState {
             .iter()
             .find(|out| out.name == name)
             .map(|out| &out.ty)
+    }
+
+    /// Get type from value_info for intermediate values
+    pub(crate) fn get_value_info_type(&self, name: &str) -> Option<&crate::ir::ArgType> {
+        self.value_info_map.get(name)
     }
 
     /// Register a test constant in GraphState

@@ -369,9 +369,11 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
         .iter()
         .map(|output_name| {
             let mut arg = Argument::new(output_name.to_string());
-            // If this output is a graph output, use its type from the graph
+            // Try to get type from: 1) graph outputs, 2) value_info (intermediate values)
             if let Some(graph_output_type) = graph_data.get_output_type(output_name) {
                 arg.ty = graph_output_type.clone();
+            } else if let Some(value_info_type) = graph_data.get_value_info_type(output_name) {
+                arg.ty = value_info_type.clone();
             }
             arg
         })

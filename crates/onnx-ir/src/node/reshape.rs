@@ -171,16 +171,34 @@ fn infer_reshape_output_rank(node: &Node) -> usize {
 
     // 1. Static shape from constant shape input
     if let Some(shape) = get_static_shape(node) {
+        log::debug!(
+            "Reshape {}: inferred rank {} from static shape {:?}",
+            node.name,
+            shape.len(),
+            shape
+        );
         return shape.len();
     }
 
     // 2. Dynamic shape from shape input type
     if let Some(rank) = get_rank_from_shape_input(node) {
+        log::debug!(
+            "Reshape {}: inferred rank {} from shape input type",
+            node.name,
+            rank
+        );
         return rank;
     }
 
     // 3. Output's static shape if available
     if let Some(rank) = get_rank_from_output(node) {
+        log::debug!(
+            "Reshape {}: inferred rank {} from output type (input: {:?}, output: {:?})",
+            node.name,
+            rank,
+            node.inputs[0].ty,
+            node.outputs[0].ty
+        );
         return rank;
     }
 

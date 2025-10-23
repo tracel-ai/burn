@@ -146,7 +146,7 @@ mod tests {
         let shape = tensor_data.shape.to_vec();
 
         // Create GraphState and register the constant
-        let mut graph_data = GraphState::new(&[], &[], &[]);
+        let mut graph_data = GraphState::new(&[], &[], &[], &[]);
         graph_data.register_test_constant("test_value".to_string(), tensor_data);
 
         // Get the data_id from the registered constant

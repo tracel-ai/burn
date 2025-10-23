@@ -159,7 +159,7 @@ pub(crate) fn post_process(
         let tensor_data_clone = state.tensor_store.clone_data();
         let next_tensor_id = state.tensor_store.next_id();
 
-        let result = std::mem::replace(&mut *state, GraphState::new(&[], &[], &[])).consume();
+        let result = std::mem::replace(&mut *state, GraphState::new(&[], &[], &[], &[])).consume();
 
         // Restore tensor_store for .value() access
         state
