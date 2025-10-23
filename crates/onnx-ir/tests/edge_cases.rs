@@ -879,11 +879,15 @@ fn test_direct_input_to_output() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "Nodes are not topologically sorted")]
 fn test_non_topological_order_handling() {
     // VALIDATION TEST: Graph nodes are NOT in topological order
     // Expected behavior: Parser should REJECT non-topological graphs
     // This tests that the parser correctly validates topological ordering
+    //
+    // NOTE: This test only runs in debug mode because the topological ordering
+    // validation is a debug_assert! that is disabled in release builds.
     //
     // The ONNX model has nodes in this order:
     //   1. Add (uses abs_out)

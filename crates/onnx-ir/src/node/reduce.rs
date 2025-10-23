@@ -270,7 +270,7 @@ mod tests {
 
         let config = node.config::<ReduceConfig>();
 
-        assert_eq!(config.dims, []);
+        assert_eq!(config.dims, Vec::<usize>::new());
         assert_eq!(config.keepdims, true);
     }
 
