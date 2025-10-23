@@ -1,0 +1,11 @@
+[package]
+name = "custom-learning-strategy"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

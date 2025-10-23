@@ -70,10 +70,14 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .summary()
-        .build(model, config.optimizer.init(), 1e-3);
+        .build(
+            model,
+            config.optimizer.init(),
+            1e-3,
+            LearningStrategy::SingleDevice(device.clone()),
+        );
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

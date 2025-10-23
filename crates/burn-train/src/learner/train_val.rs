@@ -139,6 +139,9 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
                 let single_device = SingleDeviceLearningStrategy::new(device.clone());
                 single_device.fit(self, dataloader_train, dataloader_valid)
             }
+            LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
+                .clone()
+                .fit(self, dataloader_train, dataloader_valid),
             LearningStrategy::MultiDeviceNaive(devices) => {
                 let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
                 multi_device.fit(self, dataloader_train, dataloader_valid)
