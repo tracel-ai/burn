@@ -212,7 +212,8 @@ fn get_rank_from_shape_input(node: &Node) -> Option<usize> {
 /// Get rank from output tensor if available
 fn get_rank_from_output(node: &Node) -> Option<usize> {
     match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.static_shape.as_ref().map(|shape| shape.len()),
+        ArgType::Tensor(tensor) => Some(tensor.rank),
+        ArgType::Scalar(_) => Some(0),
         _ => None,
     }
 }
@@ -566,6 +567,50 @@ mod tests {
                 assert_eq!(*elem_type, DType::F32);
             }
             _ => panic!("Expected scalar output"),
+        }
+    }
+
+    #[test]
+    fn test_reshape_dynamic_shape_with_output_rank() {
+        // Test dynamic reshape where shape input has no static_shape,
+        // but output rank is known from ONNX model metadata.
+        // This simulates real-world models where shape is computed by other nodes (e.g., Concat)
+        // but the ONNX model's value_info already specifies the output rank.
+
+        let mut node = NodeBuilder::new(NodeType::Reshape, "test_dynamic_reshape")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64("shape", 1, None) // Dynamic shape input - no static value
+            .output_tensor_f32("reshaped", 4, None) // Output has rank 4 but no static_shape
+            .build();
+
+        // Verify the shape input has no static_shape (simulating dynamic case)
+        match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 1);
+                assert_eq!(tensor.static_shape, None); // No static shape
+            }
+            _ => panic!("Expected tensor shape input"),
+        }
+
+        // Verify output has rank but no static_shape
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 4);
+                assert_eq!(tensor.static_shape, None); // No static shape, just rank
+            }
+            _ => panic!("Expected tensor output"),
+        }
+
+        // This should succeed by using the output's rank field
+        reshape_update_outputs(&mut node);
+
+        // Verify the output still has the correct rank
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 4);
+                assert_eq!(tensor.dtype, DType::F32);
+            }
+            _ => panic!("Expected tensor output"),
         }
     }
 }
