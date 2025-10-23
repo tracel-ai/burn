@@ -2,10 +2,11 @@
 name = "custom-learning-strategy"
 edition.workspace = true
 license.workspace = true
-readme.workspace = true
 version.workspace = true
-
-[dependencies]
+publish = false
 
 [lints]
 workspace = true
+
+[dependencies]
+burn = {path = "../../crates/burn", features=["autodiff", "webgpu", "vision"]}
