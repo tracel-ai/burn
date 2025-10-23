@@ -23,6 +23,44 @@ pub enum ParseError {
     VariantNotFound(String),
 }
 
+/// Sanitize ONNX names to be valid Rust identifiers
+///
+/// This function converts ONNX variable names (which can contain special characters
+/// like ':',  '/', '.', etc.) into valid Rust identifiers by:
+/// 1. Keeping empty strings as-is (they represent optional inputs in ONNX)
+/// 2. Replacing invalid characters with underscores
+/// 3. Prepending an underscore if the name starts with a digit
+///
+/// Examples:
+/// - "" -> "" (empty strings represent optional inputs)
+/// - "input:0" -> "input_0"
+/// - "jax2tf/model/layer.weight" -> "jax2tf_model_layer_weight"
+/// - "123tensor" -> "_123tensor"
+pub fn sanitize_name(name: &str) -> String {
+    // Empty strings represent optional inputs in ONNX - keep them as-is
+    if name.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::with_capacity(name.len());
+
+    // Replace invalid identifier characters with underscores
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' {
+            result.push(c);
+        } else {
+            result.push('_');
+        }
+    }
+
+    // Ensure the first character is valid to start an identifier
+    if !result.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+        result = format!("_{result}");
+    }
+
+    result
+}
+
 /// Convert ONNX protobuf DataType to DType
 pub fn element_type_from_proto(dt_i32: i32) -> Result<DType, String> {
     match DT::from_i32(dt_i32).ok_or_else(|| format!("unknown dtype {}", dt_i32))? {
@@ -358,7 +396,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
 }
 
 pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
-    let name = node.name.clone();
+    let name = sanitize_name(&node.name);
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
 
@@ -368,8 +406,10 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
         .output
         .iter()
         .map(|output_name| {
-            let mut arg = Argument::new(output_name.to_string());
+            // Sanitize the output name for Rust compatibility
+            let mut arg = Argument::new(sanitize_name(output_name));
             // Try to get type from: 1) graph outputs, 2) value_info (intermediate values)
+            // Note: lookups use original ONNX names (unsanitized)
             if let Some(graph_output_type) = graph_data.get_output_type(output_name) {
                 arg.ty = graph_output_type.clone();
             } else if let Some(value_info_type) = graph_data.get_value_info_type(output_name) {
@@ -409,7 +449,7 @@ impl TryFrom<ValueInfoProto> for Argument {
     type Error = ParseError;
 
     fn try_from(value: ValueInfoProto) -> Result<Argument, Self::Error> {
-        let name = value.name.clone();
+        let name = sanitize_name(&value.name);
         let proto_type = value
             .type_
             .as_ref()
@@ -463,5 +503,61 @@ impl TryFrom<ValueInfoProto> for Argument {
             value_source: crate::ir::ValueSource::Dynamic, // Graph inputs/outputs are runtime values
             value_store: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_name_basic() {
+        assert_eq!(sanitize_name("valid_name"), "valid_name");
+        assert_eq!(sanitize_name("ValidName123"), "ValidName123");
+        assert_eq!(sanitize_name("_underscore"), "_underscore");
+    }
+
+    #[test]
+    fn test_sanitize_name_special_chars() {
+        // TensorFlow/JAX style names with colons and slashes
+        assert_eq!(sanitize_name("input:0"), "input_0");
+        assert_eq!(sanitize_name("layer/weight"), "layer_weight");
+        assert_eq!(sanitize_name("jax2tf/model:0"), "jax2tf_model_0");
+
+        // ONNX names with dots and dashes
+        assert_eq!(sanitize_name("bert.encoder.layer"), "bert_encoder_layer");
+        assert_eq!(sanitize_name("layer-norm"), "layer_norm");
+
+        // Complex real-world example from GitHub issue #2878
+        assert_eq!(
+            sanitize_name("jax2tf_rhs_/pjit_silu_/Const_2:0"),
+            "jax2tf_rhs__pjit_silu__Const_2_0"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_name_starts_with_digit() {
+        assert_eq!(sanitize_name("123tensor"), "_123tensor");
+        assert_eq!(sanitize_name("0input"), "_0input");
+    }
+
+    #[test]
+    fn test_sanitize_name_unicode() {
+        // Unicode characters should be replaced with underscores
+        assert_eq!(sanitize_name("tensor™"), "tensor_");
+        assert_eq!(sanitize_name("input€output"), "input_output");
+    }
+
+    #[test]
+    fn test_sanitize_name_empty_and_edge_cases() {
+        // Empty strings represent optional inputs in ONNX - should remain empty
+        assert_eq!(sanitize_name(""), "");
+
+        assert_eq!(sanitize_name("_"), "_");
+        assert_eq!(sanitize_name("a"), "a");
+        assert_eq!(sanitize_name("___"), "___");
+
+        // All special chars become underscores (3 chars -> 3 underscores)
+        assert_eq!(sanitize_name(":/:"), "___");
     }
 }

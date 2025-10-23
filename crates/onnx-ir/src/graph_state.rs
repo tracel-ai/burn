@@ -75,11 +75,11 @@ impl GraphState {
                 }
 
                 // Only real graph inputs get added
-                let in_name = format!("input{}", graph_input_map.len() + 1);
+                // Preserve the original ONNX input name for better generated code usability
                 graph_input_map.insert(x.name.clone(), graph_input_map.len());
 
-                let mut arg = Argument::try_from(x.clone()).unwrap();
-                arg.name = in_name;
+                let arg = Argument::try_from(x.clone()).unwrap();
+                // arg.name is already set from x.name via try_from
                 Some(arg)
             })
             .collect::<Vec<Argument>>();
@@ -97,13 +97,23 @@ impl GraphState {
 
     /// Get the value of an input from the original input name. Used during proto conversion
     pub(crate) fn init_in(&self, proto_str: &str) -> Argument {
+        // Sanitize the ONNX name to match our internal sanitized names
+        let sanitized = crate::proto_conversion::sanitize_name(proto_str);
+
+        // Check graph inputs (uses original ONNX names as keys)
         if let Some(&i) = self.graph_input_map.get(proto_str) {
             self.inputs[i].clone()
-        } else if let Some(&(node_idx, output_idx)) = self.node_output_map.get(proto_str) {
+        }
+        // Check node outputs (uses sanitized names as keys)
+        else if let Some(&(node_idx, output_idx)) = self.node_output_map.get(&sanitized) {
+            self.processed_nodes[node_idx].outputs[output_idx].clone()
+        }
+        // Also check with original name for initializers (they use original names as keys)
+        else if let Some(&(node_idx, output_idx)) = self.node_output_map.get(proto_str) {
             self.processed_nodes[node_idx].outputs[output_idx].clone()
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
-            Argument::new(proto_str.to_string())
+            Argument::new(sanitized)
         }
     }
 

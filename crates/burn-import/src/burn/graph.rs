@@ -548,20 +548,34 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         input_names.iter().for_each(|input| {
             self.graph_input_types.push(
                 inputs
-                    .get(&Type::format_name(input))
+                    .get(input)
                     .unwrap_or_else(|| panic!("Input type not found for {input}"))
                     .clone(),
             );
         });
 
-        output_names.iter().for_each(|output| {
-            self.graph_output_types.push(
-                outputs
-                    .get(&Type::format_name(output))
-                    .unwrap_or_else(|| panic!("Output type not found for {output}"))
-                    .clone(),
-            );
-        });
+        // Handle outputs - if output_types is provided (from ONNX), use it with renaming
+        // Otherwise, look up types from node outputs (for tests)
+        if !output_types.is_empty() {
+            output_names
+                .iter()
+                .zip(output_types.iter())
+                .for_each(|(name, ty)| {
+                    // Use the type from onnx-ir but rename it to the graph output name
+                    // (onnx-ir provides the resolved node output, we want the graph output name)
+                    self.graph_output_types.push(ty.with_name(name));
+                });
+        } else {
+            // For tests and non-ONNX usage: look up output types from node outputs
+            output_names.iter().for_each(|output| {
+                self.graph_output_types.push(
+                    outputs
+                        .get(output)
+                        .unwrap_or_else(|| panic!("Output type not found for {output}"))
+                        .clone(),
+                );
+            });
+        }
     }
 }
 
