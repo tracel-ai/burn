@@ -486,3 +486,136 @@ fn test_all_data_types_conversion() {
     println!("\nAll data type conversions validated successfully!");
     println!("Multi-dimensional shapes (2D, 3D) validated successfully!");
 }
+
+// --------------------------------------
+// Value Info Tests
+// --------------------------------------
+
+#[test]
+fn test_value_info_initialization() {
+    // INFRASTRUCTURE TEST: Validates value_info is used to initialize intermediate value types
+    //
+    // This tests the fix for a critical bug where node outputs were initialized with
+    // default rank-0 types instead of using the ONNX model's value_info metadata.
+    //
+    // Without value_info support, intermediate values would have rank 0 by default,
+    // causing Reshape to incorrectly convert them to Scalars, which would then fail
+    // when consumed by operations like Transpose that require Tensors.
+    //
+    // The test model has:
+    // - Reshape node with dynamic shape (output rank from value_info)
+    // - Transpose node consuming the reshape output (requires Tensor, not Scalar)
+    // - value_info entries specifying rank 3 for intermediate values
+
+    let graph = load_onnx("value_info.onnx");
+
+    println!("\n= Value Info Initialization Test =");
+
+    // Verify basic graph structure
+    assert_eq!(graph.inputs.len(), 2, "Expected 2 inputs");
+    assert_eq!(graph.outputs.len(), 1, "Expected 1 output");
+
+    // Count nodes by type
+    let reshape_count = count_nodes(&graph, onnx_ir::ir::NodeType::Reshape);
+    let transpose_count = count_nodes(&graph, onnx_ir::ir::NodeType::Transpose);
+    let add_count = count_nodes(&graph, onnx_ir::ir::NodeType::Add);
+
+    println!("Reshape nodes: {}", reshape_count);
+    println!("Transpose nodes: {}", transpose_count);
+    println!("Add nodes: {}", add_count);
+
+    assert_eq!(reshape_count, 2, "Expected 2 Reshape nodes");
+    assert_eq!(transpose_count, 1, "Expected 1 Transpose node");
+    assert_eq!(add_count, 1, "Expected 1 Add node");
+
+    // CRITICAL: Verify that Transpose node received a Tensor input, not a Scalar
+    // This validates that the first Reshape node's output was correctly initialized
+    // with rank 3 from value_info, rather than defaulting to rank 0
+    let transpose_node = graph
+        .nodes
+        .iter()
+        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Transpose))
+        .expect("Should have Transpose node");
+
+    assert_eq!(
+        transpose_node.inputs.len(),
+        1,
+        "Transpose should have 1 input"
+    );
+
+    let transpose_input = &transpose_node.inputs[0];
+
+    // The transpose input should be a Tensor with rank 3, NOT a Scalar
+    match &transpose_input.ty {
+        onnx_ir::ir::ArgType::Tensor(tensor_type) => {
+            assert_eq!(
+                tensor_type.rank, 3,
+                "Transpose input should be rank 3 tensor (from value_info)"
+            );
+            assert_eq!(
+                tensor_type.dtype,
+                burn_tensor::DType::F32,
+                "Transpose input should be F32"
+            );
+            println!("✓ Transpose input correctly initialized as Tensor with rank 3");
+        }
+        onnx_ir::ir::ArgType::Scalar(_) => {
+            panic!(
+                "BUG: Transpose input is Scalar! This means value_info was not used. \
+                 The Reshape output should have been initialized as rank 3 Tensor from value_info, \
+                 not default rank 0."
+            );
+        }
+        other => {
+            panic!(
+                "Unexpected Transpose input type: {:?}. Expected Tensor.",
+                other
+            );
+        }
+    }
+
+    // Verify the reshape nodes have correct output types
+    let reshape_nodes: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Reshape))
+        .collect();
+
+    for (i, reshape) in reshape_nodes.iter().enumerate() {
+        assert_eq!(
+            reshape.outputs.len(),
+            1,
+            "Reshape {} should have 1 output",
+            i
+        );
+
+        match &reshape.outputs[0].ty {
+            onnx_ir::ir::ArgType::Tensor(tensor_type) => {
+                // First reshape: [batch, 784] → [batch, 28, 28] (rank 3)
+                // Second reshape: [batch, 28, 28] → [batch, 784] (rank 2)
+                let expected_rank = if i == 0 { 3 } else { 2 };
+                assert_eq!(
+                    tensor_type.rank, expected_rank,
+                    "Reshape {} output should have rank {} (from value_info or graph output)",
+                    i, expected_rank
+                );
+                println!(
+                    "Reshape {} output correctly has rank {}",
+                    i, tensor_type.rank
+                );
+            }
+            onnx_ir::ir::ArgType::Scalar(_) => {
+                panic!(
+                    "BUG: Reshape {} output is Scalar! Should be Tensor with proper rank from value_info.",
+                    i
+                );
+            }
+            other => {
+                println!("Reshape {} output type: {:?}", i, other);
+            }
+        }
+    }
+
+    println!("\nValue info correctly used to initialize all intermediate value types");
+    println!("No default rank-0 types found - all nodes have correct ranks from value_info");
+}
