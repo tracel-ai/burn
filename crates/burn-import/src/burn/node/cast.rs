@@ -203,7 +203,12 @@ mod tests {
             onnx_ir::ir::DType::F32,
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -244,7 +249,12 @@ mod tests {
             onnx_ir::ir::DType::I64,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -285,7 +295,12 @@ mod tests {
             onnx_ir::ir::DType::Bool,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

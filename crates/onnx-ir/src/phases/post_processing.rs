@@ -42,28 +42,8 @@ fn rewire_argument(
     }
 }
 
-/// Mark Identity nodes for removal and populate rewire map
-fn mark_identities_for_removal(
-    indices: &[usize],
-    nodes: &[Node],
-    rewire_map: &mut HashMap<String, String>,
-    nodes_to_remove: &mut HashSet<usize>,
-) {
-    for &idx in indices {
-        let node = &nodes[idx];
-        if !node.inputs.is_empty() {
-            rewire_map.insert(node.outputs[0].name.clone(), node.inputs[0].name.clone());
-            nodes_to_remove.insert(idx);
-        }
-    }
-}
-
 /// Analyze which Identity nodes can be removed and create rewiring map
-fn plan_identity_elimination(
-    nodes: &[Node],
-    graph_inputs: &[Argument],
-    graph_outputs: &[Argument],
-) -> IdentityEliminationPlan {
+fn plan_identity_elimination(nodes: &[Node]) -> IdentityEliminationPlan {
     let mut rewire_map = HashMap::new();
     let mut nodes_to_remove = HashSet::new();
 
@@ -74,36 +54,7 @@ fn plan_identity_elimination(
         .filter_map(|(i, node)| (node.node_type == NodeType::Identity).then_some(i))
         .collect();
 
-    // Count non-Identity nodes
-    let non_identity_count = nodes.len() - identity_indices.len();
-
-    // Edge case: Preserve at least one Identity if graph would be empty
-    if non_identity_count == 0 && !identity_indices.is_empty() {
-        log::debug!(
-            "Graph has only {} Identity nodes, preserving first",
-            identity_indices.len()
-        );
-
-        mark_identities_for_removal(
-            &identity_indices[1..],
-            nodes,
-            &mut rewire_map,
-            &mut nodes_to_remove,
-        );
-
-        return IdentityEliminationPlan {
-            rewire_map,
-            nodes_to_remove,
-        };
-    }
-
-    // Build sets for efficient lookup
-    let graph_input_names: HashSet<_> = graph_inputs.iter().map(|arg| &arg.name).collect();
-    let graph_output_names: HashSet<_> = graph_outputs.iter().map(|arg| &arg.name).collect();
-
-    let mut preserved_direct_io = false;
-
-    // Remove all pass-through Identity nodes
+    // Remove all pass-through Identity nodes (including empty graphs)
     for &idx in &identity_indices {
         let node = &nodes[idx];
 
@@ -114,21 +65,6 @@ fn plan_identity_elimination(
 
         let input_name = &node.inputs[0].name;
         let output_name = &node.outputs[0].name;
-
-        // Preserve one Identity if it connects graph input→output and graph has other nodes
-        let is_direct_io =
-            graph_input_names.contains(input_name) && graph_output_names.contains(output_name);
-
-        if is_direct_io && non_identity_count > 0 && !preserved_direct_io {
-            preserved_direct_io = true;
-            log::debug!(
-                "Preserving Identity {} for direct I/O: {} → {}",
-                node.name,
-                input_name,
-                output_name
-            );
-            continue;
-        }
 
         rewire_map.insert(output_name.clone(), input_name.clone());
         nodes_to_remove.insert(idx);
@@ -235,7 +171,7 @@ pub(crate) fn post_process(
     // Identity elimination
     log::debug!("Starting Identity elimination");
     {
-        let elimination_plan = plan_identity_elimination(&nodes, &inputs, &outputs);
+        let elimination_plan = plan_identity_elimination(&nodes);
         apply_identity_elimination(&mut nodes, &mut outputs, elimination_plan);
     }
     log::debug!("After Identity elimination: {} nodes remain", nodes.len());
@@ -349,7 +285,7 @@ mod tests {
             create_add_node("add1", "identity1_out", "input2", "output1"),
         ];
 
-        let plan = plan_identity_elimination(&nodes, &[], &[]);
+        let plan = plan_identity_elimination(&nodes);
 
         assert_eq!(plan.nodes_to_remove.len(), 1);
         assert!(plan.nodes_to_remove.contains(&0));
@@ -360,18 +296,18 @@ mod tests {
     }
 
     #[test]
-    fn test_preserve_identity_for_empty_graph() {
+    fn test_remove_all_identities_in_empty_graph() {
         let nodes = vec![
             create_identity_node("identity1", "input1", "output1"),
             create_identity_node("identity2", "input2", "output2"),
         ];
 
-        let plan = plan_identity_elimination(&nodes, &[], &[]);
+        let plan = plan_identity_elimination(&nodes);
 
-        // Should preserve first Identity, remove second
-        assert_eq!(plan.nodes_to_remove.len(), 1);
+        // Should remove all Identity nodes (empty graph is allowed)
+        assert_eq!(plan.nodes_to_remove.len(), 2);
+        assert!(plan.nodes_to_remove.contains(&0));
         assert!(plan.nodes_to_remove.contains(&1));
-        assert!(!plan.nodes_to_remove.contains(&0));
     }
 
     #[test]
@@ -393,7 +329,7 @@ mod tests {
             value_store: None,
         }];
 
-        let plan = plan_identity_elimination(&nodes, &[], &outputs);
+        let plan = plan_identity_elimination(&nodes);
         apply_identity_elimination(&mut nodes, &mut outputs, plan);
 
         // Identity should be removed

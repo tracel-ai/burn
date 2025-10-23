@@ -161,6 +161,8 @@ mod tests {
                 "scalar1".to_string(),
             ],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -216,6 +218,8 @@ mod tests {
                 "scalar1".to_string(),
             ],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -264,6 +268,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

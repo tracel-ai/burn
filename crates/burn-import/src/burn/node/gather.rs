@@ -288,6 +288,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -337,6 +339,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -386,6 +390,8 @@ mod tests {
         graph.register_input_output(
             vec!["shape1".to_string(), "tensor1".to_string()],
             vec!["shape2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -447,6 +453,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "scalar1".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -499,6 +507,8 @@ mod tests {
         graph.register_input_output(
             vec!["input_shape".to_string(), "indices".to_string()],
             vec!["output_shape".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -561,6 +571,8 @@ mod tests {
         graph.register_input_output(
             vec!["input_shape".to_string(), "indices".to_string()],
             vec!["output_shape".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -623,6 +635,8 @@ mod tests {
         graph.register_input_output(
             vec!["input_shape".to_string(), "index".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

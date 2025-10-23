@@ -404,7 +404,7 @@ mod tests {
             Type::Scalar(ScalarType::new(output.to_string(), scalar_kind)),
         ));
 
-        graph.register_input_output(vec![], vec![output.to_string()]);
+        graph.register_input_output(vec![], vec![output.to_string()], &[], &[]);
 
         let expected = expected_tokens_constant_scalar(ty, val, output.to_token_stream());
         assert_tokens(graph.codegen(), expected);
@@ -455,7 +455,7 @@ mod tests {
             Type::Tensor(TensorType::new_float("output", dimensions)),
         ));
 
-        graph.register_input_output(vec![], vec!["output".to_string()]);
+        graph.register_input_output(vec![], vec!["output".to_string()], &[], &[]);
 
         let expected = quote! {
             use burn::prelude::*;
@@ -512,7 +512,7 @@ mod tests {
             Type::Tensor(TensorType::new_int("output", dimensions)),
         ));
 
-        graph.register_input_output(vec![], vec!["output".to_string()]);
+        graph.register_input_output(vec![], vec!["output".to_string()], &[], &[]);
 
         let expected = quote! {
             use burn::prelude::*;
@@ -569,7 +569,7 @@ mod tests {
             Type::Tensor(TensorType::new_bool("output", dimensions)),
         ));
 
-        graph.register_input_output(vec![], vec!["output".to_string()]);
+        graph.register_input_output(vec![], vec!["output".to_string()], &[], &[]);
 
         let expected = quote! {
             use burn::prelude::*;
@@ -625,7 +625,7 @@ mod tests {
             Type::Shape(ShapeType::new("output", rank)),
         ));
 
-        graph.register_input_output(vec![], vec!["output".to_string()]);
+        graph.register_input_output(vec![], vec!["output".to_string()], &[], &[]);
 
         let expected = quote! {
             use burn::prelude::*;

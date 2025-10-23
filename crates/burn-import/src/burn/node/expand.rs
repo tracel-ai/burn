@@ -107,7 +107,12 @@ mod tests {
             ExpandShape::Static([4, 4, 4, 4].into()),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -153,6 +158,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "shape1".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -208,6 +215,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor3".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

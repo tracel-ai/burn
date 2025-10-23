@@ -183,7 +183,7 @@ mod tests {
             None,
             TensorType::new_int("y", 2),
         ));
-        g.register_input_output(vec!["a".into(), "b".into()], vec!["y".into()]);
+        g.register_input_output(vec!["a".into(), "b".into()], vec!["y".into()], &[], &[]);
 
         let _expected = quote! {
             use burn::prelude::*;

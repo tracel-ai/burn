@@ -91,6 +91,8 @@ mod tests {
         graph.register_input_output(
             vec!["input_tensor".to_string()],
             vec!["values_tensor".to_string(), "indices_tensor".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

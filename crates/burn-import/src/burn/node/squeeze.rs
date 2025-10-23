@@ -146,7 +146,12 @@ mod tests {
             Some(vec![1]),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -189,7 +194,12 @@ mod tests {
             Some(vec![0]),
         ));
 
-        graph.register_input_output(vec!["shape1".to_string()], vec!["scalar1".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["scalar1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -229,7 +239,12 @@ mod tests {
             Some(vec![0]),
         ));
 
-        graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["shape2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -269,7 +284,12 @@ mod tests {
             None,
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

@@ -113,6 +113,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string()],
             vec!["tensor2".to_string(), "tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

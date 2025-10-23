@@ -666,7 +666,12 @@ mod tests {
             SliceParam::Static(vec![0, 1, 2]),
             SliceParam::Static(vec![3, 4, 5]),
         ));
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -718,6 +723,8 @@ mod tests {
                 "end".to_string(),
             ],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -757,7 +764,12 @@ mod tests {
             SliceParam::Static(vec![1]),
             SliceParam::Static(vec![3]),
         ));
-        graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["shape2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -805,6 +817,8 @@ mod tests {
         graph.register_input_output(
             vec!["shape1".to_string(), "start".to_string(), "end".to_string()],
             vec!["shape2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -855,6 +869,8 @@ mod tests {
                 "end_shape".to_string(),
             ],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -902,6 +918,8 @@ mod tests {
                 "ends".to_string(),
             ],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -953,6 +971,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "ends".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

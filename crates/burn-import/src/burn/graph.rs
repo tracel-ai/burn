@@ -515,15 +515,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     ///
     /// * `input_names` - The names of the inputs of the graph.
     /// * `output_names` - The names of the outputs of the graph.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the graph is empty.
-    pub fn register_input_output(&mut self, input_names: Vec<String>, output_names: Vec<String>) {
-        assert!(
-            !self.nodes.is_empty(),
-            "Cannot register input and output types for an empty graph."
-        );
+    /// * `input_types` - The types of the inputs (from ONNX graph, used for empty graphs).
+    /// * `output_types` - The types of the outputs (from ONNX graph, used for empty graphs).
+    pub fn register_input_output(
+        &mut self,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
+        input_types: &[Type],
+        output_types: &[Type],
+    ) {
+        // Handle empty graphs: use provided types directly
+        if self.nodes.is_empty() {
+            // For empty graphs, inputs pass through directly to outputs
+            self.graph_input_types.extend_from_slice(input_types);
+            self.graph_output_types.extend_from_slice(output_types);
+            return;
+        }
 
         // Get the unique names of each input of the nodes
         let mut inputs = HashMap::new();

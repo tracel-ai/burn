@@ -529,7 +529,7 @@ impl ParsedOnnxGraph {
             panic!("Unsupported ops: {unsupported_ops:?}");
         }
 
-        // Extract input and output names
+        // Extract input and output names and types
         let input_names: Vec<_> = self
             .0
             .inputs
@@ -543,8 +543,12 @@ impl ParsedOnnxGraph {
             .map(|output| output.name.clone())
             .collect();
 
+        // Convert ONNX arguments to Burn types for empty graphs
+        let input_types: Vec<_> = self.0.inputs.iter().map(crate::burn::Type::from).collect();
+        let output_types: Vec<_> = self.0.outputs.iter().map(crate::burn::Type::from).collect();
+
         // Register inputs and outputs with the graph
-        graph.register_input_output(input_names, output_names);
+        graph.register_input_output(input_names, output_names, &input_types, &output_types);
 
         graph
     }

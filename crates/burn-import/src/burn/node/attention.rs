@@ -393,7 +393,7 @@ mod tests {
 
         graph.register(node_gen.clone());
 
-        graph.register_input_output(input_names, output_names);
+        graph.register_input_output(input_names, output_names, &[], &[]);
 
         let mut imports = BurnImports::default();
         node_gen.register_imports(&mut imports);
