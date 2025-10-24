@@ -1,7 +1,7 @@
 use burn_tensor::DType;
 use cubecl::{
     matmul::{
-        Strategy, SyncPartialReadingStrategy, SyncReadingStrategy,
+        AsyncReadingStrategy, Strategy, SyncPartialReadingStrategy, SyncReadingStrategy,
         components::{AccG, MatmulKind, MatmulPrecision, MatrixPrecision},
         kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
@@ -114,6 +114,7 @@ pub fn matmul_autotune<
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
             }))
             .with(Tunable::new(matmul_simple::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(matmul_simple_tma::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
             .with(
                 // Ordered should be tried most of the time.
@@ -301,6 +302,20 @@ fn simple_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
 ) -> Result<(), String> {
     launch_matmul::<R, MP>(
         &Strategy::SimpleVecMat(Selection::Inferred(())),
+        lhs,
+        rhs,
+        out,
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn matmul_simple_tma<R: CubeRuntime, MP: MatmulPrecision>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    launch_matmul::<R, MP>(
+        &Strategy::SimpleBarrier(AsyncReadingStrategy::Tma),
         lhs,
         rhs,
         out,
