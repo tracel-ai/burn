@@ -5,7 +5,6 @@ use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor},
 };
-use alloc::vec;
 use core::num::NonZeroUsize;
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -788,72 +787,6 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
-
-    /// Applies a linear transformation to the input tensor using the given weight and bias.
-    ///
-    /// ```math
-    /// y = x @ weight + [bias]
-    /// ```
-    ///
-    /// # Arguments:
-    ///
-    /// - `input` is the input tensor, ``[..., d_input]``.
-    /// - `weight` is the weight tensor, ``[d_input, d_output]``.
-    /// - `b` is the bias tensor (optional), ``[d_output]``.
-    ///
-    /// # Returns:
-    ///
-    /// The transformed tensor, ``[..., d_output]``.
-    ///
-    /// # Compatibility
-    ///
-    /// This function differs from PyTorch's ``torch.nn.functional.linear`` in that it does not
-    /// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
-    /// multiplication:
-    ///
-    /// ```math
-    /// y = x @ weight^T + [bias]
-    /// ```
-    fn linear(
-        input: FloatTensor<B>,
-        weight: FloatTensor<B>,
-        bias: Option<FloatTensor<B>>,
-    ) -> FloatTensor<B> {
-        let ndims_in = input.shape().num_dims();
-        let [d_input, d_output] = weight.shape().dims();
-
-        if ndims_in == 1 {
-            // Insert and remove an extra batch dimension for the batch matmul to work.
-            let input = B::float_reshape(input, Shape::from([1, d_input]));
-            let output = Self::linear(input, weight, bias);
-            return B::float_reshape(output, Shape::from([d_output]));
-        }
-
-        // Perform broadcasting
-        //
-        // Important to be done before doing operations to easily fuse.
-        let weight = unsqueeze::<B>(weight, ndims_in);
-        let bias = bias.map(|bias| unsqueeze::<B>(bias, ndims_in));
-
-        let output = B::float_matmul(input, weight);
-        match bias {
-            Some(bias) => B::float_add(output, bias),
-            None => output,
-        }
-    }
-}
-
-// Unsqueeze op on primitive.
-// TODO: would be nice to have this on primitives too for convenience.
-fn unsqueeze<B: Backend>(tensor: FloatTensor<B>, ndims_out: usize) -> FloatTensor<B> {
-    let shape = tensor.shape();
-    let ndims_in = shape.num_dims();
-
-    let mut dims = vec![1; ndims_out];
-    let num_ones = ndims_out - ndims_in;
-    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape[..ndims_in]);
-
-    B::float_reshape(tensor, Shape::from(dims))
 }
 
 #[cfg(test)]

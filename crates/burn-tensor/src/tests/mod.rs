@@ -406,6 +406,8 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
+    use cubecl_quant::scheme::QuantLevel;
+
     use crate::{
         Tensor, TensorData,
         backend::Backend,
@@ -421,6 +423,15 @@ pub mod qtensor {
         /// (i.e., per-tensor symmetric quantization).
         pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
             Self::int8_symmetric(floats)
+        }
+
+        /// Creates a quantized int8 tensor from the floating point data using blocks of size 16
+        pub fn int8_block<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                &<B::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+                    .with_value(QuantValue::Q8S)
+                    .with_level(QuantLevel::block([16])),
+            )
         }
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.

@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
+    use burn_tensor::{ElementConversion, Tolerance, backend::Backend, ops::FloatElem};
     use burn_tensor::{Int, Tensor, TensorData};
-    use burn_tensor::{Tolerance, backend::Backend, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -286,6 +286,9 @@ mod tests {
 
         // Guard int arange limits
         if (IntType::MAX as i64) < seq_length * d_model * batch {
+            return;
+        }
+        if FloatType::MAX.elem::<f64>() < 269493.0 {
             return;
         }
 

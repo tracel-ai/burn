@@ -83,4 +83,28 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FT>(&TensorData::from([1.0, 1.0, 1.0]), Tolerance::default());
     }
+
+    fn outer<B: burn_tensor::backend::Backend>(a: Tensor<B, 1>, b: Tensor<B, 1>) -> Tensor<B, 2> {
+        a.unsqueeze_dim::<2>(1) * b.unsqueeze_dim::<2>(0)
+    }
+
+    #[test]
+    fn should_support_powf_scalar_tensor() {
+        let device = Default::default();
+        let head_dim = 64;
+        let seq_len = 1024;
+        let base = 10000;
+
+        let channel_range: Tensor<TestBackend, 1> =
+            Tensor::arange_step(0..head_dim as i64, 2, &device).float();
+        let base: Tensor<TestBackend, 1> = Tensor::from_data([base as f32], &device);
+        let inv_freq: Tensor<TestBackend, 1> = base.powf(-channel_range / head_dim as f32);
+
+        let t: Tensor<TestBackend, 1> = Tensor::arange(0..seq_len as i64, &device).float();
+
+        let freqs = outer(t, inv_freq);
+
+        let cos = freqs.clone().cos();
+        let sin = freqs.sin();
+    }
 }

@@ -49,7 +49,7 @@ jobs:
       '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
       '@gpu:true' ]
     env:
       LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
@@ -81,7 +81,7 @@ jobs:
       '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
       '@gpu:true' ]
     env:
       # disable incremental compilation (reduces artifact size)
@@ -112,7 +112,7 @@ jobs:
       '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
       '@gpu:true' ]
     env:
       # disable incremental compilation (reduces artifact size)
