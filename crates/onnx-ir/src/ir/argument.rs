@@ -57,10 +57,6 @@ impl fmt::Debug for Argument {
             .field("ty", &self.ty)
             .field("data_id", &self.data_id)
             .field("value_source", &self.value_source)
-            .field(
-                "value_store",
-                &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphState>>"),
-            )
             .finish()
     }
 }
