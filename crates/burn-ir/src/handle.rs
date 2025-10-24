@@ -63,7 +63,7 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.contains_key(id)
     }
 
-    /// Get the refence to a handle.
+    /// Get the reference to a handle.
     pub fn get_handle_ref(&self, id: &TensorId) -> Option<&H> {
         self.handles
             .get(id)

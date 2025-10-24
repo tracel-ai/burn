@@ -12,7 +12,7 @@ pub use outer::*;
 pub use trace::*;
 pub use vector_norm::*;
 
-use crate::{BasicOps, SliceArg, Tensor, TensorKind, backend::Backend};
+use crate::{backend::Backend, BasicOps, SliceArg, Tensor, TensorKind};
 
 /// Swaps two slices of a tensor.
 /// # Arguments
@@ -22,7 +22,7 @@ use crate::{BasicOps, SliceArg, Tensor, TensorKind, backend::Backend};
 /// # Returns
 /// A new tensor with the specified slices swapped.
 /// # Notes
-/// This method will be usueful for matrix factorization algorithms.
+/// This method will be useful for matrix factorization algorithms.
 fn swap_slices<B: Backend, const D: usize, K, S>(
     tensor: Tensor<B, D, K>,
     slices1: S,
