@@ -259,4 +259,17 @@ mod tests {
         let y = TestTensor::<2>::zeros([3, 4], &device);
         let _ = linalg::outer::<TestBackend, 2, 3, _>(x, y);
     }
+
+    #[test]
+    fn test_outer_dim() {
+        let u = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
+        let v = TestTensor::<2>::from([[4.0, 5.0], [5.0, 6.0]]);
+
+        let out = linalg::outer_dim::<TestBackend, 2, 3, _, _>(u, v, 0).into_data();
+        let expected =
+            TestTensor::<3>::from([[[4.0, 10.0], [5.0, 12.0]], [[12.0, 20.0], [15.0, 24.0]]])
+                .into_data();
+
+        out.assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
 }
