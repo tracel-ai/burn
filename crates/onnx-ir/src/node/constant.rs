@@ -54,12 +54,15 @@ impl NodeProcessor for ConstantProcessor {
         crate::processor::validate_opset(opset, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        // TODO: Implementation does not support all attribute types mentioned in spec:
-        // - sparse_value (opset 11+)
-        // - value_float, value_floats (opset 13+)
-        // - value_int, value_ints (opset 13+)
-        // - value_string, value_strings (opset 13+)
+        // FIXME: Implementation does not support all attribute types mentioned in spec:
+        // - sparse_value (opset 11+) - no support for sparse tensors
+        // - value_float, value_floats (opset 13+) - scalar and list forms not supported
+        // - value_int, value_ints (opset 13+) - scalar and list forms not supported
+        // - value_string, value_strings (opset 13+) - string constants not supported
         // Currently only supports 'value' attribute via input mechanism
+        // TODO: Add test coverage for opset-specific attributes if implemented
+        // TODO: Validate exactly one value attribute is specified - spec requires this but not checked
+        // TODO: Add test for empty tensor constant - edge case that may fail
 
         // Validate that the Constant node has an input
         if node.inputs.is_empty() {

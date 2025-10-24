@@ -61,6 +61,10 @@ impl NodeProcessor for SoftmaxProcessor {
 
         // FIXME: The spec requires the input rank to be >= 1 for the axis attribute to be valid.
         // The implementation should validate that the tensor rank is at least 1.
+        // Edge case: what happens with a scalar (rank-0) input? Should be rejected.
+
+        // TODO: Missing validation that axis is in valid range [-rank, rank-1].
+        // Out-of-bounds axis values (after negative index handling) should be rejected.
 
         // Infer output type
         crate::processor::same_as_input(node);
@@ -170,4 +174,19 @@ mod tests {
             })
         ));
     }
+
+    // TODO: Missing test for scalar (rank-0) input - should be rejected as rank must be >= 1.
+
+    // TODO: Missing test for axis out of range - e.g., axis=5 for rank-3 tensor.
+
+    // TODO: Missing test for opset 13 behavior change - spec changed from 2D coercion to direct axis operation.
+    // Need test to verify opset < 13 is rejected and opset 13+ works correctly.
+
+    // TODO: Missing test for type constraints - Softmax only supports float types.
+    // Need test to verify integer input is rejected (or properly handled).
+
+    // TODO: Missing test for 1D tensor with axis=0 - simplest valid case not tested.
+
+    // TODO: Missing test for negative axis normalization - axis=-1 should work correctly.
+    // Current test has this but doesn't verify the actual behavior, only config extraction.
 }

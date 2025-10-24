@@ -52,6 +52,15 @@ mod tests {
         builder.build()
     }
 
+    // TODO: Missing test for zero-size tensors - what is the size of a tensor with shape [0, 5, 3]?
+    // Should be 0 (0 * 5 * 3 = 0) but this edge case is not tested.
+
+    // TODO: Missing test for scalar (rank-0) tensors - what is the size of a scalar?
+    // Should be 1 according to ONNX spec but not validated.
+
+    // TODO: Missing test for very large tensors - size can overflow i64 for extremely large tensors.
+    // Need to verify behavior when product of dimensions exceeds i64::MAX.
+
     #[test]
     fn test_size_update_outputs() {
         let mut node = create_test_node(4);

@@ -94,7 +94,11 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         }
 
         // TODO: According to spec, the 'value' attribute is a one-element tensor
-        // Need to validate that it contains exactly one element
+        // FIXME: Need to validate that it contains exactly one element - currently not checked
+        // TODO: Add test for multi-element value tensor (should error)
+        // TODO: Add test for negative shape values - spec says "all values must be >= 0"
+        // TODO: Add test for very large shape dimensions - potential memory/overflow issues
+        // TODO: Add test for opset 20+ types (bfloat16, int4, uint4, float8) - mentioned in spec
         let value_type = node
             .attrs
             .get("value")

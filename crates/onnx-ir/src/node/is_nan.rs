@@ -26,6 +26,13 @@
 //! - **Opset 9-12**: Initial version
 //! - **Opset 13-19**: Extended type support (added bfloat16)
 //! - **Opset 20+**: Added float8 type variants support
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for mixed NaN/Inf/finite values in same tensor - Current test only has NaN and finite
+//! - TODO: No test for zero-size tensors - Edge case for empty tensor handling
+//! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
+//! - TODO: No test for higher-rank tensors (3D, 4D) - Only 2D tensor tested
+//! - TODO: No test for positive/negative NaN variants - Some platforms distinguish signaling/quiet NaN
 
 use crate::Node;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -42,6 +49,8 @@ impl NodeProcessor for IsNaNProcessor {
         crate::processor::validate_opset(opset, 9)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Validate input dtype is floating-point - Type constraint T1: tensor(float16), tensor(float), tensor(double), tensor(bfloat16), tensor(float8*) not enforced - Integer inputs should be rejected - burn/crates/onnx-ir/src/node/is_nan.rs:42
 
         // TODO: Validate that no unexpected attributes are present
         // The spec states "None" for attributes

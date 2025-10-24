@@ -82,8 +82,13 @@ impl NodeProcessor for CastProcessor {
         crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Add validation for unexpected attributes
-        // TODO: Spec mentions 'saturate' attribute (opset 19+) for float8 conversions - not validated
-        // TODO: Spec mentions 'round_mode' attribute (opset 21+) for float8e8m0 conversion - not validated
+        // FIXME: Spec mentions 'saturate' attribute (opset 19+) for float8 conversions - not validated or tested
+        // FIXME: Spec mentions 'round_mode' attribute (opset 21+) for float8e8m0 conversion - not validated or tested
+        // TODO: Add test for string tensor casting - spec supports casting from string (e.g., "3.14" to float)
+        // TODO: Add test for casting to/from bfloat16 (opset 13+) - mentioned in spec but no test coverage
+        // TODO: Add test for float8 types (e4m3fn, e4m3fnuz, e5m2, e5m2fnuz) - opset 19+
+        // TODO: Validate 'to' attribute value is in valid TensorProto DataType enum range
+        // TODO: Add test for casting from complex types (should error per spec)
 
         // Get reference to config for type inference
         let config = node.config::<CastConfig>();

@@ -62,6 +62,7 @@ impl NodeProcessor for SqueezeProcessor {
         // Lift axes input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
+        // Should use: if node.inputs[1].is_constant() { node.inputs[1].to_static()?; }
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;
         }
@@ -95,6 +96,12 @@ impl NodeProcessor for SqueezeProcessor {
             None => None,
         };
 
+        // TODO: Missing validation that axes values are in valid range [-rank, rank-1].
+        // Out-of-bounds axes should be rejected but aren't validated here.
+
+        // TODO: Missing validation that axes doesn't contain duplicates.
+        // Duplicate axes should be rejected per ONNX spec but not validated.
+
         match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
                 let output_rank = match axes_vec {
@@ -117,6 +124,12 @@ impl NodeProcessor for SqueezeProcessor {
                                 tensor.rank
                             )));
                         }
+
+                        // TODO: Missing validation that squeezed dimensions actually have size 1.
+                        // ONNX spec requires dimensions to be size 1 to be squeezed, but implementation
+                        // doesn't validate this when static_shape is available. Should check:
+                        // for &axis in axes_vec { assert static_shape[axis] == 1 }
+
                         tensor.rank - axes_vec.len()
                     }
                 };
@@ -261,4 +274,20 @@ mod tests {
         let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));
     }
+
+    // TODO: Missing test for squeezing dimension that is not size 1 - should fail.
+    // E.g., input shape [2, 1, 3], axes=[0] should fail because dim 0 has size 2, not 1.
+
+    // TODO: Missing test for negative axes normalization and validation.
+    // E.g., axes=[-1] for rank-3 should squeeze last dimension.
+
+    // TODO: Missing test for duplicate axes - axes=[0, 0] should be rejected.
+
+    // TODO: Missing test for out-of-bounds axes - axes=[5] for rank-3 should be rejected.
+
+    // TODO: Missing test for opset < 13 behavior - axes as attribute vs input.
+    // Implementation requires opset 13+ but this transition isn't tested.
+
+    // TODO: Missing test for squeezing all dimensions to create rank-0 tensor (scalar).
+    // E.g., input shape [1, 1, 1] with no axes should result in scalar.
 }

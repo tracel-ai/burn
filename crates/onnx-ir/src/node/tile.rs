@@ -26,7 +26,10 @@
 //!
 //! **FIXME**: The implementation does not validate that the repeats tensor has the same length as
 //! the input rank, which is required by the ONNX spec. This should be validated in extract_config
-//! or infer_types.
+//! or infer_types. Missing validation: len(repeats) == rank(input).
+//!
+//! **FIXME**: The implementation does not validate that repeats values are non-negative.
+//! Negative repeats don't make sense and should be rejected, but currently accepted.
 //!
 //! ## Example
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
@@ -87,8 +90,17 @@ impl NodeProcessor for TileProcessor {
         // Validate input count (at least data input)
         crate::processor::validate_min_inputs(node, 1)?;
 
+        // TODO: Missing validation that repeats input exists (required in opset 6+).
+        // Opset 6+ requires repeats as second input but this isn't strictly validated.
+
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Missing validation that len(repeats) == rank(input).
+        // ONNX spec requires repeats length to match input rank but not validated here.
+
+        // TODO: Missing validation that repeats values are all non-negative.
+        // Negative repeats don't make semantic sense and should be rejected.
 
         // Infer output type - same as input
         crate::processor::same_as_input(node);
@@ -301,4 +313,19 @@ mod tests {
         // Should return Runtime repeats
         assert!(matches!(&config.repeats, TileInput::Runtime(arg) if arg.name == "repeats"));
     }
+
+    // TODO: Missing test for repeats length mismatch - len(repeats) != rank(input).
+    // E.g., input rank=3 but repeats=[2, 3] should fail per ONNX spec.
+
+    // TODO: Missing test for all-ones repeats - repeats=[1, 1, 1] should be no-op.
+    // Valid edge case that should work but not explicitly tested.
+
+    // TODO: Missing test for mixed zero and non-zero repeats handled correctly.
+    // Test currently has zero repeats but doesn't verify output shape calculation.
+
+    // TODO: Missing test for very large repeats causing overflow.
+    // E.g., repeats=[1000000, 1000000] could overflow dimension size calculations.
+
+    // TODO: Missing test for repeats input type validation.
+    // Repeats must be int64 tensor per spec - should reject float/other types.
 }

@@ -78,6 +78,9 @@ impl NodeProcessor for GatherElementsProcessor {
         // GatherElements has 1 output
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate indices tensor type is int32 or int64 per ONNX spec - Missing type constraint validation
+        // TODO: Validate data and indices have same rank per ONNX spec - Spec requires rank(data) == rank(indices) - Missing rank validation
+
         // Output has the same shape as indices input, same type as data input
         if let crate::ir::ArgType::Tensor(data_tensor) = &node.inputs[0].ty
             && let crate::ir::ArgType::Tensor(indices_tensor) = &node.inputs[1].ty
@@ -111,10 +114,15 @@ impl NodeProcessor for GatherElementsProcessor {
         // Extract the axis attribute (default: 0 per ONNX spec)
         let mut axis: i64 = 0;
         for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axis" {
-                axis = value.clone().into_i64()
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for GatherElements: {}", key),
+                    });
+                }
             }
-            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
 
         // Normalize negative axis
@@ -155,3 +163,11 @@ impl NodeProcessor for GatherElementsProcessor {
         Ok(Some(Box::new(config)))
     }
 }
+
+// TODO: Add unit tests for GatherElements - No tests found for this operator - Missing test coverage entirely
+// TODO: Add test for rank validation - data and indices must have same rank per spec - Missing constraint test
+// TODO: Add test for indices type validation - indices must be int32 or int64 - Missing type constraint test
+// TODO: Add test for negative indices - Opset 13+ clarifies negative index handling - Missing negative indices test
+// TODO: Add test for out-of-bounds indices - Spec requires error for out-of-bounds - Missing bounds checking test
+// TODO: Add test for axis validation - Test axis out of range should return error - Missing constraint test
+// TODO: Add test for unexpected attributes - Should reject unknown attributes per implementation - Missing attribute validation test

@@ -144,6 +144,9 @@ impl NodeProcessor for SplitProcessor {
             }
         }
 
+        // TODO: Missing validation that split sizes are positive integers.
+        // Negative or zero split sizes should be rejected but only partially validated.
+
         // Validate axis before normalizing - must be in range [-rank, rank-1]
         let rank = tensor.rank as i64;
         if axis < -rank || axis >= rank {
@@ -641,4 +644,22 @@ mod tests {
         // 11 / (3-1) = 5, since the dimension is not evenly divisible
         assert_eq!(config.split_size, Some(5));
     }
+
+    // TODO: Missing test for split with runtime split sizes (dynamic case).
+    // Need test where split input has no static value to verify Runtime variant handling.
+
+    // TODO: Missing test for split_sizes that don't sum to dimension size.
+    // E.g., shape=[10, 20], axis=0, split=[3, 4] (sum=7) should fail as it doesn't match dim size 10.
+
+    // TODO: Missing test for empty splits - split_sizes=[] or num_outputs=0.
+    // Should be rejected as invalid configuration.
+
+    // TODO: Missing test for single output split - num_outputs=1 or split=[10].
+    // This is valid but not explicitly tested.
+
+    // TODO: Missing test for very uneven splits - e.g., split=[1, 1, 1, 97] for dim size 100.
+    // Verify this edge case works correctly.
+
+    // TODO: Missing test for opset < 13 behavior - split as attribute vs input.
+    // Implementation requires opset 11+ but attribute-based split (opset < 13) might not work.
 }

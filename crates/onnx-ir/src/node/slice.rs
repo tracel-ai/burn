@@ -299,6 +299,13 @@ impl NodeProcessor for SliceProcessor {
             ));
         }
 
+        // TODO: Missing validation that starts, ends, axes, and steps have same length.
+        // ONNX spec requires: len(starts) == len(ends) == len(axes) == len(steps).
+        // Implementation doesn't validate this constraint, which could cause indexing errors.
+
+        // TODO: Missing validation that axes values are unique and in valid range [-rank, rank-1].
+        // Duplicate axes or out-of-range axes should be rejected but aren't validated.
+
         // Normalize negative axes if we have static axes and know the input rank
         if let Some(SliceInput::Static(ref mut axes_values)) = axes
             && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
@@ -685,4 +692,22 @@ mod tests {
             _ => panic!("Expected static steps with negative values"),
         }
     }
+
+    // TODO: Missing test for mismatched lengths of starts/ends/axes/steps.
+    // ONNX spec requires same length but this isn't tested or validated.
+
+    // TODO: Missing test for duplicate axes - e.g., axes=[0, 0] should be invalid.
+    // Spec doesn't allow duplicate axes but implementation doesn't validate this.
+
+    // TODO: Missing test for out-of-bounds axes after normalization.
+    // E.g., for rank-3 tensor, axes=[5] should be invalid even after negative index handling.
+
+    // TODO: Missing test for slicing with negative steps and various start/end combinations.
+    // Negative steps reverse the slice direction, need comprehensive tests for this.
+
+    // TODO: Missing test for empty slice results - when start >= end with positive step.
+    // Should result in zero-size dimension along that axis.
+
+    // TODO: Missing test for INT32_MAX / INT64_MAX special values in ends.
+    // ONNX spec mentions these special values mean "slice to the end" but not tested.
 }

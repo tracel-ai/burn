@@ -26,6 +26,14 @@
 //! **Implementation Note**: This implementation validates opset 17+ (MIN constant at line 94).
 //! Note that the current implementation requires 3 inputs (including bias) and only produces 1 output,
 //! which is more restrictive than the ONNX spec (see FIXMEs at lines 97-101).
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for optional bias (2 inputs) - Spec allows B to be optional but implementation requires 3 inputs
+//! - TODO: No test for custom epsilon values - Only default epsilon=1e-5 tested
+//! - TODO: No test for stash_type=0 behavior - Test exists but no verification of computational precision difference
+//! - TODO: No test for axis != -1 cases (positive axis values) - Only axis=-1 tested
+//! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
+//! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -99,6 +107,8 @@ impl NodeProcessor for LayerNormProcessor {
         const MIN: usize = 17;
 
         crate::processor::validate_opset(opset, MIN)?;
+        // TODO: Validate input tensor dtype is floating-point type - Type constraint T not enforced - burn/crates/onnx-ir/src/node/layer_norm.rs:101
+        // TODO: Validate Scale tensor rank matches normalized dimensions - Spec requires Scale to match normalized shape - burn/crates/onnx-ir/src/node/layer_norm.rs:101
         // LayerNormalization requires 2-3 inputs: X, Scale, and optionally B (Bias)
         crate::processor::validate_min_inputs(node, 2)?;
         // FIXME: According to ONNX spec, LayerNormalization can have 1-3 outputs
@@ -128,6 +138,10 @@ impl NodeProcessor for LayerNormProcessor {
                 }
             }
         }
+
+        // TODO: Validate epsilon > 0 for numerical stability - Negative or zero epsilon could cause issues - burn/crates/onnx-ir/src/node/layer_norm.rs:132
+        // TODO: Validate stash_type is 1 or unspecified - Spec only defines stash_type=1 (float), other values undefined - burn/crates/onnx-ir/src/node/layer_norm.rs:132
+        // TODO: Validate axis is within valid range for input tensor rank - Out of bounds axis should be rejected - burn/crates/onnx-ir/src/node/layer_norm.rs:132
 
         if axis != -1 && axis != weight_shape.len() as i64 - 1 {
             return Err(ProcessError::Custom(

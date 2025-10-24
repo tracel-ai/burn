@@ -81,6 +81,10 @@ impl NodeProcessor for GemmProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate A and B tensor ranks are exactly 2 per ONNX spec - GEMM is defined for 2D matrices only - Missing rank validation
+        // TODO: Validate C tensor is broadcastable to output shape (M, N) per spec - Missing broadcasting validation
+        // TODO: Validate compatible dimensions for matrix multiplication - After transpositions, need K dimension to match - Missing dimension validation
+
         // Extract input A tensor type
         let a_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -240,4 +244,14 @@ mod tests {
         assert_eq!(config.trans_a, 1);
         assert_eq!(config.trans_b, 0); // default
     }
+
+    // TODO: Add test for non-2D tensors - GEMM requires 2D tensors, should error for rank != 2 - Missing rank validation test
+    // TODO: Add test for incompatible matrix dimensions - Test where K dimension doesn't match after transposition - Missing dimension validation test
+    // TODO: Add test for C broadcasting validation - Test various C shapes that should/shouldn't broadcast to (M, N) - Missing broadcasting test
+    // TODO: Add test for alpha=0 edge case - When alpha=0, should output beta*C regardless of A*B - Missing edge case test
+    // TODO: Add test for beta=0 edge case - When beta=0, should output alpha*A*B regardless of C - Missing edge case test
+    // TODO: Add test for static shape computation - When A, B have static shapes, output should compute static shape - Missing shape inference test
+    // TODO: Add test for different data types - Spec supports float, double, float16, bfloat16, int types - Only testing f32
+    // TODO: Add test for opset < 11 - Should fail per implementation requirement - Missing opset validation test
+    // TODO: Add test for missing C input - C is optional per spec, test with 2 inputs only - Missing optional input test
 }

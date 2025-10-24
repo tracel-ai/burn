@@ -19,6 +19,15 @@
 //! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
 //!
 //! **Implementation Note**: This implementation validates opset 13+.
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for axis=0 or positive axis values - Only axis=-1 tested
+//! - TODO: No test for negative axis normalization edge cases - e.g., axis=-rank should map to 0
+//! - TODO: No test for 1D tensors - Simplest case not tested
+//! - TODO: No test for higher-rank tensors (4D, 5D) - Only 2D tested
+//! - TODO: No test validating numerical stability with extreme values (very large/small inputs)
+//! - TODO: No test for all-zero or constant inputs - Edge cases for softmax normalization
+//! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -54,6 +63,8 @@ impl NodeProcessor for LogSoftmaxProcessor {
         crate::processor::validate_opset(opset, 13)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Validate input tensor dtype is floating-point type - Type constraint not enforced - burn/crates/onnx-ir/src/node/log_softmax.rs:54
 
         // TODO: Validate unexpected attributes before config extraction
         // The spec only supports "axis" attribute
@@ -104,6 +115,8 @@ impl NodeProcessor for LogSoftmaxProcessor {
         if axis < 0 {
             axis += tensor.rank as i64;
         }
+
+        // TODO: Validate converted axis is within bounds [0, rank) - Out of bounds axis should be rejected - burn/crates/onnx-ir/src/node/log_softmax.rs:103
 
         let config = LogSoftmaxConfig {
             axis: axis as usize,

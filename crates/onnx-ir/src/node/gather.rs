@@ -100,6 +100,8 @@ impl NodeProcessor for GatherProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate indices tensor type is int32 or int64 per ONNX spec - Missing type constraint validation
+
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
@@ -115,11 +117,17 @@ impl NodeProcessor for GatherProcessor {
         // Extract the axis attribute (default: 0 per ONNX spec)
         let mut axis: i64 = 0;
         for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axis" {
-                axis = value.clone().into_i64()
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Gather: {}", key),
+                    });
+                }
             }
-            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
+        // TODO: Validate negative indices support for opset < 11 - Negative indices added in opset 11, should error for earlier opsets - Missing opset-specific validation
 
         // Normalize negative axis
         if axis < 0 {
@@ -483,4 +491,12 @@ mod tests {
             other => panic!("Expected Shape(1) output, got {:?}", other),
         }
     }
+
+    // TODO: Add test for out-of-bounds indices - Per spec (opset 11+), out-of-bounds indices should raise error - Missing bounds checking test
+    // TODO: Add test for negative indices - Opset 11+ supports negative indices for backwards indexing - Missing negative indices test
+    // TODO: Add test for indices type validation - Indices must be int32 or int64 per spec - Missing type constraint test
+    // TODO: Add test for static shape computation - When both data and indices have static shapes, output should compute static shape - Missing shape inference test
+    // TODO: Add test for zero-size tensors - Edge case where data or indices have 0 elements - Missing edge case test
+    // TODO: Add test for different data types - Spec supports many types (all numeric, bool, string, complex) - Missing type coverage
+    // TODO: Add test for unexpected attributes - Should reject unknown attributes per implementation - Missing attribute validation test
 }

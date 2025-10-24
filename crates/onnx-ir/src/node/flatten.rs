@@ -108,16 +108,24 @@ impl NodeProcessor for FlattenProcessor {
         let mut axis: i64 = 1;
 
         for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axis" {
-                axis = value.clone().into_i64()
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Flatten: {}", key),
+                    });
+                }
             }
-            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
 
         // if axis is negative, it is counted from the end
         if axis < 0 {
             axis += tensor.rank as i64;
         }
+
+        // TODO: Validate axis is within valid range [0, rank) after normalization - Invalid axis values should return error - Missing range validation
+        // TODO: Validate negative axis support for opset < 11 - Negative axis added in opset 11, should error for earlier opsets - Missing opset-specific validation
 
         let config = FlattenConfig {
             axis: axis as usize,
@@ -198,4 +206,12 @@ mod tests {
             })
         ));
     }
+
+    // TODO: Add test for axis out of range - Test axis >= rank should return error - Missing constraint validation test
+    // TODO: Add test for negative axis with opset < 11 - Should fail per spec, negative axis added in opset 11 - Missing opset validation test
+    // TODO: Add test for axis=0 edge case - Flattens entire tensor to 1D then reshapes to (1, N) - Missing edge case test
+    // TODO: Add test for axis=rank edge case - Should produce (N, 1) output - Missing edge case test
+    // TODO: Add test for static shape preservation - Should compute output static shape when input has static shape - Missing shape inference test
+    // TODO: Add test for different data types - Spec supports all data types, not just f32 - Missing type coverage
+    // TODO: Add test for unexpected attributes - Should reject unknown attributes per implementation - Missing attribute validation test
 }

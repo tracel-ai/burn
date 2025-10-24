@@ -19,6 +19,14 @@
 //! ## Opset Versions
 //! - **Opset 10-12**: Initial implementation with fmod attribute
 //! - **Opset 13+**: Extended type support (added bfloat16)
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for fmod values other than 0 or 1 - Spec only defines 0 and 1, other values should be rejected
+//! - TODO: No test for dtype validation - Should ensure both inputs have compatible numeric types
+//! - TODO: No test for zero divisor - Division by zero handling not tested
+//! - TODO: No test for negative divisors with both fmod modes - Sign handling edge cases
+//! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
+//! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
 use crate::ir::{AttributeValue, Node, NodeConfig};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
@@ -103,7 +111,9 @@ impl NodeProcessor for ModuloProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        // TODO: Add validation that fmod attribute, if present, is either 0 or 1
+        // TODO: Validate input dtypes are numeric - Integer and floating-point types supported - burn/crates/onnx-ir/src/node/modulo.rs:100
+        // TODO: Validate both inputs have same dtype - Mixed types should be rejected - burn/crates/onnx-ir/src/node/modulo.rs:100
+        // TODO: Add validation that fmod attribute, if present, is either 0 or 1 - Other values are undefined - burn/crates/onnx-ir/src/node/modulo.rs:100
 
         // Output type is same as input with broadcasting
         crate::processor::same_as_input_broadcast(node);
@@ -118,7 +128,10 @@ impl NodeProcessor for ModuloProcessor {
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract fmod attribute
         let fmod = match node.attrs.get("fmod") {
-            Some(AttributeValue::Int64(value)) => *value != 0,
+            Some(AttributeValue::Int64(value)) => {
+                // TODO: Validate fmod is 0 or 1 - Values other than 0 or 1 are undefined in spec - burn/crates/onnx-ir/src/node/modulo.rs:120
+                *value != 0
+            }
             _ => false, // Default value as per ONNX spec
         };
 

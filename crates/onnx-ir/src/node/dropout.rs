@@ -92,6 +92,7 @@ impl NodeProcessor for DropoutProcessor {
                 actual: node.outputs.len(),
             });
         }
+        // TODO: Validate input count based on opset version - Opset 1-11 has 1 input, Opset 12+ can have up to 3 inputs (data, ratio, training_mode) - Missing opset-specific validation
 
         // First output: same type as input
         same_as_input(node);
@@ -117,6 +118,7 @@ impl NodeProcessor for DropoutProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // TODO: Validate 'seed' attribute mentioned in spec (opset 12+) - currently not handled
+        // TODO: Validate ratio value is in range [0.0, 1.0] per ONNX spec - Missing constraint validation - Should return error for invalid ratios
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
             let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
@@ -234,4 +236,14 @@ mod tests {
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::MissingInput(_))));
     }
+
+    // TODO: Add test for mask output - Opset 13+ supports optional mask output (boolean tensor) - Missing test coverage for second output
+    // TODO: Add test for training_mode input - Opset 12+ has optional training_mode input (input[2]) - Missing test for this input parameter
+    // TODO: Add test for seed attribute - Opset 12+ supports seed attribute for reproducibility - Missing test coverage
+    // TODO: Add test for invalid ratio values - Test ratio < 0.0 and ratio > 1.0 should return error per spec - Missing constraint validation test
+    // TODO: Add test for ratio=0.0 edge case - Should be identity operation (no dropout) - Missing edge case test
+    // TODO: Add test for ratio=1.0 edge case - Should drop all values (output all zeros) - Missing edge case test
+    // TODO: Add test for different data types - Spec supports float16, float, double, bfloat16 types - Only testing f32
+    // TODO: Add test for opset version transitions - Test attribute vs input behavior for opset 11 vs 12 - Missing opset-specific test
+    // TODO: Add test for unexpected attributes - Should validate and reject unknown attributes - Missing attribute validation test
 }

@@ -24,6 +24,15 @@
 //! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
 //!
 //! **Implementation Note**: This implementation validates opset 1+.
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for 0D (scalar) inputs - Spec allows scalars but not tested
+//! - TODO: No test for batched matmul with different batch dimensions - Broadcasting edge cases
+//! - TODO: No test for dtype validation - Mixed dtypes should be rejected
+//! - TODO: No test for incompatible shapes - e.g., [M, K] x [N, P] where K != N
+//! - TODO: No test for integer types (int32, int64, uint32, uint64) - Opset 9+ type support not validated
+//! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
+//! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -64,6 +73,8 @@ impl NodeProcessor for MatMulProcessor {
                     });
                 }
 
+                // TODO: Validate dtype is supported by current opset - int types require opset 9+, bfloat16 requires opset 13+ - burn/crates/onnx-ir/src/node/matmul.rs:56
+
                 // Validate rank constraints per ONNX spec
                 // MatMul requires both inputs to be at least 1D
                 if a.rank < 1 || b.rank < 1 {
@@ -72,6 +83,9 @@ impl NodeProcessor for MatMulProcessor {
                         a.rank, b.rank
                     )));
                 }
+
+                // TODO: Validate shape compatibility for matrix multiplication - Last dim of A must match second-to-last dim of B (when both >= 2D) - burn/crates/onnx-ir/src/node/matmul.rs:69
+                // TODO: Validate batch dimension broadcasting compatibility - Batch dims must be broadcastable - burn/crates/onnx-ir/src/node/matmul.rs:69
 
                 // For matrix multiplication, the last dimension of A must match the first/last dimension of B
                 // This is a basic shape compatibility check based on ranks

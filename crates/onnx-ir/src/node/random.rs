@@ -41,8 +41,35 @@ impl NodeProcessor for RandomProcessor {
         crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Validate that this node has zero inputs (Random operations don't take inputs)
-        // TODO: Spec mentions RandomNormal has mean and scale attributes, RandomUniform has high/low
-        // These attributes are not validated or extracted into config
+        // Random operators should have no inputs, but this isn't validated.
+        // Should add: validate_input_count(node, 0) or validate_max_inputs(node, 0)
+        // Location: After validate_output_count
+
+        // TODO: RandomNormal mean and scale attributes not validated or extracted
+        // ONNX spec defines:
+        // - mean (float, default=0.0): Mean of the normal distribution
+        // - scale (float, default=1.0): Standard deviation of the normal distribution
+        // - seed (float, optional): Random seed for reproducibility
+        // These attributes exist in spec but are completely ignored by implementation.
+        // Should extract into config and validate ranges (scale > 0).
+        // Location: extract_config method
+
+        // TODO: RandomUniform high/low attributes not validated or extracted
+        // ONNX spec defines:
+        // - high (float, default=1.0): Upper boundary of uniform distribution (exclusive)
+        // - low (float, default=0.0): Lower boundary of uniform distribution (inclusive)
+        // - seed (float, optional): Random seed for reproducibility
+        // These attributes are ignored. Should extract into config and validate low < high.
+        // Location: extract_config method
+
+        // TODO: Missing test coverage for non-default distribution parameters
+        // Tests only validate basic shape output, not distribution parameters (mean, scale, high, low).
+        // Add tests: random_normal_custom_mean_scale, random_uniform_custom_range
+        // Note: Testing actual distribution properties is hard, but should at least extract attrs.
+
+        // TODO: Missing validation for seed attribute
+        // Spec mentions seed attribute for reproducibility but it's not extracted or validated.
+        // Add tests: random_normal_with_seed, random_uniform_with_seed
 
         let dtype = node
             .attrs

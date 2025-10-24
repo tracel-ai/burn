@@ -121,6 +121,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
                 reason: "block_size must be greater than 0".to_string(),
             });
         }
+        // TODO: Validate that C (channels) is divisible by (blocksize * blocksize) - Per ONNX spec, C must be divisible by blocksize^2 or result is undefined - Should validate in static shape case and add test for invalid channel count
 
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs[0].ty {
@@ -283,4 +284,12 @@ mod tests {
             _ => panic!("Expected tensor output"),
         }
     }
+
+    // TODO: Add test for invalid channel count - Test case where C is not divisible by blocksize^2 (e.g., C=5, blocksize=2) should return error - Missing test coverage for constraint validation
+    // TODO: Add test for edge case with blocksize=1 - Should be identity operation per spec - Missing edge case test
+    // TODO: Add test for larger blocksize values (e.g., 3, 4) - Only testing blocksize=2 and 3, need more coverage - Tests needed for blocksize=4 or higher
+    // TODO: Add test for CRD mode with opset < 11 - Should fail per spec, CRD mode added in opset 11 - Missing opset version validation test
+    // TODO: Add test for different data types - Spec supports multiple types (int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float, double, bfloat16) - Only testing f32, need broader type coverage
+    // TODO: Add test for zero-size spatial dimensions - Edge case where H=0 or W=0 - Missing edge case test
+    // TODO: Add test for very large spatial dimensions - Potential overflow in shape calculation (h * blocksize, w * blocksize) - Missing boundary condition test
 }

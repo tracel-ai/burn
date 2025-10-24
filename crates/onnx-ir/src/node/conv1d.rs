@@ -113,6 +113,14 @@ impl NodeProcessor for Conv1dProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add test for zero or negative stride values - spec requires positive strides
+        // TODO: Add test for zero or negative dilation values - spec requires positive dilations
+        // TODO: Add test for zero or negative group values - spec requires positive groups
+        // TODO: Validate channels_in divisible by groups - required by spec but not validated
+        // TODO: Validate channels_out divisible by groups - required by spec but not validated
+        // TODO: Add test for very large kernel_shape/stride/dilation - potential overflow/memory issues
+        // TODO: Add test coverage for auto_pad values: SAME_UPPER, SAME_LOWER, VALID - currently unsupported
+
         // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
             match key.as_str() {

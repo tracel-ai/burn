@@ -67,7 +67,33 @@ impl NodeProcessor for TransposeProcessor {
         crate::processor::validate_output_count(node, 1)?;
 
         // Get reference to config for type inference
-        let _config = node.config::<TransposeConfig>();
+        let config = node.config::<TransposeConfig>();
+
+        // TODO: Missing validation that perm is a valid permutation.
+        // Must verify: len(perm) == rank, all values in [0, rank-1], no duplicates.
+        // Invalid permutations could cause index out of bounds errors.
+
+        // TODO: Missing validation that perm contains each index exactly once.
+        // E.g., perm=[0, 0, 2] has duplicate 0, missing 1 - should be rejected.
+
+        // Validate perm length matches input rank
+        let input_rank = match &node.inputs[0].ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        if config.perm.len() != input_rank {
+            return Err(ProcessError::Custom(format!(
+                "Transpose: perm length {} doesn't match input rank {}",
+                config.perm.len(),
+                input_rank
+            )));
+        }
 
         // Infer output type
         same_as_input(node);
@@ -96,6 +122,9 @@ impl NodeProcessor for TransposeProcessor {
 
         if let Some(axes) = node.attrs.get("perm") {
             perm = axes.clone().into_i64s();
+
+            // TODO: Validate perm values are in valid range [0, rank-1].
+            // Out-of-bounds values in perm should be rejected early.
         }
 
         let config = TransposeConfig { perm };
@@ -176,4 +205,20 @@ mod tests {
             })
         ));
     }
+
+    // TODO: Missing test for invalid permutations - duplicate indices.
+    // E.g., perm=[0, 0, 2] should be rejected.
+
+    // TODO: Missing test for out-of-bounds indices in perm.
+    // E.g., perm=[0, 5, 2] for rank-3 tensor should be rejected.
+
+    // TODO: Missing test for perm length mismatch.
+    // E.g., perm=[0, 1] for rank-3 tensor should be rejected.
+
+    // TODO: Missing test for 1D tensor transpose - perm=[0] should be identity.
+
+    // TODO: Missing test for 5D+ tensors - verify works for higher ranks.
+
+    // TODO: Missing test for negative values in perm.
+    // ONNX spec doesn't support negative indices in perm, should be rejected.
 }

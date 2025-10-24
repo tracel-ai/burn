@@ -59,6 +59,23 @@ impl NodeProcessor for PReluProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate broadcasting compatibility between X and slope inputs
+        // Spec requires slope to be "unidirectional broadcastable" to X, but implementation
+        // doesn't validate this constraint. Invalid broadcast shapes will fail at runtime.
+        // Should validate: slope.shape can be broadcast to X.shape according to ONNX broadcast rules.
+        // Location: After validate_output_count
+
+        // TODO: Missing test coverage for broadcasting edge cases
+        // Current test only uses per-channel slope (shape [1,3,1,1]). Missing tests for:
+        // - Scalar slope with multi-dimensional input (test exists but limited)
+        // - Invalid broadcast shapes (should fail validation)
+        // - Slope shape larger than input (invalid broadcast, should fail)
+        // Add tests: prelu_invalid_broadcast, prelu_slope_shape_mismatch
+
+        // TODO: Missing test coverage for different data types
+        // Tests only use f32. Spec supports float16, float64, bfloat16, int types.
+        // Add tests: prelu_float64, prelu_int32 (if supported)
+
         // Validate no unexpected attributes
         if !node.attrs.is_empty() {
             let keys: Vec<String> = node.attrs.keys().cloned().collect();

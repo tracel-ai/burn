@@ -89,6 +89,11 @@ impl NodeProcessor for AvgPool2dProcessor {
 
         // TODO: Validate that kernel_shape attribute is present (marked as required in spec)
         // Currently extract_config will panic if kernel_shape is missing or has wrong length
+        // FIXME: Missing validation for dilations attribute (opset 10+) - spec mentions it but not validated/tested
+        // TODO: Add test for zero or negative kernel_shape values - spec requires positive values
+        // TODO: Add test for zero or negative stride values - spec requires positive values
+        // TODO: Add test for asymmetric padding edge cases - padding is validated but edge cases may not be tested
+        // TODO: Add 'dilations' to known attributes list for opset 10+ - currently marked as unexpected
 
         // Validate attributes before extracting config
         let mut ceil_mode: i64 = 0;

@@ -103,8 +103,13 @@ impl NodeProcessor for BatchNormProcessor {
         crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Add validation for unexpected attributes
-        // TODO: Check training_mode attribute - spec mentions it but implementation doesn't validate it
+        // FIXME: Check training_mode attribute - spec mentions it but implementation doesn't validate it
         // According to spec, training mode outputs mean/var/saved_mean/saved_var which are not currently handled
+        // TODO: Add test coverage for training_mode=1 case - spec says outputs 5 tensors but only 1 output validated
+        // TODO: Validate epsilon and momentum ranges - negative epsilon would be invalid, momentum should be [0,1]
+        // TODO: Add test for mismatched input tensor shapes - scale/bias/mean/var must match channels dimension
+        // TODO: Add test for wrong input tensor ranks - spec requires scale/bias/mean/var to be 1D
+        // TODO: Validate input[3] and input[4] are actually mean and variance tensors (rank 1)
 
         // Extract input tensor type
         let tensor = match &node.inputs[0].ty {

@@ -53,8 +53,17 @@ impl NodeProcessor for SumProcessor {
         // Validate we have at least one input
         validate_min_inputs(node, 1)?;
 
+        // TODO: Missing validation of input count upper bound - ONNX spec allows up to 2^31-1 inputs.
+        // While this is huge, there should be some practical limit or at least documentation.
+
         // Validate output count
         validate_output_count(node, 1)?;
+
+        // TODO: Missing validation that all inputs have compatible dtypes.
+        // ONNX spec requires all inputs to have the same data type, but this isn't validated.
+
+        // TODO: Missing validation that all inputs have broadcastable shapes.
+        // While same_as_input_broadcast handles inference, it doesn't validate compatibility.
 
         same_as_input_broadcast(node);
 
@@ -179,4 +188,19 @@ mod tests {
             _ => panic!("Expected tensor output"),
         }
     }
+
+    // TODO: Missing test for single input - Sum with one input should return that input unchanged.
+    // This is a valid edge case per ONNX spec.
+
+    // TODO: Missing test for broadcasting with different ranks.
+    // E.g., Sum of [3, 4, 5] + [1, 5] + [5] should broadcast correctly.
+
+    // TODO: Missing test for type constraint validation.
+    // Sum should only support numeric types, need test to verify string/bool inputs are rejected.
+
+    // TODO: Missing test for zero-size tensor inputs.
+    // What happens with Sum of tensors with shape [0, 3, 4]?
+
+    // TODO: Missing test for very many inputs (e.g., 100+ inputs).
+    // Verify implementation can handle many inputs without stack overflow or performance issues.
 }

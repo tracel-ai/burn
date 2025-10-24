@@ -20,6 +20,15 @@
 //! - **Opset 1-5**: Initial version
 //! - **Opset 6-15**: Updated with alpha=0.01 as default
 //! - **Opset 16+**: Extended type support (added bfloat16)
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for alpha=0 (should behave like ReLU) - Boundary case not tested
+//! - TODO: No test for alpha=1 (identity for negative values) - Boundary case not tested
+//! - TODO: No test for negative alpha values - Spec doesn't forbid but behavior unclear
+//! - TODO: No test for very large alpha values (e.g., alpha > 1) - Could amplify negative values
+//! - TODO: No test for all-positive or all-negative inputs - Edge cases for activation behavior
+//! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
+//! - TODO: No test for zero-size tensors - Empty tensor handling
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -56,6 +65,8 @@ impl NodeProcessor for LeakyReluProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate input tensor dtype is floating-point type - Type constraint T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16) not enforced - burn/crates/onnx-ir/src/node/leaky_relu.rs:55
+
         // TODO: Validate unexpected attributes before config extraction
         // The spec only supports "alpha" attribute
         for (key, _value) in node.attrs.iter() {
@@ -86,6 +97,7 @@ impl NodeProcessor for LeakyReluProcessor {
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "alpha" {
                 alpha = value.clone().into_f32() as f64
+                // TODO: Consider validating alpha >= 0 - Negative alpha values have unclear semantics - burn/crates/onnx-ir/src/node/leaky_relu.rs:88
             }
         }
 

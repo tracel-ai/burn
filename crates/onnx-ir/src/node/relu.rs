@@ -39,6 +39,23 @@ impl NodeProcessor for ReluProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Missing test coverage for different data types
+        // Tests only use f32. Spec supports float16, float64, bfloat16, and integer types.
+        // Add tests: relu_float64, relu_int32, relu_int64
+        // Note: Integer types may require checking if Burn backend supports ReLU on integers.
+
+        // TODO: Missing test coverage for edge cases
+        // No tests for:
+        // - All negative inputs (output should be all zeros)
+        // - All positive inputs (output should equal input)
+        // - Mixed with exact zeros
+        // - Very large/small values (numerical stability)
+        // Add tests: relu_all_negative, relu_all_positive, relu_with_zeros
+
+        // TODO: Missing test coverage for different tensor ranks
+        // Tests cover 2D and 4D. Add coverage for 1D, 3D, 5D tensors.
+        // Add tests: relu_1d, relu_3d, relu_5d
+
         // Validate no unexpected attributes
         if !node.attrs.is_empty() {
             let keys: Vec<String> = node.attrs.keys().cloned().collect();

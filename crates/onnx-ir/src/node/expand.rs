@@ -72,6 +72,8 @@ impl NodeProcessor for ExpandProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate no unexpected attributes - Expand has no attributes per spec - Missing attribute validation
+
         // Validate shape input type
         match &node.inputs[1].ty {
             ArgType::Tensor(tensor) => {
@@ -114,6 +116,8 @@ impl NodeProcessor for ExpandProcessor {
         // Determine output type based on config
         match config {
             ExpandShape::Static(shape) => {
+                // TODO: Validate shape values are positive or -1 per ONNX spec - Negative values other than -1 are invalid - Missing constraint validation
+                // TODO: Validate broadcasting rules - Per spec, input shape and target shape must be compatible for broadcasting - Missing broadcast validation
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     dtype: input_elem_type,
                     rank: shape.len(),
@@ -578,4 +582,13 @@ mod tests {
             _ => panic!("Expected tensor output"),
         }
     }
+
+    // TODO: Add test for invalid shape values - Test negative values other than -1 (e.g., -2, -3) should return error - Missing constraint validation test
+    // TODO: Add test for shape with value -1 - Per spec, -1 means copy from input dimension - Missing edge case test
+    // TODO: Add test for incompatible broadcasting - Test case where input shape cannot be broadcast to target shape - Missing broadcast validation test
+    // TODO: Add test for zero in target shape - Test behavior when target shape contains 0 - Missing edge case test
+    // TODO: Add test for expanding scalar to tensor - Test input with rank 0 expanded to higher rank - Missing edge case test
+    // TODO: Add test for different data types - Spec supports many types (all numeric types, bool, strings) - Only testing f32, i64, bool
+    // TODO: Add test for opset < 8 - Should fail per spec, Expand introduced in opset 8 - Missing opset validation test
+    // TODO: Add test for unexpected attributes - Should validate and reject unknown attributes - Missing attribute validation test
 }

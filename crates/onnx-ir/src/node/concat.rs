@@ -245,6 +245,10 @@ impl NodeProcessor for ConcatProcessor {
         // TODO: Add validation that normalized_axis is within valid range [0, rank)
         // According to spec, axis must be in range [-r, r-1] where r = rank(inputs)
         // After normalization, should validate: 0 <= normalized_axis < rank
+        // TODO: Add test for empty inputs list - spec requires 1+ inputs but not validated
+        // TODO: Add test for single input - edge case that should work but may not be tested
+        // TODO: Validate all non-concat dimensions match across inputs - currently only dtype checked for tensors
+        // TODO: Add test for very large axis values that overflow after normalization
 
         let config = ConcatConfig {
             axis: normalized_axis as usize,

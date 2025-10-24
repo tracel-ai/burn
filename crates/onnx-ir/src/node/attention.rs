@@ -162,6 +162,11 @@ impl NodeProcessor for AttentionProcessor {
             ));
         }
 
+        // TODO: Validate softcap attribute range - spec doesn't specify valid range but negative values likely invalid
+        // TODO: Validate softmax_precision attribute values - spec mentions precision mode but doesn't specify valid values
+        // TODO: Add test for negative scale values - spec doesn't specify if scale can be negative
+        // TODO: Add test for very large qk_matmul_output dimensions - potential memory issues not validated
+
         // Validate unexpected attributes and qk_matmul_output_mode before config extraction
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -195,6 +200,11 @@ impl NodeProcessor for AttentionProcessor {
                 "Attention: if Q, K, V are rank 3 the kv_num_heads and q_num_heads attributes must be specified".to_string(),
             ));
         }
+
+        // TODO: Add validation that kv_num_heads and q_num_heads are positive - spec requires this but not validated
+        // TODO: Add validation that q_num_heads is divisible by kv_num_heads for GQA/MQA - common requirement not checked
+        // TODO: Validate dimension compatibility between Q/K/V tensors beyond just rank matching
+        // TODO: Add test coverage for attention_mask with wrong rank - only rank validation on Q/K/V, not mask
 
         // Infer output types
         let q_rank = q.rank;

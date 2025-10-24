@@ -116,7 +116,12 @@ impl NodeProcessor for EyeLikeProcessor {
                     k = value.clone().into_i64();
                 }
                 // TODO: Add validation for unexpected attributes (currently silently ignored)
-                _ => {}
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for EyeLike: {}", key),
+                    });
+                }
             }
         }
 
@@ -221,4 +226,13 @@ mod tests {
             _ => panic!("Expected tensor output"),
         }
     }
+
+    // TODO: Add test for non-2D input - Should return error for rank != 2 per spec - Missing constraint validation test
+    // TODO: Add test for non-square matrices - Test rectangular matrices (e.g., 3x5, 5x3) - Missing edge case test
+    // TODO: Add test for 1x1 matrix - Edge case with single element - Test exists in onnx-tests but not in unit tests
+    // TODO: Add test for large k values - When k is larger than matrix dimensions, should produce all zeros - Test exists in onnx-tests but not in unit tests
+    // TODO: Add test for large negative k values - When |k| is larger than matrix dimensions, should produce all zeros - Test exists in onnx-tests but not in unit tests
+    // TODO: Add test for different output dtypes - Spec supports many types, test more than just I32 and I64 - Missing type coverage
+    // TODO: Add test for unexpected attributes - Should reject unknown attributes per implementation - Missing attribute validation test
+    // TODO: Add test for opset < 9 - Should fail per spec, EyeLike introduced in opset 9 - Missing opset validation test
 }

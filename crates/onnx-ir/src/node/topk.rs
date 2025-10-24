@@ -97,6 +97,10 @@ impl NodeProcessor for TopKProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 2)?;
 
+        // TODO: Missing validation that k <= dimension_size along axis.
+        // If k is larger than the dimension, this should either be rejected or clamped.
+        // ONNX spec behavior for k > dim_size is not well-defined.
+
         // Validate largest and sorted attributes before config extraction
         if let Some(largest) = node.attrs.get("largest")
             && largest.clone().into_i64() != 1
@@ -113,6 +117,9 @@ impl NodeProcessor for TopKProcessor {
                 "TopK: only sorted elements is supported".to_string(),
             ));
         }
+
+        // TODO: Missing validation that k is positive (k > 0).
+        // Zero or negative k values should be rejected but aren't validated.
 
         // Extract the shape of the input data tensor
         let data_tensor = match &node.inputs.first().unwrap().ty {
@@ -190,6 +197,9 @@ impl NodeProcessor for TopKProcessor {
         if axis < 0 {
             axis += data_tensor.rank as i64;
         }
+
+        // TODO: Missing validation that axis is in valid range after normalization.
+        // After converting negative axis, should verify 0 <= axis < rank.
 
         let config = TopKConfig {
             axis: axis as usize,
@@ -506,4 +516,25 @@ mod tests {
         assert_eq!(config.axis, 2); // Default axis -1 becomes 2 for rank 3
         assert!(matches!(&config.k, TopKInput::Runtime(arg) if arg.name == "K"));
     }
+
+    // TODO: Missing test for k > dimension_size edge case.
+    // What happens when k=10 but dimension size along axis is only 5?
+
+    // TODO: Missing test for k=0 - should be rejected as invalid.
+
+    // TODO: Missing test for negative k - should be rejected as invalid.
+
+    // TODO: Missing test for axis out of bounds after normalization.
+
+    // TODO: Missing test for type constraints - TopK should work with int types (opset 11+).
+    // Need test with integer input types to verify they're handled correctly.
+
+    // TODO: Missing test for duplicate values in input.
+    // How are ties handled? ONNX spec says indices for ties are implementation-dependent.
+
+    // TODO: Missing test for NaN values in float inputs.
+    // ONNX spec doesn't clearly define NaN handling in TopK.
+
+    // TODO: Missing test for zero-size tensor along axis dimension.
+    // E.g., input shape [2, 0, 4], axis=1, what should k be?
 }

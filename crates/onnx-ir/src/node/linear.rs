@@ -19,6 +19,14 @@
 //!
 //! ## Outputs
 //! - `Y` (T): Output tensor
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for Linear without bias (2 inputs only) - Optional bias not tested
+//! - TODO: No test validating weight tensor must be 2D - 1D or 3D+ weights should be rejected
+//! - TODO: No test for input rank validation - Spec requires specific input dimensions for matrix multiplication
+//! - TODO: No test for dtype mismatch between inputs - All inputs should have same dtype
+//! - TODO: No test for zero-size dimensions - Edge case for empty matrices
+//! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -86,6 +94,10 @@ impl NodeProcessor for LinearProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate weight tensor (input 1) is exactly 2D - Higher or lower rank weights are invalid - burn/crates/onnx-ir/src/node/linear.rs:86
+        // TODO: Validate all inputs have compatible dtypes - Type mismatch would cause runtime errors - burn/crates/onnx-ir/src/node/linear.rs:86
+        // TODO: Validate input rank is compatible for matrix multiplication - At least 2D required - burn/crates/onnx-ir/src/node/linear.rs:86
+
         // TODO: Validate that no unexpected attributes are present
         // Linear is a Burn-specific node type with no attributes
         if let Some((key, _value)) = node.attrs.iter().next() {
@@ -127,6 +139,7 @@ impl NodeProcessor for LinearProcessor {
             .shape
             .to_vec();
 
+        // TODO: Validate weight_shape.len() == 2 - Linear requires exactly 2D weight matrix - burn/crates/onnx-ir/src/node/linear.rs:122
         let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
         // check if the bias is present (could be Constant, Static, or Dynamic)

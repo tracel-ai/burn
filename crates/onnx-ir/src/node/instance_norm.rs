@@ -27,6 +27,11 @@
 //! ## Opset Versions
 //! - **Opset 1-5**: Earlier versions with different epsilon handling
 //! - **Opset 6+**: Current version with epsilon=1e-5 default and standardized behavior
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for custom epsilon values (e.g., epsilon=1e-3) - Only default epsilon tested
+//! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
+//! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -85,6 +90,9 @@ impl NodeProcessor for InstanceNormProcessor {
         const MIN: usize = 6;
 
         crate::processor::validate_opset(opset, MIN)?;
+        // TODO: Validate input tensor dtype is floating-point type - Type constraint T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16) not enforced - burn/crates/onnx-ir/src/node/instance_norm.rs:88
+        // TODO: Validate that scale and bias tensors are 1D and have size C matching the channel dimension of input - Shape mismatch could cause runtime errors - burn/crates/onnx-ir/src/node/instance_norm.rs:88
+        // TODO: Validate that input tensor is at least 3D (N x C x D1 ...) - Spec requires minimum rank of 3 - burn/crates/onnx-ir/src/node/instance_norm.rs:88
         // InstanceNormalization requires exactly 3 inputs: input, scale, and B
         crate::processor::validate_input_count(node, 3)?;
         crate::processor::validate_output_count(node, 1)?;
@@ -126,6 +134,7 @@ impl NodeProcessor for InstanceNormProcessor {
 
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "epsilon" {
+                // TODO: Validate epsilon > 0 for numerical stability - Negative or zero epsilon could cause division by zero or numerical issues - burn/crates/onnx-ir/src/node/instance_norm.rs:128
                 epsilon = value.clone().into_f32()
             }
         }

@@ -35,7 +35,8 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::{Node, NodeConfig, TensorDataExt};
+use crate::{ArgType, Node, NodeConfig, TensorDataExt};
+
 use std::any::Any;
 
 /// Configuration for the Trilu operation.
@@ -70,6 +71,7 @@ impl NodeProcessor for TriluProcessor {
         // Lift diagonal input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
+        // Should use: if node.inputs[1].is_constant() { node.inputs[1].to_static()?; }
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;
         }
@@ -98,6 +100,20 @@ impl NodeProcessor for TriluProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Missing validation that input tensor is at least rank 2.
+        // ONNX spec requires last two dimensions to form a matrix, so rank must be >= 2.
+        let input_rank = match &node.inputs[0].ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => 0,
+        };
+
+        if input_rank < 2 {
+            return Err(ProcessError::Custom(format!(
+                "Trilu: input must have rank >= 2, got rank {}",
+                input_rank
+            )));
+        }
+
         // Infer output type
         crate::processor::same_as_input(node);
 
@@ -120,6 +136,7 @@ impl NodeProcessor for TriluProcessor {
         // FIXME: The spec states that `k` should be a 0-D tensor (scalar tensor), but the
         // implementation assumes Data::Int64 (scalar value). This should handle the proper
         // tensor extraction with shape validation to ensure it's 0-D.
+        // Should validate: k tensor has shape [] or [1] and contains single int64 value.
         if let Some(diagonal_arg) = node.inputs.get(1) {
             log::debug!(
                 "Trilu node {}: diagonal_arg name={}, value_source={:?}, data_id={:?}",
@@ -183,9 +200,7 @@ mod tests {
         use crate::pipeline::parse_onnx;
         use std::path::Path;
 
-        let path = Path::new(
-            "/Users/dilshod/Projects/burn/crates/burn-import/onnx-tests/tests/trilu/trilu_upper.onnx",
-        );
+        let path = Path::new("burn/crates/burn-import/onnx-tests/tests/trilu/trilu_upper.onnx");
         if !path.exists() {
             println!("Skipping test - file not found: {}", path.display());
             return;
@@ -424,4 +439,24 @@ mod tests {
             }
         );
     }
+
+    // TODO: Missing test for rank-1 (1D) input - should be rejected as rank must be >= 2.
+
+    // TODO: Missing test for non-square matrices - e.g., shape [3, 5] should work.
+    // Trilu works on rectangular matrices, not just square ones.
+
+    // TODO: Missing test for batched inputs - e.g., shape [2, 3, 4, 5].
+    // ONNX spec supports batched triangular operations on last two dimensions.
+
+    // TODO: Missing test for very large diagonal offset.
+    // E.g., diagonal=100 for 5x5 matrix - should result in all zeros (upper) or all values (lower).
+
+    // TODO: Missing test for diagonal offset equal to matrix dimensions.
+    // Edge cases where k = H or k = -W.
+
+    // TODO: Missing test for k input type validation.
+    // k must be int64 tensor per spec, should reject other types.
+
+    // TODO: Missing test for k input shape validation.
+    // k should be 0-D tensor (scalar), test with 1D tensor [k] to verify handling.
 }

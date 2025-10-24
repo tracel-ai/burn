@@ -97,6 +97,12 @@ impl NodeProcessor for ClipProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes
+        // TODO: Validate behavior when min > max - spec says "all values are set to max" but not tested
+        // TODO: Add test for integer type clipping (int8, int16, int32, int64, uint8-64) - opset 12+
+        // TODO: Add test for NaN/Inf handling - spec doesn't specify behavior
+        // TODO: Validate min/max tensor shapes when provided as inputs (opset 11+) - should be scalars or broadcastable
+
         // Infer output type
         same_as_input(node);
 

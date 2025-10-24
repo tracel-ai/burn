@@ -118,6 +118,13 @@ impl NodeProcessor for ComparisonProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes - comparison ops should have no attributes
+        // TODO: Add test for NaN comparison behavior - spec doesn't clearly specify Equal(NaN, NaN) result
+        // TODO: Add test for inf comparisons - positive and negative infinity edge cases
+        // TODO: Add test for bfloat16 support (opset 13+ for Equal, 16+ for GreaterOrEqual/LessOrEqual)
+        // TODO: Add test for int4/uint4 types (opset 19+ for Equal) - mentioned in spec
+        // TODO: Validate broadcasting rules are correctly applied for mismatched shapes
+
         // Check if both inputs are Shape types
         let both_shapes = node.inputs.len() == 2
             && matches!(&node.inputs[0].ty, ArgType::Shape(_))

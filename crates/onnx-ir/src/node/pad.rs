@@ -23,6 +23,19 @@
 //! - **Opset 19**: Added antialiasing support for edge mode (not supported in this implementation).
 //!
 //! **Implementation Note**: This implementation requires opset 11+ and only supports constant mode padding. The axes input (opset 13+) is explicitly rejected.
+//!
+//! FIXME: Implementation only supports padding on the last 2 dimensions
+//! The validate_and_reorder_pads function (lines 286-309) enforces that only the last two dimensions
+//! can have non-zero padding values. This is a major spec deviation - ONNX allows padding any dimension.
+//! This limitation should either be:
+//! 1. Fixed to support arbitrary dimension padding per spec, OR
+//! 2. Clearly documented as a known limitation with validation moved to infer_types
+//! Impact: HIGH - Models padding batch/channel dimensions will fail with cryptic error messages.
+//!
+//! TODO: Missing type constraint validation
+//! Spec defines type constraints for T (data/output), but implementation doesn't validate.
+//! Should validate constant_value type matches data type when provided.
+//! Location: extract_config or infer_types
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -131,9 +144,41 @@ impl NodeProcessor for PadProcessor {
         crate::processor::validate_opset(opset, 11)?;
 
         // TODO: Add validation for input count (1-4 inputs as per spec)
+        // Spec allows 1-4 inputs (data, pads, constant_value optional, axes optional).
+        // Currently no explicit validation, though extract_config rejects 4 inputs (axes).
+        // Should add: validate_min_inputs(node, 1) and validate_max_inputs(node, 4)
+        // Location: After validate_opset
+
         // TODO: Add validation for output count (should be exactly 1)
+        // Missing explicit output count validation. Should add validate_output_count(node, 1).
+        // Location: After input count validation
+
         // TODO: Validate that mode attribute if present is in ["constant", "reflect", "edge"]
-        // (currently only checked in extract_config)
+        // Mode validation currently only happens in extract_config, not in infer_types.
+        // This means type inference succeeds even with invalid mode, failing later.
+        // Should validate mode attribute early in infer_types for better error messages.
+        // Location: After output count validation
+
+        // TODO: Missing test coverage for reflect and edge padding modes
+        // Implementation defines PadMode::Reflect and PadMode::Edge but explicitly rejects them
+        // in extract_config (line 167-174). Either implement these modes or remove enum variants.
+        // Tests only cover constant mode padding. Add tests: pad_reflect_mode, pad_edge_mode
+        // (expect error with current implementation)
+
+        // TODO: Missing test coverage for different data types
+        // Tests only use f32 tensors. Spec supports all numeric types including int8, int16, etc.
+        // Add tests: pad_int32, pad_int64, pad_float64, pad_bool
+
+        // TODO: Missing test coverage for 1D and 4D+ tensors
+        // Tests cover 2D and 3D tensors, but implementation requires rank >= 2 (line 225-229, 268-271).
+        // This contradicts ONNX spec which allows 1D tensors. Either fix implementation or clarify.
+        // Add tests: pad_1d_tensor (should work per spec), pad_4d_tensor, pad_5d_tensor
+
+        // FIXME: Implementation restricts padding to last 2 dimensions only
+        // Lines 286-302 in validate_and_reorder_pads enforce that only the last two dimensions
+        // can have non-zero padding. This is a significant deviation from ONNX spec which allows
+        // padding any dimension. This should be documented prominently or fixed.
+        // Impact: Models using batch/channel padding will fail unexpectedly.
 
         // Output has same type as input
         if let Some(input) = node.inputs.first() {

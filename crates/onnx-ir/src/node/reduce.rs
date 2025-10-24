@@ -85,6 +85,38 @@ impl NodeProcessor for ReduceProcessor {
         // Validate input count
         crate::processor::validate_min_inputs(node, 1)?;
 
+        // TODO: Add validation for maximum input count
+        // Opset 18+ allows optional axes input (2 inputs total). Opset 11-17 only allows 1 input.
+        // Should validate: for opset < 18, max 1 input; for opset >= 18, max 2 inputs.
+        // Location: After validate_min_inputs
+
+        // TODO: Validate output count
+        // Spec requires exactly 1 output. Should add: validate_output_count(node, 1)
+        // Location: After input count validation
+
+        // TODO: Missing validation for noop_with_empty_axes attribute (opset 13+)
+        // Opset 13 added noop_with_empty_axes attribute (default=0). When set to 1 and axes is empty,
+        // the operation is a no-op (returns input unchanged). This attribute is not validated or extracted.
+        // Should extract and handle in config. Add test: reduce_noop_with_empty_axes
+        // Location: extract_config method
+
+        // TODO: Missing test coverage for axes as input tensor (opset 18+)
+        // Opset 18 moved axes from attribute to optional input. Tests use attribute form only.
+        // Add tests: reduce_sum_axes_input, reduce_mean_axes_runtime
+
+        // TODO: Missing test coverage for out-of-range axes values
+        // What happens with axes=[10] on a 3D tensor? Should fail with clear error.
+        // Add test: reduce_invalid_axis
+
+        // TODO: Missing test coverage for duplicate axes
+        // Spec doesn't explicitly forbid duplicate axes (e.g., axes=[1,1]). Behavior unclear.
+        // Add test: reduce_duplicate_axes
+
+        // TODO: Missing test coverage for ReduceSumSquare
+        // Tests cover ReduceSum, ReduceMean, ReduceMax, ReduceMin, ReduceProd, but not ReduceSumSquare
+        // which is mentioned in spec. Verify if ReduceSumSquare is implemented.
+        // Add test: reduce_sum_square (if supported)
+
         // Validate input type and extract tensor info
         let (tensor_rank, tensor_elem_type, tensor_static_shape) = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => (tensor.rank, tensor.dtype, tensor.static_shape.clone()),

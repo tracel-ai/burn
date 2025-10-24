@@ -97,11 +97,18 @@ impl NodeProcessor for SpaceToDepthProcessor {
             }
         };
 
+        // TODO: Missing validation that input is rank 4 with NCHW format.
+        // ONNX spec requires input to be 4D [N, C, H, W] but only rank is checked, not semantics.
+
         if tensor.rank != 4 {
             return Err(ProcessError::Custom(
                 "SpaceToDepth: only rank 4 tensors are supported".to_string(),
             ));
         }
+
+        // TODO: Missing validation that H and W are divisible by blocksize.
+        // ONNX spec requires H % blocksize == 0 and W % blocksize == 0, but this isn't validated.
+        // Should check when static_shape is available to catch errors early.
 
         // Infer static shape based on rank and block size
         let static_shape = tensor.static_shape.clone().map(|shape| {
@@ -194,4 +201,18 @@ mod tests {
             _ => panic!("Expected tensor output"),
         }
     }
+
+    // TODO: Missing test for blocksize validation - blocksize must be > 0.
+    // Currently validated but not explicitly tested.
+
+    // TODO: Missing test for non-divisible dimensions - H or W not divisible by blocksize.
+    // E.g., input [1, 1, 5, 6], blocksize=2 should fail (5 % 2 != 0).
+
+    // TODO: Missing test for blocksize=1 edge case - should be no-op transformation.
+
+    // TODO: Missing test for large blocksize - e.g., blocksize > H or blocksize > W.
+    // Should be rejected as dimensions would become negative.
+
+    // TODO: Missing test for different data types - verify works with int8, float16, etc.
+    // Implementation should support all types per ONNX spec (opset 13+).
 }

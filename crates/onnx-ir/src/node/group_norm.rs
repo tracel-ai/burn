@@ -90,6 +90,9 @@ impl NodeProcessor for GroupNormProcessor {
         crate::processor::validate_input_count(node, 3)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate X tensor rank is at least 3 per ONNX spec (N x C x D1 x ... x Dn) - Missing rank validation
+        // TODO: Validate scale and bias tensors have rank 1 and size matches num_channels - Missing shape validation
+
         // Validate attributes before extracting config
         for (key, _value) in node.attrs.iter() {
             match key.as_str() {
@@ -106,6 +109,7 @@ impl NodeProcessor for GroupNormProcessor {
         // Validate num_groups divisibility
         let config = node.config::<GroupNormConfig>();
 
+        // TODO: Validate num_groups > 0 per ONNX spec - num_groups must be positive - Missing constraint validation
         if config.num_groups > 0 && !config.num_features.is_multiple_of(config.num_groups) {
             return Err(ProcessError::Custom(
                 "GroupNorm: number of features must be divisible by the number of groups"
@@ -227,4 +231,14 @@ mod tests {
         let result = processor.infer_types(&mut node, 18, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
+
+    // TODO: Add test for num_groups=0 - Should fail per spec, num_groups must be positive - Missing constraint validation test
+    // TODO: Add test for num_groups > num_features - Invalid configuration - Missing constraint test
+    // TODO: Add test for tensor rank validation - X must be at least rank 3 (N x C x D1 x ...) - Missing rank validation test
+    // TODO: Add test for scale/bias shape mismatch - scale and bias must match num_channels - Missing shape validation test
+    // TODO: Add test for epsilon edge cases - Test with epsilon=0 or negative epsilon - Missing edge case test
+    // TODO: Add test for different stash_type values - Test values other than 0 and 1 - Missing attribute value test
+    // TODO: Add test for different data types - Spec supports float16, float, double, bfloat16 - Only testing f32
+    // TODO: Add test for opset < 18 - Should fail per implementation requirement - Missing opset validation test
+    // TODO: Add test for missing weight/bias tensors - Required inputs per spec - Missing input validation test
 }

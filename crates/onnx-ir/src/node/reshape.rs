@@ -11,8 +11,9 @@
 //!   to zero (similar to NumPy). Note: If allowzero is set, it is invalid for the shape to
 //!   contain both a zero value and -1.
 //!
-//! **FIXME**: The `allowzero` attribute is mentioned in the spec but not validated or used in the
-//! implementation. The extract_config and infer_types methods should validate this attribute.
+//! **NOTE**: The `allowzero` attribute (opset 14+) IS now validated in infer_types (lines 346-363).
+//! When allowzero=1, the implementation correctly checks that shape cannot contain both 0 and -1.
+//! However, the actual reshape logic respecting allowzero=1 behavior needs verification in codegen.
 //!
 //! ## Inputs
 //! - `data` (T): Input tensor to reshape
@@ -301,6 +302,24 @@ impl NodeProcessor for ReshapeProcessor {
         crate::processor::validate_opset(opset, 5)?;
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Missing test coverage for allowzero=1 behavior
+        // While allowzero attribute is validated (lines 346-363), there's no test that verifies
+        // the actual reshape behavior when allowzero=1 and shape contains 0.
+        // According to spec: with allowzero=1, a 0 in shape means "set dimension to 0",
+        // not "copy from input". Add test: reshape_allowzero_explicit_zero
+
+        // TODO: Missing test coverage for invalid shape values
+        // Shape can contain negative values other than -1 (e.g., -2, -3). These should be rejected.
+        // Add test: reshape_invalid_negative_value
+
+        // TODO: Missing test coverage for more than one -1 in shape
+        // Spec allows "at most one dimension" to be -1. Multiple -1s are invalid.
+        // This is validated (line 338-342) but no test. Add test: reshape_multiple_infer_dim
+
+        // TODO: Missing test coverage for incompatible total element count
+        // When reshape shape specifies total elements != input total elements (and no -1 to infer),
+        // this should fail. Add test: reshape_incompatible_size
 
         // Validate shape input type - must be Tensor or Shape
         match &node.inputs[1].ty {

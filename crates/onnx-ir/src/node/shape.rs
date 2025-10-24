@@ -131,6 +131,11 @@ impl NodeProcessor for ShapeProcessor {
             end_dim += rank as i64;
         }
 
+        // TODO: Missing clamping to [0, rank] as per ONNX spec - out-of-bounds positive values are not clamped.
+        // The spec explicitly states: "Values are clamped to [0, rank]" but implementation only normalizes negative indices.
+        // This could lead to panics or incorrect results when start/end exceed rank.
+        // Should add: start_dim = start_dim.max(0).min(rank); end_dim = end_dim.max(0).min(rank);
+
         // Calculate dimensions
         let start = start_dim as usize;
         let end = end_dim as usize;
@@ -274,6 +279,16 @@ mod tests {
             })
         ));
     }
+
+    // TODO: Missing test for start/end clamping behavior - ONNX spec requires clamping to [0, rank].
+    // Need tests for: start > rank, end > rank, start < -rank, end < -rank.
+    // These edge cases are mentioned in spec but not validated or tested.
+
+    // TODO: Missing test for opset 15 features - start and end attributes were added in opset 15.
+    // Need test to verify behavior when opset < 15 (should not have start/end attributes).
+
+    // TODO: Missing test for zero-rank tensors (scalars) - what should Shape return for rank-0 input?
+    // ONNX spec doesn't explicitly cover this edge case.
 
     #[test]
     fn test_shape_output_type() {

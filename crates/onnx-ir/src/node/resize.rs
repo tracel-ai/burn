@@ -238,17 +238,68 @@ impl NodeProcessor for ResizeProcessor {
         // Validate input count
         crate::processor::validate_min_inputs(node, 1)?;
 
+        // TODO: Add maximum input count validation
+        // Spec allows 1-4 inputs (X, roi, scales, sizes). Should validate max 4 inputs.
+        // Location: After validate_min_inputs
+
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Missing validation for scales and sizes both provided
+        // Spec states: "Either 'scales' or 'sizes' MUST be provided, MUST NOT provide both."
+        // Implementation checks at least one is provided (line 331-335) but doesn't reject both.
+        // Should add validation: if both scales and sizes are non-None, return error.
+        // Location: After extracting config, before checking at least one exists
+
+        // TODO: Missing test coverage for cubic mode
+        // ResizeMode::Cubic is defined and parsed but no test validates cubic interpolation.
+        // Add test: resize_cubic_mode
+
+        // TODO: Missing test coverage for different coordinate_transformation_mode values
+        // Implementation accepts and stores coordinate_transformation_mode but doesn't validate values.
+        // Spec defines: "half_pixel", "pytorch_half_pixel", "align_corners", "asymmetric", "tf_crop_and_resize"
+        // Tests don't verify different modes produce different/correct results.
+        // Add tests: resize_align_corners, resize_asymmetric, resize_tf_crop_and_resize
+
+        // TODO: Missing test coverage for nearest_mode variations
+        // Spec defines nearest_mode: "round_prefer_floor", "round_prefer_ceil", "floor", "ceil"
+        // No tests validate different rounding behaviors.
+        // Add tests: resize_nearest_floor, resize_nearest_ceil
+
+        // TODO: Missing test coverage for keep_aspect_ratio_policy (opset 18+)
+        // Attribute is validated to reject non-"stretch" values (lines 291-299) but no test.
+        // Add test: resize_keep_aspect_ratio_not_stretch (should fail)
+
+        // TODO: Missing test coverage for axes attribute (opset 18+)
+        // Attribute is validated to reject custom axes (lines 262-266) but no test.
+        // Add test: resize_custom_axes (should fail)
+
+        // FIXME: ROI input support is missing
+        // Implementation explicitly rejects non-empty ROI (lines 309-325) but ROI is part of spec.
+        // ROI (Region of Interest) allows resizing only a subregion. This is a spec deviation.
+        // Impact: MEDIUM - Models using ROI-based resize will fail.
+        // Either implement ROI support or clearly document limitation.
+
+        // TODO: Missing test coverage for 1D and 3D tensors
+        // Tests only cover 4D tensors (N,C,H,W). Spec supports any rank >= 1.
+        // Add tests: resize_1d, resize_3d, resize_5d
+
+        // TODO: Missing test coverage for antialias attribute validation
+        // antialias is validated to reject non-zero (lines 254-260) but no test.
+        // Add test: resize_antialias_enabled (should fail with current implementation)
 
         // Note: we are ignoring some attributes because results are approximately the same
         // and we are not supporting all the attributes of the Resize operator.
         // However, some attributes are important to be checked and we are checking
         // against the default values of the attributes.
         // TODO revisit this when we have more Resize operators in the model
-        // FIXME: The spec mentions `antialias` (default=0), `axes` (optional), and other attributes
-        // that are partially validated. The implementation rejects non-default values but doesn't
-        // validate all documented attributes comprehensively.
+
+        // TODO: Missing validation for coordinate_transformation_mode values
+        // Implementation stores coordinate_transformation_mode string but doesn't validate it
+        // against spec-defined values. Invalid mode strings are accepted silently.
+        // Should validate mode is one of: "half_pixel", "pytorch_half_pixel", "align_corners",
+        // "asymmetric", "tf_crop_and_resize", "tf_half_pixel_for_nn"
+        // Location: extract_config method after extracting coordinate_transformation_mode
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "antialias" => {

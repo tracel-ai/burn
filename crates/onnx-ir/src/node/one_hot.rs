@@ -18,6 +18,16 @@
 //! ## Opset Versions
 //! - **Opset 9**: Initial version with indices, depth, and values inputs.
 //! - **Opset 11**: Added support for negative axis values and clarified axis semantics.
+//!
+//! ## Type Constraints (from ONNX spec)
+//! - T1 (indices): tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+//! - T2 (depth): tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+//! - T3 (values/output): tensor(float), tensor(int32), tensor(int64), tensor(float16), etc.
+//!
+//! TODO: Add type constraint validation for indices and depth inputs
+//! Current implementation doesn't validate that indices and depth are integer types.
+//! Should reject non-integer types like float for indices/depth inputs.
+//! Location: infer_types method after validate_input_count
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -107,8 +117,30 @@ impl NodeProcessor for OneHotProcessor {
         // OneHot requires exactly 3 inputs: indices, depth, and values
         crate::processor::validate_input_count(node, 3)?;
 
-        // TODO: Validate that depth input is scalar or rank-1 tensor as per spec
+        // TODO: Validate that depth input is scalar or rank-1 tensor with single element as per spec
+        // Current implementation extracts depth[0] in extract_config but doesn't validate shape.
+        // Should add validation: depth must be scalar (rank 0) or rank-1 tensor with shape [1].
+        // Location: After validate_input_count, before one_hot_output_shape
+
         // TODO: Validate that values input has exactly 2 elements [off_value, on_value]
+        // The spec requires values to be a 2-element tensor, but this is only checked in extract_config
+        // when static value is available. For runtime values, no validation occurs.
+        // Should validate tensor shape is [2] when values is a tensor input.
+        // Location: After validate_input_count, before one_hot_output_shape
+
+        // TODO: Missing test coverage for negative indices handling
+        // ONNX spec states: "If an index is less than 0, it is treated as -1 and the corresponding
+        // output position is set to off_value". No test validates this edge case.
+        // Add test: one_hot_negative_indices
+
+        // TODO: Missing test coverage for out-of-bounds indices
+        // ONNX spec states: "If index value is greater than or equal to depth, the output is filled
+        // with off_value". No test validates this behavior.
+        // Add test: one_hot_out_of_bounds_indices
+
+        // TODO: Missing test coverage for negative axis values
+        // Opset 11 added support for negative axis, but no test validates axis=-2, axis=-3, etc.
+        // Add test: one_hot_negative_axis
 
         // Update output shape
         one_hot_output_shape(node)?;

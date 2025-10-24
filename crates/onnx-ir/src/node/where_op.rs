@@ -17,6 +17,10 @@
 //!
 //! ## Opset Versions
 //! - **Opset 9**: Initial version with broadcasting support for all three inputs.
+// TODO: Missing type constraint validation - ONNX spec requires X and Y to have same element type (constraint T), but implementation only validates after type conversion in get_elem_type - Should validate types match before broadcasting
+// TODO: Missing test coverage for type mismatch with Shape types - Tests cover Shape type propagation but not error case when X is Shape and Y is non-integer tensor - Need negative test case
+// TODO: Missing test coverage for zero-size tensors - No test validates Where behavior with zero-size condition/X/Y tensors - Should add test case
+// TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
 use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{
@@ -74,6 +78,7 @@ impl NodeProcessor for WhereProcessor {
         let y_elem_type = get_elem_type(y);
         let condition_elem_type = get_elem_type(condition);
 
+        // FIXME: Condition type validation allows Shape types incorrectly - ONNX spec requires condition to be boolean (type B), but implementation allows Shape type (always I64) which violates spec - Shape should not be allowed as condition type
         if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != DType::Bool {
             return Err(ProcessError::TypeMismatch {
                 expected: "Bool".to_string(),

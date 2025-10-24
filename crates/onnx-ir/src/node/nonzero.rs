@@ -16,6 +16,16 @@
 //! ## Opset Versions
 //! - **Opset 9**: Initial version. Returns 2D tensor with shape [rank(X), num_non_zero].
 //! - **Opset 13**: Added support for bfloat16 input type.
+//!
+//! ## Type Constraints (from ONNX spec)
+//! - T: tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(int8), tensor(int16),
+//!   tensor(int32), tensor(int64), tensor(bfloat16), tensor(float16), tensor(float), tensor(double),
+//!   tensor(string), tensor(bool), tensor(complex64), tensor(complex128)
+//!
+//! TODO: Add validation for supported input types - current implementation accepts any tensor type
+//! without validation against ONNX type constraints. While this may work for numeric types,
+//! unsupported types like string, complex64, complex128 should be explicitly rejected.
+//! Location: infer_types method after line 38
 
 use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -37,6 +47,11 @@ impl NodeProcessor for NonZeroProcessor {
 
         match &node.inputs[0].ty {
             ArgType::Tensor(_tensor) => {
+                // TODO: Missing test coverage for zero-size input tensors (e.g., shape [0, 5] or [3, 0])
+                // The spec allows zero-size tensors, but there's no test validating behavior when
+                // input tensor has zero elements. Should return [rank, 0] shaped output.
+                // Add test: nonzero_zero_size_tensor
+
                 // Output is always a 2D Int64 tensor
                 // Shape: [input_tensor_rank, num_nonzero_elements]
                 // First dimension equals input tensor rank

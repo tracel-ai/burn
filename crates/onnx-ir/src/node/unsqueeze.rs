@@ -14,6 +14,7 @@
 //! - `axes` (tensor(int64)): List of integers indicating the dimensions to be inserted.
 //!   Negative values count dimensions from the back. Accepted range is [-r, r-1] where r = rank(expanded).
 //!   The order of values in axes does not matter and can come in any order.
+// TODO: Axes range validation not implemented - ONNX spec requires axes values in [-r, r-1] range where r = rank(expanded), but extract_config and infer_types do not validate this constraint - Missing validation in extract_config after line 151
 //!
 //! ## Outputs
 //!
@@ -25,6 +26,10 @@
 //! - **Opset 13**: Changed 'axes' from attribute to required input, enabling dynamic axes specification at runtime.
 //!
 //! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
+// TODO: Missing test coverage for negative axes - Tests exist for positive axes but no test validates negative axis values work correctly per opset 11+ spec - Need test case with negative axes like [-1, -3]
+// TODO: Missing test coverage for zero-size tensor - No test validates unsqueeze behavior with zero-size input tensor (e.g., shape [0, 3]) - Should add test case
+// TODO: Missing test coverage for duplicate axes error case - No test verifies that duplicate axes are rejected - Need negative test case
+// TODO: Missing test coverage for out-of-range axes - No test validates axes range checking per spec [-r, r-1] - Need negative test cases
 //!
 //! ## Special Optimizations
 //!
@@ -75,6 +80,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
+        // TODO: Opset validation incorrectly rejects opset < 13 - Implementation should support opset 1+ with axes as attribute for opset < 13, but validate_opset requires opset 13+ - Should validate based on whether axes is attribute or input
         crate::processor::validate_opset(opset, 13)?;
 
         // Validate we have at least one input
@@ -148,6 +154,7 @@ impl NodeProcessor for UnsqueezeProcessor {
                             "Unsqueeze: axes tensor must be 1D".to_string(),
                         ));
                     }
+                    // TODO: Missing duplicate axes validation - ONNX spec states axes order doesn't matter but doesn't allow duplicates, implementation doesn't check for duplicate values in axes - Should validate uniqueness after to_i64_vec
                     match tensor_data.to_i64_vec() {
                         Ok(axes) => UnsqueezeConfig::Static(axes),
                         Err(_) => {
