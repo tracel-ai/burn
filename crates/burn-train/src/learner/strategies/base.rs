@@ -5,9 +5,9 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
-    TrainingResult, ValidLoader,
-    components::LearnerComponentTypes,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, SupervisedLearningTypes,
+    TrainLoader, TrainStep, TrainingResult, ValidLoader, ValidStep,
+    components::{LearnerComponentTypes, LearningData},
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
@@ -56,23 +56,9 @@ impl<B: AutodiffBackend, LC: LearnerComponentTypes> Default for LearningStrategy
 }
 
 /// Provides the `fit` function for any learning strategy
-pub trait LearningMethod<LC: LearnerComponentTypes> {
-    /// The dataloaders after being prepared for this trainin strategy
-    ///
-    /// (eg: splitting for multiple devices)
-    type PreparedDataloaders;
-    /// The model after being prepared for this training strategy
-    ///
-    /// The prepared model will be correctly initialized on the proper device for training.
-    type PreparedModel;
-
+pub trait LearningMethod<SL: SupervisedLearningTypes> {
     /// Fit the learner's model with this strategy.
-    fn fit(
-        &self,
-        mut learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> TrainingResult<LC::InnerModel> {
+    fn fit(&self, mut learner: Learner<SL::LC>) -> TrainingResult<SL::InnerModel> {
         let mut model = learner.model;
         let mut optim = learner.optim;
         let mut lr_scheduler = learner.lr_scheduler;
@@ -94,9 +80,6 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
             None => 1,
         };
 
-        let dataloaders = self.prepare_dataloaders(dataloader_train, dataloader_valid);
-        let model = self.prepare_model(model);
-
         // Training loop
         let components = LearnerComponents {
             optim,
@@ -109,8 +92,7 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
             event_processor: learner.event_processor,
             event_store: learner.event_store,
         };
-        let (model, mut event_processor) =
-            self.learn(model, dataloaders, starting_epoch, components);
+        let (model, mut event_processor) = self.learn(model, starting_epoch, components);
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         event_processor.process_train(LearnerEvent::End);
@@ -125,33 +107,20 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        TrainingResult::<LC::InnerModel> {
+        TrainingResult::<SL::InnerModel> {
             model,
             renderer,
             summary,
         }
     }
 
-    /// Prepare the dataloaders for this strategy.
-    /// The output will be used in [the learn function](Self::learn)
-    fn prepare_dataloaders(
-        &self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> Self::PreparedDataloaders;
-
-    /// Prepare the model for this training strategy.
-    /// The output will be used in [the learn function](Self::learn)
-    fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel;
-
     /// Training loop for this strategy
     fn learn(
         &self,
-        model: Self::PreparedModel,
-        dataloaders: Self::PreparedDataloaders,
+        model: SL::Model,
         starting_epoch: usize,
-        components: LearnerComponents<LC>,
-    ) -> (LC::Model, LC::EventProcessor);
+        components: LearnerComponents<SL::LC>,
+    ) -> (SL::Model, <SL::LC as LearnerComponentTypes>::EventProcessor);
 }
 
 /// Struct to minimise parameters passed to [LearningMethod::learn]

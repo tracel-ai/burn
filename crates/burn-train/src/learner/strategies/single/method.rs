@@ -1,6 +1,7 @@
 use crate::{
-    LearnerComponents, LearningMethod, TrainLoader, ValidLoader,
-    components::LearnerComponentTypes,
+    LearnerComponents, LearningMethod, SupervisedLearningTypes, TrainLoader, TrainStep,
+    ValidLoader, ValidStep,
+    components::{LearnerComponentTypes, LearningData},
     learner::strategies::single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::{module::Module, tensor::Device};
@@ -10,53 +11,33 @@ use std::{marker::PhantomData, sync::Arc};
 /// validation.
 pub struct SingleDeviceLearningStrategy<LC: LearnerComponentTypes> {
     device: Device<LC::Backend>,
+    dataloader_train: TrainLoader<LC>,
+    dataloader_valid: ValidLoader<LC>,
     _p: PhantomData<LC>,
 }
 impl<LC: LearnerComponentTypes> SingleDeviceLearningStrategy<LC> {
     pub fn new(device: Device<LC::Backend>) -> Self {
-        Self {
-            device,
-            _p: PhantomData,
-        }
+        todo!()
+        // Self {
+        //     device,
+        //     _p: PhantomData,
+        // }
     }
 }
 
-pub type CustomSingleDeviceLearningStrategy<LC> = Arc<
-    dyn LearningMethod<
-            LC,
-            PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>),
-            PreparedModel = <LC as LearnerComponentTypes>::Model,
-        >,
->;
+pub type CustomSingleDeviceLearningStrategy<LC> = Arc<dyn LearningMethod<LC>>;
 
-impl<LC: LearnerComponentTypes> LearningMethod<LC> for SingleDeviceLearningStrategy<LC> {
-    type PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>);
-
-    type PreparedModel = LC::Model;
-
-    fn prepare_dataloaders(
-        &self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> Self::PreparedDataloaders {
-        // The reference model is always on the first device provided.
-        let train = dataloader_train.to_device(&self.device);
-        let valid = dataloader_valid.to_device(&self.device);
-
-        (train, valid)
-    }
-
-    fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
-        model.fork(&self.device)
-    }
-
+impl<SL: SupervisedLearningTypes> LearningMethod<SL> for SingleDeviceLearningStrategy<SL::LC> {
     fn learn(
         &self,
-        mut model: LC::Model,
-        (dataloader_train, dataloader_valid): Self::PreparedDataloaders,
+        model: SL::Model,
         starting_epoch: usize,
-        mut components: LearnerComponents<LC>,
-    ) -> (LC::Model, LC::EventProcessor) {
+        mut components: LearnerComponents<SL::LC>,
+    ) -> (SL::Model, <SL::LC as LearnerComponentTypes>::EventProcessor) {
+        let mut model = model.fork(&self.device);
+        let dataloader_train = self.dataloader_train.to_device(&self.device);
+        let dataloader_valid = self.dataloader_valid.to_device(&self.device);
+
         let mut epoch_train = SingleDeviceTrainEpoch::new(
             dataloader_train,
             starting_epoch,
@@ -65,7 +46,7 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for SingleDeviceLearningStrat
         );
 
         for epoch in starting_epoch..components.num_epochs + 1 {
-            (model, components.optim) = epoch_train.run::<LC>(
+            (model, components.optim) = epoch_train.run::<SL::LC>(
                 model,
                 components.optim,
                 &mut components.lr_scheduler,
@@ -77,7 +58,7 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for SingleDeviceLearningStrat
                 break;
             }
 
-            let epoch_valid = SingleDeviceValidEpoch::<LC>::new(
+            let epoch_valid = SingleDeviceValidEpoch::<SL::LC>::new(
                 dataloader_valid.clone(),
                 epoch,
                 components.num_epochs,

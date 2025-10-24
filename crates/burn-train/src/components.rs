@@ -17,17 +17,9 @@ pub trait LearnerComponentTypes {
     /// The learning rate scheduler used for the training.
     type LrScheduler: LrScheduler;
     /// The model to train.
-    type Model: AutodiffModule<Self::Backend, InnerModule = Self::InnerModel>
-        + TrainStep<
-            <Self::LearningData as LearningData>::TrainInput,
-            <Self::LearningData as LearningData>::TrainOutput,
-        > + core::fmt::Display
-        + 'static;
+    type Model: AutodiffModule<Self::Backend, InnerModule = Self::InnerModel> + 'static;
     /// The non-autodiff type of the model, should implement ValidationStep
-    type InnerModel: ValidStep<
-            <Self::LearningData as LearningData>::ValidInput,
-            <Self::LearningData as LearningData>::ValidOutput,
-        >;
+    type InnerModel;
     /// The optimizer used for the training.
     type Optimizer: Optimizer<Self::Model, Self::Backend>;
     /// The checkpointer used for the model.

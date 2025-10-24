@@ -1,7 +1,7 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponentTypes;
 use crate::metric::store::EventStoreClient;
-use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig, LearningStrategy};
+use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig};
 use burn_core::module::Module;
 use burn_core::tensor::Device;
 use burn_optim::Optimizer;
@@ -20,7 +20,6 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub(crate) learning_strategy: LearningStrategy<LC::Backend, LC>,
     pub(crate) interrupter: Interrupter,
     pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,

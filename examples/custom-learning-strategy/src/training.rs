@@ -1,4 +1,4 @@
-use burn::train::EventProcessorTraining;
+use burn::train::{EventProcessorTraining, Training};
 
 use std::{marker::PhantomData, sync::Arc};
 
@@ -100,45 +100,42 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .early_stopping(early_stopping)
         .num_epochs(config.num_epochs)
         .summary()
-        .build(
-            model,
-            config.optimizer.init(),
-            lr_scheduler.init().unwrap(),
-            burn::train::LearningStrategy::CustomSingleDevice(Arc::new(
-                MyCustomLearningStrategy::new(device),
-            )),
-        );
+        .build(model, config.optimizer.init(), lr_scheduler.init().unwrap());
 
-    learner.fit(dataloader_train, dataloader_valid);
+    learner.study(Knowledge::new(device, dataloader_train, dataloader_valid));
 }
 
-struct MyCustomLearningStrategy<LC: LearnerComponentTypes> {
+struct Experience<LC: LearnerComponentTypes> {
     device: Device<LC::Backend>,
+    dataloader_train: TrdinLoader<LC>,
+    dataloader_valid: ValidLoader<LC>,
     _p: PhantomData<LC>,
 }
 
-impl<LC: LearnerComponentTypes> MyCustomLearningStrategy<LC> {
-    pub fn new(device: Device<LC::Backend>) -> Self {
+impl<LC: LearnerComponentTypes> Experience<LC> {
+    pub fn new(
+        device: Device<LC::Backend>,
+        dataloader_train: TrdinLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
+    ) -> Self {
         Self {
             device,
+            dataloader_train,
+            dataloader_valid,
             _p: PhantomData,
         }
     }
 }
 
-impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<LC> {
+impl<LC: LearnerComponentTypes> LearningMethod<LC> for Experience<LC> {
     type PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>);
 
     type PreparedModel = <LC as LearnerComponentTypes>::Model;
 
-    fn prepare_dataloaders(
-        &self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> Self::PreparedDataloaders {
+    fn prepare_dataloaders(&self) -> Self::PreparedDataloaders {
         // The reference model is always on the first device provided.
-        let train = dataloader_train.to_device(&self.device);
-        let valid = dataloader_valid.to_device(&self.device);
+        let train = self.dataloader_train.to_device(&self.device);
+        let valid = self.dataloader_valid.to_device(&self.device);
 
         (train, valid)
     }

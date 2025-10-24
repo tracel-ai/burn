@@ -4,7 +4,7 @@ use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 use std::sync::Arc;
 
-use crate::components::OutputTrain;
+use crate::components::{LearningData, OutputTrain};
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{TrainStep, ValidLoader, ValidStep};
 use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
@@ -26,7 +26,17 @@ pub struct SingleDeviceTrainEpoch<B: AutodiffBackend, TI> {
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
+impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC>
+where
+    LC::Model: TrainStep<
+            <LC::LearningData as LearningData>::TrainInput,
+            <LC::LearningData as LearningData>::TrainOutput,
+        > + core::fmt::Display,
+    LC::InnerModel: ValidStep<
+            <LC::LearningData as LearningData>::ValidInput,
+            <LC::LearningData as LearningData>::ValidOutput,
+        >,
+{
     /// Runs the validation epoch.
     ///
     /// # Arguments

@@ -35,8 +35,7 @@ use burn_optim::lr_scheduler::LrScheduler;
 pub struct LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
     B: AutodiffBackend,
-    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep<VI, VO>,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler,
     TI: Send + 'static,
@@ -87,8 +86,7 @@ type LC<B, S, M, O, TO, VO, TI, VI> = LearnerComponentsMarker<
 impl<B, M, O, S, TI, VI, TO, VO> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
     B: AutodiffBackend,
-    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep<VI, VO>,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler,
     TI: Send + 'static,
@@ -333,10 +331,11 @@ where
         model: M,
         optim: O,
         lr_scheduler: S,
-        learning_strategy: LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>,
     ) -> Learner<LC<B, S, M, O, TO, VO, TI, VI>>
     where
         M::Record: 'static,
+        M: TrainStep<TI, TO>,
+        M::InnerModule: ValidStep<VI, VO>,
         O::Record: 'static,
         S::Record<B>: 'static,
     {
@@ -376,7 +375,7 @@ where
             None
         };
 
-        let learning_strategy = Self::prepare_learning_strategy(learning_strategy);
+        // let learning_strategy = Self::prepare_learning_strategy(learning_strategy);
 
         Learner {
             model,
@@ -388,7 +387,6 @@ where
             event_store,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
-            learning_strategy,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             summary,
@@ -401,6 +399,8 @@ where
     where
         M::Record: 'static,
         O::Record: 'static,
+        M: TrainStep<TI, TO>,
+        M::InnerModule: ValidStep<VI, VO>,
         S::Record<B>: 'static,
     {
         if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy
@@ -417,8 +417,7 @@ where
 pub trait MetricRegistration<B, M, O, S, TI, VI, TO, VO>: Sized
 where
     B: AutodiffBackend,
-    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep<VI, VO>,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler,
     TI: Send + 'static,
@@ -437,8 +436,7 @@ where
 pub trait TextMetricRegistration<B, M, O, S, TI, VI, TO, VO>: Sized
 where
     B: AutodiffBackend,
-    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep<VI, VO>,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler,
     TI: Send + 'static,
@@ -458,8 +456,7 @@ macro_rules! gen_tuple {
         impl<$($M,)* B, M, O, S, TI, VI, TO, VO> TextMetricRegistration<B, M, O, S, TI, VI, TO, VO> for ($($M,)*)
         where
             B: AutodiffBackend,
-            M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
-            M::InnerModule: ValidStep<VI, VO>,
+            M: AutodiffModule<B> + core::fmt::Display + 'static,
             O: Optimizer<M, B>,
             S: LrScheduler,
             TI: Send + 'static,
@@ -485,8 +482,7 @@ macro_rules! gen_tuple {
         impl<$($M,)* B, M, O, S, TI, VI, TO, VO> MetricRegistration<B, M, O, S, TI, VI, TO, VO> for ($($M,)*)
         where
             B: AutodiffBackend,
-            M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
-            M::InnerModule: ValidStep<VI, VO>,
+            M: AutodiffModule<B> + core::fmt::Display + 'static,
             O: Optimizer<M, B>,
             S: LrScheduler,
             TI: Send + 'static,

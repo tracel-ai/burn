@@ -1,11 +1,11 @@
 use crate::components::{
-    InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
+    InputTrain, InputValid, LearnerComponentTypes, LearningData, TrainBackend, ValidBackend,
 };
 #[cfg(feature = "ddp")]
 use crate::ddp::DdpLearningStrategy;
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::MetricsRenderer;
-use crate::single::SingleDeviceLearningStrategy;
+use crate::single::{CustomSingleDeviceLearningStrategy, SingleDeviceLearningStrategy};
 use crate::{Learner, LearnerSummary, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
@@ -129,31 +129,90 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// # Returns
     ///
     /// The fitted model.
-    pub fn fit(
-        self,
+    pub fn fit<T: TrainingLoop<LC>>(self, training: T) -> TrainingResult<LC::InnerModel> {
+        training.run(self)
+    }
+}
+
+pub struct Training<LC: LearnerComponentTypes> {
+    training_loop: Box<dyn TrainingLoop<LC>>,
+}
+
+impl<LC: LearnerComponentTypes> Training<LC> {
+    pub fn from_dataloaders<LM: LearningMethod>(
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> TrainingResult<LC::InnerModel> {
-        log::info!("Fitting the model:\n {}", self.model);
-
-        match &self.learning_strategy {
-            LearningStrategy::SingleDevice(device) => {
-                let single_device = SingleDeviceLearningStrategy::new(device.clone());
-                single_device.fit(self, dataloader_train, dataloader_valid)
-            }
-            LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
-                .clone()
-                .fit(self, dataloader_train, dataloader_valid),
-            LearningStrategy::MultiDeviceNaive(devices) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
-                multi_device.fit(self, dataloader_train, dataloader_valid)
-            }
-
-            #[cfg(feature = "ddp")]
-            LearningStrategy::DistributedDataParallel { devices, config } => {
-                let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
-                ddp.fit(self, dataloader_train, dataloader_valid)
-            }
+        learning_strategy: LM,
+    ) -> Self {
+        let training_loop = SupervisedLearning::new(dataloader_train, dataloader_valid, todo!());
+        Self {
+            training_loop: Box::new(training_loop),
         }
     }
+}
+
+#[derive(new)]
+pub struct SupervisedLearning<LC: LearnerComponentTypes, LM: LearningMethod<LC>>
+where
+    LC::Model: TrainStep<
+            <LC::LearningData as LearningData>::TrainInput,
+            <LC::LearningData as LearningData>::TrainOutput,
+        > + core::fmt::Display,
+    LC::InnerModel: ValidStep<
+            <LC::LearningData as LearningData>::ValidInput,
+            <LC::LearningData as LearningData>::ValidOutput,
+        >,
+{
+    dataloader_train: TrainLoader<LC>,
+    dataloader_valid: ValidLoader<LC>,
+    learning_strategy: LM,
+}
+
+pub trait SupervisedLearningTypes {
+    type LC: LearnerComponentTypes<Model = Self::Model, InnerModel = Self::InnerModel>;
+    type Model: TrainStep<
+            <<Self::LC as LearnerComponentTypes>::LearningData as LearningData>::TrainInput,
+            <<Self::LC as LearnerComponentTypes>::LearningData as LearningData>::TrainOutput,
+        > + core::fmt::Display
+        + AutodiffModule<<Self::LC as LearnerComponentTypes>::Backend, InnerModule = Self::InnerModel>
+        + 'static;
+    type InnerModel: ValidStep<
+            <<Self::LC as LearnerComponentTypes>::LearningData as LearningData>::ValidInput,
+            <<Self::LC as LearnerComponentTypes>::LearningData as LearningData>::ValidOutput,
+        > + core::fmt::Display;
+}
+
+impl<LC: LearnerComponentTypes, LM: LearningMethod<LC>> TrainingLoop<LC>
+    for SupervisedLearning<LC, LM>
+where
+    LC::Model: TrainStep<
+            <LC::LearningData as LearningData>::TrainInput,
+            <LC::LearningData as LearningData>::TrainOutput,
+        > + core::fmt::Display,
+    LC::InnerModel: ValidStep<
+            <LC::LearningData as LearningData>::ValidInput,
+            <LC::LearningData as LearningData>::ValidOutput,
+        >,
+{
+    fn run(
+        self: Box<Self>,
+        learner: Learner<LC>,
+    ) -> TrainingResult<<LC as LearnerComponentTypes>::InnerModel> {
+        self.learning_strategy
+            .fit(learner, self.dataloader_train, self.dataloader_valid)
+    }
+}
+
+pub trait TrainingLoop<LC: LearnerComponentTypes> {
+    /// Fits the model.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataloader_train` - The training dataloader.
+    /// * `dataloader_valid` - The validation dataloader.
+    ///
+    /// # Returns
+    ///
+    /// The fitted model.
+    fn run(self: Box<Self>, learner: Learner<LC>) -> TrainingResult<LC::InnerModel>;
 }
