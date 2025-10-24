@@ -288,6 +288,19 @@ impl RegisteredTensors {
             .map(|(pos, _)| pos as u32)
     }
 
+    /// Get the index of a quantized tensor.
+    pub fn get_index_quant(&self, tensor_id: TensorId) -> Option<u32> {
+        self.tensors
+            .iter()
+            .enumerate()
+            .find(|(_pos, entry)| match entry {
+                RegisterTensor::Normal(..) => false,
+                RegisterTensor::QuantValues(tensor_ir) => tensor_ir.id == tensor_id,
+                RegisterTensor::QuantParams(_) => false,
+            })
+            .map(|(pos, _)| pos as u32)
+    }
+
     /// Doesn't return quantized tensor.
     pub fn get(&self, tensor_id: TensorId) -> Option<(&TensorIr, &FusePrecision)> {
         self.tensors

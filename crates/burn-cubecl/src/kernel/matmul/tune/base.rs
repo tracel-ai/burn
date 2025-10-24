@@ -8,7 +8,9 @@ use cubecl::{
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
             simple_unit::SimpleUnitSelectionArgs,
         },
-        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+        tune_key::{
+            MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
+        },
     },
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
@@ -114,6 +116,8 @@ pub fn matmul_autotune<
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
             }))
             .with(Tunable::new(matmul_simple::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
+            // TODO: Activate tma when stable enough.
+            // .with(Tunable::new(matmul_simple_tma::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
             .with(
                 // Ordered should be tried most of the time.
@@ -157,9 +161,18 @@ fn create_key<R: CubeRuntime>(
         &rhs.shape.dims,
         &lhs.strides,
         &rhs.strides,
-        lhs.dtype.into(),
-        rhs.dtype.into(),
-        out.dtype.into(),
+        MatmulElemType {
+            elem: lhs.dtype.into(),
+            quantized: matches!(lhs.dtype, DType::QFloat(_)),
+        },
+        MatmulElemType {
+            elem: rhs.dtype.into(),
+            quantized: matches!(rhs.dtype, DType::QFloat(_)),
+        },
+        MatmulElemType {
+            elem: out.dtype.into(),
+            quantized: matches!(out.dtype, DType::QFloat(_)),
+        },
     )
 }
 
@@ -308,6 +321,26 @@ fn simple_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
     .map_err(|err| format!("{err:?}"))
 }
 
+// TMA Isn't yet stable enough to be activated.
+//
+// fn matmul_simple_tma<R: CubeRuntime, MP: MatmulPrecision>(
+//     lhs: CubeTensor<R>,
+//     rhs: CubeTensor<R>,
+//     out: CubeTensor<R>,
+// ) -> Result<(), String> {
+//     if matches!(lhs.dtype, DType::QFloat(_)) || matches!(rhs.dtype, DType::QFloat(_)) {
+//         return Err("QFloat isn't stable yet with async TMA loading".into());
+//     }
+//
+//     launch_matmul::<R, MP>(
+//         &Strategy::SimpleBarrier(AsyncReadingStrategy::Tma),
+//         lhs,
+//         rhs,
+//         out,
+//     )
+//     .map_err(|err| format!("{err:?}"))
+// }
+
 fn double_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
@@ -327,5 +360,9 @@ fn naive<R: CubeRuntime, MP: MatmulPrecision>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
+    if matches!(lhs.dtype, DType::QFloat(_)) || matches!(rhs.dtype, DType::QFloat(_)) {
+        return Err("QFloat isn't stable yet with quantized inputs".into());
+    }
+
     launch_matmul::<R, MP>(&Strategy::Naive, lhs, rhs, out).map_err(|err| format!("{err:?}"))
 }

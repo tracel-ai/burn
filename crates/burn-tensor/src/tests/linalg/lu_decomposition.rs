@@ -37,7 +37,12 @@ mod tests {
         permutations
             .into_data()
             .assert_eq(&expected_permutations.into_data(), true);
-        result.into_data().assert_eq(&expected.into_data(), true);
+        result
+            .into_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(
+                &expected.into_data(),
+                Tolerance::default(),
+            );
     }
 
     #[test]

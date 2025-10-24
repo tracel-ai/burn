@@ -64,6 +64,7 @@ pub mod tensor {
     }
 
     /// The action to take for a reshape operation.
+    #[derive(Debug)]
     pub enum ReshapeAction {
         /// Updating the strides is sufficient to handle the reshape.
         UpdateStrides {

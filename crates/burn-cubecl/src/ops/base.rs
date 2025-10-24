@@ -1,8 +1,8 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
-use burn_common::tensor::{ReshapeAction, reshape_action};
+use burn_common::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use burn_tensor::{
     DType, Shape, TensorData,
-    quantization::{QTensorPrimitive, QuantLevel},
+    quantization::{QTensorPrimitive, QuantLevel, params_shape},
 };
 use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
@@ -237,6 +237,68 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
     );
     out.qparams = tensor.qparams;
     out
+}
+
+/// Reshape a jit tensor to a new shape
+pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+    let scheme = *tensor.scheme();
+
+    let shape_values = {
+        let rank = shape.num_dims();
+        let mut shape = shape.clone();
+        shape[rank - 1] = shape[rank - 1].div_ceil(scheme.num_quants());
+        shape
+    };
+    let shape_scales = params_shape(&shape, scheme.level);
+    let (values, scales) = tensor.quantized_handles().unwrap();
+
+    let analysis_values = reshape_action(&values.shape.dims, &values.strides, &shape_values.dims);
+    let analysis_scales = reshape_action(&scales.shape.dims, &scales.strides, &shape_scales.dims);
+
+    match (analysis_values, analysis_scales) {
+        (
+            ReshapeAction::UpdateStrides { strides },
+            ReshapeAction::UpdateStrides {
+                strides: scales_strides,
+            },
+        ) => {
+            let qparams = tensor.qparams.as_mut().unwrap();
+
+            tensor.shape = shape;
+            tensor.strides = strides;
+
+            qparams.scales.shape = shape_scales;
+            qparams.scales.strides = scales_strides;
+        }
+        (ReshapeAction::UpdateStrides { strides }, ReshapeAction::NoChange) => {
+            tensor.shape = shape;
+            tensor.strides = strides;
+        }
+        (
+            ReshapeAction::NoChange,
+            ReshapeAction::UpdateStrides {
+                strides: scales_strides,
+            },
+        ) => {
+            let qparams = tensor.qparams.as_mut().unwrap();
+
+            qparams.scales.shape = shape_scales;
+            qparams.scales.strides = scales_strides;
+        }
+        (ReshapeAction::NoChange, ReshapeAction::NoChange) => {}
+        _ => {
+            tensor = kernel::into_contiguous(tensor);
+            tensor.shape = shape;
+            tensor.strides = contiguous_strides(&shape_values.dims);
+
+            let qparams = tensor.qparams.as_mut().unwrap();
+
+            qparams.scales.strides = contiguous_strides(&shape_scales.dims);
+            qparams.scales.shape = shape_scales;
+        }
+    }
+
+    tensor
 }
 
 pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
