@@ -167,7 +167,7 @@ where
 ///
 /// The L2 norm of the input tensor.
 pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    x.abs().powi_scalar(2).sum_dim(dim).sqrt()
+    x.abs().square().sum_dim(dim).sqrt()
 }
 
 /// Computes the general ``L(p)`` norm of a tensor along a specified dimension.

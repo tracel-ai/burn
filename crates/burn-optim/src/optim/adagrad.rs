@@ -118,11 +118,11 @@ impl LrDecay {
         lr_decay_state: Option<LrDecayState<B, D>>,
     ) -> (Tensor<B, D>, LrDecayState<B, D>) {
         let state = if let Some(mut state) = lr_decay_state {
-            state.sum = state.sum.add(grad.clone().powi_scalar(2));
+            state.sum = state.sum.add(grad.clone().square());
             state.time += 1;
             state
         } else {
-            LrDecayState::new(1, grad.clone().powi_scalar(2))
+            LrDecayState::new(1, grad.clone().square())
         };
 
         let new_lr = lr / (1. + (state.time as f64 - 1.) * self.lr_decay);

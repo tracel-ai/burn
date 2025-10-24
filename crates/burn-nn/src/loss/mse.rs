@@ -46,7 +46,7 @@ impl MseLoss {
         logits: Tensor<B, D>,
         targets: Tensor<B, D>,
     ) -> Tensor<B, D> {
-        logits.sub(targets).powi_scalar(2)
+        logits.sub(targets).square()
     }
 }
 
