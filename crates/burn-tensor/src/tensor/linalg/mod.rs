@@ -12,7 +12,7 @@ pub use outer::*;
 pub use trace::*;
 pub use vector_norm::*;
 
-use crate::{backend::Backend, BasicOps, SliceArg, Tensor, TensorKind};
+use crate::{BasicOps, SliceArg, Tensor, TensorKind, backend::Backend};
 
 /// Swaps two slices of a tensor.
 /// # Arguments
