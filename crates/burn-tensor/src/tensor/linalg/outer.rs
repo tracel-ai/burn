@@ -13,7 +13,7 @@ use crate::{AsIndex, Numeric};
 /// - `dim`: the dimension to product.
 ///
 /// # Returns
-/// - a ``[..., M, N]`` result.
+/// - the broadcast-shaped ``[..., M, N]`` result.
 pub fn outer<B: Backend, const D: usize, const R: usize, K>(
     x: Tensor<B, D, K>,
     y: Tensor<B, D, K>,
@@ -33,7 +33,7 @@ where
 /// - `dim`: the dimension to product, supports negative indexing.
 ///
 /// # Returns
-/// - a ``[..., M, N, ...]`` result.
+/// - the broadcast-shaped ``[..., M, N, ...]`` result.
 ///
 /// # Panics
 /// - if R != D + 1
