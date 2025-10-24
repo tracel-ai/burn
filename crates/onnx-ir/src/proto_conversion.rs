@@ -23,38 +23,72 @@ pub enum ParseError {
     VariantNotFound(String),
 }
 
-/// Sanitize ONNX names to be valid Rust identifiers
+/// Sanitize ONNX names to be valid Rust identifiers in snake_case
 ///
 /// This function converts ONNX variable names (which can contain special characters
 /// like ':',  '/', '.', etc.) into valid Rust identifiers by:
 /// 1. Keeping empty strings as-is (they represent optional inputs in ONNX)
-/// 2. Replacing invalid characters with underscores
-/// 3. Prepending an underscore if the name starts with a digit
+/// 2. Converting to snake_case (lowercase with underscores)
+/// 3. Replacing invalid characters with underscores
+/// 4. Prepending an underscore if the name starts with a digit
 ///
 /// Examples:
 /// - "" -> "" (empty strings represent optional inputs)
 /// - "input:0" -> "input_0"
 /// - "jax2tf/model/layer.weight" -> "jax2tf_model_layer_weight"
 /// - "123tensor" -> "_123tensor"
+/// - "onnx__GlobalAveragePool_0" -> "onnx_global_average_pool_0"
+/// - "MyVariable" -> "my_variable"
 pub fn sanitize_name(name: &str) -> String {
     // Empty strings represent optional inputs in ONNX - keep them as-is
     if name.is_empty() {
         return String::new();
     }
 
-    let mut result = String::with_capacity(name.len());
+    let mut result = String::with_capacity(name.len() * 2);
+    let mut prev_is_lower = false;
+    let mut prev_is_underscore = false;
 
-    // Replace invalid identifier characters with underscores
-    for c in name.chars() {
-        if c.is_ascii_alphanumeric() || c == '_' {
-            result.push(c);
+    for (i, c) in name.chars().enumerate() {
+        if c == '_' {
+            // Keep existing underscores, but avoid consecutive ones
+            if !prev_is_underscore || i == 0 {
+                result.push('_');
+                prev_is_underscore = true;
+            }
+            prev_is_lower = false;
+        } else if c.is_ascii_alphanumeric() {
+            // Insert underscore before uppercase letters that follow lowercase letters
+            if c.is_ascii_uppercase() && prev_is_lower && !prev_is_underscore {
+                result.push('_');
+            }
+
+            result.push(c.to_ascii_lowercase());
+            prev_is_lower = c.is_ascii_lowercase();
+            prev_is_underscore = false;
         } else {
-            result.push('_');
+            // Replace invalid characters with underscores, but avoid consecutive underscores
+            if !prev_is_underscore && i > 0 {
+                result.push('_');
+                prev_is_underscore = true;
+            }
+            prev_is_lower = false;
         }
     }
 
+    // Remove trailing underscores (but not if the entire string is underscores)
+    while result.ends_with('_') && result.len() > 1 {
+        // Check if removing this underscore would leave us with something
+        let check = result.trim_end_matches('_');
+        if check.is_empty() {
+            // All underscores, keep them
+            break;
+        }
+        result.pop();
+    }
+
     // Ensure the first character is valid to start an identifier
-    if !result.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+    if !result.is_empty() && !result.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
         result = format!("_{result}");
     }
 
@@ -512,9 +546,15 @@ mod tests {
 
     #[test]
     fn test_sanitize_name_basic() {
+        // Already snake_case
         assert_eq!(sanitize_name("valid_name"), "valid_name");
-        assert_eq!(sanitize_name("ValidName123"), "ValidName123");
         assert_eq!(sanitize_name("_underscore"), "_underscore");
+        assert_eq!(sanitize_name("a"), "a");
+
+        // Convert to snake_case
+        assert_eq!(sanitize_name("ValidName123"), "valid_name123");
+        assert_eq!(sanitize_name("MyVariable"), "my_variable");
+        assert_eq!(sanitize_name("HTTPResponse"), "httpresponse");
     }
 
     #[test]
@@ -531,8 +571,21 @@ mod tests {
         // Complex real-world example from GitHub issue #2878
         assert_eq!(
             sanitize_name("jax2tf_rhs_/pjit_silu_/Const_2:0"),
-            "jax2tf_rhs__pjit_silu__Const_2_0"
+            "jax2tf_rhs_pjit_silu_const_2_0"
         );
+    }
+
+    #[test]
+    fn test_sanitize_name_camel_to_snake() {
+        // Convert CamelCase and PascalCase to snake_case
+        assert_eq!(
+            sanitize_name("onnx__GlobalAveragePool_0"),
+            "onnx_global_average_pool_0"
+        );
+        assert_eq!(sanitize_name("onnx__Gemm_0"), "onnx_gemm_0");
+        assert_eq!(sanitize_name("onnx__Greater_0"), "onnx_greater_0");
+        assert_eq!(sanitize_name("MyClassName"), "my_class_name");
+        assert_eq!(sanitize_name("HTTPSConnection"), "httpsconnection");
     }
 
     #[test]
@@ -544,7 +597,7 @@ mod tests {
     #[test]
     fn test_sanitize_name_unicode() {
         // Unicode characters should be replaced with underscores
-        assert_eq!(sanitize_name("tensor™"), "tensor_");
+        assert_eq!(sanitize_name("tensor™"), "tensor");
         assert_eq!(sanitize_name("input€output"), "input_output");
     }
 
@@ -554,10 +607,18 @@ mod tests {
         assert_eq!(sanitize_name(""), "");
 
         assert_eq!(sanitize_name("_"), "_");
-        assert_eq!(sanitize_name("a"), "a");
-        assert_eq!(sanitize_name("___"), "___");
 
-        // All special chars become underscores (3 chars -> 3 underscores)
-        assert_eq!(sanitize_name(":/:"), "___");
+        // Consecutive underscores are collapsed to single underscore
+        assert_eq!(sanitize_name("___"), "_");
+        assert_eq!(sanitize_name("a__b"), "a_b");
+
+        // All special chars become single underscore
+        assert_eq!(sanitize_name(":/:"), "_");
+
+        // Consecutive special chars become single underscore
+        assert_eq!(sanitize_name("a:::b"), "a_b");
+
+        // Trailing underscores removed
+        assert_eq!(sanitize_name("name_:"), "name");
     }
 }
