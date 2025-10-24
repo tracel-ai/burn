@@ -258,12 +258,6 @@ pub fn compute_broadcast_static_shape(inputs: &[crate::ir::Argument]) -> Option<
             if current_dim == 1 {
                 result[result_idx] = dim;
             } else if dim != 1 && dim != current_dim {
-                log::debug!(
-                    "Incompatible dimensions for broadcasting: {} vs {} at position {}",
-                    current_dim,
-                    dim,
-                    result_idx
-                );
                 return None;
             }
         }

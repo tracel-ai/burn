@@ -119,7 +119,6 @@ impl GraphState {
 
     /// Add a node (maps outputs, renames outputs)
     pub(super) fn add_node(&mut self, mut node: Node) {
-        log::debug!("Adding node {:?}", &node.name);
         let node_idx = self.processed_nodes.len();
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {

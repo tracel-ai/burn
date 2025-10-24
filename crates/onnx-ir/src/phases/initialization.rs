@@ -32,10 +32,5 @@ pub(crate) fn initialize(model: &ModelProto) -> Rc<RefCell<GraphState>> {
         }
     }
 
-    log::debug!(
-        "Initialized state with {} initializers and {} value_info entries",
-        model.graph.initializer.len(),
-        model.graph.value_info.len()
-    );
     state_rc
 }

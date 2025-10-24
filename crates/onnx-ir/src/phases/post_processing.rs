@@ -174,7 +174,6 @@ pub(crate) fn post_process(
         let elimination_plan = plan_identity_elimination(&nodes);
         apply_identity_elimination(&mut nodes, &mut outputs, elimination_plan);
     }
-    log::debug!("After Identity elimination: {} nodes remain", nodes.len());
 
     // Re-run constant lifting after identity elimination
     log::debug!("Re-running constant lifting after Identity elimination");

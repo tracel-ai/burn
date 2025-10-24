@@ -21,11 +21,6 @@ pub(crate) fn infer_types(state_rc: &Rc<RefCell<GraphState>>, opset_version: usi
     let mut nodes = std::mem::take(&mut state_rc.borrow_mut().processed_nodes);
     iterative_type_inference_with_preferences(&mut nodes, opset_version);
     state_rc.borrow_mut().processed_nodes = nodes;
-
-    log::debug!(
-        "Type inference completed for {} nodes",
-        state_rc.borrow().processed_nodes.len()
-    );
 }
 
 /// Iterative type inference with preference propagation
@@ -42,8 +37,6 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
     let max_iterations = 100; // Safety limit to prevent infinite loops
 
     for iteration in 1..=max_iterations {
-        log::debug!("Type inference iteration {}", iteration);
-
         // Step 1: Build OutputPreferences map from collected preferences
         let mut node_preferences: HashMap<String, crate::processor::OutputPreferences> =
             HashMap::new();
@@ -183,15 +176,6 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
                                 if !collected_preferences.contains(&key) {
                                     collected_preferences.insert(key.clone());
                                     new_preferences_found = true;
-
-                                    log::debug!(
-                                        "Iteration {}: Node {} requests {:?} for output {} from node {}",
-                                        iteration,
-                                        consumer_node.name,
-                                        req_type,
-                                        output.name,
-                                        producer_node.name
-                                    );
                                 }
                             }
                             break;

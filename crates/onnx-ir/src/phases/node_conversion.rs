@@ -30,10 +30,6 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
             .count();
         if constant_count > 0 {
             node_name_counter.insert(NodeType::Constant, constant_count);
-            log::debug!(
-                "Initialized Constant counter to {} (from initializers)",
-                constant_count
-            );
         }
     }
 
@@ -96,8 +92,6 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
         // Add to graph state
         state_rc.borrow_mut().add_node(node);
     }
-
-    log::debug!("Converted {} ONNX nodes", model.graph.node.len());
 }
 
 /// Extract constant data from node attributes and move to tensor store
@@ -213,9 +207,7 @@ where
         }
         _ => panic!("Cannot infer kernel shape"),
     };
-    let old_type = node.node_type.clone();
     node.node_type = new_node_type(spatial_dims);
-    log::debug!("Remapped {} → {:?}", old_type, node.node_type);
 }
 
 /// Remap node type to a more specific one

@@ -41,11 +41,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
         "Nodes are not topologically sorted"
     );
 
-    log::debug!("Number of nodes: {}", model.graph.node.len());
-    log::debug!("Number of inputs: {}", model.graph.input.len());
-    log::debug!("Number of initializers: {}", model.graph.initializer.len());
-    log::debug!("Number of outputs: {}", model.graph.output.len());
-
     let graph = build_graph(&model);
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());

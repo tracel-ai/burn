@@ -73,19 +73,10 @@ fn remove_unreferenced_constants(nodes: &mut Vec<Node>, outputs: &[Argument]) {
     }
 
     // Filter out unreferenced constants
-    let initial_count = nodes.len();
     let mut i = 0;
     nodes.retain(|_node| {
         let keep = !constants_to_remove.contains(&i);
         i += 1;
         keep
     });
-
-    if initial_count != nodes.len() {
-        log::debug!(
-            "Removed {} unreferenced constant(s), {} nodes remain",
-            initial_count - nodes.len(),
-            nodes.len()
-        );
-    }
 }

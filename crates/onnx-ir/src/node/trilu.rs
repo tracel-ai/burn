@@ -138,29 +138,10 @@ impl NodeProcessor for TriluProcessor {
         // tensor extraction with shape validation to ensure it's 0-D.
         // Should validate: k tensor has shape [] or [1] and contains single int64 value.
         if let Some(diagonal_arg) = node.inputs.get(1) {
-            log::debug!(
-                "Trilu node {}: diagonal_arg name={}, value_source={:?}, data_id={:?}",
-                node.name,
-                diagonal_arg.name,
-                diagonal_arg.value_source,
-                diagonal_arg.data_id
-            );
             if let Some(tensor_data) = diagonal_arg.value() {
-                log::debug!(
-                    "Trilu node {}: Got tensor_data with shape={:?}",
-                    node.name,
-                    tensor_data.shape
-                );
                 // Extract scalar value, converting from any numeric type to i64
                 diagonal = match tensor_data.scalar_i64() {
-                    Ok(val) => {
-                        log::debug!(
-                            "Trilu node {}: Extracted diagonal value: {}",
-                            node.name,
-                            val
-                        );
-                        val
-                    }
+                    Ok(val) => val,
                     Err(e) => {
                         log::warn!(
                             "Trilu node {}: Failed to extract diagonal value: {:?}",
@@ -176,11 +157,6 @@ impl NodeProcessor for TriluProcessor {
                     node.name
                 );
             }
-        } else {
-            log::debug!(
-                "Trilu node {}: No second input (diagonal), defaulting to 0",
-                node.name
-            );
         }
 
         let config = TriluConfig::new(upper, diagonal);

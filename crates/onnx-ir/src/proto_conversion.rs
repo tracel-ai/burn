@@ -432,8 +432,6 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
 pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
     let name = sanitize_name(&node.name);
 
-    log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
-
     let inputs = node.input.iter().map(|x| graph_data.init_in(x)).collect();
 
     let outputs = node
