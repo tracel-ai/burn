@@ -211,9 +211,52 @@ where
     }
 }
 
+/// Compute the ravel index for the given coordinates.
+///
+/// This returns the row-major order raveling.
+///
+/// # Arguments
+/// - `coords`: must be the same size len as `dims`.
+/// - `dims`: must be the same len as `coords`.
+///
+/// # Returns
+/// - the ravel offset index.
+pub fn ravel_dims<I: AsIndex>(coords: &[I], dims: &[usize]) -> usize {
+    assert_eq!(
+        dims.len(),
+        coords.len(),
+        "Coordinate rank mismatch: expected {}, got {}",
+        dims.len(),
+        coords.len(),
+    );
+
+    let mut ravel_idx = 0;
+    let mut stride = 1;
+
+    for (i, &dim) in dims.iter().enumerate().rev() {
+        let coord = canonicalize_index(coords[i], dim, false);
+        ravel_idx += coord * stride;
+        stride *= dim;
+    }
+
+    ravel_idx
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn test_ravel() {
+        let shape = vec![2, 3, 4, 5];
+
+        assert_eq!(ravel_dims(&[0, 0, 0, 0], &shape), 0);
+        assert_eq!(
+            ravel_dims(&[1, 2, 3, 4], &shape),
+            1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
+        );
+    }
 
     #[test]
     fn test_wrap_idx() {
