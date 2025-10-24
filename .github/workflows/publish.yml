@@ -348,6 +348,10 @@ jobs:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
     needs:
       - publish-burn-core
+      - publish-burn-nn
+      - publish-burn-optim
+      - publish-burn-collective
+      - publish-burn-store
       - publish-burn-train
     with:
       crate: burn
@@ -359,6 +363,7 @@ jobs:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
     needs:
       - publish-burn
+      - publish-store
     with:
       crate: burn-import
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -369,6 +374,18 @@ jobs:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
     with:
       crate: onnx-ir
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-store:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
+    needs:
+      - publish-burn-core
+      - publish-burn-nn
+      - publish-burn-tensor
+    with:
+      crate: burn-store
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
