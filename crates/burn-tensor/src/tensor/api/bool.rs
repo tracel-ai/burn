@@ -144,8 +144,13 @@ where
             TriPart::Diagonal => Tensor::not_equal_elem,
         };
 
-        // Generate and return the mask by applying the comparison to the matrix.
-        compare(matrix, 0).unsqueeze()
+        // Generate the base mask by applying the comparison to the broadcast matrix.
+        let mask = compare(matrix, 0);
+
+        // Expand the mask to match the requested shape in every dimension so that
+        // batched triangular masks report the exact same shape as provided.
+        let target_shape = shape.dims::<D>();
+        mask.expand(target_shape).unsqueeze()
     }
 
     /// Creates a mask for the upper triangle of a matrix, which can be used to fill the specified

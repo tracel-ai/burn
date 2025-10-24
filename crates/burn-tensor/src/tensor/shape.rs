@@ -63,9 +63,13 @@ impl Shape {
 
     // For compat with dims: [usize; D]
     /// Returns the dimensions of the tensor as an array.
+    ///
+    /// Missing trailing dimensions are padded with `1` to preserve the historical
+    /// behaviour of fixed-size arrays representing shapes.
     pub fn dims<const D: usize>(&self) -> [usize; D] {
         let mut dims = [1; D];
-        dims[..D].copy_from_slice(&self.dims[..D]);
+        let len = core::cmp::min(D, self.dims.len());
+        dims[..len].copy_from_slice(&self.dims[..len]);
         dims
     }
 
