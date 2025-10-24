@@ -2332,6 +2332,9 @@ name = "custom-learning-strategy"
 version = "0.19.0"
 dependencies = [
  "burn",
+ "derive-new",
+ "guide",
+ "log",
 ]
 
 [[package]]

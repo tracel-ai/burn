@@ -41,7 +41,8 @@ pub struct LearnerCheckpointer<LC: LearnerComponentTypes> {
 }
 
 impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
-    pub(crate) fn checkpoint(
+    /// Create checkpoint for the training process.
+    pub fn checkpoint(
         &mut self,
         model: &LC::Model,
         optim: &LC::Optimizer,
@@ -79,7 +80,8 @@ impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
         }
     }
 
-    pub(crate) fn load_checkpoint(
+    /// Load a training checkpoint.
+    pub fn load_checkpoint(
         &self,
         model: LC::Model,
         optim: LC::Optimizer,
