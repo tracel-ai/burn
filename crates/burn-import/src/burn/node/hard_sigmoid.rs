@@ -47,8 +47,8 @@ impl OnnxIntoNode for HardSigmoidNode {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("HardSigmoid expects tensor output"),
         };
-        let (alpha, beta) = onnx_ir::node::hard_sigmoid::hard_sigmoid_config(&node);
-        Self::new(input, output, alpha, beta)
+        let config = node.config::<onnx_ir::node::hard_sigmoid::HardSigmoidConfig>();
+        Self::new(input, output, config.alpha, config.beta)
     }
 }
 
@@ -70,7 +70,12 @@ mod tests {
             0.5,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

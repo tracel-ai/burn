@@ -194,6 +194,8 @@ mod tests {
                 "tensor3".to_string(),
             ],
             vec!["tensor4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -249,6 +251,8 @@ mod tests {
                 "tensor3".to_string(),
             ],
             vec!["tensor4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -306,6 +310,8 @@ mod tests {
                 "tensor3".to_string(),
             ],
             vec!["tensor4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -361,6 +367,8 @@ mod tests {
                 "scalar3".to_string(),
             ],
             vec!["tensor4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -418,6 +426,8 @@ mod tests {
                 "scalar3".to_string(),
             ],
             vec!["scalar4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -473,6 +483,8 @@ mod tests {
                 "shape3".to_string(),
             ],
             vec!["shape4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -536,6 +548,8 @@ mod tests {
                 "shape3".to_string(),
             ],
             vec!["shape4".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

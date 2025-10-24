@@ -6,18 +6,22 @@ from onnx import TensorProto, helper
 
 def create_model():
     # Create a model that generates a scalar constant
-    # Input is a shape tensor [0] which means scalar output
-    
-    # Create input (shape input)
-    shape_input = helper.make_tensor_value_info(
-        'shape', TensorProto.INT64, [0]  # Empty shape tensor for scalar output
+    # Shape is provided as an initializer (compile-time constant)
+    # to indicate scalar output shape []
+
+    # Create shape initializer - empty array means scalar output
+    shape_initializer = helper.make_tensor(
+        name='shape',
+        data_type=TensorProto.INT64,
+        dims=[0],  # 1D tensor with 0 elements (empty array)
+        vals=[]
     )
-    
+
     # Create output - scalar float
     output = helper.make_tensor_value_info(
         'output', TensorProto.FLOAT, []  # Empty shape means scalar
     )
-    
+
     # Create ConstantOfShape node with default value (0.0 float)
     constantofshape_node = helper.make_node(
         'ConstantOfShape',
@@ -25,13 +29,14 @@ def create_model():
         outputs=['output'],
         name='constantofshape'
     )
-    
-    # Create the graph
+
+    # Create the graph with initializer instead of input
     graph = helper.make_graph(
         [constantofshape_node],
         'constant_of_shape_scalar',
-        [shape_input],
-        [output]
+        [],  # No runtime inputs
+        [output],
+        initializer=[shape_initializer]
     )
     
     # Create the model

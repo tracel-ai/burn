@@ -117,12 +117,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
 impl OnnxIntoNode for LinearNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use burn::tensor::TensorData;
-        use onnx_ir::ir::{ArgType, Data};
+        use onnx_ir::ir::ArgType;
 
         let name = &node.name;
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::linear::linear_config(&node);
+        let config = node.config::<onnx_ir::node::linear::LinearConfig>();
 
         // Helper function to extract and serialize data - hardcoded to f32
         fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
@@ -131,33 +131,22 @@ impl OnnxIntoNode for LinearNode {
             }
 
             let input = node.inputs.get(input_index)?;
-            let value = input.value.as_ref()?;
+            let value = input.value()?;
             let ty = input.ty.clone();
 
             match ty {
-                ArgType::Tensor(_) => {
-                    let data = value.data.clone();
-                    let shape = value.shape.clone();
-
-                    let tensor_data = match data {
-                        Data::Float16s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Float32s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Int32s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Int64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        _ => panic!("Unsupported tensor element type"),
-                    };
-
-                    Some(tensor_data)
+                ArgType::Tensor(_) | ArgType::Shape(_) | ArgType::Scalar(_) => {
+                    // For Tensor, Shape, and Scalar types, extract the underlying tensor data
+                    // onnx-ir now uses burn_tensor::TensorData directly
+                    Some(value.clone().convert::<f32>())
                 }
-                _ => panic!("Unsupported serialization type"),
             }
         }
 
         let weight = extract_data_serialize(1, &node).expect("Weight is required");
         let bias = extract_data_serialize(2, &node);
 
-        LinearNode::new(name, input, output, weight, bias, config)
+        LinearNode::new(name, input, output, weight, bias, config.clone())
     }
 }
 
@@ -180,7 +169,12 @@ mod tests {
             LinearConfig::new(128, 128),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

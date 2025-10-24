@@ -1,67 +1,139 @@
-use crate::from_onnx::element_type_from_proto;
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+//! # EyeLike
+//!
+//! Generates a 2D tensor (matrix) with ones on the diagonal and zeros everywhere else.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__EyeLike.html>
+//!
+//! ## Attributes
+//! - `dtype` (int, optional): Data type for output. Must be a valid data type from TensorProto.
+//!   If not specified, the type of the input tensor is used.
+//! - `k` (int, default=0): Index of the diagonal to populate with ones.
+//!   - `k=0`: Main diagonal (default)
+//!   - `k>0`: Upper diagonal (k positions above main)
+//!   - `k<0`: Lower diagonal (k positions below main)
+//!
+//! ## Inputs
+//! - `input` (T1): 2D input tensor used only for shape reference. Must be rank 2.
+//!
+//! ## Outputs
+//! - `output` (T2): 2D output tensor with the same shape as input, containing ones on diagonal k
+//!   and zeros everywhere else.
+//!
+//! ## Opset Versions
+//! - **Opset 9+**: Initial version with dtype and k attributes
+
+use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::proto_conversion::element_type_from_proto;
+
+use std::any::Any;
 
 /// Configuration for EyeLike operations
 #[derive(Debug, Clone, new)]
 pub struct EyeLikeConfig {
     /// Data type of the output tensor (optional, defaults to input type)
-    pub dtype: Option<ElementType>,
+    pub dtype: Option<DType>,
     /// Diagonal offset (0 = main diagonal, >0 = upper, <0 = lower)
     pub k: i64,
 }
 
-/// Create an EyeLike configuration from the node
-pub fn eye_like_config(node: &Node) -> EyeLikeConfig {
-    let mut dtype = None;
-    let mut k = 0i64; // default to main diagonal
-
-    // Extract attributes
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "dtype" => {
-                let dtype_i32 = value.clone().into_i32();
-                dtype = Some(
-                    element_type_from_proto(dtype_i32)
-                        .unwrap_or_else(|e| panic!("Unsupported dtype for EyeLike: {}", e)),
-                );
-            }
-            "k" => {
-                k = value.clone().into_i64();
-            }
-            _ => {}
-        }
+impl NodeConfig for EyeLikeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
-
-    EyeLikeConfig { dtype, k }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
-/// Update output for EyeLike - output has same shape as input, but may have different dtype
-pub fn eye_like_update_output(node: &mut Node) {
-    log::debug!("EyeLike rank inference for node {}", node.name);
+pub struct EyeLikeProcessor;
 
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.rank, 2, "Input rank must be 2D tensor");
+impl NodeProcessor for EyeLikeProcessor {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        crate::processor::validate_opset(opset, 9)?;
+        crate::processor::validate_input_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
-            let config = eye_like_config(node);
-            // Output type is either specified dtype or input type
-            let output_type = config.dtype.unwrap_or_else(|| tensor.elem_type.clone());
+        // Extract tensor info and validate
+        let (input_rank, input_elem_type, input_static_shape) = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                if tensor.rank != 2 {
+                    return Err(ProcessError::Custom(
+                        "EyeLike operation requires 2D tensor input".to_string(),
+                    ));
+                }
+                (tensor.rank, tensor.dtype, tensor.static_shape.clone())
+            }
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
 
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: output_type,
-                rank: tensor.rank,
-                static_shape: tensor.static_shape.clone(),
-            });
-            log::debug!("EyeLike output tensor rank: {}", tensor.rank);
+        // Get reference to config for type inference
+        let config = node.config::<EyeLikeConfig>();
+
+        // Output type is either specified dtype or input type
+        let output_type = config.dtype.unwrap_or(input_elem_type);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dtype: output_type,
+            rank: input_rank,
+            static_shape: input_static_shape,
+        });
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let mut dtype = None;
+        let mut k = 0i64; // default to main diagonal
+
+        // Extract attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "dtype" => {
+                    let dtype_i32 = value.clone().into_i32();
+                    dtype = Some(element_type_from_proto(dtype_i32).map_err(|e| {
+                        ProcessError::InvalidAttribute {
+                            name: "dtype".to_string(),
+                            reason: format!("Unsupported dtype for EyeLike: {}", e),
+                        }
+                    })?);
+                }
+                "k" => {
+                    k = value.clone().into_i64();
+                }
+                // TODO: Add validation for unexpected attributes (currently silently ignored)
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for EyeLike: {}", key),
+                    });
+                }
+            }
         }
-        _ => panic!("EyeLike operation requires 2D tensor input"),
+
+        let config = EyeLikeConfig { dtype, k };
+        Ok(Some(Box::new(config)))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
+    use crate::ir::{DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use crate::protos::tensor_proto::DataType;
     use protobuf::Enum;
@@ -73,11 +145,15 @@ mod tests {
             .output_tensor_f32("output", 2, None) // rank will be updated
             .build();
 
-        eye_like_update_output(&mut node);
+        let processor = EyeLikeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![3, 3]));
             }
@@ -92,7 +168,15 @@ mod tests {
             .output_tensor_f32("output", 2, None)
             .build();
 
-        let config = eye_like_config(&node);
+        let mut node = node;
+
+        let processor = EyeLikeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, 0);
         assert_eq!(config.dtype, None);
     }
@@ -106,9 +190,17 @@ mod tests {
             .attr_int("dtype", DataType::INT64.value() as i64)
             .build();
 
-        let config = eye_like_config(&node);
+        let mut node = node;
+
+        let processor = EyeLikeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, -1);
-        assert_eq!(config.dtype, Some(ElementType::Int64));
+        assert_eq!(config.dtype, Some(DType::I64));
     }
 
     #[test]
@@ -119,15 +211,28 @@ mod tests {
             .attr_int("dtype", DataType::INT32.value() as i64)
             .build();
 
-        eye_like_update_output(&mut node);
+        let processor = EyeLikeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.dtype, DType::I32);
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![3, 3]));
             }
             _ => panic!("Expected tensor output"),
         }
     }
+
+    // TODO: Add test for non-2D input - Should return error for rank != 2 per spec - Missing constraint validation test
+    // TODO: Add test for non-square matrices - Test rectangular matrices (e.g., 3x5, 5x3) - Missing edge case test
+    // TODO: Add test for 1x1 matrix - Edge case with single element - Test exists in onnx-tests but not in unit tests
+    // TODO: Add test for large k values - When k is larger than matrix dimensions, should produce all zeros - Test exists in onnx-tests but not in unit tests
+    // TODO: Add test for large negative k values - When |k| is larger than matrix dimensions, should produce all zeros - Test exists in onnx-tests but not in unit tests
+    // TODO: Add test for different output dtypes - Spec supports many types, test more than just I32 and I64 - Missing type coverage
+    // TODO: Add test for unexpected attributes - Should reject unknown attributes per implementation - Missing attribute validation test
+    // TODO: Add test for opset < 9 - Should fail per spec, EyeLike introduced in opset 9 - Missing opset validation test
 }

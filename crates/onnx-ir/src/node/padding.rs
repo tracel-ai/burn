@@ -1,3 +1,12 @@
+//! # Padding Configuration Utilities
+//!
+//! Padding configuration types for 1D, 2D, and 3D operations.
+//!
+//! Provides `PaddingConfig1d`, `PaddingConfig2d`, `PaddingConfig3d` enums and helper
+//! functions to convert ONNX padding arrays.
+//!
+//! **Limitations**: Only symmetric, non-negative padding is supported.
+
 use std::fmt;
 
 /// Padding configuration for 1D operations such as convolution

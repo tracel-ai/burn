@@ -1,9 +1,16 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::expand::ExpandShape;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
+
+/// Burn-import version of ExpandShape that stores Argument instead of RuntimeInputRef
+#[derive(Debug, Clone)]
+pub enum ExpandShape {
+    Static(Vec<i64>),
+    Runtime(Argument),
+}
 
 #[derive(Debug, Clone, new)]
 pub struct ExpandNode {
@@ -63,7 +70,17 @@ impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let shape = onnx_ir::node::expand::expand_config(&node);
+        let config = node.config::<onnx_ir::node::expand::ExpandShape>();
+
+        // Convert from onnx-ir ExpandShape (with RuntimeInputRef) to burn-import ExpandShape (with Argument)
+        let shape = match config {
+            onnx_ir::node::expand::ExpandShape::Static(s) => ExpandShape::Static(s.clone()),
+            onnx_ir::node::expand::ExpandShape::Runtime(shape_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let shape_arg = node.inputs[shape_ref.input_index].clone();
+                ExpandShape::Runtime(shape_arg)
+            }
+        };
         Self::new(input, output, shape)
     }
 }
@@ -71,7 +88,7 @@ impl OnnxIntoNode for ExpandNode {
 #[cfg(test)]
 mod tests {
     use burn::record::FullPrecisionSettings;
-    use onnx_ir::{ArgType, Argument, ElementType};
+    use onnx_ir::{ArgType, Argument, DType};
 
     use super::*;
     use crate::burn::{
@@ -90,7 +107,12 @@ mod tests {
             ExpandShape::Static([4, 4, 4, 4].into()),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -124,20 +146,20 @@ mod tests {
     fn test_codegen_expand_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("shape1".to_string());
+        arg.ty = ArgType::Shape(4);
+
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(4),
-                value: None,
-                passed: false,
-            }),
+            ExpandShape::Runtime(arg),
         ));
 
         graph.register_input_output(
             vec!["tensor1".to_string(), "shape1".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -177,24 +199,24 @@ mod tests {
     fn test_codegen_expand_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("tensor3".to_string());
+        arg.ty = ArgType::Tensor(onnx_ir::TensorType {
+            dtype: DType::I32,
+            rank: 1,
+            static_shape: None,
+        });
+
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(Argument {
-                name: "tensor3".to_string(),
-                ty: ArgType::Tensor(onnx_ir::TensorType {
-                    elem_type: ElementType::Int32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: false,
-            }),
+            ExpandShape::Runtime(arg),
         ));
 
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor3".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

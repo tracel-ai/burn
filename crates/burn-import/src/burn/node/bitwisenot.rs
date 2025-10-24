@@ -68,7 +68,12 @@ mod tests {
             input: TensorType::new_int("input", 2),
             output: TensorType::new_int("output", 2),
         });
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

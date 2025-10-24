@@ -77,7 +77,8 @@ impl OnnxIntoNode for ConcatNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let inputs: Vec<Type> = node.inputs.iter().map(Type::from).collect();
         let output = Type::from(node.outputs.first().unwrap());
-        let dim = onnx_ir::node::concat::concat_config(&node);
+        let config = node.config::<onnx_ir::node::concat::ConcatConfig>();
+        let dim = config.axis;
         Self::new(inputs, output, dim)
     }
 }
@@ -110,6 +111,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -167,6 +170,8 @@ mod tests {
                 "shape3".to_string(),
             ],
             vec!["output_shape".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
