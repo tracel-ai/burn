@@ -8,6 +8,7 @@
 //! - `kernel_shape` (required, ints): Kernel size \[height, width\]
 //! - `strides` (ints, default=\[1, 1\]): Stride \[height, width\]
 //! - `pads` (ints, default=\[0, 0, 0, 0\]): Padding \[top, left, bottom, right\]
+//! - `dilations` (ints, default=\[1, 1\]): Dilation \[height, width\] (opset 10+)
 //! - `auto_pad` (string, default="NOTSET"): Padding mode (only `NOTSET` supported)
 //! - `count_include_pad` (int, default=0): Include padding in average calculation
 //! - `ceil_mode` (int, default=0): Use ceil for output shape (not supported)
@@ -40,6 +41,8 @@ pub struct AvgPool2dConfig {
     pub padding: PaddingConfig2d,
     /// Whether to include padding in the average calculation
     pub count_include_pad: bool,
+    /// Dilation [height, width] (opset 10+)
+    pub dilation: [usize; 2],
 }
 
 impl AvgPool2dConfig {
@@ -55,7 +58,14 @@ impl AvgPool2dConfig {
             strides,
             padding,
             count_include_pad,
+            dilation: [1, 1],
         }
+    }
+
+    /// Set the dilation
+    pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
+        self.dilation = dilation;
+        self
     }
 }
 
@@ -89,11 +99,9 @@ impl NodeProcessor for AvgPool2dProcessor {
 
         // TODO: Validate that kernel_shape attribute is present (marked as required in spec)
         // Currently extract_config will panic if kernel_shape is missing or has wrong length
-        // FIXME: Missing validation for dilations attribute (opset 10+) - spec mentions it but not validated/tested
         // TODO: Add test for zero or negative kernel_shape values - spec requires positive values
         // TODO: Add test for zero or negative stride values - spec requires positive values
         // TODO: Add test for asymmetric padding edge cases - padding is validated but edge cases may not be tested
-        // TODO: Add 'dilations' to known attributes list for opset 10+ - currently marked as unexpected
 
         // Validate attributes before extracting config
         let mut ceil_mode: i64 = 0;
@@ -101,6 +109,16 @@ impl NodeProcessor for AvgPool2dProcessor {
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "kernel_shape" | "strides" | "pads" | "count_include_pad" => {}
+                "dilations" => {
+                    // Dilations support requires opset 10+
+                    let dilations = value.clone().into_i64s();
+                    if dilations.iter().any(|&d| d != 1) && opset < 10 {
+                        return Err(ProcessError::Custom(format!(
+                            "AveragePool: dilations requires opset 10+, got opset {}",
+                            opset
+                        )));
+                    }
+                }
                 "ceil_mode" => ceil_mode = value.clone().into_i64(),
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
@@ -157,6 +175,7 @@ impl NodeProcessor for AvgPool2dProcessor {
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
         let mut count_include_pad: i64 = 0;
+        let mut dilations = vec![1, 1];
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -164,6 +183,7 @@ impl NodeProcessor for AvgPool2dProcessor {
                 "strides" => strides = value.clone().into_i64s(),
                 "pads" => pads = value.clone().into_i64s(),
                 "count_include_pad" => count_include_pad = value.clone().into_i64(),
+                "dilations" => dilations = value.clone().into_i64s(),
                 _ => {}
             }
         }
@@ -175,7 +195,8 @@ impl NodeProcessor for AvgPool2dProcessor {
             [strides[0] as usize, strides[1] as usize],
             padding,
             count_include_pad == 1,
-        );
+        )
+        .with_dilation([dilations[0] as usize, dilations[1] as usize]);
 
         Ok(Some(Box::new(config)))
     }
@@ -193,21 +214,27 @@ mod tests {
         pads: Vec<i64>,
         count_include_pad: i64,
         ceil_mode: i64,
+        dilations: Option<Vec<i64>>,
     ) -> Node {
-        NodeBuilder::new(NodeType::AveragePool2d, "test_avgpool2d")
+        let mut builder = NodeBuilder::new(NodeType::AveragePool2d, "test_avgpool2d")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 4, None)
             .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", strides)
             .attr_ints("pads", pads)
             .attr_int("count_include_pad", count_include_pad)
-            .attr_int("ceil_mode", ceil_mode)
-            .build()
+            .attr_int("ceil_mode", ceil_mode);
+
+        if let Some(dilations) = dilations {
+            builder = builder.attr_ints("dilations", dilations);
+        }
+
+        builder.build()
     }
 
     #[test]
     fn test_avg_pool2d_config_basic() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 0);
+        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 0, None);
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
@@ -218,13 +245,14 @@ mod tests {
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
+        assert_eq!(config.dilation, [1, 1]);
         assert!(!config.count_include_pad);
         assert!(matches!(config.padding, PaddingConfig2d::Valid));
     }
 
     #[test]
     fn test_avg_pool2d_config_with_padding() {
-        let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], 0, 0);
+        let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], 0, 0, None);
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
@@ -235,13 +263,14 @@ mod tests {
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
+        assert_eq!(config.dilation, [1, 1]);
         assert!(!config.count_include_pad);
         assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
     }
 
     #[test]
     fn test_avg_pool2d_config_with_count_include_pad() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![1, 1, 1, 1], 1, 0);
+        let node = create_test_node(vec![3, 3], vec![1, 1], vec![1, 1, 1, 1], 1, 0, None);
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
@@ -252,13 +281,39 @@ mod tests {
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
+        assert_eq!(config.dilation, [1, 1]);
         assert!(config.count_include_pad);
         assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
     }
 
     #[test]
+    fn test_avg_pool2d_config_with_dilation() {
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            0,
+            0,
+            Some(vec![2, 2]),
+        );
+        let mut node = node;
+        let processor = AvgPool2dProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let config = node.config::<AvgPool2dConfig>();
+
+        assert_eq!(config.kernel_size, [3, 3]);
+        assert_eq!(config.strides, [1, 1]);
+        assert_eq!(config.dilation, [2, 2]);
+        assert!(!config.count_include_pad);
+        assert!(matches!(config.padding, PaddingConfig2d::Valid));
+    }
+
+    #[test]
     fn test_avg_pool2d_config_with_ceil_mode() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 1);
+        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 1, None);
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
@@ -266,5 +321,26 @@ mod tests {
         node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
+    }
+
+    #[test]
+    fn test_avg_pool2d_dilation_opset_validation() {
+        // Test that opset < 11 is rejected entirely (due to count_include_pad requirement)
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            0,
+            0,
+            Some(vec![2, 2]),
+        );
+        let mut node = node;
+        let processor = AvgPool2dProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 10).unwrap();
+        node.config = config;
+        let result = processor.infer_types(&mut node, 10, &prefs);
+        // Should fail because minimum opset is 11
+        assert!(matches!(result, Err(ProcessError::UnsupportedOpset { .. })));
     }
 }

@@ -95,6 +95,15 @@ impl OnnxIntoNode for AvgPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let config = node.config::<onnx_ir::node::avg_pool1d::AvgPool1dConfig>();
+
+        // Burn doesn't support dilations in AvgPool1d yet
+        if config.dilation != 1 {
+            panic!(
+                "AvgPool1d: dilation ({}) is not supported in Burn. Only dilation=1 is supported.",
+                config.dilation
+            );
+        }
+
         let name = &node.name;
         Self::new(name, input, output, config.clone())
     }
