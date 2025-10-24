@@ -72,9 +72,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
-      gcp_runners_image_family: ${{ env.GCP_RUNNERS_IMAGE_FAMILY }}
-      gcp_runners_machine_type: ${{ env.GCP_RUNNERS_MACHINE_TYPE }}
-      gcp_runners_zone: ${{ env.GCP_RUNNERS_ZONE }}
     steps:
       - name: Do Nothing
         if: false
