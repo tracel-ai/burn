@@ -98,6 +98,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
 
     fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
         match event {
+            LearnerEvent::Start => {
+                let definitions = self.metrics.metric_definitions();
+                self.store
+                    .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
+            }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
@@ -136,6 +141,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
 
     fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
         match event {
+            LearnerEvent::Start => {} // no-op for now
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let progress = (&item).into();

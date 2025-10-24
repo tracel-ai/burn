@@ -3,7 +3,7 @@ use crate::{
     evaluator::components::EvaluatorComponentTypesMarker,
     logger::FileMetricLogger,
     metric::{
-        Adaptor, ItemLazy, Metric,
+        Adaptor, ItemLazy, Metric, Numeric,
         processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
         store::{EventStoreClient, LogEventStore},
     },
@@ -78,10 +78,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     }
 
     /// Register a [numeric](crate::metric::Numeric) test [metric](Metric).
-    pub fn metric_numeric<Me: Metric + crate::metric::Numeric + 'static>(
-        mut self,
-        metric: Me,
-    ) -> Self
+    pub fn metric_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
@@ -141,7 +138,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), None));
 
         self.event_store
-            .register_logger_test(FileMetricLogger::new_eval(self.directory.join("test")));
+            .register_logger(FileMetricLogger::new_eval(self.directory));
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
 
         let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(
@@ -197,7 +194,7 @@ macro_rules! gen_tuple {
         impl<$($M,)* TI: 'static, TO: ItemLazy+'static> EvalMetricRegistration<TI, TO> for ($($M,)*)
         where
             $(TO::ItemSync: Adaptor<$M::Input>,)*
-            $($M: Metric + $crate::metric::Numeric+ 'static,)*
+            $($M: Metric + $crate::metric::Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register<B: Backend>(

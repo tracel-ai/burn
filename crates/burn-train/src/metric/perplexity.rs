@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use super::state::FormatOptions;
 use super::{MetricEntry, MetricMetadata, NumericEntry, format_float};
-use crate::metric::{Metric, MetricName, Numeric};
+use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericAttributes};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
@@ -226,10 +226,18 @@ impl<B: Backend> Metric for PerplexityMetric<B> {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: None,
+            higher_is_better: false,
+        }
+        .into()
+    }
 }
 
 impl<B: Backend> Numeric for PerplexityMetric<B> {
-    fn value(&self) -> super::NumericEntry {
+    fn value(&self) -> NumericEntry {
         self.state.value()
     }
 }

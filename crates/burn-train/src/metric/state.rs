@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::metric::{MetricEntry, MetricName, Numeric, NumericEntry, format_float};
+use crate::metric::{MetricEntry, MetricName, NumericEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -110,10 +110,9 @@ impl NumericMetricState {
 
         MetricEntry::new(format.name, formatted, serialized)
     }
-}
 
-impl Numeric for NumericMetricState {
-    fn value(&self) -> NumericEntry {
+    /// Get the numeric value.
+    pub fn value(&self) -> NumericEntry {
         NumericEntry::Aggregated {
             sum: self.sum,
             count: self.count,

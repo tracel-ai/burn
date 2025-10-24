@@ -5,7 +5,7 @@ use super::MetricMetadata;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use crate::metric::MetricName;
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricAttributes, Numeric, NumericAttributes, NumericEntry};
 use burn_core::tensor::Tensor;
 use burn_core::tensor::backend::Backend;
 
@@ -68,10 +68,18 @@ impl<B: Backend> Metric for LossMetric<B> {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: None,
+            higher_is_better: false,
+        }
+        .into()
+    }
 }
 
 impl<B: Backend> Numeric for LossMetric<B> {
-    fn value(&self) -> super::NumericEntry {
+    fn value(&self) -> NumericEntry {
         self.state.value()
     }
 }

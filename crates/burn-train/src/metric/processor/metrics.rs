@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{ItemLazy, LearnerItem};
 use crate::{
     metric::{
-        Adaptor, Metric, MetricEntry, MetricMetadata, Numeric, NumericEntry, store::MetricsUpdate,
+        Adaptor, Metric, MetricDefinition, MetricEntry, MetricMetadata, Numeric, NumericEntry,
+        store::MetricsUpdate,
     },
     renderer::{EvaluationProgress, TrainingProgress},
 };
@@ -11,6 +14,7 @@ pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     valid: Vec<Box<dyn MetricUpdater<V::ItemSync>>>,
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V::ItemSync>>>,
+    metric_definitions: HashMap<String, MetricDefinition>,
 }
 
 pub(crate) struct MetricsEvaluation<T: ItemLazy> {
@@ -34,6 +38,7 @@ impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
             valid: Vec::default(),
             train_numeric: Vec::default(),
             valid_numeric: Vec::default(),
+            metric_definitions: HashMap::default(),
         }
     }
 }
@@ -88,6 +93,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     where
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
+        self.register_definition(&metric);
         let metric = MetricWrapper::new(metric);
         self.train.push(Box::new(metric))
     }
@@ -97,6 +103,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     where
         V::ItemSync: Adaptor<Me::Input> + 'static,
     {
+        self.register_definition(&metric);
         let metric = MetricWrapper::new(metric);
         self.valid.push(Box::new(metric))
     }
@@ -108,19 +115,36 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     ) where
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
+        self.register_definition(&metric);
         let metric = MetricWrapper::new(metric);
         self.train_numeric.push(Box::new(metric))
     }
 
     /// Register a numeric validation metric.
-    pub(crate) fn register_valid_metric_numeric<Me: Metric + Numeric + 'static>(
-        &mut self,
-        metric: Me,
-    ) where
+    pub(crate) fn register_valid_metric_numeric<Me>(&mut self, metric: Me)
+    where
         V::ItemSync: Adaptor<Me::Input> + 'static,
+        Me: Metric + Numeric + 'static,
     {
+        self.register_definition(&metric);
         let metric = MetricWrapper::new(metric);
         self.valid_numeric.push(Box::new(metric))
+    }
+
+    fn register_definition<Me: Metric>(&mut self, metric: &Me) {
+        self.metric_definitions.insert(
+            metric.name().to_string(),
+            MetricDefinition {
+                name: metric.name().to_string(),
+                description: metric.description(),
+                attributes: metric.attributes(),
+            },
+        );
+    }
+
+    /// Get metrics definition for all splits
+    pub(crate) fn metric_definitions(&mut self) -> Vec<MetricDefinition> {
+        self.metric_definitions.values().cloned().collect()
     }
 
     /// Update the training information from the training item.
