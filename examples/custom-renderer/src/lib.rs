@@ -89,14 +89,18 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     // artifact dir does not need to be provided when log_to_file is false
     let builder = LearnerBuilder::new("")
-        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
         .with_application_logger(None);
     // can be used to interrupt training
     let _interrupter = builder.interrupter();
 
-    let learner = builder.build(model, optim, config.lr);
+    let learner = builder.build(
+        model,
+        optim,
+        config.lr,
+        LearningStrategy::SingleDevice(device.clone()),
+    );
 
     let _model_trained = learner.fit(dataloader_train, dataloader_test);
 }

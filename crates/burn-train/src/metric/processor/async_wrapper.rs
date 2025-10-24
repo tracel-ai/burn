@@ -3,10 +3,12 @@ use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation};
 use super::{EventProcessorTraining, LearnerEvent};
 use async_channel::{Receiver, Sender};
 
+/// Event processor for the training process.
 pub struct AsyncProcessorTraining<P: EventProcessorTraining> {
     sender: Sender<Message<P>>,
 }
 
+/// Event processor for the model evaluation.
 pub struct AsyncProcessorEvaluation<P: EventProcessorEvaluation> {
     sender: Sender<EvalMessage<P>>,
 }
@@ -58,6 +60,7 @@ impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
 }
 
 impl<P: EventProcessorTraining + 'static> AsyncProcessorTraining<P> {
+    /// Create an event processor for training.
     pub fn new(processor: P) -> Self {
         let (sender, rec) = async_channel::bounded(1);
 
@@ -68,6 +71,7 @@ impl<P: EventProcessorTraining + 'static> AsyncProcessorTraining<P> {
 }
 
 impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
+    /// Create an event processor for model evaluation.
     pub fn new(processor: P) -> Self {
         let (sender, rec) = async_channel::bounded(1);
 

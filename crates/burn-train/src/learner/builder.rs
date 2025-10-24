@@ -22,7 +22,7 @@ use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
     LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
-use burn_core::module::AutodiffModule;
+use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::Optimizer;
@@ -57,7 +57,6 @@ where
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
-    learning_strategy: LearningStrategy<B>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: MetricsTraining<TO, VO>,
     event_store: LogEventStore,
@@ -71,6 +70,19 @@ where
     summary: bool,
     _p: PhantomData<(TI, VI, TO, VO)>,
 }
+
+type LC<B, S, M, O, TO, VO, TI, VI> = LearnerComponentsMarker<
+    B,
+    S,
+    M,
+    O,
+    AsyncCheckpointer<<M as Module<B>>::Record, B>,
+    AsyncCheckpointer<<O as Optimizer<M, B>>::Record, B>,
+    AsyncCheckpointer<<S as LrScheduler>::Record<B>, B>,
+    AsyncProcessorTraining<FullEventProcessorTraining<TO, VO>>,
+    Box<dyn CheckpointingStrategy>,
+    LearningDataMarker<TI, VI, TO, VO>,
+>;
 
 impl<B, M, O, S, TI, VI, TO, VO> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
@@ -98,7 +110,6 @@ where
             checkpointers: None,
             directory,
             grad_accumulation: None,
-            learning_strategy: LearningStrategy::default(),
             metrics: MetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
@@ -240,12 +251,6 @@ where
         self
     }
 
-    /// Run the training loop with different strategies
-    pub fn learning_strategy(mut self, learning_strategy: LearningStrategy<B>) -> Self {
-        self.learning_strategy = learning_strategy;
-        self
-    }
-
     /// The epoch from which the training must resume.
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
@@ -328,20 +333,8 @@ where
         model: M,
         optim: O,
         lr_scheduler: S,
-    ) -> Learner<
-        LearnerComponentsMarker<
-            B,
-            S,
-            M,
-            O,
-            AsyncCheckpointer<M::Record, B>,
-            AsyncCheckpointer<O::Record, B>,
-            AsyncCheckpointer<S::Record<B>, B>,
-            AsyncProcessorTraining<FullEventProcessorTraining<TO, VO>>,
-            Box<dyn CheckpointingStrategy>,
-            LearningDataMarker<TI, VI, TO, VO>,
-        >,
-    >
+        learning_strategy: LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>,
+    ) -> Learner<LC<B, S, M, O, TO, VO, TI, VI>>
     where
         M::Record: 'static,
         O::Record: 'static,
@@ -383,7 +376,7 @@ where
             None
         };
 
-        let learning_strategy = Self::prepare_learning_strategy(self.learning_strategy);
+        let learning_strategy = Self::prepare_learning_strategy(learning_strategy);
 
         Learner {
             model,
@@ -402,7 +395,14 @@ where
         }
     }
 
-    fn prepare_learning_strategy(learning_strategy: LearningStrategy<B>) -> LearningStrategy<B> {
+    fn prepare_learning_strategy(
+        learning_strategy: LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>,
+    ) -> LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>
+    where
+        M::Record: 'static,
+        O::Record: 'static,
+        S::Record<B>: 'static,
+    {
         if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy
             && devices.len() == 1
         {

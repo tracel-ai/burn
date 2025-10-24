@@ -79,11 +79,15 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::SingleDevice(device))
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
         .summary()
-        .build(model, optim, lr_scheduler);
+        .build(
+            model,
+            optim,
+            lr_scheduler,
+            LearningStrategy::SingleDevice(device.clone()),
+        );
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

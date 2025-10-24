@@ -39,6 +39,7 @@ pub trait LearnerComponentTypes {
         > + Send;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record<Self::Backend>, Self::Backend>;
+    /// The object that processes events happening during training and valid.
     type EventProcessor: EventProcessorTraining<
             ItemTrain = <Self::LearningData as LearningData>::TrainOutput,
             ItemValid = <Self::LearningData as LearningData>::ValidOutput,
