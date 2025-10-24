@@ -30,7 +30,7 @@
 //! This limitation should either be:
 //! 1. Fixed to support arbitrary dimension padding per spec, OR
 //! 2. Clearly documented as a known limitation with validation moved to infer_types
-//! Impact: HIGH - Models padding batch/channel dimensions will fail with cryptic error messages.
+//!    Impact: HIGH - Models padding batch/channel dimensions will fail with cryptic error messages.
 //!
 //! TODO: Missing type constraint validation
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
