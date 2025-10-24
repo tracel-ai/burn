@@ -1,4 +1,5 @@
-use crate::{Slice, SliceArg};
+use crate::indexing::ravel_dims;
+use crate::{AsIndex, Slice, SliceArg};
 use alloc::vec::Vec;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
@@ -73,6 +74,19 @@ impl Shape {
     pub fn flatten(mut self) -> Self {
         self.dims = [self.num_elements()].into();
         self
+    }
+
+    /// Compute the ravel index for the given coordinates.
+    ///
+    /// This returns the row-major order raveling.
+    ///
+    /// # Arguments
+    /// - `coords`: must be the same size as `self.rank()`.
+    ///
+    /// # Returns
+    /// - the ravel offset index.
+    pub fn ravel<I: AsIndex>(&self, coords: &[I]) -> usize {
+        ravel_dims(coords, &self.dims)
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
@@ -628,6 +642,17 @@ mod tests {
         let shape = shape.flatten();
         assert_eq!(shape.num_elements(), 120);
         assert_eq!(&shape.dims, &[120]);
+    }
+
+    #[test]
+    fn test_ravel() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        assert_eq!(shape.ravel(&[0, 0, 0, 0]), 0);
+        assert_eq!(
+            shape.ravel(&[1, 2, 3, 4]),
+            1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
+        );
     }
 
     #[test]
