@@ -358,7 +358,7 @@ where
     )))
 }
 
-/// Applies a [linear transformation](crate::ops::ModuleOps::linear) to the input tensor using the given weight and bias.
+/// Applies a linear transformation to the input tensor using the given weight and bias.
 ///
 /// ```math
 /// y = x @ weight + [bias]
