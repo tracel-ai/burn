@@ -14,7 +14,6 @@ pub trait Element:
     ToElement
     + ElementRandom
     + ElementConversion
-    + ElementPrecision
     + ElementComparison
     + ElementLimits
     + bytemuck::CheckedBitPattern
@@ -78,53 +77,20 @@ pub trait ElementLimits {
     const MAX: Self;
 }
 
-/// Element precision trait for tensor.
-#[derive(Clone, PartialEq, Eq, Copy, Debug)]
-pub enum Precision {
-    /// Double precision, e.g. f64.
-    Double,
-
-    /// Full precision, e.g. f32.
-    Full,
-
-    /// Half precision, e.g. f16.
-    Half,
-
-    /// Other precision.
-    Other,
-}
-impl Precision {
-    /// Returns the precision in bytes.
-    pub const fn bytes(&self) -> usize {
-        match self {
-            Precision::Double => 8,
-            Precision::Full => 4,
-            Precision::Half => 2,
-            Precision::Other => 1,
-        }
-    }
-}
-
-/// Element precision trait for tensor.
-pub trait ElementPrecision {
-    /// Returns the precision of the element.
-    fn precision() -> Precision;
-}
-
 /// Macro to implement the element trait for a type.
 #[macro_export]
 macro_rules! make_element {
     (
-        ty $type:ident $precision:expr,
+        ty $type:ident,
         convert $convert:expr,
         random $random:expr,
         cmp $cmp:expr,
         dtype $dtype:expr
     ) => {
-        make_element!(ty $type $precision, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
+        make_element!(ty $type, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
     };
     (
-        ty $type:ident $precision:expr,
+        ty $type:ident,
         convert $convert:expr,
         random $random:expr,
         cmp $cmp:expr,
@@ -148,12 +114,6 @@ macro_rules! make_element {
             #[inline(always)]
             fn elem<E: Element>(self) -> E {
                 E::from_elem(self)
-            }
-        }
-
-        impl ElementPrecision for $type {
-            fn precision() -> Precision {
-                $precision
             }
         }
 
@@ -181,7 +141,7 @@ macro_rules! make_element {
 }
 
 make_element!(
-    ty f64 Precision::Double,
+    ty f64,
     convert ToElement::to_f64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f64, b: &f64| a.total_cmp(b),
@@ -189,7 +149,7 @@ make_element!(
 );
 
 make_element!(
-    ty f32 Precision::Full,
+    ty f32,
     convert ToElement::to_f32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f32, b: &f32| a.total_cmp(b),
@@ -197,7 +157,7 @@ make_element!(
 );
 
 make_element!(
-    ty i64 Precision::Double,
+    ty i64,
     convert ToElement::to_i64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i64, b: &i64| Ord::cmp(a, b),
@@ -205,7 +165,7 @@ make_element!(
 );
 
 make_element!(
-    ty u64 Precision::Double,
+    ty u64,
     convert ToElement::to_u64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u64, b: &u64| Ord::cmp(a, b),
@@ -213,7 +173,7 @@ make_element!(
 );
 
 make_element!(
-    ty i32 Precision::Full,
+    ty i32,
     convert ToElement::to_i32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i32, b: &i32| Ord::cmp(a, b),
@@ -221,7 +181,7 @@ make_element!(
 );
 
 make_element!(
-    ty u32 Precision::Full,
+    ty u32,
     convert ToElement::to_u32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u32, b: &u32| Ord::cmp(a, b),
@@ -229,7 +189,7 @@ make_element!(
 );
 
 make_element!(
-    ty i16 Precision::Half,
+    ty i16,
     convert ToElement::to_i16,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i16, b: &i16| Ord::cmp(a, b),
@@ -237,7 +197,7 @@ make_element!(
 );
 
 make_element!(
-    ty u16 Precision::Half,
+    ty u16,
     convert ToElement::to_u16,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u16, b: &u16| Ord::cmp(a, b),
@@ -245,7 +205,7 @@ make_element!(
 );
 
 make_element!(
-    ty i8 Precision::Other,
+    ty i8,
     convert ToElement::to_i8,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i8, b: &i8| Ord::cmp(a, b),
@@ -253,7 +213,7 @@ make_element!(
 );
 
 make_element!(
-    ty u8 Precision::Other,
+    ty u8,
     convert ToElement::to_u8,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u8, b: &u8| Ord::cmp(a, b),
@@ -261,7 +221,7 @@ make_element!(
 );
 
 make_element!(
-    ty f16 Precision::Half,
+    ty f16,
     convert ToElement::to_f16,
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
@@ -271,7 +231,7 @@ make_element!(
     dtype DType::F16
 );
 make_element!(
-    ty bf16 Precision::Half,
+    ty bf16,
     convert ToElement::to_bf16,
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
@@ -283,7 +243,7 @@ make_element!(
 
 #[cfg(feature = "cubecl")]
 make_element!(
-    ty flex32 Precision::Half,
+    ty flex32,
     convert |elem: &dyn ToElement| flex32::from_f32(elem.to_f32()),
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
@@ -296,7 +256,7 @@ make_element!(
 );
 
 make_element!(
-    ty bool Precision::Other,
+    ty bool,
     convert ToElement::to_bool,
     random |distribution: Distribution, rng: &mut R| {
         let sample: u8 = distribution.sampler(rng).sample();
@@ -390,6 +350,11 @@ impl DType {
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
+                    // e2m1 native is automatically packed by the kernels, so the actual storage is
+                    // 8 bits wide.
+                    QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                        core::mem::size_of::<u8>()
+                    }
                     QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                         // Sub-byte values have fractional size
                         0

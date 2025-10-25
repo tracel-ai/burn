@@ -4,10 +4,17 @@ use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    std::tensor::{
-        View,
-        layout::{linear::LinearLayout, plain::PlainLayout},
+    std::{
+        FastDivmod,
+        tensor::{
+            View,
+            layout::{linear::LinearLayout, plain::PlainLayout},
+        },
     },
+};
+use cubecl_quant::{
+    layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout},
+    scheme::QuantLevel,
 };
 use serde::{Deserialize, Serialize};
 
@@ -156,9 +163,9 @@ fn index_offset_with_quant_layout(
 
     // Handle packed representation in last dim
     let ogwl = offset_ref / locals.ref_strides[end];
-    let shape_last = tensor.tensor.shape(end) / num_quants;
+    let shape_last = tensor.tensor.shape(end).div_ceil(num_quants);
     let stride_last = tensor.tensor.stride(end);
-    offset += (ogwl / num_quants) % shape_last * stride_last;
+    offset += (ogwl.div_ceil(num_quants)) % shape_last * stride_last;
 
     offset / tensor.tensor.line_size()
 }
@@ -229,7 +236,7 @@ pub fn read_input_window<C: CubePrimitive>(
     #[comptime] pos: u32,
     start: u32,
     end: u32,
-) -> Slice<Line<C>> {
+) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
     slice.try_cast_unchecked()
@@ -246,10 +253,57 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u3
 pub fn input_as_linear_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
     #[comptime] pos: u32,
-) -> View<Line<C>, u32> {
-    let slice = input_as_slice::<Line<C>>(inputs, pos);
+) -> View<C, u32> {
+    let slice = input_as_slice::<C>(inputs, pos);
     let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
-    View::new::<Slice<Line<C>>, u32>(&slice, layout)
+    View::new::<Slice<C>, u32>(&slice, layout)
+}
+
+#[cube]
+pub fn input_as_scales_view<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    #[comptime] pos: u32,
+    #[comptime] tensor_pos: u32,
+    #[comptime] level: QuantLevel,
+    #[comptime] config: &FuseBlockConfig,
+) -> View<C, u32> {
+    set_polyfill_typed::<C, NumericExpand<DYN_ELEM_ID>>();
+    let tensor = inputs.tensors.index(tensor_pos);
+    let scales = inputs.tensors.index(pos);
+    let tensor_len = tensor.tensor.len();
+    let rank = config.rank;
+    let layout = match level {
+        QuantLevel::Tensor => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
+        QuantLevel::Block(block_size) => {
+            let block_size = comptime![block_size.to_dim_vec(rank as usize)];
+            let mut tensor_shape = Sequence::new();
+            let mut scales_strides = Sequence::new();
+            #[unroll]
+            for i in 0..rank {
+                tensor_shape.push(FastDivmod::new_Fallback(tensor.tensor.shape(i)));
+                scales_strides.push(scales.tensor.stride(i));
+            }
+            let line_size = scales.tensor.line_size();
+            let layout = BlockScaledLayout::new(
+                tensor_shape,
+                tensor_len,
+                scales_strides,
+                block_size,
+                line_size,
+            );
+            ScalesLayout::new_BlockScaled(layout)
+        }
+    };
+    View::new::<Slice<C>, u32>(&scales.tensor.to_slice().try_cast_unchecked(), layout)
+}
+
+#[cube]
+#[allow(clippy::extra_unused_type_parameters)]
+fn set_polyfill_typed<C: CubePrimitive, Dyn: CubePrimitive>() {
+    intrinsic!(|scope| {
+        let elem_type = C::as_type(scope);
+        set_polyfill::expand::<Dyn>(scope, elem_type);
+    })
 }
 
 #[cube]

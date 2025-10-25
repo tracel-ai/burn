@@ -13,16 +13,17 @@
 
 ---
 
-**Burn is a next generation Tensor Library and Deep Learning Framework that doesn't compromise on <br /> flexibility,
-efficiency and portability.**
+**Burn is a next generation Tensor Library and Deep Learning Framework that doesn't compromise on
+<br /> flexibility, efficiency and portability.**
 
 <br/>
 </div>
 
 <div align="left">
 
-Burn is both a tensor library and a deep learning framework optimized for numerical computing, model inference and model training.
-Burn leverages Rust to perform optimizations normally only available in static-graph frameworks, offering optimal speed without impacting flexibility.
+Burn is both a tensor library and a deep learning framework optimized for numerical computing, model
+inference and model training. Burn leverages Rust to perform optimizations normally only available
+in static-graph frameworks, offering optimal speed without impacting flexibility.
 
 ## Backend
 
@@ -37,7 +38,7 @@ models in the cloud, then deploy on customer hardwares, which vary from user to 
 
 ### Supported Backends
 
-Most backends support all operating systems, so we don't mentioned them in the tables below.
+Most backends support all operating systems, so we don't mention them in the tables below.
 
 **GPU Backends:**
 
@@ -250,12 +251,10 @@ ONNX Support 🐫
 </summary>
 <br />
 
-ONNX (Open Neural Network Exchange) is an open-standard format that exports both the architecture
-and the weights of a deep learning model.
-
-Burn supports the importation of models that follow the ONNX standard so you can easily port a model
-you have written in another framework like TensorFlow or PyTorch to Burn to benefit from all the
-advantages our framework offers.
+Burn supports importing ONNX (Open Neural Network Exchange) models, allowing you to easily port
+models from TensorFlow or PyTorch to Burn. The ONNX model is converted into Rust code that uses
+Burn's native APIs, enabling the imported model to run on any Burn backend (CPU, GPU, WebAssembly)
+and benefit from all of Burn's optimizations like automatic kernel fusion.
 
 Our ONNX support is further described in
 [this section of the Burn Book 🔥](https://burn.dev/books/burn/import/onnx-model.html).
@@ -426,8 +425,8 @@ Additional examples:
   feature.
 - [ONNX Import Inference](./examples/onnx-inference) : Imports an ONNX model pre-trained on MNIST to
   perform inference on a sample image with Burn.
-- [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained on
-  MNIST to perform inference on a sample image with Burn.
+- [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained
+  on MNIST to perform inference on a sample image with Burn.
 - [Text Classification](./examples/text-classification) : Trains a text classification transformer
   model on the AG News or DbPedia dataset. The trained model can then be used to classify a text
   sample.

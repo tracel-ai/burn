@@ -1,6 +1,10 @@
+use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
 use crate::cast::ToElement;
+use crate::check;
+use crate::check::TensorCheck;
+use crate::indexing::canonicalize_dim;
 use crate::ops::InterpolateMode;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
@@ -22,7 +26,8 @@ where
 {
     /// Applies element wise exponential operation.
     ///
-    /// $y_i = e^{x_i}$
+    #[cfg_attr(doc, doc = "$y_i = e^{x_i}$")]
+    #[cfg_attr(not(doc), doc = "`y = e^x`")]
     pub fn exp(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_exp(
             self.primitive.tensor(),
@@ -31,7 +36,8 @@ where
 
     /// Applies element wise natural log operation *ln*.
     ///
-    /// $y_i = \log_e\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = log(x_i)`")]
     pub fn log(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_log(
             self.primitive.tensor(),
@@ -40,7 +46,8 @@ where
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
-    /// $y_i = \log_e\(x_i + 1\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i + 1\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = log(x_i + 1)`")]
     pub fn log1p(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_log1p(
             self.primitive.tensor(),
@@ -49,11 +56,17 @@ where
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
-    /// $y_i = \text{erf}\(x_i\)$
-    ///
-    /// The error function is defined as:
-    ///
-    /// $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
+    #[cfg_attr(
+        doc,
+        doc = r#"
+$y_i = \text{erf}\(x_i\)$
+
+The error function is defined as:
+
+$$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
+"#
+    )]
+    #[cfg_attr(not(doc), doc = "`y_i = erf(x_i)`")]
     pub fn erf(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_erf(
             self.primitive.tensor(),
@@ -63,16 +76,26 @@ where
     /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
     /// (or multiplicative inverse) element wise.
     ///
-    /// $y_i = \frac{1}{x_i}$
+    #[cfg_attr(doc, doc = r#"$y_i = \frac{1}{x_i}$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = 1/x_i`")]
     pub fn recip(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_recip(
             self.primitive.tensor(),
         )))
     }
 
+    /// Applies element wise square operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = x_i * x_i$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = x_i * x_i`")]
+    pub fn square(self) -> Self {
+        self.powi_scalar(2)
+    }
+
     /// Applies element wise root square operation.
     ///
-    /// $y_i = \sqrt{x_i}$
+    #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i}$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i)`")]
     pub fn sqrt(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_sqrt(
             self.primitive.tensor(),
@@ -81,7 +104,8 @@ where
 
     /// Applies element wise cosine operation.
     ///
-    /// $y_i = \cos\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \cos\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = cos(x_i)`")]
     pub fn cos(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_cos(
             self.primitive.tensor(),
@@ -90,7 +114,8 @@ where
 
     /// Applies element wise sine operation.
     ///
-    /// $y_i = \sin\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \sin\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sin(x_i)`")]
     pub fn sin(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_sin(
             self.primitive.tensor(),
@@ -99,7 +124,8 @@ where
 
     /// Applies element wise tangent operation.
     ///
-    /// $y_i = \tan\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \tan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = tan(x_i)`")]
     pub fn tan(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tan(
             self.primitive.tensor(),
@@ -108,7 +134,8 @@ where
 
     /// Applies element wise hyperbolic cosine operation.
     ///
-    /// $y_i = \cosh\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \cosh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = cosh(x_i)`")]
     ///
     /// # Example
     ///
@@ -131,7 +158,8 @@ where
 
     /// Applies element wise hyperbolic sine operation.
     ///
-    /// $y_i = \sinh\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \sinh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sinh(x_i)`")]
     ///
     /// # Example
     ///
@@ -154,7 +182,8 @@ where
 
     /// Applies element wise hyperbolic tangent operation.
     ///
-    /// $y_i = \tanh\(x_i\)$
+    #[cfg_attr(doc, doc = r#"$y_i = \tanh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = tanh(x_i)`")]
     ///
     /// # Example
     ///
@@ -525,9 +554,7 @@ where
     /// }
     /// ```
     pub fn is_nan(self) -> Tensor<B, D, Bool> {
-        // Check if the input tensor is NaN by comparing it to itself
-        // NaN is the only value that is not equal to itself
-        self.clone().not_equal(self)
+        Tensor::new(B::float_is_nan(self.primitive.tensor()))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -584,7 +611,7 @@ where
     /// }
     /// ```
     pub fn is_inf(self) -> Tensor<B, D, Bool> {
-        self.abs().equal_elem(f64::INFINITY)
+        Tensor::new(B::float_is_inf(self.primitive.tensor()))
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is finite
@@ -636,6 +663,29 @@ where
             self.primitive.tensor(),
             grid.primitive.tensor(),
             method,
+        )))
+    }
+
+    /// Computes the cross product of `self` and another tensor along a given dimension.
+    ///
+    /// Both `self` and `other` **must have size 3** along the specified `dim`,
+    /// because the cross product is only defined in three-dimensional space.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other tensor to take the cross product with.
+    /// * `dim`   - The dimension along which to compute the cross product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor containing the cross product of `self` and `other` along `dim`.
+    pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D>, dim: Dim) -> Tensor<B, D> {
+        let dim = canonicalize_dim(dim, D, false);
+        check!(TensorCheck::cross(&self, &other, dim));
+        Tensor::new(TensorPrimitive::Float(B::float_cross(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
+            dim,
         )))
     }
 }

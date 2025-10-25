@@ -3,7 +3,7 @@ use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
-    DType, TensorData,
+    Shape, TensorData,
     backend::{DeviceId, DeviceOps},
 };
 use std::{
@@ -49,14 +49,10 @@ impl RunnerClient for RemoteClient {
 
         self.sender.send(ComputeTask::RegisterTensor(id, data));
 
-        RouterTensor::new(id, shape, dtype, self.clone())
+        RouterTensor::new(id, Shape::from(shape), dtype, self.clone())
     }
 
-    fn register_empty_tensor(
-        &self,
-        shape: Vec<usize>,
-        dtype: burn_tensor::DType,
-    ) -> RouterTensor<Self> {
+    fn register_empty_tensor(&self, shape: Shape, dtype: burn_tensor::DType) -> RouterTensor<Self> {
         let id = self.sender.new_tensor_id();
 
         RouterTensor::new(id, shape, dtype, self.clone())
@@ -64,10 +60,10 @@ impl RunnerClient for RemoteClient {
 
     fn register_float_tensor(
         &self,
-        shape: Vec<usize>,
-        _dtype: burn_tensor::FloatDType,
+        shape: Shape,
+        dtype: burn_tensor::FloatDType,
     ) -> RouterTensor<Self> {
-        self.register_empty_tensor(shape, DType::F32)
+        self.register_empty_tensor(shape, dtype.into())
     }
 
     fn device(&self) -> Self::Device {

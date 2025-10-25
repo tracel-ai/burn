@@ -84,8 +84,8 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                         "TODO: It should be OK, we simply need to call `into_contiguous` before the assertion."
                     );
 
-                    let data_ref = handle.client.read_one(handle.handle.clone().binding());
-                    let data_other = other.client.read_one(other.handle.clone().binding());
+                    let data_ref = handle.client.read_one(handle.handle.clone());
+                    let data_other = other.client.read_one(other.handle.clone());
                     let data_ref = TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
                     let data_other =
                         TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
@@ -168,7 +168,7 @@ impl FuseTrace {
     /// Run a trace with the given [runner](TraceRunner).
     pub fn run<R: Runtime, BT: CubeElement, Runner: TraceRunner<R>>(
         &self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
@@ -283,6 +283,19 @@ impl RegisteredTensors {
             .find(|(_pos, entry)| match entry {
                 RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
                 RegisterTensor::QuantValues(_) => false,
+                RegisterTensor::QuantParams(_) => false,
+            })
+            .map(|(pos, _)| pos as u32)
+    }
+
+    /// Get the index of a quantized tensor.
+    pub fn get_index_quant(&self, tensor_id: TensorId) -> Option<u32> {
+        self.tensors
+            .iter()
+            .enumerate()
+            .find(|(_pos, entry)| match entry {
+                RegisterTensor::Normal(..) => false,
+                RegisterTensor::QuantValues(tensor_ir) => tensor_ir.id == tensor_id,
                 RegisterTensor::QuantParams(_) => false,
             })
             .map(|(pos, _)| pos as u32)

@@ -2,7 +2,8 @@
 #![allow(
     clippy::approx_constant,
     clippy::excessive_precision,
-    clippy::identity_op
+    clippy::identity_op,
+    clippy::bool_assert_comparison
 )]
 
 extern crate alloc;
@@ -42,6 +43,7 @@ pub mod equal;
 pub mod erf;
 pub mod exp;
 pub mod expand;
+pub mod eye_like;
 pub mod flatten;
 pub mod floor;
 pub mod gather;
@@ -72,8 +74,10 @@ pub mod max;
 pub mod maxpool;
 pub mod mean;
 pub mod min;
+pub mod r#mod;
 pub mod mul;
 pub mod neg;
+pub mod nonzero;
 pub mod not;
 pub mod one_hot;
 pub mod or;

@@ -13,11 +13,16 @@ include_models!(
     slice_1d_tensor,
     slice_shape_start_tensor_end,
     slice_tensor_start_shape_end,
-    slice_axes
+    slice_axes,
+    slice_with_steps,
+    slice_shape_with_steps
 );
 
 #[cfg(test)]
 mod tests {
+
+    use alloc::vec;
+
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
@@ -283,6 +288,63 @@ mod tests {
         // So it slices: [2:6, 3:10, :]
         // Result shape should be [4, 7, 8]
         assert_eq!(output.shape().dims, [4, 7, 8]);
+    }
+
+    #[test]
+    fn slice_with_steps() {
+        let model: slice_with_steps::Model<TestBackend> = slice_with_steps::Model::default();
+        let device = Default::default();
+
+        // Create test input with shape [10, 10, 12]
+        let mut data = vec![];
+        for i in 0..10 {
+            for j in 0..10 {
+                for k in 0..12 {
+                    data.push((i * 100 + j * 10 + k) as f32);
+                }
+            }
+        }
+
+        let input = Tensor::<TestBackend, 1>::from_data(TensorData::from(data.as_slice()), &device)
+            .reshape([10, 10, 12]);
+
+        let output = model.forward(input);
+
+        // Expected output shape: [5, 3, 12]
+        // dim0: indices 0,2,4,6,8 (step=2)
+        // dim1: indices 1,4,7 (step=3)
+        // dim2: all 12 elements but reversed (step=-1)
+        assert_eq!(output.shape().dims, [5, 3, 12]);
+
+        // Verify some values
+        let output_data = output.to_data();
+        let values = output_data.to_vec::<f32>().unwrap();
+
+        // First element should be from [0, 1, 11] (reversed last dim)
+        // [0, 1, 11] -> 0*100 + 1*10 + 11 = 21
+        assert_eq!(values[0], 21.0);
+        // Element at [0, 1, 0] should be from [0, 4, 11]
+        // [0, 4, 11] -> 0*100 + 4*10 + 11 = 51
+        assert_eq!(values[12], 51.0);
+        // Element at [1, 0, 0] should be from [2, 1, 11]
+        // [2, 1, 11] -> 2*100 + 1*10 + 11 = 221
+        assert_eq!(values[36], 221.0);
+    }
+
+    #[test]
+    fn slice_shape_with_steps() {
+        let model: slice_shape_with_steps::Model<TestBackend> =
+            slice_shape_with_steps::Model::default();
+        let device = Default::default();
+
+        // Create test input with shape [2, 3, 4, 5, 6, 7]
+        let input = Tensor::<TestBackend, 6>::ones([2, 3, 4, 5, 6, 7], &device);
+
+        let output = model.forward(input);
+
+        // The model should extract shape [2, 3, 4, 5, 6, 7]
+        // Then slice it with [0:6:2] to get [2, 4, 6]
+        assert_eq!(output, [2i64, 4, 6]);
     }
 
     #[test]

@@ -106,4 +106,17 @@ mod tests {
         // Autotune of all (reduce) on lower_equal_elem's output calls uniform distribution
         tensor_1.lower_equal_elem(1.0).all();
     }
+
+    #[test]
+    #[serial]
+    fn test_seed_reproducibility() {
+        let device = Default::default();
+        TestBackend::seed(&device, 42);
+        let t1 = TestTensor::<1>::random([5], Distribution::Default, &device);
+        TestBackend::seed(&device, 42);
+        let t2 = TestTensor::<1>::random([5], Distribution::Default, &device);
+
+        t1.into_data()
+            .assert_approx_eq::<FT>(&t2.into_data(), Tolerance::default());
+    }
 }

@@ -3,6 +3,7 @@ include_models!(
     reduce_max,
     reduce_min,
     reduce_mean,
+    reduce_mean_partial_shape,
     reduce_prod,
     reduce_sum,
     reduce_sum_square,
@@ -51,7 +52,7 @@ mod tests {
         let expected2_scalar = 1.0f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[1.0f32], [2.]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[1.0f32, 4., 9., 25.]]);
 
         // Assert scalar outputs
@@ -82,7 +83,7 @@ mod tests {
         let expected2_scalar = 26.0f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[25.0f32], [26.]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[2.0f32, 5., 10., 26.]]);
 
         // Assert scalar outputs
@@ -113,7 +114,7 @@ mod tests {
         let expected2_scalar = 82.0f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[39.0f32], [43.]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[3.0f32, 9., 19., 51.]]);
 
         // Assert scalar outputs
@@ -179,7 +180,7 @@ mod tests {
         let expected2_scalar = 10.25f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[9.75f32], [10.75]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[1.5f32, 4.5, 9.5, 25.5]]);
 
         // Assert scalar outputs
@@ -418,5 +419,45 @@ mod tests {
         output5
             .to_data()
             .assert_approx_eq::<FT>(&expected5, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn reduce_mean_partial_shape() {
+        // Regression test for partial static_shape in ReduceMean
+        // This was causing "index out of bounds" panic before the fix
+        let device = Default::default();
+        let model: reduce_mean_partial_shape::Model<TestBackend> =
+            reduce_mean_partial_shape::Model::new(&device);
+
+        // Input with shape [1, 4, 8]
+        let input = Tensor::<TestBackend, 3>::from_floats(
+            [[
+                [
+                    1.9269, 1.4873, 0.9007, -2.1055, 0.6784, -1.2345, -0.0431, -1.6047,
+                ],
+                [
+                    -0.7521, 1.6487, -0.3925, -1.4036, -0.7279, -0.5594, -0.7688, 0.7624,
+                ],
+                [
+                    1.6423, -0.1596, -0.4974, 0.4396, -0.7581, 1.0783, 0.8008, 1.6806,
+                ],
+                [
+                    1.2791, 1.2964, 0.6105, 1.3347, -0.2316, 0.0418, -0.2516, 0.8599,
+                ],
+            ]],
+            &device,
+        );
+
+        // Run the model - this should not panic
+        let output = model.forward(input.clone());
+
+        // Expected output shape [1, 4, 1]
+        // Values computed by the model (with slight precision differences from PyTorch)
+        let expected =
+            TensorData::from([[[0.0006875098], [-0.27418748], [0.52833754], [0.61736876]]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, burn::tensor::Tolerance::default());
     }
 }

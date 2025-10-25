@@ -57,7 +57,7 @@
 //! representations that are more robust to the reduction in precision.
 //!
 //! Quantization support in Burn is currently in active development. It supports the following modes on some backends:
-//! - Static per-tensor quantization to signed 8-bit integer (`i8`)
+//! - Per-tensor and per-block (linear) quantization to 8-bit, 4-bit and 2-bit representations
 //!
 //! ## Feature Flags
 //!
@@ -92,6 +92,8 @@
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
+//! - Model Storage
+//!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `server`: Enables the remote server.
@@ -117,3 +119,46 @@ pub use burn_remote::server;
 /// Module for collective operations
 #[cfg(feature = "collective")]
 pub mod collective;
+
+/// Module for model storage and serialization
+#[cfg(feature = "store")]
+pub mod store {
+    pub use burn_store::*;
+}
+
+/// Neural network module.
+pub mod nn {
+    pub use burn_nn::*;
+}
+
+/// Optimizers module.
+pub mod optim {
+    pub use burn_optim::*;
+}
+
+// For backward compat, `burn::lr_scheduler::*`
+/// Learning rate scheduler module.
+#[cfg(feature = "std")]
+pub mod lr_scheduler {
+    pub use burn_optim::lr_scheduler::*;
+}
+// For backward compat, `burn::grad_clipping::*`
+/// Gradient clipping module.
+pub mod grad_clipping {
+    pub use burn_optim::grad_clipping::*;
+}
+
+/// CubeCL module re-export.
+#[cfg(feature = "cubecl")]
+pub mod cubecl {
+    pub use cubecl::*;
+}
+
+pub mod prelude {
+    //! Structs and macros used by most projects. Add `use
+    //! burn::prelude::*` to your code to quickly get started with
+    //! Burn.
+    pub use burn_core::prelude::*;
+
+    pub use crate::nn;
+}

@@ -1,20 +1,20 @@
-use std::{marker::PhantomData, ops::Range};
+use std::marker::PhantomData;
 
 use burn_ir::{
-    BaseOperationIr, DequantizeOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr, GatherOpIr,
-    HandleContainer, InitOperationIr, NumericOperationIr, OperationIr, PermuteOpIr,
+    BaseOperationIr, BinaryOpIr, DequantizeOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr,
+    GatherOpIr, HandleContainer, InitOperationIr, NumericOperationIr, OperationIr, PermuteOpIr,
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::{
-    DType, Device, Element, Shape, TensorData, TensorMetadata,
+    DType, Device, Element, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantScheme, QuantizationParametersPrimitive},
+    quantization::{
+        QTensorPrimitive, QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
+    },
 };
 
 use crate::{
-    Fusion, FusionBackend,
-    client::FusionClient,
-    get_client,
+    Fusion, FusionBackend, get_client,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 
@@ -29,7 +29,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let shape = tensor.shape();
 
         let handle = B::quantized_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape.dims, stream, dtype);
+        let out = client.register_tensor(handle, shape, stream, dtype);
         let desc = out.to_ir_out();
 
         client.register(
@@ -63,7 +63,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = tensor.shape.clone();
         let dtype = tensor.dtype;
         let out = tensor
             .client
@@ -110,7 +110,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = tensor.shape.clone();
         let dtype = B::FloatElem::dtype();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
@@ -148,7 +148,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        if tensor.shape == shape.dims {
+        if tensor.shape == shape {
             return tensor;
         }
 
@@ -161,7 +161,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
-                let output = B::q_reshape(input, Shape::from(&self.desc.out.shape));
+                let output = B::q_reshape(input, self.desc.out.shape.clone());
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -170,7 +170,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         let dtype = tensor.dtype;
-        let out = tensor.client.tensor_uninitialized(shape.dims, dtype);
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = UnaryOpIr {
             input: tensor.into_ir(),
@@ -212,9 +212,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim1] = tensor.shape[dim2];
-        shape[dim2] = tensor.shape[dim1];
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
 
         let mut out = tensor.client.tensor_uninitialized(shape, dtype);
 
@@ -253,7 +251,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
-        let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
+        let shape = tensor.shape.clone().permute(axes).unwrap();
 
         let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
 
@@ -334,7 +332,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&indices);
 
         let dtype = tensor.dtype;
-        let shape: Vec<usize> = indices.shape.clone();
+        let shape = indices.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = GatherOpIr {
@@ -379,7 +377,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&indices);
 
         let dtype = tensor.dtype;
-        let mut shape: Vec<usize> = tensor.shape.clone();
+        let mut shape = tensor.shape.clone();
         shape[dim] = indices.shape[0];
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = SelectOpIr {
@@ -397,7 +395,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -416,18 +414,13 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
-        let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = tensor.shape.clone().slice(slices).unwrap();
 
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slices.into(),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -449,7 +442,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
-                let output = B::q_expand(input, self.desc.shape.clone().into());
+                let output = B::q_expand(input, self.desc.shape.clone());
 
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
@@ -460,11 +453,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let out = tensor
             .client
-            .tensor_uninitialized(shape.dims.clone(), tensor.dtype);
+            .tensor_uninitialized(shape.clone(), tensor.dtype);
 
         let desc = ExpandOpIr {
             input: tensor.into_ir(),
-            shape: shape.dims,
+            shape,
             out: out.to_ir_out(),
         };
 
@@ -475,5 +468,107 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         );
 
         out
+    }
+
+    fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
+        #[derive(new, Debug)]
+        struct MatmulOps<B: FusionBackend> {
+            desc: BinaryOpIr,
+            lhs_quantized: bool,
+            rhs_quantized: bool,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for MatmulOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = match self.lhs_quantized {
+                    true => {
+                        TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.lhs))
+                    }
+                    false => TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.lhs)),
+                };
+                let rhs = match self.rhs_quantized {
+                    true => {
+                        TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.rhs))
+                    }
+                    false => TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.rhs)),
+                };
+                let output = B::q_matmul(lhs, rhs);
+                match output {
+                    TensorPrimitive::Float(output) => {
+                        handles.register_float_tensor::<B>(&self.desc.out.id, output);
+                    }
+                    TensorPrimitive::QFloat(output) => {
+                        handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+                    }
+                }
+            }
+        }
+
+        let mut propagation = QuantPropagation::Inhibit;
+        let mut scheme = QuantScheme::default();
+        let mut streams = OperationStreams::default();
+        let mut lhs_quantized = false;
+        let mut rhs_quantized = false;
+        match &lhs {
+            TensorPrimitive::QFloat(lhs) => {
+                propagation = lhs.propagation();
+                scheme = *lhs.scheme();
+                lhs_quantized = true;
+                streams.tensor(lhs);
+            }
+            TensorPrimitive::Float(lhs) => {
+                streams.tensor(lhs);
+            }
+        }
+        match &rhs {
+            TensorPrimitive::QFloat(rhs) => {
+                propagation = rhs.propagation();
+                scheme = *rhs.scheme();
+                rhs_quantized = true;
+                streams.tensor(rhs);
+            }
+            TensorPrimitive::Float(rhs) => {
+                streams.tensor(rhs);
+            }
+        }
+
+        let dtype = match propagation {
+            QuantPropagation::Propagate => DType::QFloat(scheme),
+            QuantPropagation::Inhibit => B::FloatElem::dtype(),
+        };
+        let shape = Shape::matmul(&lhs.shape(), &rhs.shape()).unwrap();
+
+        let client = match &lhs {
+            TensorPrimitive::Float(lhs) => lhs.client.clone(),
+            TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
+        };
+
+        let lhs = match lhs {
+            TensorPrimitive::Float(lhs) => lhs.into_ir(),
+            TensorPrimitive::QFloat(lhs) => lhs.into_ir(),
+        };
+        let rhs = match rhs {
+            TensorPrimitive::Float(rhs) => rhs.into_ir(),
+            TensorPrimitive::QFloat(rhs) => rhs.into_ir(),
+        };
+
+        let out = client.tensor_uninitialized(shape, dtype);
+        let desc = BinaryOpIr {
+            lhs,
+            rhs,
+            out: out.to_ir_out(),
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::Matmul(desc.clone())),
+            MatmulOps::<B>::new(desc, lhs_quantized, rhs_quantized),
+        );
+
+        match propagation {
+            QuantPropagation::Propagate => TensorPrimitive::QFloat(out),
+            QuantPropagation::Inhibit => TensorPrimitive::Float(out),
+        }
     }
 }

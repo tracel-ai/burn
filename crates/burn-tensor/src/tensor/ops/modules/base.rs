@@ -1,12 +1,11 @@
-use alloc::vec;
-use core::num::NonZeroUsize;
-
-use super::{conv, pool, unfold::unfold4d_using_conv2d};
+use super::{conv, pool};
+use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
     ops::{FloatTensor, IntTensor},
 };
+use core::num::NonZeroUsize;
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -579,14 +578,36 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      `[batch_size, channels_in, height, width]`,
-    /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]`,
+    /// * x:      ``[batch_size, channels_in, height, width]``,
+    /// * returns: ``[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]``,
     fn unfold4d(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
         options: UnfoldOptions,
     ) -> FloatTensor<B> {
-        unfold4d_using_conv2d::<B>(x, kernel_size, options)
+        if options.padding == [0, 0] && options.dilation == [1, 1] {
+            let blocks = B::float_unfold(x, 2, kernel_size[0], options.stride[0]);
+            let blocks = B::float_unfold(blocks, 3, kernel_size[1], options.stride[1]);
+
+            // batch, channels, h_blocks, w_blocks, h_kern, w_kern
+
+            let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
+            let shape = &blocks.shape().dims;
+
+            // batch, channels, h_kern, w_kern, h_blocks, w_blocks
+
+            B::float_reshape(
+                blocks,
+                [
+                    shape[0],
+                    shape[1] * shape[2] * shape[3],
+                    shape[4] * shape[5],
+                ]
+                .into(),
+            )
+        } else {
+            unfold4d_using_conv2d::<B>(x, kernel_size, options)
+        }
     }
 
     /// One dimensional avg pooling.
@@ -766,72 +787,6 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
-
-    /// Applies a linear transformation to the input tensor using the given weight and bias.
-    ///
-    /// ```math
-    /// y = x @ weight + [bias]
-    /// ```
-    ///
-    /// # Arguments:
-    ///
-    /// - `input` is the input tensor, ``[..., d_input]``.
-    /// - `weight` is the weight tensor, ``[d_input, d_output]``.
-    /// - `b` is the bias tensor (optional), ``[d_output]``.
-    ///
-    /// # Returns:
-    ///
-    /// The transformed tensor, ``[..., d_output]``.
-    ///
-    /// # Compatibility
-    ///
-    /// This function differs from PyTorch's ``torch.nn.functional.linear`` in that it does not
-    /// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
-    /// multiplication:
-    ///
-    /// ```math
-    /// y = x @ weight^T + [bias]
-    /// ```
-    fn linear(
-        input: FloatTensor<B>,
-        weight: FloatTensor<B>,
-        bias: Option<FloatTensor<B>>,
-    ) -> FloatTensor<B> {
-        let ndims_in = input.shape().num_dims();
-        let [d_input, d_output] = weight.shape().dims();
-
-        if ndims_in == 1 {
-            // Insert and remove an extra batch dimension for the batch matmul to work.
-            let input = B::float_reshape(input, Shape::from([1, d_input]));
-            let output = Self::linear(input, weight, bias);
-            return B::float_reshape(output, Shape::from([d_output]));
-        }
-
-        // Perform broadcasting
-        //
-        // Important to be done before doing operations to easily fuse.
-        let weight = unsqueeze::<B>(weight, ndims_in);
-        let bias = bias.map(|bias| unsqueeze::<B>(bias, ndims_in));
-
-        let output = B::float_matmul(input, weight);
-        match bias {
-            Some(bias) => B::float_add(output, bias),
-            None => output,
-        }
-    }
-}
-
-// Unsqueeze op on primitive.
-// TODO: would be nice to have this on primitives too for convenience.
-fn unsqueeze<B: Backend>(tensor: FloatTensor<B>, ndims_out: usize) -> FloatTensor<B> {
-    let shape = tensor.shape();
-    let ndims_in = shape.num_dims();
-
-    let mut dims = vec![1; ndims_out];
-    let num_ones = ndims_out - ndims_in;
-    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape.dims[..ndims_in]);
-
-    B::float_reshape(tensor, Shape::from(dims))
 }
 
 #[cfg(test)]

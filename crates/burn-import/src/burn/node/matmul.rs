@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -59,7 +59,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
                     }
 
                     quote! {
-                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze::<#output_rank>(#squeeze_dim);
+                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze_dim::<#output_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
@@ -78,7 +78,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
                     let target_rank = rhs_dim;
 
                     quote! {
-                        let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs).squeeze::<#output_rank>(#squeeze_dim);
+                        let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs).squeeze_dim::<#output_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
@@ -96,7 +96,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Matmul(self)
+        Node::MatMul(self)
+    }
+}
+
+impl OnnxIntoNode for MatmulNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let lhs = crate::burn::TensorType::from(node.inputs.first().unwrap());
+        let rhs = crate::burn::TensorType::from(node.inputs.get(1).unwrap());
+        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        Self::new(lhs, rhs, output)
     }
 }
 
@@ -200,7 +209,7 @@ mod tests {
                     tensor1: Tensor<B, 4>,
                     tensor2: Tensor<B, 1>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.matmul(tensor2.unsqueeze_dims(&[-1isize, 0isize, 0isize])).squeeze::<3usize>(3usize);
+                    let tensor3 = tensor1.matmul(tensor2.unsqueeze_dims(&[-1isize, 0isize, 0isize])).squeeze_dim::<3usize>(3usize);
 
                     tensor3
                 }
@@ -249,7 +258,7 @@ mod tests {
                     tensor1: Tensor<B, 1>,
                     tensor2: Tensor<B, 4>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.unsqueeze::<4usize>().matmul(tensor2).squeeze::<3usize>(2usize);
+                    let tensor3 = tensor1.unsqueeze::<4usize>().matmul(tensor2).squeeze_dim::<3usize>(2usize);
 
                     tensor3
                 }

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        Distribution, ElementComparison, ElementConversion, Tensor, backend::Backend,
+        Distribution, ElementComparison, ElementConversion, Tensor, Tolerance, backend::Backend,
         cast::ToElement, tests::Float,
     };
 

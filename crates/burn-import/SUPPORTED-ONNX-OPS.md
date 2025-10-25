@@ -52,7 +52,7 @@ functionality.
 | [ConvTranspose3d][38]            | ✅             | ✅           |
 | [Cos][39]                        | ✅             | ✅           |
 | [Cosh][40]                       | ✅             | ✅           |
-| [CumSum][41]                     | ❌             | ❌           |
+| [CumSum][41]                     | ❌             | ✅          |
 | [DeformConv][196]                | ❌             | ❌           |
 | [DepthToSpace][42]               | ✅             | ✅           |
 | [DequantizeLinear][43]           | ❌             | ❌           |
@@ -67,7 +67,7 @@ functionality.
 | [Erf][52]                        | ✅             | ✅           |
 | [Exp][53]                        | ✅             | ✅           |
 | [Expand][54]                     | ✅             | ✅           |
-| [EyeLike][55]                    | ❌             | ✅           |
+| [EyeLike][55]                    | ✅             | ✅           |
 | [Flatten][56]                    | ✅             | ✅           |
 | [Floor][57]                      | ✅             | ✅           |
 | [Gather][58]                     | ✅             | ✅           |
@@ -118,13 +118,13 @@ functionality.
 | [MelWeightMatrix][103]           | ❌             | ❌           |
 | [Min][104]                       | ✅             | ✅           |
 | [Mish][105]                      | ❌             | ❌           |
-| [Mod][106]                       | ❌             | ❌           |
+| [Mod][106]                       | ✅             | ✅           |
 | [Mul][107]                       | ✅             | ✅           |
 | [Multinomial][108]               | ❌             | ❌           |
 | [Neg][109]                       | ✅             | ✅           |
 | [NegativeLogLikelihoodLoss][110] | ❌             | ❌           |
 | [NonMaxSuppression][112]         | ❌             | ❌           |
-| [NonZero][113]                   | ❌             | ✅           |
+| [NonZero][113]                   | ✅             | ✅           |
 | [Not][114]                       | ✅             | ✅           |
 | [OneHot][115]                    | ✅             | ✅           |
 | [Optional][116]                  | ❌             | ❌           |

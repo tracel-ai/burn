@@ -5,6 +5,7 @@ use quote::quote;
 use syn::Visibility;
 
 pub(crate) struct StructModuleCodegen {
+    pub name: Ident,
     pub fields: Vec<FieldTypeAnalyzer>,
     pub vis: Visibility,
 }
@@ -29,9 +30,13 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_visit(&self) -> TokenStream {
+        let struct_name = self.name.to_string();
         let body = self.gen_fields_fn(|name| {
+            let name_str = name.to_string();
             quote! {
+                visitor.enter_module(#name_str, #struct_name);
                 burn::module::Module::visit(&self.#name, visitor);
+                visitor.exit_module(#name_str, #struct_name);
             }
         });
 
@@ -98,9 +103,13 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_map(&self) -> TokenStream {
+        let struct_name = self.name.to_string();
         let (names, body) = self.gen_fields_fn_names(|name| {
+            let name_str = name.to_string();
             quote! {
+                mapper.enter_module(#name_str, #struct_name);
                 let #name = burn::module::Module::<B>::map(self.#name, mapper);
+                mapper.exit_module(#name_str, #struct_name);
             }
         });
 
@@ -191,6 +200,7 @@ impl ModuleCodegen for StructModuleCodegen {
 impl StructModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> Self {
         Self {
+            name: ast.ident.clone(),
             fields: parse_fields(ast)
                 .into_iter()
                 .map(FieldTypeAnalyzer::new)

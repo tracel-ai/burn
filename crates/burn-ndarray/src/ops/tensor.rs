@@ -3,10 +3,12 @@ use alloc::vec::Vec;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::InterpolateMode;
 use burn_tensor::{TensorMetadata, cast::ToElement};
-use core::ops::Range;
 
 // Current crate
-use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
+use super::{
+    NdArrayMathOps, NdArrayOps,
+    matmul::{cross, matmul},
+};
 use crate::{
     NdArray, cast_to_dtype, cat_with_dtype, execute_with_int_dtype, tensor::NdArrayTensor,
 };
@@ -137,6 +139,14 @@ where
         execute_with_float_dtype!((lhs, rhs), matmul)
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        execute_with_float_dtype!((lhs, rhs), |lhs, rhs| cross(lhs, rhs, dim))
+    }
+
     fn float_neg(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         Self::float_mul_scalar(tensor, (-1f32).elem::<E>())
     }
@@ -203,17 +213,17 @@ where
         })
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, ranges))
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayOps::slice_assign(tensor, ranges, value)
+            NdArrayOps::slice_assign(tensor, slices, value)
         })
     }
 
@@ -309,6 +319,22 @@ where
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mean_dim(tensor, dim))
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
+    }
+
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cumprod(tensor, dim))
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cummin(tensor, dim))
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cummax(tensor, dim))
+    }
+
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
     }
@@ -347,20 +373,9 @@ where
         })
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            if value == 2.0 {
-                // Happens often and is faster.
-                tensor.mapv_into(|a| a * a).into_shared()
-            } else if value.floor() == value {
-                // Is faster then powf
-                tensor
-                    .mapv_into(|a| a.powi_elem(value as i32))
-                    .into_shared()
-            } else {
-                // Default
-                tensor.mapv_into(|a| a.powf_elem(value)).into_shared()
-            }
+            tensor.mapv_into(|a| a.powf_elem(value)).into_shared()
         })
     }
 
@@ -418,6 +433,14 @@ where
         execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
             tensor
                 .mapv_into(|a| (a.to_f64()).ceil().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
+            tensor
+                .mapv_into(|a| (a.to_f64()).trunc().elem())
                 .into_shared()
         })
     }
@@ -496,5 +519,14 @@ where
         execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_2d(
             tensor, grid, method
         ))
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::unfold(tensor, dim, size, step))
     }
 }

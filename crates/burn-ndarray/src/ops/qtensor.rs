@@ -1,5 +1,4 @@
 use alloc::vec;
-use core::ops::Range;
 
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
@@ -63,7 +62,14 @@ where
                         }
                     }
                     QuantScheme {
-                        value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                        value:
+                            QuantValue::Q4F
+                            | QuantValue::Q4S
+                            | QuantValue::Q2F
+                            | QuantValue::Q2S
+                            | QuantValue::E2M1
+                            | QuantValue::E4M3
+                            | QuantValue::E5M2,
                         ..
                     } => unimplemented!("from_data not supported for scheme {scheme:?}"),
                 }
@@ -141,16 +147,7 @@ where
                     qparams,
                 )
             }
-            QuantScheme {
-                store: QuantStore::U32,
-                ..
-            } => unimplemented!("Quantization not supported for scheme {scheme:?}"),
-            #[cfg(not(feature = "export_tests"))]
-            QuantScheme {
-                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            } => unimplemented!("Quantization not supported for scheme {scheme:?}"),
+            scheme => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };
 
         let shape = tensor.shape();
@@ -280,10 +277,13 @@ where
         }
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        tensor: QuantizedTensor<Self>,
+        slices: &[burn_tensor::Slice],
+    ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::slice(
-                qtensor, ranges
+                qtensor, slices
             )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,

@@ -20,9 +20,6 @@ extern crate alloc;
 #[cfg(feature = "network")]
 pub mod network;
 
-/// Parallel utilities.
-pub mod parallel;
-
 /// Tensor utilities.
 pub mod tensor {
     use alloc::vec;
@@ -67,6 +64,7 @@ pub mod tensor {
     }
 
     /// The action to take for a reshape operation.
+    #[derive(Debug)]
     pub enum ReshapeAction {
         /// Updating the strides is sufficient to handle the reshape.
         UpdateStrides {

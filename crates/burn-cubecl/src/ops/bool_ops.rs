@@ -7,7 +7,7 @@ use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor
 use burn_tensor::{Shape, TensorData};
 use std::ops::Range;
 
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 
 impl<R, F, I, BT> BoolTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
@@ -55,13 +55,28 @@ where
         super::reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[Range<usize>]) -> BoolTensor<Self> {
-        kernel::slice::<R, BT>(tensor, ranges)
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[burn_tensor::Slice]) -> BoolTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slices.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> = slices
+                .iter()
+                .enumerate()
+                .map(|(i, slice)| slice.to_range(tensor.shape[i]))
+                .collect();
+
+            kernel::slice::<R, BT>(tensor, &simple_ranges)
+        } else {
+            // Use slice with steps kernel
+            kernel::slice_with_steps::<R, BT>(tensor, slices)
+        }
     }
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         kernel::slice_assign::<R, BT>(tensor, ranges, value)
@@ -89,7 +104,7 @@ where
 
     fn bool_swap_dims(mut tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         tensor.strides.swap(dim1, dim2);
-        tensor.shape.dims.swap(dim1, dim2);
+        tensor.shape = tensor.shape.swap(dim1, dim2).unwrap();
 
         tensor
     }
@@ -106,7 +121,33 @@ where
         expand(tensor, shape)
     }
 
+    fn bool_select(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::select::<R, BT, I>(tensor, dim, indices)
+    }
+
+    fn bool_select_assign(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::select_assign::<R, BT, I>(tensor, dim, indices, value, true)
+    }
+
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         kernel::flip::<R, BT, BT>(tensor, axes)
+    }
+
+    fn bool_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }

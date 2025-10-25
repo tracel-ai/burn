@@ -11,7 +11,7 @@ use burn_cubecl_fusion::{
     CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
 };
 use burn_fusion::stream::{Operation, OrderedExecution};
-use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
+use burn_fusion::{FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
@@ -134,7 +134,6 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
     type Optimization = CubeOptimization<R>;
     type FusionHandle = CubeFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
-    type FusionClient = MutexFusionClient<Self>;
     type BoolRepr = BT;
 
     fn optimizations(

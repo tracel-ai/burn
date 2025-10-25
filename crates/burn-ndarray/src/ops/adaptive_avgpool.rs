@@ -1,5 +1,6 @@
-use crate::{SharedArray, element::FloatNdArrayElement, sharing::UnsafeSharedRef};
-use burn_common::{iter_range_par, run_par};
+use crate::{
+    SharedArray, element::FloatNdArrayElement, iter_range_par, run_par, sharing::UnsafeSharedRef,
+};
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 

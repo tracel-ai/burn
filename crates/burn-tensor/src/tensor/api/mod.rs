@@ -7,6 +7,7 @@ mod bool;
 mod cartesian_grid;
 
 mod float;
+mod fmod;
 mod int;
 mod kind;
 mod numeric;
@@ -14,6 +15,7 @@ mod slice;
 mod sort;
 mod take;
 mod transaction;
+mod trunc;
 
 pub use argwhere::argwhere_data;
 pub use autodiff::*;

@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{ScalarKind, ScalarType, TensorKind, TensorType, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
@@ -56,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
                     let output_rank = tensor.rank;
                     quote! {
                         let argmin_result = #input.argmin(#axis);
-                        let #output = argmin_result.squeeze::<#output_rank>(#axis);
+                        let #output = argmin_result.squeeze_dim::<#output_rank>(#axis);
                     }
                 }
             }
@@ -75,6 +75,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
 
     fn into_node(self) -> super::Node<PS> {
         Node::ArgMin(self)
+    }
+}
+
+impl OnnxIntoNode for ArgMinNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
+        let output = crate::burn::Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::argmin::argmin_config(&node);
+        Self::new(input, output, config.axis, config.keepdims)
     }
 }
 
@@ -170,7 +179,7 @@ mod tests {
                     tensor1: Tensor<B, 2>
                 ) -> Tensor<B, 1, Int> {
                     let argmin_result = tensor1.argmin(1);
-                    let tensor2 = argmin_result.squeeze::<1usize>(1);
+                    let tensor2 = argmin_result.squeeze_dim::<1usize>(1);
 
                     tensor2
                 }

@@ -1,6 +1,7 @@
 use burn::{module::Module, nn::conv::Conv2d, tensor::backend::Backend};
 
 #[derive(Module, Debug)]
+#[allow(unused)]
 pub struct Net<B: Backend> {
     do_not_exist_in_pt: Conv2d<B>,
 }

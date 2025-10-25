@@ -1,4 +1,4 @@
-# Custom `cubecl` Kernel
+# Custom CubeCL Kernel
 
 In this section, you will learn how to create your own custom operation by writing your own kernel
 with the cubecl compiler frontend. We will take the example of a common workflow in the deep
@@ -7,6 +7,8 @@ this automatically, but a manual implementation might be more efficient in some 
 a matmul kernel followed by an addition and the ReLU activation function, which is commonly found in
 various models. All the code can be found under the
 [examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-cubecl-kernel).
+
+> Note: CubeCL is in active development, so this section may be outdated.
 
 ## Custom Backend Trait
 
@@ -75,8 +77,8 @@ Now, let's proceed to write the fused kernel using the `cubecl` compiler fronten
 simple, we'll create a straightforward matmul kernel without employing any intricate techniques. We
 won't delve into the details of the `cube` macro, but if you're interested to learn more, please see
 [`cubecl` Book](https://github.com/tracel-ai/cubecl/tree/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/cubecl-book).
-The actual matmul, add and relu computations are found at the end, after an extensive prelude
-that serves to correctly map each compute unit to the data it is responsible for, with support for
+The actual matmul, add and relu computations are found at the end, after an extensive prelude that
+serves to correctly map each compute unit to the data it is responsible for, with support for
 batches.
 
 ```rust, ignore
@@ -132,7 +134,9 @@ automatically implements the trait for `burn-cuda`, `burn-wgpu` as well as fusio
 
 ```rust, ignore
 /// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, F, I> {
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for CubeBackend<R, F, I, BT>
+{
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -151,14 +155,14 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, 
 
         // Get the matmul relevant shapes.
         let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape.dims[ndims - 2];
-        let num_cols = rhs.shape.dims[ndims - 1];
+        let num_rows = lhs.shape[ndims - 2];
+        let num_cols = rhs.shape[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
         for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
+            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
             num_batches *= shape_out[i];
         }
         shape_out[ndims - 2] = num_rows;
@@ -170,7 +174,6 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, 
             .client
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
-        // Create the output tensor primitive.
         // Create the output tensor primitive.
         let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
@@ -242,7 +245,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeID, NodeID, FloatTensor<B>, Shape);
+            type State = (NodeId, NodeId, FloatTensor<B>, Shape);
 
             fn backward(
                 self,
@@ -362,8 +365,8 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our JIT Backend.
 
 ```rust, ignore
-impl<R: CubeRuntime, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<CubeBackend<R, F, I>>
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<CubeBackend<R, F, I, BT>>
 {
 }
 ```

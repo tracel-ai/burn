@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::split::SplitConfig;
@@ -56,6 +56,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Split(self)
+    }
+}
+
+impl OnnxIntoNode for SplitNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = onnx_ir::node::split::split_config(&node);
+        Self::new(input, outputs, config)
     }
 }
 

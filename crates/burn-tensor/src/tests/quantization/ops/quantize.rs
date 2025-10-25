@@ -173,7 +173,7 @@ mod tests {
     fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
         let scheme = QuantizedTensor::<TestBackend>::default_scheme()
             .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Block(32));
+            .with_level(QuantLevel::block([2, 16]));
 
         let input: TestTensor<2> = Tensor::arange(0..256, &Default::default())
             .float()

@@ -1,20 +1,18 @@
+use crate::{
+    Fusion, FusionBackend, get_client,
+    stream::{OperationStreams, StreamId, execution::Operation},
+};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer,
     InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, TensorIr, UnaryOpIr,
+    SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
 };
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
-    Device, Element, Shape, TensorData, TensorMetadata,
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
+    Device, Element, Shape, Slice, TensorData, TensorMetadata,
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 use std::marker::PhantomData;
-
-use crate::{
-    Fusion, FusionBackend,
-    client::FusionClient,
-    get_client,
-    stream::{OperationStreams, StreamId, execution::Operation},
-};
 
 use super::NoOp;
 
@@ -28,13 +26,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_empty(Shape::from(&self.desc.shape), &self.device);
+                let output = B::bool_empty(self.desc.shape.clone(), &self.device);
                 handles.register_bool_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
+        let out = client.tensor_uninitialized(shape.clone(), B::BoolElem::dtype());
 
         let desc = out.to_ir_out();
 
@@ -56,13 +54,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ZerosOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_zeros(Shape::from(&self.desc.shape), &self.device);
+                let output = B::bool_zeros(self.desc.shape.clone(), &self.device);
                 handles.register_bool_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
+        let out = client.tensor_uninitialized(shape.clone(), B::BoolElem::dtype());
 
         let desc = out.to_ir_out();
 
@@ -84,13 +82,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for OnesOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_ones(Shape::from(&self.desc.shape), &self.device);
+                let output = B::bool_ones(self.desc.shape.clone(), &self.device);
                 handles.register_bool_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
+        let out = client.tensor_uninitialized(shape.clone(), B::BoolElem::dtype());
 
         let desc = out.to_ir_out();
 
@@ -114,7 +112,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let shape = tensor.shape();
 
         let handle = B::bool_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape.dims, stream, B::BoolElem::dtype());
+        let out = client.register_tensor(handle, shape, stream, B::BoolElem::dtype());
         let desc = out.to_ir_out();
 
         client.register(
@@ -219,7 +217,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        if tensor.shape == shape.dims {
+        if tensor.shape == shape {
             return tensor;
         }
 
@@ -232,7 +230,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_reshape(input, Shape::from(&self.desc.out.shape));
+                let output = B::bool_reshape(input, self.desc.out.shape.clone());
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -242,7 +240,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = tensor
             .client
-            .tensor_uninitialized(shape.dims, B::BoolElem::dtype());
+            .tensor_uninitialized(shape, B::BoolElem::dtype());
 
         let desc = UnaryOpIr {
             input: tensor.into_ir(),
@@ -257,7 +255,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[std::ops::Range<usize>]) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -274,12 +272,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = tensor.shape.clone().slice(slices).unwrap();
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
@@ -290,7 +283,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -304,7 +297,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
@@ -324,7 +317,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = tensor.shape.clone();
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         streams.tensor(&value);
@@ -335,7 +328,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: ranges.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };
@@ -375,14 +368,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let client = tensor_first.client.clone();
 
         // Calculate the output shape
-        let mut shape: Vec<usize> = tensor_first.shape.clone();
+        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
         let mut streams = OperationStreams::default();
         tensors.iter().for_each(|t| streams.tensor(t));
-
-        shape[dim] = 0;
-        for tensor in tensors.iter() {
-            shape[dim] += tensor.shape[dim];
-        }
 
         let out = client.tensor_uninitialized(shape, B::BoolElem::dtype());
 
@@ -421,7 +409,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
 
         let out = lhs.client.tensor_uninitialized(
-            binary_ops_shape(&lhs.shape, &rhs.shape),
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
             B::BoolElem::dtype(),
         );
 
@@ -496,7 +484,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
 
         let out = lhs.client.tensor_uninitialized(
-            binary_ops_shape(&lhs.shape, &rhs.shape),
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
             B::BoolElem::dtype(),
         );
 
@@ -535,7 +523,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
 
         let out = lhs.client.tensor_uninitialized(
-            binary_ops_shape(&lhs.shape, &rhs.shape),
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
             B::BoolElem::dtype(),
         );
 
@@ -571,10 +559,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let mut shape = tensor.shape.clone();
-        shape[dim1] = tensor.shape[dim2];
-        shape[dim2] = tensor.shape[dim1];
-
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());
@@ -613,8 +598,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
-        let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
-
+        let shape = tensor.shape.clone().permute(axes).unwrap();
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());
@@ -644,7 +628,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_expand(input, self.desc.shape.clone().into());
+                let output = B::bool_expand(input, self.desc.shape.clone());
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -655,11 +639,11 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = tensor
             .client
-            .tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
+            .tensor_uninitialized(shape.clone(), B::BoolElem::dtype());
 
         let desc = ExpandOpIr {
             input: tensor.into_ir(),
-            shape: shape.dims,
+            shape,
             out: out.to_ir_out(),
         };
 
@@ -729,8 +713,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let mut shape = tensor.shape.clone();
-        shape[dim] *= times;
+        let shape = tensor.shape.clone().repeat(dim, times);
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());
@@ -745,6 +728,52 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::BaseBool(BaseOperationIr::RepeatDim(desc.clone())),
             RepeatDimOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct UnfoldOps<B: FusionBackend> {
+            desc: UnfoldOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.input);
+                let output = B::bool_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = tensor
+            .client
+            .tensor_uninitialized(Shape::from(shape), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseBool(BaseOperationIr::Unfold(desc.clone())),
+            UnfoldOps::<B>::new(desc),
         );
 
         out

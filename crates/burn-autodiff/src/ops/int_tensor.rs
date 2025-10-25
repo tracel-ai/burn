@@ -28,8 +28,8 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<B>, ranges: &[core::ops::Range<usize>]) -> IntTensor<B> {
-        B::int_slice(tensor, ranges)
+    fn int_slice(tensor: IntTensor<B>, slices: &[burn_tensor::Slice]) -> IntTensor<B> {
+        B::int_slice(tensor, slices)
     }
 
     fn int_empty(
@@ -42,10 +42,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        ranges: &[core::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: IntTensor<B>,
     ) -> IntTensor<B> {
-        B::int_slice_assign(tensor, ranges, value)
+        B::int_slice_assign(tensor, slices, value)
     }
 
     fn int_cat(tensors: Vec<IntTensor<B>>, dim: usize) -> IntTensor<B> {
@@ -151,6 +151,22 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_mean_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_mean_dim(tensor, dim)
+    }
+
+    fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_cumsum(tensor, dim)
+    }
+
+    fn int_cumprod(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_cumprod(tensor, dim)
+    }
+
+    fn int_cummin(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_cummin(tensor, dim)
+    }
+
+    fn int_cummax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_cummax(tensor, dim)
     }
 
     fn int_repeat_dim(tensor: IntTensor<B>, dim: usize, times: usize) -> IntTensor<B> {
@@ -376,5 +392,14 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
         B::int_cast(tensor, dtype)
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        B::int_unfold(tensor, dim, size, step)
     }
 }

@@ -19,7 +19,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 30] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -38,6 +38,8 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
     NodeType::PRelu,
     NodeType::Pad,
     NodeType::Range,
+    NodeType::ReduceMax,
+    NodeType::ReduceMean,
     NodeType::ReduceSum,
     NodeType::Reshape,
     NodeType::Resize,
@@ -59,6 +61,7 @@ pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
         DT::FLOAT16 => Ok(ElementType::Float16),
         DT::INT64 => Ok(ElementType::Int64),
         DT::INT32 => Ok(ElementType::Int32),
+        DT::UINT16 => Ok(ElementType::Uint16),
         DT::UINT8 => Ok(ElementType::Uint8),
         DT::INT8 => Ok(ElementType::Int8),
         DT::BOOL => Ok(ElementType::Bool),
@@ -357,7 +360,7 @@ impl OnnxGraphBuilder {
 
         match node.node_type {
             // Binary operations: convert rank-1 tensors if the other input is Shape
-            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
+            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div | NodeType::Mod => {
                 if node.inputs.len() != 2 {
                     return shape_inputs;
                 }
@@ -525,6 +528,7 @@ impl OnnxGraphBuilder {
                 | NodeType::Sub
                 | NodeType::Mul
                 | NodeType::Div
+                | NodeType::Mod
                 | NodeType::Concat => {
                     // Update input types and check if reinference needed
                     if self.update_node_inputs_to_shape(node, constants_to_convert) {
@@ -1010,7 +1014,7 @@ impl OnnxGraphBuilder {
     ) -> bool {
         matches!(
             node.node_type,
-            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div
+            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div | NodeType::Mod
         ) && node.inputs.len() == 2
             && node.node_type != NodeType::Constant
             && node

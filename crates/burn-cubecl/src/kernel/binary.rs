@@ -3,17 +3,11 @@ use std::marker::PhantomData;
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    kernel::utils::{linear_view, linear_view_alias},
+    kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
-use burn_tensor::Shape;
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::tensor::{index_offset_with_layout, layout::linear::LinearView},
-    tensor_line_size_parallel,
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
     type BinaryOp<C: Numeric>: BinaryOp<C>;
@@ -150,76 +144,27 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
 
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
-    lhs: &Tensor<Line<C>>,
-    rhs: &Tensor<Line<C>>,
-    out: &mut Tensor<Line<C>>,
-    #[comptime] rank: Option<u32>,
-    #[comptime] to_contiguous_lhs: bool,
-    #[comptime] to_contiguous_rhs: bool,
+    lhs: &LinearView<Line<C>>,
+    rhs: &LinearView<Line<C>>,
+    out: &mut LinearView<Line<C>, ReadWrite>,
 ) {
-    let offset_out = ABSOLUTE_POS;
-    let mut offset_lhs = ABSOLUTE_POS;
-    let mut offset_rhs = ABSOLUTE_POS;
-
-    if offset_out >= out.len() {
+    if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    if to_contiguous_lhs {
-        offset_lhs = index_offset_with_layout::<C, C>(
-            lhs,
-            out,
-            offset_out,
-            0,
-            rank.unwrap_or_else(|| out.rank()),
-            rank.is_some(),
-        );
-    }
-
-    if to_contiguous_rhs {
-        offset_rhs = index_offset_with_layout::<C, C>(
-            rhs,
-            out,
-            offset_out,
-            0,
-            rank.unwrap_or_else(|| out.rank()),
-            rank.is_some(),
-        );
-    }
-
-    out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
+    out[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
 }
 
 pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = lhs.shape.num_dims();
-    let line_size_lhs = tensor_line_size_parallel(
-        R::line_size_type(&E::as_type_native_unchecked()),
-        &lhs.shape.dims,
-        &lhs.strides,
-        ndims - 1,
-    );
-    let line_size_rhs = tensor_line_size_parallel(
-        R::line_size_type(&E::as_type_native_unchecked()),
-        &rhs.shape.dims,
-        &rhs.strides,
-        ndims - 1,
-    );
+    let line_size_lhs = max_line_size(&lhs);
+    let line_size_rhs = max_line_size(&rhs);
     let line_size = Ord::min(line_size_lhs, line_size_rhs);
 
-    let mut shape_out = vec![0; ndims];
-    lhs.shape
-        .dims
-        .iter()
-        .zip(rhs.shape.dims.iter())
-        .enumerate()
-        .for_each(|(index, (dim_lhs, dim_rhs))| {
-            shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
-        });
+    let shape_out = broadcast_shape(&[&lhs, &rhs]);
 
-    let shape_out = Shape::from(shape_out);
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
@@ -227,51 +172,38 @@ pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     unsafe {
-        // Only re-used lhs/rhs if contiguous for now, strided indices are not correctly accounted for
-        // and optimizations in fusion do not have this issue anyway
-        if lhs.can_mut_broadcast(&rhs) && lhs.is_contiguous() {
+        if lhs.can_mut_broadcast(&rhs) {
             kernel_binop::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                lhs.as_tensor_arg::<E>(line_size),
-                rhs.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(0),
-                None,
-                false,
-                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+                linear_view(&lhs, line_size),
+                linear_view_ref(&rhs, &lhs, line_size),
+                linear_view_alias(&lhs, line_size, 0),
             );
 
             lhs
-        } else if rhs.can_mut_broadcast(&lhs) && rhs.is_contiguous() {
+        } else if rhs.can_mut_broadcast(&lhs) {
             kernel_binop::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                lhs.as_tensor_arg::<E>(line_size),
-                rhs.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(1),
-                None,
-                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
-                false,
+                linear_view_ref(&lhs, &rhs, line_size),
+                linear_view(&rhs, line_size),
+                linear_view_alias(&rhs, line_size, 1),
             );
 
             rhs
         } else {
             let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
-            let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
-            let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
             kernel_binop::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                lhs.as_tensor_arg::<E>(line_size),
-                rhs.as_tensor_arg::<E>(line_size),
-                output.as_tensor_arg::<E>(line_size),
-                None,
-                to_contiguous_lhs,
-                to_contiguous_rhs,
+                linear_view_ref(&lhs, &output, line_size),
+                linear_view_ref(&rhs, &output, line_size),
+                linear_view(&output, line_size),
             );
 
             output
@@ -297,9 +229,9 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFam
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view_alias(&tensor, &line_size, 0),
+                linear_view_alias(&tensor, line_size, 0),
             );
 
             tensor
@@ -314,9 +246,9 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFam
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view(&output, &line_size),
+                linear_view(&output, line_size),
             );
 
             output

@@ -49,6 +49,11 @@ where
         Tensor::new(B::bool_or(self.primitive, rhs.primitive))
     }
 
+    /// Performs logical xor (`^`) on two boolean tensors
+    pub fn bool_xor(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_xor(self.primitive, rhs.primitive))
+    }
+
     /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
     ///
     /// # Returns
@@ -112,8 +117,8 @@ where
         device: &B::Device,
     ) -> Self {
         let shape: Shape = shape.into();
-        let height = shape.dims[D - 2];
-        let width = shape.dims[D - 1];
+        let height = shape[D - 2];
+        let width = shape[D - 1];
 
         // Generate row and column index tensors.
         let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height as i64, device);

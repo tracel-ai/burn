@@ -11,6 +11,7 @@ mod quantization;
 mod stats;
 
 pub use cubecl::prelude::{Float, Int, Numeric};
+pub use num_traits::Float as NumFloat;
 
 #[allow(missing_docs)]
 #[macro_export]
@@ -164,7 +165,11 @@ macro_rules! testgen_with_float_param {
 
         // test linalg
         burn_tensor::testgen_vector_norm!();
+        burn_tensor::testgen_diag!();
         burn_tensor::testgen_cosine_similarity!();
+        burn_tensor::testgen_trace!();
+        burn_tensor::testgen_outer!();
+        burn_tensor::testgen_lu_decomposition!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();
@@ -203,6 +208,11 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();
+        burn_tensor::testgen_cross!();
+        burn_tensor::testgen_cumsum!();
+        burn_tensor::testgen_cumprod!();
+        burn_tensor::testgen_cummin!();
+        burn_tensor::testgen_cummax!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_dot!();
         burn_tensor::testgen_erf!();
@@ -230,7 +240,9 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();
+        burn_tensor::testgen_slice_assign!();
         burn_tensor::testgen_stack!();
+        burn_tensor::testgen_square!();
         burn_tensor::testgen_sqrt!();
         burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
@@ -260,11 +272,14 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_round!();
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
+        burn_tensor::testgen_trunc!();
+        burn_tensor::testgen_fmod!();
         burn_tensor::testgen_select!();
         burn_tensor::testgen_take!();
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
         burn_tensor::testgen_grid_sample!();
+        burn_tensor::testgen_unfold!();
 
         // test stats
         burn_tensor::testgen_var!();
@@ -287,6 +302,10 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_cast!();
         burn_tensor::testgen_bool!();
         burn_tensor::testgen_cat!();
+        burn_tensor::testgen_cumsum!();
+        burn_tensor::testgen_cumprod!();
+        burn_tensor::testgen_cummin!();
+        burn_tensor::testgen_cummax!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_expand!();
         burn_tensor::testgen_flip!();
@@ -305,6 +324,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_gather_scatter!();
         burn_tensor::testgen_bitwise!();
         burn_tensor::testgen_matmul!();
+        burn_tensor::testgen_unfold!();
 
         // test stats
         burn_tensor::testgen_eye!();
@@ -333,6 +353,7 @@ macro_rules! testgen_with_bool_param {
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_tri_mask!();
+        burn_tensor::testgen_unfold!();
     };
 }
 
@@ -385,6 +406,8 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
+    use cubecl_quant::scheme::QuantLevel;
+
     use crate::{
         Tensor, TensorData,
         backend::Backend,
@@ -400,6 +423,15 @@ pub mod qtensor {
         /// (i.e., per-tensor symmetric quantization).
         pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
             Self::int8_symmetric(floats)
+        }
+
+        /// Creates a quantized int8 tensor from the floating point data using blocks of size 16
+        pub fn int8_block<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                &<B::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+                    .with_value(QuantValue::Q8S)
+                    .with_level(QuantLevel::block([16])),
+            )
         }
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.

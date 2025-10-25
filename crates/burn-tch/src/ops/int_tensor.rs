@@ -54,12 +54,16 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn int_slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
-        TchOps::slice(tensor, ranges)
+    fn int_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+        TchOps::slice_with_steps(tensor, slices)
     }
 
-    fn int_slice_assign(tensor: TchTensor, ranges: &[Range<usize>], value: TchTensor) -> TchTensor {
-        TchOps::slice_assign(tensor, ranges, value)
+    fn int_slice_assign(
+        tensor: TchTensor,
+        slices: &[burn_tensor::Slice],
+        value: TchTensor,
+    ) -> TchTensor {
+        TchOps::slice_assign(tensor, slices, value)
     }
 
     fn int_cat(tensors: Vec<TchTensor>, dim: usize) -> TchTensor {
@@ -273,6 +277,22 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchTensor::new(output.tensor.to_dtype(dtype, true, false))
     }
 
+    fn int_cumsum(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cumsum(tensor, dim)
+    }
+
+    fn int_cumprod(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cumprod(tensor, dim)
+    }
+
+    fn int_cummin(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cummin(tensor, dim)
+    }
+
+    fn int_cummax(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cummax(tensor, dim)
+    }
+
     fn int_gather(dim: usize, tensor: TchTensor, indices: TchTensor) -> TchTensor {
         TchOps::gather(dim, tensor, indices)
     }
@@ -370,7 +390,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Default => TchTensor::new(tch::Tensor::randint_low(
                 0,
                 255,
-                shape.dims.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
+                shape.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
                 (tch::Kind::Int64, (*device).into()),
             )),
             Distribution::Bernoulli(prob) => {
@@ -382,7 +402,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Uniform(from, to) => TchTensor::new(tch::Tensor::randint_low(
                 from as i64,
                 to as i64,
-                shape.dims.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
+                shape.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
                 (tch::Kind::Int64, (*device).into()),
             )),
             Distribution::Normal(mean, std) => {
@@ -498,5 +518,14 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         } else {
             TchTensor::new(tensor.tensor.to_kind(kind))
         }
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        TchOps::unfold(tensor, dim, size, step)
     }
 }

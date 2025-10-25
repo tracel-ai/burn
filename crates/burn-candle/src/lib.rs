@@ -111,6 +111,7 @@ mod tests {
     burn_tensor::testgen_select!();
     burn_tensor::testgen_sin!();
     burn_tensor::testgen_slice!();
+    burn_tensor::testgen_slice_assign!();
     burn_tensor::testgen_sqrt!();
     burn_tensor::testgen_abs!();
     burn_tensor::testgen_squeeze!();
@@ -118,6 +119,10 @@ mod tests {
     burn_tensor::testgen_tanh!();
     burn_tensor::testgen_transpose!();
     burn_tensor::testgen_expand!();
+    burn_tensor::testgen_cumsum!();
+    burn_tensor::testgen_cumprod!();
+    burn_tensor::testgen_cummin!();
+    burn_tensor::testgen_cummax!();
 
     // test stats
     burn_tensor::testgen_var!();
@@ -179,4 +184,7 @@ mod tests {
     burn_autodiff::testgen_ad_round!();
     burn_autodiff::testgen_ad_floor!();
     burn_autodiff::testgen_ad_ceil!();
+    burn_autodiff::testgen_ad_slice_assign!();
+    burn_autodiff::testgen_ad_cumsum!();
+    burn_autodiff::testgen_ad_cumprod!();
 }

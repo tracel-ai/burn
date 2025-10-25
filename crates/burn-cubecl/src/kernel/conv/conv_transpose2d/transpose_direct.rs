@@ -24,11 +24,6 @@ struct ConvArgs {
 }
 
 #[cube(launch)]
-#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
-#[expect(
-    clippy::manual_is_multiple_of,
-    reason = "cubecl cannot expand is_multiple_of"
-)]
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
@@ -87,7 +82,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
             let numerator_tmp = in_y * args.conv_stride_0;
             let numerator_h = numerator_h_base - numerator_tmp;
 
-            if numerator_h_base >= numerator_tmp && numerator_h % args.dilation_0 == 0 {
+            if numerator_h_base >= numerator_tmp && numerator_h.is_multiple_of(args.dilation_0) {
                 let kernel_y = numerator_h / args.dilation_0;
                 let idx_input_y = in_y * input.stride(2);
                 let idx_weight_ky = kernel_y * weight.stride(2);
@@ -96,7 +91,9 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
                     let numerator_tmp = in_x * args.conv_stride_1;
                     let numerator_w = numerator_w_base - numerator_tmp;
 
-                    if numerator_w_base >= numerator_tmp && numerator_w % args.dilation_1 == 0 {
+                    if numerator_w_base >= numerator_tmp
+                        && numerator_w.is_multiple_of(args.dilation_1)
+                    {
                         let kernel_x = numerator_w / args.dilation_1;
                         let idx_input_x = in_x * input.stride(3);
                         let idx_weight_kx = kernel_x * weight.stride(3);
@@ -158,11 +155,11 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 
     let bias = match bias {
         Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([bias.shape[0], 1, 1, 1]);
             reshape(bias, shape)
         }
         None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([output.shape[0], 1, 1, 1]);
             zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };

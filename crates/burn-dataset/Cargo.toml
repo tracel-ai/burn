@@ -16,13 +16,14 @@ workspace = true
 
 [features]
 audio = ["hound"]
-builtin-sources = ["vision", "dep:tar"]
+builtin-sources = ["vision", "dep:tar", "nlp"]
 default = ["sqlite-bundled"]
 doc = ["default"]
 fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
+nlp = ["dep:zip", "dep:encoding_rs"]
 # internal
 __sqlite-shared = [
     "dep:r2d2",
@@ -47,10 +48,12 @@ globwalk = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 planus = { workspace = true, optional = true }
+encoding_rs = { workspace = true, optional = true }
 polars = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
 r2d2_sqlite = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std"] }
+zip = { workspace = true, optional = true }
 rmp-serde = { workspace = true }
 rusqlite = { workspace = true, optional = true }
 sanitize-filename = { workspace = true }

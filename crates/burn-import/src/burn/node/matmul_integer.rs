@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::Ident;
@@ -116,7 +116,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
                     }
 
                     quote! {
-                        let #out = (#lhs_c).matmul((#rhs_c).unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze::<#out_rank>(#squeeze_dim);
+                        let #out = (#lhs_c).matmul((#rhs_c).unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze_dim::<#out_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
@@ -134,7 +134,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
                     let out_rank = rhs_dim - 1;
                     let target_rank = rhs_dim;
                     quote! {
-                        let #out = (#lhs_c).unsqueeze::<#target_rank>().matmul(#rhs_c).squeeze::<#out_rank>(#squeeze_dim);
+                        let #out = (#lhs_c).unsqueeze::<#target_rank>().matmul(#rhs_c).squeeze_dim::<#out_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
@@ -150,7 +150,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
         }
     }
     fn into_node(self) -> Node<PS> {
-        Node::MatmulInteger(self)
+        Node::MatMulInteger(self)
+    }
+}
+
+impl OnnxIntoNode for MatMulIntegerNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let lhs = TensorType::from(node.inputs.first().unwrap());
+        let rhs = TensorType::from(node.inputs.get(1).unwrap());
+        let lhs_zp = node.inputs.get(2).map(TensorType::from);
+        let rhs_zp = node.inputs.get(3).map(TensorType::from);
+        let mut output = TensorType::from(node.outputs.first().unwrap());
+        output.kind = TensorKind::Int;
+
+        Self::new(lhs, rhs, lhs_zp, rhs_zp, output)
     }
 }
 #[cfg(test)]

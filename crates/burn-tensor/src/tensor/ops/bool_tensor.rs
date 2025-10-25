@@ -7,7 +7,7 @@ use crate::{
     tensor::Shape,
 };
 use alloc::vec::Vec;
-use core::{future::Future, ops::Range};
+use core::future::Future;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -124,12 +124,12 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges to get the values from.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
-    /// The tensor with the values for the given ranges.
-    fn bool_slice(tensor: BoolTensor<B>, ranges: &[Range<usize>]) -> BoolTensor<B>;
+    /// The tensor with the values for the given slices.
+    fn bool_slice(tensor: BoolTensor<B>, slices: &[crate::Slice]) -> BoolTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.
     ///
@@ -144,7 +144,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the values set for the given ranges.
     fn bool_slice_assign(
         tensor: BoolTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: BoolTensor<B>,
     ) -> BoolTensor<B>;
 
@@ -284,6 +284,20 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the result of the logical or.
     fn bool_or(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
 
+    /// Element-wise exclusive or.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the comparison.
+    fn bool_xor(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
+        Self::bool_not_equal(lhs, rhs)
+    }
+
     /// Transposes a bool tensor.
     ///
     /// # Arguments
@@ -419,4 +433,23 @@ pub trait BoolTensorOps<B: Backend> {
 
     /// Broadcasts the bool `tensor` to the given `shape`.
     fn bool_expand(tensor: BoolTensor<B>, shape: Shape) -> BoolTensor<B>;
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn bool_unfold(tensor: BoolTensor<B>, dim: usize, size: usize, step: usize) -> BoolTensor<B>;
 }

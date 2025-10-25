@@ -27,11 +27,6 @@ struct ConvArgs {
 }
 
 #[cube(launch)]
-#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
-#[expect(
-    clippy::manual_is_multiple_of,
-    reason = "cubecl cannot expand is_multiple_of"
-)]
 fn conv_transpose3d_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
@@ -98,7 +93,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
             let numerator_tmp = in_z * args.conv_stride_0;
             let numerator_d = numerator_d_base - numerator_tmp;
 
-            if numerator_d_base >= numerator_tmp && numerator_d % args.dilation_0 == 0 {
+            if numerator_d_base >= numerator_tmp && numerator_d.is_multiple_of(args.dilation_0) {
                 let kernel_z = numerator_d / args.dilation_0;
                 let index_input_z = in_z * input.stride(2);
                 let index_weight_kz = kernel_z * weight.stride(2);
@@ -107,7 +102,9 @@ fn conv_transpose3d_kernel<E: Numeric>(
                     let numerator_tmp = in_y * args.conv_stride_1;
                     let numerator_h = numerator_h_base - numerator_tmp;
 
-                    if numerator_h_base >= numerator_tmp && numerator_h % args.dilation_1 == 0 {
+                    if numerator_h_base >= numerator_tmp
+                        && numerator_h.is_multiple_of(args.dilation_1)
+                    {
                         let kernel_y = numerator_h / args.dilation_1;
                         let index_input_y = in_y * input.stride(3);
                         let index_weight_ky = kernel_y * weight.stride(3);
@@ -117,7 +114,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
                             let numerator_w = numerator_w_base - numerator_tmp;
 
                             if numerator_w_base >= numerator_tmp
-                                && numerator_w % args.dilation_2 == 0
+                                && numerator_w.is_multiple_of(args.dilation_2)
                             {
                                 let kernel_x = numerator_w / args.dilation_2;
                                 let index_input_x = in_x * input.stride(4);
@@ -193,11 +190,11 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
 
     let bias = match bias {
         Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1, 1]);
+            let shape = Shape::from([bias.shape[0], 1, 1, 1, 1]);
             reshape(bias, shape)
         }
         None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1, 1]);
+            let shape = Shape::from([output.shape[0], 1, 1, 1, 1]);
             zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use burn_core::{LearningRate, data::dataloader::Progress};
+use burn_core::data::dataloader::Progress;
+use burn_optim::LearningRate;
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {
@@ -138,14 +139,16 @@ impl NumericEntry {
 }
 
 impl NumericEntry {
-    pub(crate) fn serialize(&self) -> String {
+    /// Returns a String representing the NumericEntry
+    pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
             Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
         }
     }
 
-    pub(crate) fn deserialize(entry: &str) -> Result<Self, String> {
+    /// De-serializes a string representing a NumericEntry and returns a Result containing the corresponding NumericEntry.
+    pub fn deserialize(entry: &str) -> Result<Self, String> {
         // Check for comma separated values
         let values = entry.split(',').collect::<Vec<_>>();
         let num_values = values.len();

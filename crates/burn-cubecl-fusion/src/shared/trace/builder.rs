@@ -10,8 +10,9 @@ use super::{
 };
 use super::{FuseTrace, RegisteredTensors};
 use burn_fusion::stream::ScalarId;
-use burn_ir::{TensorId, TensorIr};
-use burn_tensor::{DType, Element};
+use burn_ir::{ScalarIr, TensorId, TensorIr};
+use burn_tensor::DType;
+use cubecl_quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
@@ -128,6 +129,33 @@ impl FuseTraceBuilder {
     }
 
     /// Register an input tensor.
+    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(Arg, Arg)> {
+        if self.resources.indexed.contains_key(&tensor.id) {
+            panic!("Can't add a new input that is already used in an index operation");
+        }
+
+        let precision = tensor.dtype.into();
+        let precision_scales = match tensor.dtype {
+            DType::QFloat(scheme) => match scheme.param {
+                QuantParam::F32 => FusePrecision::F32,
+                QuantParam::F16 => FusePrecision::F16,
+                QuantParam::BF16 => FusePrecision::BF16,
+                QuantParam::UE8M0 | QuantParam::UE4M3 => {
+                    unimplemented!("Unsupported fuse precision");
+                }
+            },
+            _ => return None,
+        };
+
+        let (new_input, q_index) = self.resources.inputs.insert_quant(tensor.clone());
+        let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
+        let scales = Arg::Input(q_index, precision_scales, LayoutInfo::Unknown);
+
+        self.resources.inputs_unhandled.push(tensor.id);
+        Some((input, scales))
+    }
+
+    /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorIr) -> Option<Arg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
@@ -198,9 +226,13 @@ impl FuseTraceBuilder {
     }
 
     /// Register a scalar value.
-    pub fn scalar<E: Element>(&mut self, id: &E, dtype: DType) -> Arg {
+    pub fn scalar(&mut self, elem: &ScalarIr, dtype: DType) -> Arg {
         let precision = dtype.into();
-        let id = ScalarId { value: id.elem() };
+        let id = if let ScalarIr::U64(value) = elem {
+            ScalarId { value: *value }
+        } else {
+            unreachable!() // should always be u64
+        };
 
         // Bool scalars are encoded as bool_precision.
         let precision = match precision {

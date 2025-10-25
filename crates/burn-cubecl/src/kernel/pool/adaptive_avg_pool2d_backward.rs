@@ -72,12 +72,10 @@ fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32
     (output_size_index * input_size) / output_size
 }
 
-#[allow(unknown_lints)] // `manual_div_ceil` only appeared in 1.83
-#[allow(clippy::manual_div_ceil)]
 #[cube]
 fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     let index = (output_size_index + 1) * input_size;
-    let index = (index + output_size - 1) / output_size;
+    let index = index.div_ceil(output_size);
 
     if input_size < index {
         input_size
@@ -93,7 +91,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
     let [batches, channels, height, width] = x.shape.dims();
 
     let out_grad = into_contiguous(permute_nchw_to_nhwc(out_grad));
-    let line_size = max_line_size(&x);
+    let line_size = max_line_size(&out_grad);
 
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);

@@ -122,8 +122,10 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             // Quantization normally triggers higher vectorization than anything else, no need to
             // compare to ref elem.
             Some(line_sizes) => line_sizes,
-            None => R::line_size_type(&ref_elem.0).collect::<Vec<u8>>(),
+            None => R::io_optimized_line_sizes_unchecked(ref_elem.0.size()).collect::<Vec<u8>>(),
         };
+
+        let vectorization_axis = runner.axis(plan);
 
         runner.vectorization(
             context,
@@ -153,7 +155,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_swapped,
             &line_sizes,
             u8::MAX,
-            runner.axis(),
+            vectorization_axis,
         );
 
         for tensor in self.resources.indexed.keys() {
@@ -209,6 +211,37 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         }
 
         let mut previous_width = 1;
+
+        // Unhandled inputs might not get included in any fused blocks for now.
+        //
+        // So we ensure they are vectorized by setting their vectorization before we set the
+        // vectorizations in blocks.
+        //
+        // Unhandled Outputs are correctly vectorized, so this is only necessary for inputs.
+        for input in self.resources.inputs_unhandled.iter() {
+            let pos = self
+                .resources
+                .inputs
+                .get_index(*input)
+                .unwrap_or_else(|| self.resources.inputs.get_index_quant(*input).unwrap());
+            let input_global = context.tensors.get(input).unwrap();
+
+            match plan.vectorizations.get(&input_global.id).unwrap() {
+                Vect::Aligned(vect) => {
+                    let handle = &mut plan.handle_inputs[pos as usize];
+                    match handle {
+                        HandleInput::Normal(handle) => {
+                            handle.vectorization = *vect;
+                        }
+                        HandleInput::QuantValues(handle) => {
+                            handle.vectorization = *vect;
+                        }
+                        HandleInput::QuantParams(_) => {}
+                    }
+                }
+                Vect::Broadcasted => {}
+            }
+        }
 
         for ((tmp, block_plan), block) in block_vectorization
             .into_iter()
@@ -316,9 +349,14 @@ fn apply_vectorization_block<R: Runtime>(
 fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme: QuantScheme) {
     match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::Q8F | QuantValue::Q8S => {
-                let line_sizes = R::line_size_type(&ElemType::Int(cubecl::ir::IntKind::I8).into())
-                    .collect::<Vec<u8>>();
+            // Type sizes are the same so just treat fp8/fp4x2 as i8
+            QuantValue::Q8F
+            | QuantValue::Q8S
+            | QuantValue::E4M3
+            | QuantValue::E5M2
+            | QuantValue::E2M1 => {
+                let line_sizes =
+                    R::io_optimized_line_sizes_unchecked(size_of::<i8>()).collect::<Vec<u8>>();
 
                 match &quants_line_sizes {
                     Some(sizes) => {
@@ -336,8 +374,8 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
             }
         },
         QuantStore::U32 => {
-            let mut line_sizes = R::line_size_type(&ElemType::Int(cubecl::ir::IntKind::I32).into())
-                .collect::<Vec<u8>>();
+            let mut line_sizes =
+                R::io_optimized_line_sizes_unchecked(size_of::<u32>()).collect::<Vec<u8>>();
             for val in line_sizes.iter_mut() {
                 *val *= scheme.num_quants() as u8;
             }

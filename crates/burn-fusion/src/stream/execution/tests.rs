@@ -9,10 +9,10 @@
 use std::sync::Arc;
 
 use burn_ir::{
-    BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr,
-    TensorStatus, UnaryOpIr,
+    BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId,
+    TensorIr, TensorStatus, UnaryOpIr,
 };
-use burn_tensor::DType;
+use burn_tensor::{DType, Shape};
 
 use crate::{
     NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
@@ -607,19 +607,19 @@ pub fn operation_1() -> OperationIr {
         NumericOperationIr::Add(BinaryOpIr {
             lhs: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             rhs: TensorIr {
                 id: TensorId::new(1),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             out: TensorIr {
                 id: TensorId::new(2),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },
@@ -634,14 +634,14 @@ pub fn operation_2() -> OperationIr {
         NumericOperationIr::AddScalar(ScalarOpIr {
             lhs: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
-            rhs: 5.0,
+            rhs: ScalarIr::F32(5.0),
             out: TensorIr {
                 id: TensorId::new(2),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },
@@ -656,13 +656,13 @@ pub fn operation_3() -> OperationIr {
         FloatOperationIr::Log(UnaryOpIr {
             input: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             out: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },

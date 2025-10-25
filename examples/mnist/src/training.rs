@@ -5,6 +5,7 @@ use crate::{
     model::Model,
 };
 
+use burn::optim::AdamWConfig;
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -18,7 +19,6 @@ use burn::{
         composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
         linear::LinearLrSchedulerConfig,
     },
-    optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
@@ -48,7 +48,7 @@ pub struct MnistTrainingConfig {
     #[config(default = 42)]
     pub seed: u64,
 
-    pub optimizer: AdamConfig,
+    pub optimizer: AdamWConfig,
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
@@ -60,7 +60,9 @@ fn create_artifact_dir(artifact_dir: &str) {
 pub fn run<B: AutodiffBackend>(device: B::Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
-    let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+    let config_optimizer = AdamWConfig::new()
+        .with_cautious_weight_decay(true)
+        .with_weight_decay(5e-5);
 
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(&device, config.seed);
@@ -142,7 +144,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     renderer.manual_close();
     core::mem::drop(renderer);
 
-    // Making sure the Terminal is resetted.
+    // Making sure the Terminal is reset.
     std::thread::sleep(Duration::from_secs(1));
     if let Some(summary) = result.summary {
         log::info!("{}", summary);

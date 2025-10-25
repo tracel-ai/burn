@@ -100,13 +100,25 @@ where
     }
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        self.iter().for_each(|module| {
+        for (i, module) in self.iter().enumerate() {
+            let index_str = alloc::format!("{}", i);
+            visitor.enter_module(&index_str, "Vec");
             module.visit(visitor);
-        });
+            visitor.exit_module(&index_str, "Vec");
+        }
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        self.into_iter().map(|module| module.map(mapper)).collect()
+        self.into_iter()
+            .enumerate()
+            .map(|(i, module)| {
+                let index_str = alloc::format!("{}", i);
+                mapper.enter_module(&index_str, "Vec");
+                let mapped = module.map(mapper);
+                mapper.exit_module(&index_str, "Vec");
+                mapped
+            })
+            .collect()
     }
 
     fn into_record(self) -> Self::Record {
@@ -199,13 +211,26 @@ where
     }
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        self.iter().for_each(|module| {
+        for (i, module) in self.iter().enumerate() {
+            let index_str = alloc::format!("{}", i);
+            visitor.enter_module(&index_str, "Vec");
             module.visit(visitor);
-        });
+            visitor.exit_module(&index_str, "Vec");
+        }
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        self.map(|module| module.map(mapper))
+        let mut result = Vec::with_capacity(N);
+        for (i, module) in IntoIterator::into_iter(self).enumerate() {
+            let index_str = alloc::format!("{}", i);
+            mapper.enter_module(&index_str, "Array");
+            let mapped = module.map(mapper);
+            mapper.exit_module(&index_str, "Array");
+            result.push(mapped);
+        }
+        result
+            .try_into()
+            .unwrap_or_else(|v: Vec<T>| panic!("Expected array of length {}, got {}", N, v.len()))
     }
 
     fn load_record(self, record: Self::Record) -> Self {
@@ -261,7 +286,7 @@ where
 /// A macro for generating implementations for tuple modules of different sizes.
 /// For example: `impl_module_tuple!([L0, L1][0, 1])`.
 /// Would generate an implementation for a tuple of size 2.
-/// For this macro to work properly, please adhear to the convention:
+/// For this macro to work properly, please adhere to the convention:
 /// `impl_module_tuple!([L0, L1, ..., Ln][0, 1, ..., n])`.
 macro_rules! impl_module_tuple {
     // `$l` represents the generic modules.

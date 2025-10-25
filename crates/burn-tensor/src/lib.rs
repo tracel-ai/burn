@@ -4,7 +4,7 @@
 
 //! This library provides the core abstractions required to run tensor operations with Burn.
 //! `Tensor`s are generic over the backend to allow users to perform operations using different `Backend` implementations.
-//! Burn's tensors also support support auto-differentiation thanks to the `AutodiffBackend` trait.
+//! Burn's tensors also support auto-differentiation thanks to the `AutodiffBackend` trait.
 
 #[macro_use]
 extern crate derive_new;
@@ -25,6 +25,8 @@ pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
+pub use burn_common::stream_id::StreamId;
+
 pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.
 
 #[cfg(feature = "cubecl")]
@@ -32,7 +34,8 @@ pub use cubecl::flex32;
 
 #[cfg(feature = "cubecl")]
 mod cube {
-    use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
+    use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
+    use cubecl_quant::scheme::QuantScheme;
 
     use crate::quantization::{QuantStore, QuantValue};
 
@@ -56,7 +59,13 @@ mod cube {
                 crate::DType::QFloat(scheme) => match scheme.store {
                     QuantStore::Native => match scheme.value {
                         QuantValue::Q8F | QuantValue::Q8S => Self::Int(IntKind::I8),
-                        QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                        QuantValue::E4M3 => Self::Float(FloatKind::E4M3),
+                        QuantValue::E5M2 => Self::Float(FloatKind::E5M2),
+                        QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S
+                        | QuantValue::E2M1 => {
                             panic!("Can't store native sub-byte values")
                         }
                     },
@@ -70,8 +79,17 @@ mod cube {
 
     impl From<crate::DType> for cubecl::ir::StorageType {
         fn from(dtype: crate::DType) -> cubecl::ir::StorageType {
-            let elem: ElemType = dtype.into();
-            elem.into()
+            match dtype {
+                crate::DType::QFloat(QuantScheme {
+                    store: QuantStore::Native,
+                    value: QuantValue::E2M1,
+                    ..
+                }) => StorageType::Packed(ElemType::Float(FloatKind::E2M1), 2),
+                _ => {
+                    let elem: ElemType = dtype.into();
+                    elem.into()
+                }
+            }
         }
     }
 }

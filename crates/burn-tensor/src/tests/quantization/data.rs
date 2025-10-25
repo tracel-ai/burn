@@ -3,7 +3,8 @@ mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
     use burn_tensor::quantization::{
-        QTensorPrimitive, QuantLevel, QuantValue, QuantizationStrategy, SymmetricQuantization,
+        BlockSize, QTensorPrimitive, QuantLevel, QuantValue, QuantizationStrategy,
+        SymmetricQuantization,
     };
     use burn_tensor::{Tensor, TensorData, ops::QuantizedTensor};
 
@@ -40,11 +41,11 @@ mod tests {
                     SymmetricQuantization::init(0.014_173_228, QuantValue::Q8S),
                     SymmetricQuantization::init(0.000_314_96, QuantValue::Q8S),
                 ],
-                8,
+                BlockSize::new([8]),
             ),
             QuantizedTensor::<TestBackend>::default_scheme()
                 .with_value(QuantValue::Q8S)
-                .with_level(QuantLevel::Block(8)),
+                .with_level(QuantLevel::block([8])),
         );
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 

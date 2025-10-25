@@ -1,6 +1,6 @@
 use cubecl::{
     CubeElement as CubeElem, flex32,
-    matmul::components::{InputPrecision, MatmulPrecision},
+    matmul::components::{MatmulPrecision, MatrixPrecision},
     prelude::{Float, Int, Numeric},
     reduce::ReducePrecision,
 };
@@ -8,10 +8,9 @@ use cubecl::{
 /// The base element trait for the jit backend.
 pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 
-/// ELement that can be used for matrix multiplication. Includes ints and floats.
+/// Element that can be used for matrix multiplication. Includes ints and floats.
 pub trait MatmulElement:
-    CubeElement
-    + MatmulPrecision<Lhs: InputPrecision, Rhs: InputPrecision, EA: CubeElement, EO: CubeElement>
+    CubeElement + MatmulPrecision<Acc: MatrixPrecision<Global: CubeElement>>
 {
 }
 

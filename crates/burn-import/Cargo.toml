@@ -20,7 +20,7 @@ workspace = true
 [features]
 default = ["onnx", "pytorch", "safetensors"]
 onnx = ["burn-ndarray"]
-pytorch = ["burn/record-item-custom-serde", "thiserror", "zip", "candle-core"]
+pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 safetensors = [
     "burn/record-item-custom-serde",
     "thiserror",
@@ -33,6 +33,7 @@ burn = { path = "../burn", version = "0.19.0", default-features = false, feature
     "std",
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", default-features = false, optional = true }
+burn-store = { path = "../burn-store", version = "0.19.0", default-features = false, features = ["std", "pytorch"] }
 onnx-ir = { path = "../onnx-ir", version = "0.19.0" }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
@@ -40,7 +41,7 @@ half = { workspace = true }
 log = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-regex = { workspace = true }
+regex = { workspace = true, features = ["default"] }
 rust-format = { workspace = true, features = ["pretty_please", "post_process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }

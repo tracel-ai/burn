@@ -27,7 +27,7 @@ cargo run --example lstm-train --release --features cuda
 cargo run --example lstm-train --release --features wgpu
 
 # Tch GPU backend
-export TORCH_CUDA_VERSION=cu124 # Set the cuda version
+export TORCH_CUDA_VERSION=cu128 # Set the cuda version
 cargo run --example lstm-train --release --features tch-gpu
 
 # Tch CPU backend

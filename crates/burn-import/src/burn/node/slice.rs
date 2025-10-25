@@ -1,6 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 
-use super::NodeCodegen;
+use super::{NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::{Literal, TokenStream};
@@ -13,6 +13,7 @@ pub struct SliceNode {
     pub starts: SliceParam,
     pub ends: SliceParam,
     pub axes: Option<SliceParam>,
+    pub steps: Option<SliceParam>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,11 +30,17 @@ impl SliceNode {
             starts,
             ends,
             axes: None,
+            steps: None,
         }
     }
 
     pub fn with_axes(mut self, axes: SliceParam) -> Self {
         self.axes = Some(axes);
+        self
+    }
+
+    pub fn with_steps(mut self, steps: SliceParam) -> Self {
+        self.steps = Some(steps);
         self
     }
 
@@ -52,6 +59,13 @@ impl SliceNode {
         match (&self.starts, &self.ends) {
             // Both static: simple case
             (SliceParam::Static(starts), SliceParam::Static(ends)) => {
+                // Get steps if provided
+                let steps = if let Some(SliceParam::Static(ref s)) = self.steps {
+                    Some(s)
+                } else {
+                    None
+                };
+
                 // Check if axes are provided
                 if let Some(SliceParam::Static(ref axes)) = self.axes {
                     // Apply slicing to specified axes (already normalized by onnx-ir)
@@ -60,15 +74,27 @@ impl SliceNode {
                             let axis_idx = axis as usize;
                             if axis_idx < rank {
                                 let start = start.to_tokens();
+                                let step = steps.and_then(|s| s.get(idx)).copied().unwrap_or(1);
+
                                 // Check for i64::MAX which means "to the end"
                                 // Slice indices are i32
                                 if *end == i64::MAX {
-                                    ranges[axis_idx] = quote! { #start.. };
+                                    if step == 1 {
+                                        ranges[axis_idx] = quote! { #start.. };
+                                    } else {
+                                        let step = step.to_tokens();
+                                        ranges[axis_idx] = quote! { #start..;#step };
+                                    }
                                 } else if *end > i32::MAX as i64 {
                                     panic!("Slice end index {} exceeds i32::MAX", end);
                                 } else {
                                     let end = end.to_tokens();
-                                    ranges[axis_idx] = quote! { #start..#end };
+                                    if step == 1 {
+                                        ranges[axis_idx] = quote! { #start..#end };
+                                    } else {
+                                        let step = step.to_tokens();
+                                        ranges[axis_idx] = quote! { #start..#end;#step };
+                                    }
                                 }
                             }
                         }
@@ -78,15 +104,27 @@ impl SliceNode {
                     let limit = starts.len().min(ends.len()).min(rank);
                     for (i, range) in ranges.iter_mut().enumerate().take(limit) {
                         let start = starts[i].to_tokens();
+                        let step = steps.and_then(|s| s.get(i)).copied().unwrap_or(1);
+
                         // Check for i64::MAX which means "to the end"
                         // Slice indices are i32
                         if ends[i] == i64::MAX {
-                            *range = quote! { #start.. };
+                            if step == 1 {
+                                *range = quote! { #start.. };
+                            } else {
+                                let step = step.to_tokens();
+                                *range = quote! { #start..;#step };
+                            }
                         } else if ends[i] > i32::MAX as i64 {
                             panic!("Slice end index {} exceeds i32::MAX", ends[i]);
                         } else {
                             let end = ends[i].to_tokens();
-                            *range = quote! { #start..#end };
+                            if step == 1 {
+                                *range = quote! { #start..#end };
+                            } else {
+                                let step = step.to_tokens();
+                                *range = quote! { #start..#end;#step };
+                            }
                         }
                     }
                 }
@@ -397,6 +435,13 @@ impl SliceNode {
                 let start_val = starts[0];
                 let end_val = ends[0];
 
+                // Get step value if provided
+                let step_val = if let Some(SliceParam::Static(ref steps)) = self.steps {
+                    steps.first().copied().unwrap_or(1)
+                } else {
+                    1
+                };
+
                 // Always clamp start/end values
                 let shape_len = shape.rank as i64;
 
@@ -418,8 +463,44 @@ impl SliceNode {
                 let start_lit = Literal::usize_unsuffixed(actual_start);
                 let end_lit = Literal::usize_unsuffixed(actual_end);
 
-                quote! {
-                    let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
+                if step_val == 1 {
+                    quote! {
+                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
+                    }
+                } else if step_val == -1 {
+                    // For negative step, we need to reverse the slice
+                    quote! {
+                        let #output: [i64; #output_rank_lit] = {
+                            let mut slice = #shape_name[#start_lit..#end_lit].to_vec();
+                            slice.reverse();
+                            slice.try_into().unwrap()
+                        };
+                    }
+                } else {
+                    // For other step values, we need to collect with step
+                    let step_abs = step_val.abs();
+                    if step_val > 0 {
+                        quote! {
+                            let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
+                                .iter()
+                                .step_by(#step_abs as usize)
+                                .copied()
+                                .collect::<Vec<_>>()
+                                .try_into()
+                                .unwrap();
+                        }
+                    } else {
+                        quote! {
+                            let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
+                                .iter()
+                                .rev()
+                                .step_by(#step_abs as usize)
+                                .copied()
+                                .collect::<Vec<_>>()
+                                .try_into()
+                                .unwrap();
+                        }
+                    }
                 }
             }
             _ => {
@@ -509,6 +590,49 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
 
     fn into_node(self) -> super::Node<PS> {
         super::Node::Slice(self)
+    }
+}
+
+impl OnnxIntoNode for SliceNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::slice::slice_config(&node);
+        use onnx_ir::node::slice::SliceInput;
+
+        // Convert starts parameter
+        let starts_param = match config.starts {
+            SliceInput::Static(values) => SliceParam::Static(values),
+            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        };
+
+        // Convert ends parameter
+        let ends_param = match config.ends {
+            SliceInput::Static(values) => SliceParam::Static(values),
+            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        };
+
+        let mut slice_node = Self::new(input, output, starts_param, ends_param);
+
+        // Convert axes parameter if present
+        if let Some(axes) = config.axes {
+            let axes_param = match axes {
+                SliceInput::Static(values) => SliceParam::Static(values),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+            };
+            slice_node = slice_node.with_axes(axes_param);
+        }
+
+        // Convert steps parameter if present
+        if let Some(steps) = config.steps {
+            let steps_param = match steps {
+                SliceInput::Static(values) => SliceParam::Static(values),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+            };
+            slice_node = slice_node.with_steps(steps_param);
+        }
+
+        slice_node
     }
 }
 #[cfg(test)]

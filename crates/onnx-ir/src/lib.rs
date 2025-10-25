@@ -12,5 +12,6 @@ mod rank_inference;
 pub mod util;
 
 pub use from_onnx::convert_constant_value;
+pub use from_onnx::element_type_from_proto;
 pub use from_onnx::parse_onnx;
 pub use ir::*;

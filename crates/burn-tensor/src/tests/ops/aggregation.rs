@@ -46,8 +46,13 @@ mod tests {
         let x = ones.clone() * tensor;
         let y = ones * tensor1;
 
-        let output = y.sum_dim(1);
+        let output = y.clone().sum_dim(1);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[5.0], [-6.0]]), false);
 
+        // Negative Indexing.
+        let output = y.clone().sum_dim(-1);
         output
             .into_data()
             .assert_eq(&TensorData::from([[5.0], [-6.0]]), false);
@@ -66,9 +71,15 @@ mod tests {
     fn test_should_mean_last_dim() {
         let tensor = TestTensor::<2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
-        let output = tensor.mean_dim(1);
+        let output = tensor.clone().mean_dim(1);
         let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
+        // Negative Indexing.
+        let output = tensor.clone().mean_dim(-1);
+        let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
@@ -219,14 +230,19 @@ mod tests {
     fn test_prod_dim_int() {
         let tensor = TestTensorInt::<2>::from([[2, 1, 2], [3, 4, 5]]);
         let output = tensor.prod_dim(1);
-
         output
             .into_data()
             .assert_eq(&TensorData::from([[4], [60]]), false);
 
         let tensor_with_zero = TestTensorInt::<2>::from([[2, 0, 2], [3, 4, 5]]);
         let output = tensor_with_zero.prod_dim(1);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0], [60]]), false);
 
+        // Negative Indexing.
+        let tensor_with_zero = TestTensorInt::<2>::from([[2, 0, 2], [3, 4, 5]]);
+        let output = tensor_with_zero.prod_dim(-1);
         output
             .into_data()
             .assert_eq(&TensorData::from([[0], [60]]), false);
@@ -246,6 +262,46 @@ mod tests {
         let expected = TensorData::from([[3., 5., 7.]]);
 
         output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dims_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        tensor
+            .clone()
+            .sum_dims(&[1])
+            .to_data()
+            .assert_eq(&TensorData::from([[3.], [12.]]), false);
+
+        tensor
+            .clone()
+            .sum_dims(&[-1])
+            .to_data()
+            .assert_eq(&TensorData::from([[3.], [12.]]), false);
+
+        tensor
+            .clone()
+            .sum_dims(&[0, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([[15.]]), false);
+    }
+
+    #[test]
+    fn test_sum_and_squeeze_dims() {
+        let tensor = TestTensor::<3>::from_floats(
+            [
+                [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
+                [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
+            ],
+            &Default::default(),
+        );
+
+        tensor
+            .sum_dims_squeeze::<1, _>(&[0, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([20., 16., 21.]), false);
     }
 
     #[test]
@@ -422,5 +478,29 @@ mod tests {
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_mean_dims_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        tensor
+            .clone()
+            .mean_dims(&[1])
+            .to_data()
+            .assert_eq(&TensorData::from([[1.], [4.]]), false);
+
+        tensor
+            .clone()
+            .mean_dims(&[-1])
+            .to_data()
+            .assert_eq(&TensorData::from([[1.], [4.]]), false);
+
+        tensor
+            .clone()
+            .mean_dims(&[0, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([[2.5]]), false);
     }
 }

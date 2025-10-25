@@ -1,20 +1,23 @@
 use burn_tensor::DType;
 use cubecl::{
     matmul::{
-        MatmulInputHandleRef, Strategy, SyncLoadingStrategy, SyncPartialLoadingStrategy,
-        components::MatmulKind,
+        Strategy, SyncPartialReadingStrategy, SyncReadingStrategy,
+        components::{AccG, MatmulKind, MatmulPrecision, MatrixPrecision},
         kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
             simple_unit::SimpleUnitSelectionArgs,
         },
-        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+        tune_key::{
+            MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
+        },
     },
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 
 use crate::{
-    CubeRuntime, CubeTuneId, element::MatmulElement, kernel::matmul::utils::init_matmul_output,
+    CubeElement, CubeRuntime, CubeTuneId,
+    kernel::matmul::{launch_matmul, utils::init_matmul_output},
     tensor::CubeTensor,
 };
 
@@ -28,12 +31,15 @@ fn matmul_input_gen<R: CubeRuntime>(
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
+pub fn matmul_autotune<
+    R: CubeRuntime,
+    MP: MatmulPrecision<Acc: MatrixPrecision<Global: CubeElement>>,
+>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
 ) -> CubeTensor<R> {
-    let output = out.unwrap_or_else(|| init_matmul_output::<R, E::EO>(&lhs, &rhs));
+    let output = out.unwrap_or_else(|| init_matmul_output::<R, AccG<MP>>(&lhs, &rhs));
 
     let client = lhs.client.clone();
 
@@ -46,7 +52,12 @@ pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
         const PRIORITY_MIN: u8 = 0;
 
         let cmma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
-            if matches!(key.analysis.kind, MatmulKind::General) {
+            if matches!(
+                key.analysis.kind,
+                MatmulKind::General
+                // Those variants are just because the unit alternatives aren't very good yet.
+                | MatmulKind::VecMat | MatmulKind::MatVec
+            ) {
                 PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
@@ -80,7 +91,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
         }
 
         TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-            .with(Tunable::new(naive::<R, E>).group(&unit, |key| {
+            .with(Tunable::new(naive::<R, MP>).group(&unit, |key| {
                 if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
                     || matches!(key.analysis.kind, MatmulKind::InnerProduct)
                 {
@@ -89,7 +100,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
                     PRIORITY_MIN
                 }
             }))
-            .with(Tunable::new(simple_unit_min::<R, E>).group(&unit, |key| {
+            .with(Tunable::new(simple_unit_min::<R, MP>).group(&unit, |key| {
                 if matches!(key.analysis.kind, MatmulKind::General)
                     && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
                 {
@@ -98,28 +109,30 @@ pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
                     PRIORITY_HIGH
                 }
             }))
-            .with(Tunable::new(simple_unit_max::<R, E>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(simple_vec_mat::<R, E>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(double_vec_mat::<R, E>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(double_unit::<R, E>).group(&unit, |key| {
+            .with(Tunable::new(simple_unit_max::<R, MP>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(simple_vec_mat::<R, MP>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_vec_mat::<R, MP>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_unit::<R, MP>).group(&unit, |key| {
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
             }))
-            .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
-            .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(matmul_simple::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
+            // TODO: Activate tma when stable enough.
+            // .with(Tunable::new(matmul_simple_tma::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(matmul_simple_multi_rows::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
             .with(
                 // Ordered should be tried most of the time.
-                Tunable::new(matmul_ordered_double_buffering::<R, E>)
+                Tunable::new(matmul_ordered_double_buffering::<R, MP>)
                     .group(&cmma, |_| PRIORITY_MAX),
             )
             .with(
-                Tunable::new(matmul_double_buffering_specialized::<R, E>)
+                Tunable::new(matmul_double_buffering_specialized::<R, MP>)
                     .group(&cmma, |key| {
                         double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
                     })
                     .group(&odd, |_| PRIORITY_MAX),
             )
             .with(
-                Tunable::new(matmul_double_buffering::<R, E>)
+                Tunable::new(matmul_double_buffering::<R, MP>)
                     .group(&cmma, |key| {
                         double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
                     })
@@ -148,85 +161,90 @@ fn create_key<R: CubeRuntime>(
         &rhs.shape.dims,
         &lhs.strides,
         &rhs.strides,
-        lhs.dtype.into(),
-        rhs.dtype.into(),
-        out.dtype.into(),
+        MatmulElemType {
+            elem: lhs.dtype.into(),
+            quantized: matches!(lhs.dtype, DType::QFloat(_)),
+        },
+        MatmulElemType {
+            elem: rhs.dtype.into(),
+            quantized: matches!(rhs.dtype, DType::QFloat(_)),
+        },
+        MatmulElemType {
+            elem: out.dtype.into(),
+            quantized: matches!(out.dtype, DType::QFloat(_)),
+        },
     )
 }
 
-fn matmul_simple<R: CubeRuntime, E: MatmulElement>(
+fn matmul_simple<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::Simple(
-            SyncLoadingStrategy::Cyclic,
+            SyncReadingStrategy::Cyclic,
             Selection::Inferred(SimpleArgs { multi_rows: false }),
         ),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_simple_multi_rows<R: CubeRuntime, E: MatmulElement>(
+fn matmul_simple_multi_rows<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::Simple(
-            SyncLoadingStrategy::Cyclic,
+            SyncReadingStrategy::Cyclic,
             Selection::Inferred(SimpleArgs { multi_rows: true }),
         ),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering<R: CubeRuntime, E: MatmulElement>(
+fn matmul_double_buffering<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::DoubleBuffering(
-            SyncPartialLoadingStrategy::Tilewise,
+            SyncPartialReadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: false }),
         ),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering_specialized<R: CubeRuntime, E: MatmulElement>(
+fn matmul_double_buffering_specialized<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::DoubleBuffering(
-            SyncPartialLoadingStrategy::Tilewise,
+            SyncPartialReadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: true }),
         ),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_ordered_double_buffering<R: CubeRuntime, E: MatmulElement>(
+fn matmul_ordered_double_buffering<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -235,110 +253,116 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, E: MatmulElement>(
         DType::F16 | DType::BF16 => 8,
         _ => 4,
     };
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
             partition_k: Some(2),
             row_count: Some(row_count),
             rows_per_plane: Some(2),
         })),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_unit_min<R: CubeRuntime, E: MatmulElement>(
+fn simple_unit_min<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
             tile_size: TileSizeSelection::MinTileSize,
         })),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_unit_max<R: CubeRuntime, E: MatmulElement>(
+fn simple_unit_max<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
             tile_size: TileSizeSelection::MaxTileSize,
         })),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn double_unit<R: CubeRuntime, E: MatmulElement>(
+fn double_unit<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::DoubleUnit(Default::default()),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
-    )
-    .map_err(|err| format!("{err:?}"))
+    launch_matmul::<R, MP>(&Strategy::DoubleUnit(Default::default()), lhs, rhs, out)
+        .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_vec_mat<R: CubeRuntime, E: MatmulElement>(
+fn simple_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::SimpleVecMat(Selection::Inferred(())),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn double_vec_mat<R: CubeRuntime, E: MatmulElement>(
+// TMA Isn't yet stable enough to be activated.
+//
+// fn matmul_simple_tma<R: CubeRuntime, MP: MatmulPrecision>(
+//     lhs: CubeTensor<R>,
+//     rhs: CubeTensor<R>,
+//     out: CubeTensor<R>,
+// ) -> Result<(), String> {
+//     if matches!(lhs.dtype, DType::QFloat(_)) || matches!(rhs.dtype, DType::QFloat(_)) {
+//         return Err("QFloat isn't stable yet with async TMA loading".into());
+//     }
+//
+//     launch_matmul::<R, MP>(
+//         &Strategy::SimpleBarrier(AsyncReadingStrategy::Tma),
+//         lhs,
+//         rhs,
+//         out,
+//     )
+//     .map_err(|err| format!("{err:?}"))
+// }
+
+fn double_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
+    launch_matmul::<R, MP>(
         &Strategy::DoubleVecMat(Selection::Inferred(())),
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
+        lhs,
+        rhs,
+        out,
     )
     .map_err(|err| format!("{err:?}"))
 }
 
-fn naive<R: CubeRuntime, E: MatmulElement>(
+fn naive<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::Naive,
-        &lhs.client,
-        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-        &out.as_handle_ref(),
-    )
-    .map_err(|err| format!("{err:?}"))
+    if matches!(lhs.dtype, DType::QFloat(_)) || matches!(rhs.dtype, DType::QFloat(_)) {
+        return Err("QFloat isn't stable yet with quantized inputs".into());
+    }
+
+    launch_matmul::<R, MP>(&Strategy::Naive, lhs, rhs, out).map_err(|err| format!("{err:?}"))
 }

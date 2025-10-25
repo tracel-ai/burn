@@ -1,6 +1,7 @@
 use burn_core::data::dataloader::DataLoader;
+use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_core::{lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator};
+use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 use std::sync::Arc;
 
 use crate::components::OutputTrain;

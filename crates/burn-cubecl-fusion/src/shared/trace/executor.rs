@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
-use burn_fusion::stream::{Context, ScalarId, ScalarValue};
+use burn_fusion::stream::{Context, ScalarId};
+use burn_ir::ScalarIr;
 use burn_tensor::DType;
 use cubecl::{
     CubeElement, Runtime,
@@ -46,7 +47,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
     pub fn execute<Runner: TraceRunner<R>, BT: CubeElement>(
         self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
@@ -153,7 +154,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::Normal(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -163,7 +164,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::QuantValues(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
                 inputs
                     .tensors
                     .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
@@ -247,7 +248,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::F64 => {
                 inputs.scalars.push(GlobalScalar::F64(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::F64(val)) => *val,
+                        Some(ScalarIr::F64(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -255,7 +256,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::F32 | FusePrecision::Flex32 => {
                 inputs.scalars.push(GlobalScalar::F32(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::F32(val)) => *val,
+                        Some(ScalarIr::F32(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -263,7 +264,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::F16 => {
                 inputs.scalars.push(GlobalScalar::F16(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::F16(val)) => *val,
+                        Some(ScalarIr::F16(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -271,7 +272,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::BF16 => {
                 inputs.scalars.push(GlobalScalar::BF16(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::BF16(val)) => *val,
+                        Some(ScalarIr::BF16(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -279,7 +280,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::I64 => {
                 inputs.scalars.push(GlobalScalar::I64(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::I64(val)) => *val,
+                        Some(ScalarIr::I64(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -287,7 +288,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::I32 => {
                 inputs.scalars.push(GlobalScalar::I32(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::I32(val)) => *val,
+                        Some(ScalarIr::I32(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -295,7 +296,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::I16 => {
                 inputs.scalars.push(GlobalScalar::I16(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::I16(val)) => *val,
+                        Some(ScalarIr::I16(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -303,7 +304,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::I8 => {
                 inputs.scalars.push(GlobalScalar::I8(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::I8(val)) => *val,
+                        Some(ScalarIr::I8(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -311,7 +312,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::U64 => {
                 inputs.scalars.push(GlobalScalar::U64(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::U64(val)) => *val,
+                        Some(ScalarIr::U64(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -319,7 +320,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::U32 => {
                 inputs.scalars.push(GlobalScalar::U32(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::U32(val)) => *val,
+                        Some(ScalarIr::U32(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -327,7 +328,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::U16 => {
                 inputs.scalars.push(GlobalScalar::U16(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::U16(val)) => *val,
+                        Some(ScalarIr::U16(val)) => *val,
                         _ => panic!(),
                     },
                 ));
@@ -335,7 +336,7 @@ fn register_scalars<'h, R: Runtime>(
             FusePrecision::U8 => {
                 inputs.scalars.push(GlobalScalar::U8(
                     match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarValue::U8(val)) => *val,
+                        Some(ScalarIr::U8(val)) => *val,
                         _ => panic!(),
                     },
                 ));

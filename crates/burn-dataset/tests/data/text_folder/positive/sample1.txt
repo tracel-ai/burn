@@ -1,0 +1,1 @@
+This is a positive text sample for testing the text folder dataset functionality.

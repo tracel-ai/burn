@@ -1,8 +1,7 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use crate::{SharedArray, sharing::UnsafeSharedRef};
+use crate::{SharedArray, iter_range_par, run_par, sharing::UnsafeSharedRef};
 
-use burn_common::{iter_range_par, run_par};
 use burn_tensor::{DType, Element, ElementConversion};
 use bytemuck::Zeroable;
 use macerator::{Simd, VAdd, VDiv};

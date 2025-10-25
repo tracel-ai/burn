@@ -3,7 +3,8 @@
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
-    tensor::backend::AutodiffBackend,
+    prelude::*,
+    tensor::backend::{AutodiffBackend, DeviceId},
 };
 
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
@@ -16,9 +17,20 @@ type ElemType = burn::tensor::f16;
 #[cfg(feature = "flex32")]
 type ElemType = burn::tensor::flex32;
 
+pub fn launch_multi<B: AutodiffBackend>() {
+    let type_id = 0;
+    let num_devices = B::Device::device_count(type_id);
+
+    let devices = (0..num_devices)
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .collect();
+
+    launch::<B>(devices)
+}
+
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(512, 2048, 16, 8)
+        TransformerEncoderConfig::new(1024, 2048, 8, 4)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
@@ -128,30 +140,21 @@ mod remote {
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::{ElemType, launch};
-    use burn::backend::{
-        Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing, cuda::CudaDevice,
-    };
+    use crate::{ElemType, launch_multi};
+    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        let type_id = 0;
-        let num_devices = B::Device::device_count(type_id);
-
-        let devices = (0..num_devices)
-            .map(|i| CudaDevice::new(i as usize))
-            .collect();
-
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(devices);
+        launch_multi::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>();
     }
 }
 
 #[cfg(feature = "rocm")]
 mod rocm {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Rocm};
+    use burn::backend::{Autodiff, Rocm, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Rocm<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Rocm<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
     }
 }
 

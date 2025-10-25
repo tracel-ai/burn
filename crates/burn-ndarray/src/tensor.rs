@@ -308,6 +308,10 @@ impl TensorMetadata for NdArrayTensor {
             a.shape().to_vec()
         ))
     }
+
+    fn rank(&self) -> usize {
+        self.shape().num_dims()
+    }
 }
 
 pub(crate) trait ShapeOps {
@@ -504,8 +508,11 @@ impl NdArrayQTensor {
                 value:
                     QuantValue::Q8F
                     | QuantValue::Q8S
+                    | QuantValue::E4M3
+                    | QuantValue::E5M2
                     | QuantValue::Q4F
                     | QuantValue::Q4S
+                    | QuantValue::E2M1
                     | QuantValue::Q2F
                     | QuantValue::Q2S,
                 ..
@@ -519,8 +526,11 @@ impl NdArrayQTensor {
                 value:
                     QuantValue::Q8F
                     | QuantValue::Q8S
+                    | QuantValue::E4M3
+                    | QuantValue::E5M2
                     | QuantValue::Q4F
                     | QuantValue::Q4S
+                    | QuantValue::E2M1
                     | QuantValue::Q2F
                     | QuantValue::Q2S,
                 ..
@@ -552,6 +562,10 @@ impl TensorMetadata for NdArrayQTensor {
 
     fn shape(&self) -> Shape {
         self.qtensor.shape()
+    }
+
+    fn rank(&self) -> usize {
+        self.shape().num_dims()
     }
 }
 

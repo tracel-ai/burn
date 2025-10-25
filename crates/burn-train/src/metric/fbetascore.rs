@@ -119,7 +119,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
                     let nan_mask = aggregated_metric.clone().is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
+                        .select(0, nan_mask.bool_not().argwhere().squeeze_dim(1))
                 }
                 aggregated_metric.mean()
             }

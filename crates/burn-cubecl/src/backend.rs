@@ -1,15 +1,12 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
-use rand::{SeedableRng, rngs::StdRng};
-use std::{marker::PhantomData, sync::Mutex};
+use std::marker::PhantomData;
 
 #[cfg(not(feature = "fusion"))]
 use burn_ir::{BackendIr, TensorHandle};
 #[cfg(not(feature = "fusion"))]
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-
-pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
@@ -48,9 +45,7 @@ where
     }
 
     fn seed(_device: &Self::Device, seed: u64) {
-        let rng = StdRng::seed_from_u64(seed);
-        let mut seed = SEED.lock().unwrap();
-        *seed = Some(rng);
+        cubecl::random::seed(seed);
     }
 
     fn ad_enabled() -> bool {
@@ -62,16 +57,13 @@ where
         futures_lite::future::block_on(client.sync());
     }
 
-    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+    fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
         device: &Self::Device,
         input: Input,
         func: Func,
     ) -> Output {
         let client = R::client(device);
-        let output = client.memory_static_allocation(input, func);
-        let memory = client.memory_usage();
-        println!("{memory}");
-        output
+        client.memory_persistent_allocation(input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {

@@ -15,7 +15,7 @@ use crate::{
         into_contiguous_aligned,
         utils::{linear_view, shape_divmod},
     },
-    ops::{max_line_size, numeric::empty_device_strided},
+    ops::{max_line_size, numeric::empty_device_optimized},
     tensor::CubeTensor,
 };
 
@@ -233,10 +233,10 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
         weight = into_contiguous_aligned(weight);
     }
 
-    let batch_size = input.shape.dims[0];
-    let in_shape = &input.shape.dims[1..dim_c];
-    let out_channels = weight.shape.dims[0];
-    let kernel_shape = &weight.shape.dims[1..dim_c];
+    let batch_size = input.shape[0];
+    let in_shape = &input.shape[1..dim_c];
+    let out_channels = weight.shape[0];
+    let kernel_shape = &weight.shape[1..dim_c];
 
     let channels_per_group = out_channels / options.groups;
 
@@ -252,12 +252,15 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
     shape_out.extend(out_size.iter().copied());
     shape_out.push(out_channels);
 
-    let output =
-        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_out.into());
+    let output = empty_device_optimized::<R, E>(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out.into(),
+    );
 
     // Need custom line size calculation here to account for the groups division. Need to vectorize
     // over `channels_per_group` instead.
-    let mut grouped_out_shape = output.shape.dims.clone();
+    let mut grouped_out_shape = output.shape.clone();
     grouped_out_shape[dim_c] = channels_per_group;
     let line_size_out = tensor_line_size_parallel(
         R::supported_line_sizes().iter().copied(),
@@ -296,7 +299,7 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
             input.as_tensor_arg::<E>(line_size_in),
             weight.as_tensor_arg::<E>(line_size_in),
             bias.into(),
-            linear_view(&output, &line_size_out),
+            linear_view(&output, line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,
             shape_out_c,

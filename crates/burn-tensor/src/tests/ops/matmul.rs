@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
+    use burn_tensor::{ElementConversion, Tolerance, backend::Backend, ops::FloatElem};
     use burn_tensor::{Int, Tensor, TensorData};
-    use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -271,6 +271,42 @@ mod tests {
             ]),
             Tolerance::default(),
         );
+    }
+
+    /// Regression test for batch bug in fused matmul
+    #[test]
+    fn test_float_matmul_vecmat_transposed_fused() {
+        let device = Default::default();
+
+        let batch1 = 1;
+        let batch2 = 2;
+        let batch = batch1 * batch2;
+        let seq_length = 3;
+        let d_model = 32;
+
+        // Guard int arange limits
+        if (IntType::MAX as i64) < seq_length * d_model * batch {
+            return;
+        }
+        if FloatType::MAX.elem::<f64>() < 269493.0 {
+            return;
+        }
+
+        let weight: TestTensor<4> = TestTensorInt::arange(0..d_model * batch, &device)
+            .reshape([batch1, batch2, 1, d_model])
+            .float();
+        let signal: TestTensor<4> = TestTensorInt::arange(0..seq_length * d_model * batch, &device)
+            .reshape([batch1, batch2, seq_length, d_model])
+            .float();
+
+        TestBackend::sync(&device);
+        let weight = weight.transpose();
+        let out = signal.matmul(weight) + 5;
+        let expected = TensorData::from([[
+            [[10421.0], [26293.0], [42165.0]],
+            [[172213.0], [220853.0], [269493.0]],
+        ]]);
+        expected.assert_approx_eq(&out.into_data(), Tolerance::<f32>::strict());
     }
 
     #[test]

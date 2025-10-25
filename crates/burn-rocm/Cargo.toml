@@ -21,7 +21,6 @@ autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
 doc = ["burn-cubecl/doc"]
 std = ["burn-cubecl/std", "cubecl/std"]
-compilation-cache = ["cubecl/compilation-cache"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }

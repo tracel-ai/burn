@@ -1,9 +1,9 @@
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
+use crate::kernel::{into_contiguous, unary_basic::BasicFloatUnaryKind};
 use crate::{CubeBackend, execute_with_dtype};
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
@@ -185,6 +185,18 @@ where
         )
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(lhs.dtype, rhs.dtype),
+            E,
+            kernel::cross::<R, E>(lhs, rhs, dim)
+        )
+    }
+
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         super::swap_dims(tensor, dim1, dim2)
     }
@@ -254,22 +266,41 @@ where
             execute_with_dtype!(
                 float(tensor.dtype, value.dtype),
                 E,
-                kernel::select_assign::<R, E, I>(tensor, dim, indices, value)
+                kernel::select_assign::<R, E, I>(tensor, dim, indices, value, false)
             )
         )
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::slice::<R, E>(tensor, ranges)
-        )
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slices.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> = slices
+                .iter()
+                .enumerate()
+                .map(|(i, slice)| slice.to_range(tensor.shape[i]))
+                .collect();
+
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice::<R, E>(tensor, &simple_ranges)
+            )
+        } else {
+            // Use slice with steps kernel
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice_with_steps::<R, E>(tensor, slices)
+            )
+        }
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
@@ -384,6 +415,7 @@ where
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let tensor = into_contiguous::<R>(tensor);
         execute_with_dtype!(
             float(tensor.dtype),
             E,
@@ -476,6 +508,26 @@ where
         )
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cumsum::<R, E>(tensor, dim))
+    }
+
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            numeric::cumprod::<R, E>(tensor, dim)
+        )
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cummin::<R, E>(tensor, dim))
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cummax::<R, E>(tensor, dim))
+    }
+
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),
@@ -504,18 +556,18 @@ where
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Exp)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Exp)
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log)
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log1p)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         struct Powf;
 
         #[cube]
@@ -540,39 +592,43 @@ where
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sqrt)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sqrt)
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Abs)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Abs)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Cos)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cos)
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sin)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sin)
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Tanh)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tanh)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Round)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Round)
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Floor)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Floor)
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Ceil)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Ceil)
+    }
+
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Trunc)
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Erf)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Erf)
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -620,7 +676,7 @@ where
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Recip)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Recip)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
@@ -682,5 +738,22 @@ where
             (DType::BF16, FloatDType::F16) => kernel::cast::<R, bf16, f16>(tensor),
             _ => unimplemented!("Unsupported floating point type cast"),
         }
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
+    }
+
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_nan::<R, E, BT>(tensor))
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_inf::<R, E, BT>(tensor))
     }
 }

@@ -75,10 +75,19 @@ impl TensorData {
     }
 
     /// Creates a new tensor data structure from raw bytes.
+    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
+        Self {
+            bytes,
+            shape: shape.into(),
+            dtype,
+        }
+    }
+
+    /// Creates a new tensor data structure from raw bytes stored in a vector.
     ///
     /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
     /// certain that the bytes representation is valid.
-    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+    pub fn from_bytes_vec<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: Bytes::from_bytes_vec(bytes),
             shape: shape.into(),
@@ -306,9 +315,23 @@ impl TensorData {
                                 .into_iter(),
                         )
                     }
+                    QuantScheme {
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        mode: QuantMode::Symmetric,
+                        value:
+                            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                        ..
+                    } => {
+                        unimplemented!("Not yet implemented for iteration");
+                    }
                 },
             }
         }
+    }
+
+    /// Returns the rank (the number of dimensions).
+    pub fn rank(&self) -> usize {
+        self.shape.len()
     }
 
     /// Returns the total number of elements of the tensor data.
@@ -893,7 +916,16 @@ impl core::fmt::Display for TensorData {
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
-                }
+                },
+                QuantScheme {
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        mode: QuantMode::Symmetric,
+                        value:
+                            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                        ..
+                    } => {
+                        unimplemented!("Can't format yet");
+                    }
             },
         };
         f.write_str(fmt.as_str())
@@ -1102,6 +1134,18 @@ mod tests {
     use super::*;
     use alloc::vec;
     use rand::{SeedableRng, rngs::StdRng};
+
+    #[test]
+    fn should_have_rank() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_os_rng(),
+        );
+
+        assert_eq!(data.rank(), 3);
+    }
 
     #[test]
     fn into_vec_should_yield_same_value_as_iter() {

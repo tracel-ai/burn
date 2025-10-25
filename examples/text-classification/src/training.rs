@@ -16,7 +16,7 @@ use burn::train::LearningStrategy;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
-    nn::transformer::TransformerEncoderConfig,
+    nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
     optim::AdamConfig,
     prelude::*,
     record::{CompactRecorder, Recorder},
@@ -35,9 +35,9 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 256)]
-    pub max_seq_length: usize,
-    #[config(default = 64)]
+    #[config(default = "SeqLengthOption::Fixed(512)")]
+    pub seq_length: SeqLengthOption,
+    #[config(default = 32)]
     pub batch_size: usize,
     #[config(default = 5)]
     pub num_epochs: usize,
@@ -55,14 +55,14 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     let tokenizer = Arc::new(BertCasedTokenizer::default());
 
     // Initialize batcher
-    let batcher = TextClassificationBatcher::new(tokenizer.clone(), config.max_seq_length);
+    let batcher = TextClassificationBatcher::new(tokenizer.clone(), config.seq_length);
 
     // Initialize model
     let model = TextClassificationModelConfig::new(
         config.transformer.clone(),
         D::num_classes(),
         tokenizer.vocab_size(),
-        config.max_seq_length,
+        config.seq_length,
     )
     .init::<B>(&devices[0]);
 

@@ -9,6 +9,7 @@ mod conv2d;
 mod conv3d;
 mod conv_transpose2d;
 mod conv_transpose3d;
+mod cross;
 mod gather;
 mod mask_fill;
 mod mask_where;
@@ -81,6 +82,8 @@ macro_rules! testgen_all {
                 burn_cubecl::testgen_unary!();
 
                 burn_cubecl::testgen_reduce!();
+
+                burn_cubecl::testgen_cross!();
 
                 burn_cubecl::testgen_quantization!();
             }
@@ -164,6 +167,7 @@ macro_rules! testgen_jit_fusion {
 
         use burn_tensor::tests::qtensor::*;
 
+        burn_tensor::testgen_q_matmul!();
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();
     };

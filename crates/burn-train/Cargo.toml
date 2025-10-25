@@ -20,11 +20,14 @@ doc = ["default"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 # Distributed Data Parallel
-ddp = ["burn-collective", "burn-core/collective"]
+ddp = ["burn-collective", "burn-optim/collective"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", features = [
     "dataset",
+    "std",
+], default-features = false }
+burn-optim = { path = "../burn-optim", version = "0.19.0", features = [
     "std",
 ], default-features = false }
 burn-collective = { path = "../burn-collective", optional = true }

@@ -10,7 +10,7 @@ use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_tensor::{DType, Element};
+use burn_tensor::DType;
 use cubecl::ir::ElemType;
 
 /// The base optimization builder that can be used to fuse all elemwise operations.
@@ -77,13 +77,13 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
                 }
             }
             OperationIr::NumericFloat(_dtype, ops) => {
-                if !self.register_numeric::<f32>(ops) {
+                if !self.register_numeric(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericInt(_dtype, ops) => {
-                if !self.register_numeric::<i32>(ops) {
+                if !self.register_numeric(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -165,16 +165,21 @@ impl FuseOptimizationBuilder {
         self.builder.builder.input_unhandled(tensor)
     }
 
+    /// Declares an input tensor argument where the kernel is responsible to load.
+    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(Arg, Arg)> {
+        self.builder.builder.input_quantized_unhandled(tensor)
+    }
+
     /// Declares an output tensor argument where the kernel is responsible to write values.
     ///
     /// Normally you don't have to declare outputs explicitly before they are going to be
     /// registered based on the operations [registered](Self::register).
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape = tensor.shape.clone();
+            self.current_output_shape = tensor.shape.dims.clone();
         } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
             // The larguest shape win.
-            self.current_output_shape = tensor.shape.clone();
+            self.current_output_shape = tensor.shape.dims.clone();
         }
 
         self.builder.builder.output_unhandled(tensor)
@@ -260,7 +265,7 @@ impl FuseOptimizationBuilder {
                     });
                 }
 
-                if desc.input.shape.len() > desc.out.shape.len() {
+                if desc.input.shape.rank() > desc.out.shape.rank() {
                     // Not yet supported.
                     return false;
                 }
@@ -347,7 +352,7 @@ impl FuseOptimizationBuilder {
         }
     }
 
-    fn register_numeric<E: Element>(&mut self, op: &NumericOperationIr<E>) -> bool {
+    fn register_numeric(&mut self, op: &NumericOperationIr) -> bool {
         match op {
             NumericOperationIr::Add(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
@@ -613,7 +618,7 @@ impl FuseOptimizationBuilder {
         })
     }
 
-    fn register_scalar_ops<Func, E: Element>(&mut self, desc: &ScalarOpIr<E>, func: Func) -> bool
+    fn register_scalar_ops<Func>(&mut self, desc: &ScalarOpIr, func: Func) -> bool
     where
         Func: Fn(Arg, Arg, Arg) -> FuseOp,
     {
@@ -635,14 +640,14 @@ impl FuseOptimizationBuilder {
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape.clone_from(&out.shape);
+            self.current_output_shape.clone_from(&out.shape.dims);
             return true;
         }
 
         let rank = self.current_output_shape.len();
 
         // Rank should be equal.
-        if rank != out.shape.len() {
+        if rank != out.shape.num_dims() {
             return false;
         }
 
@@ -680,11 +685,11 @@ impl FuseOptimizationBuilder {
 
         if should_update {
             // For now forced to have exact shape.
-            if updated != out.shape {
+            if updated != out.shape.dims {
                 return false;
             }
 
-            self.current_output_shape.clone_from_slice(&out.shape);
+            self.current_output_shape.clone_from_slice(&out.shape.dims);
         }
 
         true

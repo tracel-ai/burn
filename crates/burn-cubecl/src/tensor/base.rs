@@ -16,7 +16,7 @@ use super::QParams;
 /// The basic tensor primitive struct.
 pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
-    pub client: ComputeClient<R::Server, R::Channel>,
+    pub client: ComputeClient<R::Server>,
     /// The buffer where the data are stored.
     pub handle: Handle,
     /// The shape of the tensor.
@@ -33,7 +33,7 @@ pub struct CubeTensor<R: CubeRuntime> {
 
 impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(val.handle, val.shape.dims.to_vec(), val.strides.to_vec())
+        TensorHandle::new(val.handle, val.shape.to_vec(), val.strides.to_vec())
     }
 }
 
@@ -156,6 +156,10 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 
     fn shape(&self) -> Shape {
         self.shape.clone()
+    }
+
+    fn rank(&self) -> usize {
+        self.shape.num_dims()
     }
 }
 
@@ -327,7 +331,7 @@ where
 {
     /// Create a new standard tensor
     pub fn new(
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         handle: Handle,
         shape: Shape,
         device: R::Device,
@@ -347,7 +351,7 @@ where
 
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         device: R::Device,
         shape: Shape,
         handle: Handle,
@@ -379,11 +383,7 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(
-        &self,
-        client: ComputeClient<R::Server, R::Channel>,
-        device: R::Device,
-    ) -> Self {
+    pub fn to_client(&self, client: ComputeClient<R::Server>, device: R::Device) -> Self {
         let desc = self
             .handle
             .copy_descriptor(&self.shape.dims, &self.strides, self.elem_size());
@@ -448,8 +448,8 @@ where
         let ndims = self.shape.num_dims();
 
         for i in 0..ndims {
-            let shape_lhs = self.shape.dims[i];
-            let shape_rhs = rhs.shape.dims[i];
+            let shape_lhs = self.shape[i];
+            let shape_rhs = rhs.shape[i];
 
             // Output tensor will be different from the mutable tensor.
             if shape_lhs < shape_rhs {

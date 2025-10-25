@@ -5,7 +5,10 @@ use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 use serde::{Deserialize, Serialize};
 
-use crate::{CubeFusionHandle, shared::trace::VectorizationHandle};
+use crate::{
+    CubeFusionHandle,
+    shared::trace::{VectorizationAxis, VectorizationHandle},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Vect {
@@ -39,6 +42,7 @@ pub struct LineSizeOverrides {
     default: Option<Vec<u8>>,
 }
 
+#[allow(unused)]
 impl LineSizeOverrides {
     pub fn overrides(&mut self, tensor_id: &TensorId, line_sizes: Vec<u8>) {
         let map = match &mut self.state {
@@ -106,7 +110,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     line_sizes: &[u8],
     overrides: &LineSizeOverrides,
     max: u8,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
 ) {
     let swapped: Vec<_> = swapped.collect();
 
@@ -158,7 +162,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                     };
                     let val = match val {
                         Vect::Broadcasted => Vect::Aligned(1),
-                        Vect::Aligned(val) => Vect::Aligned(val / num_quants),
+                        Vect::Aligned(val) => Vect::Aligned(val.div_ceil(num_quants)),
                     };
                     vectorizations.insert(tensor_ir.id, val);
                 }
@@ -218,11 +222,11 @@ fn multi_reads_vectorization_update(
 fn vectorization_input<R: Runtime>(
     handle: &CubeFusionHandle<R>,
     desc: &TensorIr,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| handle.strides.len() - 1);
+    let axis = axis.get(desc.id, || handle.strides.len() - 1);
     let shape_axis = desc.shape[axis];
 
     if shape_axis == 1 {
@@ -264,12 +268,12 @@ fn vectorization_input<R: Runtime>(
 
 fn vectorization_output(
     desc: &TensorIr,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| desc.shape.len() - 1);
+    let axis = axis.get(desc.id, || desc.shape.rank() - 1);
 
     let inner = |s: u8| {
         // The dimension should be a multiple of the vector size.
@@ -303,12 +307,12 @@ fn vectorization_reshape(
     reshaped: &TensorIr,
     original: &TensorIr,
     multi_reads: bool,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
+    let axis = axis.get(reshaped.id, || reshaped.shape.rank() - 1);
     let reshape_shape_axis = reshaped.shape[axis];
 
     if !multi_reads && reshape_shape_axis == 1 {
@@ -316,11 +320,11 @@ fn vectorization_reshape(
     }
 
     // If the axis is not the last dim, didn't think of it, return Aligned(1) to be sure.
-    if axis != reshaped.shape.len() - 1 {
+    if axis != reshaped.shape.rank() - 1 {
         return Vect::Aligned(1);
     }
 
-    let original_shape_axis = original.shape[original.shape.len() - 1];
+    let original_shape_axis = original.shape[original.shape.rank() - 1];
 
     if original_shape_axis != reshape_shape_axis {
         return Vect::Aligned(1);
@@ -377,11 +381,11 @@ fn vectorization_swapped<R: Runtime>(
     multi_reads: bool,
     dims: &(u32, u32),
     max: u8,
-    axis: Option<usize>,
+    axis: &VectorizationAxis,
     line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
+    let axis = axis.get(swapped.id, || swapped.shape.rank() - 1);
 
     let swapped_axis = swapped.shape[axis];
     let shape_axis = original.shape[axis];

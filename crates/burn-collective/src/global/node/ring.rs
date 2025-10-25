@@ -10,7 +10,7 @@ use crate::{
     node::sync::SyncService,
 };
 use burn_communication::{Address, Protocol, data_service::TensorDataService};
-use burn_tensor::{TensorMetadata, backend::Backend};
+use burn_tensor::{Slice, TensorMetadata, backend::Backend};
 
 // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
@@ -66,12 +66,12 @@ where
     let device = &B::float_device(&tensor);
     // Slice tensors in N parts, N is node count
     let slice_dim = get_slice_dim(&shape);
-    if shape.dims[slice_dim] < nodes.len() {
+    if shape[slice_dim] < nodes.len() {
         return Err(GlobalCollectiveError::RingReduceImpossible);
     }
 
     let ring = get_ring_topology(nodes.keys().cloned().collect::<Vec<_>>());
-    let slice_ranges = get_ring_reduce_slice_ranges(shape.dims[slice_dim], ring.len());
+    let slice_ranges = get_ring_reduce_slice_ranges(shape[slice_dim], ring.len());
     let mut slices = slice_tensor::<B>(tensor, slice_dim, slice_ranges);
 
     let mut send_slice_idx = ring
@@ -189,21 +189,18 @@ fn slice_tensor<B: Backend>(
     slice_ranges: Vec<Range<usize>>,
 ) -> Vec<B::FloatTensorPrimitive> {
     let shape = tensor.shape();
-    // full range across all dims
+    // full range across all dims as Slice
     let full_range = shape
         .dims
         .iter()
-        .map(|dim| Range {
-            start: 0,
-            end: *dim,
-        })
-        .collect::<Vec<Range<usize>>>();
+        .map(|dim| Slice::from(0..*dim))
+        .collect::<Vec<Slice>>();
 
     // Slice tensors
     let mut slices = vec![];
     for range in &slice_ranges {
         let mut all_ranges = full_range.clone();
-        all_ranges[slice_dim] = range.clone();
+        all_ranges[slice_dim] = Slice::from(range.clone());
         let slice = B::float_slice(tensor.clone(), &all_ranges);
         slices.push(slice);
     }

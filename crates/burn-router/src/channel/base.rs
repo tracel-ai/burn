@@ -1,6 +1,6 @@
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use burn_ir::TensorIr;
-use burn_tensor::{DType, Element, backend::DeviceOps};
+use burn_tensor::{DType, Element, Shape, backend::DeviceOps};
 
 use crate::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 
@@ -37,7 +37,7 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     fn register_tensor(
         client: &Self::Client,
         handle: TensorHandle<Self::Bridge>,
-        shape: Vec<usize>,
+        shape: Shape,
         dtype: DType,
     ) -> RouterTensor<Self::Client>;
 
@@ -52,11 +52,11 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
         let mut handle = Self::get_tensor_handle(&desc, &original_client);
 
         if desc.dtype.is_float() {
-            handle = Self::Bridge::change_backend_float(handle, desc.shape.clone().into(), device);
+            handle = Self::Bridge::change_backend_float(handle, desc.shape.clone(), device);
         } else if desc.dtype.is_int() {
-            handle = Self::Bridge::change_backend_int(handle, desc.shape.clone().into(), device);
+            handle = Self::Bridge::change_backend_int(handle, desc.shape.clone(), device);
         } else if desc.dtype.is_bool() {
-            handle = Self::Bridge::change_backend_bool(handle, desc.shape.clone().into(), device);
+            handle = Self::Bridge::change_backend_bool(handle, desc.shape.clone(), device);
         } else {
             unimplemented!()
         }

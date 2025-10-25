@@ -40,6 +40,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
                 ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
                 ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(tensor.raw_data)),
                 ElementType::Uint8 => Data::Uint8s(tensor.raw_data), // keep bytes
                 ElementType::Int8 => {
                     Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
@@ -51,41 +52,62 @@ impl TryFrom<TensorProto> for TensorData {
             }
         } else {
             match elem {
-                ElementType::Float32 if !tensor.float_data.is_empty() => {
-                    Data::Float32s(tensor.float_data)
+                ElementType::Float32 => {
+                    if !tensor.float_data.is_empty() {
+                        Data::Float32s(tensor.float_data)
+                    } else {
+                        Data::Float32s(vec![])
+                    }
                 }
-                ElementType::Float64 if !tensor.double_data.is_empty() => {
-                    Data::Float64s(tensor.double_data)
+                ElementType::Float64 => {
+                    if !tensor.double_data.is_empty() {
+                        Data::Float64s(tensor.double_data)
+                    } else {
+                        Data::Float64s(vec![])
+                    }
                 }
-                ElementType::Int32 if !tensor.int32_data.is_empty() => {
-                    Data::Int32s(tensor.int32_data)
+                ElementType::Int32 => {
+                    if !tensor.int32_data.is_empty() {
+                        Data::Int32s(tensor.int32_data)
+                    } else {
+                        Data::Int32s(vec![])
+                    }
                 }
-                ElementType::Int64 if !tensor.int64_data.is_empty() => {
-                    Data::Int64s(tensor.int64_data)
+                ElementType::Int64 => {
+                    if !tensor.int64_data.is_empty() {
+                        Data::Int64s(tensor.int64_data)
+                    } else {
+                        Data::Int64s(vec![])
+                    }
                 }
-                ElementType::Bool if !tensor.int32_data.is_empty() => {
-                    Data::Bools(tensor.int32_data.into_iter().map(|x| x != 0).collect())
+                ElementType::Bool => {
+                    if !tensor.int32_data.is_empty() {
+                        Data::Bools(tensor.int32_data.into_iter().map(|x| x != 0).collect())
+                    } else {
+                        Data::Bools(vec![])
+                    }
                 }
                 ElementType::Uint8 => {
                     // accept weird exporters that stuff zp as int32_data
                     if !tensor.int32_data.is_empty() {
                         Data::Uint8s(tensor.int32_data.into_iter().map(|x| x as u8).collect())
                     } else {
-                        return Err(ParseError::VariantNotFound("no data for UINT8".into()));
+                        Data::Uint8s(vec![])
                     }
                 }
                 ElementType::Int8 => {
                     if !tensor.int32_data.is_empty() {
                         Data::Int8s(tensor.int32_data.into_iter().map(|x| x as i8).collect())
                     } else {
-                        return Err(ParseError::VariantNotFound("no data for INT8".into()));
+                        Data::Int8s(vec![])
                     }
                 }
-                _ => {
-                    return Err(ParseError::VariantNotFound(format!(
-                        "empty/unsupported payload for {:?}",
-                        elem
-                    )));
+                ElementType::Uint16 => Data::Uint16s(vec![]),
+                ElementType::Float16 => Data::Float16s(vec![]),
+                ElementType::String => {
+                    return Err(ParseError::VariantNotFound(
+                        "String tensor attributes not supported".into(),
+                    ));
                 }
             }
         };

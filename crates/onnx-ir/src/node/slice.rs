@@ -68,11 +68,11 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     let mut axes = get_slice_input(node, 3);
     let steps = get_slice_input(node, 4);
 
-    // Validate steps if present
+    // Validate steps if present - zeros are not allowed
     if let Some(SliceInput::Static(ref step_values)) = steps
-        && step_values.iter().any(|&x| x != 1)
+        && step_values.contains(&0)
     {
-        panic!("Slice: steps other than 1 are not supported");
+        panic!("Slice: step values cannot be zero");
     }
 
     // Normalize negative axes if we have static axes and know the input rank
@@ -91,10 +91,11 @@ pub fn slice_config(node: &Node) -> SliceConfig {
 }
 
 /// Calculate output length for slicing a Shape.
-/// Handles negative indices and special cases.
+/// Handles negative indices, special cases, and steps.
 fn calculate_shape_slice_output_len(
     start: i64,
     end: i64,
+    step: i64,
     shape_rank: usize,
     node_name: &str,
 ) -> usize {
@@ -116,14 +117,20 @@ fn calculate_shape_slice_output_len(
         end.min(shape_len)
     };
 
-    // Calculate output length
-    let output_len = (norm_end - norm_start).max(0) as usize;
+    // Calculate output length considering step
+    let range_len = (norm_end - norm_start).max(0);
+    let output_len = if step.abs() == 1 {
+        range_len as usize
+    } else {
+        ((range_len + step.abs() - 1) / step.abs()) as usize
+    };
 
     log::debug!(
-        "Shape slice for node {}: [{}, {}] -> [{}, {}] on rank {} = output length {}",
+        "Shape slice for node {}: [{}, {}, step={}] -> [{}, {}] on rank {} = output length {}",
         node_name,
         start,
         end,
+        step,
         norm_start,
         norm_end,
         shape_rank,
@@ -131,7 +138,7 @@ fn calculate_shape_slice_output_len(
     );
 
     // Special case logging for common patterns
-    if start == -1 && (end == i64::MAX || end >= shape_len) {
+    if start == -1 && (end == i64::MAX || end >= shape_len) && step == 1 {
         log::debug!(
             "Slice pattern [-1:] detected for node {} - getting last element",
             node_name
@@ -160,8 +167,14 @@ pub fn slice_update_output_rank(node: &mut Node) {
             let config = slice_config(node);
 
             // Only static slicing is supported for Shape inputs
-            let (starts, ends) = match (&config.starts, &config.ends) {
-                (SliceInput::Static(s), SliceInput::Static(e)) => (s, e),
+            let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
+                (SliceInput::Static(s), SliceInput::Static(e), steps_opt) => {
+                    let step_values = match steps_opt {
+                        Some(SliceInput::Static(st)) => st.clone(),
+                        _ => vec![1], // Default step is 1
+                    };
+                    (s, e, step_values)
+                }
                 _ => panic!(
                     "Runtime slice on Shape input is not supported for node {}",
                     node.name
@@ -176,8 +189,9 @@ pub fn slice_update_output_rank(node: &mut Node) {
                 );
             }
 
+            let step = if steps.is_empty() { 1 } else { steps[0] };
             let output_len =
-                calculate_shape_slice_output_len(starts[0], ends[0], *shape_rank, &node.name);
+                calculate_shape_slice_output_len(starts[0], ends[0], step, *shape_rank, &node.name);
             node.outputs[0].ty = ArgType::Shape(output_len);
         }
         // Handle unsupported input types
@@ -278,6 +292,8 @@ mod tests {
                 if let Some(SliceInput::Static(axes)) = &result.axes {
                     assert_eq!(axes, &vec![0, 2]);
                 }
+                // Steps should be None when not provided
+                assert!(result.steps.is_none());
             }
             _ => panic!("Expected static config"),
         }
@@ -412,6 +428,74 @@ mod tests {
                 assert_eq!(ends.name, "ends");
             }
             _ => panic!("Expected mixed config with static start and runtime end"),
+        }
+    }
+
+    #[test]
+    fn test_slice_config_with_steps() {
+        // Create a node with steps input
+        let builder = NodeBuilder::new(NodeType::Slice, "test_slice_with_steps")
+            .input_tensor_f32("data", 3, None)
+            .input_tensor_i64_data("starts", vec![0, 0], vec![2])
+            .input_tensor_i64_data("ends", vec![10, 10], vec![2])
+            .input_tensor_i64_data("axes", vec![0, 1], vec![2])
+            .input_tensor_i64_data("steps", vec![2, 3], vec![2])
+            .output_default("output");
+
+        let node = builder.build();
+        let result = slice_config(&node);
+
+        // Check that we have static starts, ends, and steps
+        match (&result.starts, &result.ends, &result.steps) {
+            (
+                SliceInput::Static(starts),
+                SliceInput::Static(ends),
+                Some(SliceInput::Static(steps)),
+            ) => {
+                assert_eq!(starts, &vec![0, 0]);
+                assert_eq!(ends, &vec![10, 10]);
+                assert_eq!(steps, &vec![2, 3]);
+            }
+            _ => panic!("Expected static config with steps"),
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "step values cannot be zero")]
+    fn test_slice_config_zero_step() {
+        // Create a node with zero step value (should panic)
+        let builder = NodeBuilder::new(NodeType::Slice, "test_zero_step")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64_data("starts", vec![0], vec![1])
+            .input_tensor_i64_data("ends", vec![10], vec![1])
+            .input_tensor_i64_data("axes", vec![0], vec![1])
+            .input_tensor_i64_data("steps", vec![0], vec![1])
+            .output_default("output");
+
+        let node = builder.build();
+        slice_config(&node); // Should panic
+    }
+
+    #[test]
+    fn test_slice_config_negative_steps() {
+        // Create a node with negative step values
+        let builder = NodeBuilder::new(NodeType::Slice, "test_negative_steps")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64_data("starts", vec![0, 2], vec![2])
+            .input_tensor_i64_data("ends", vec![10, 8], vec![2])
+            .input_tensor_i64_data("axes", vec![0, 1], vec![2])
+            .input_tensor_i64_data("steps", vec![-1, -2], vec![2])
+            .output_default("output");
+
+        let node = builder.build();
+        let result = slice_config(&node);
+
+        // Check that negative steps are preserved
+        match &result.steps {
+            Some(SliceInput::Static(steps)) => {
+                assert_eq!(steps, &vec![-1, -2]);
+            }
+            _ => panic!("Expected static steps with negative values"),
         }
     }
 }

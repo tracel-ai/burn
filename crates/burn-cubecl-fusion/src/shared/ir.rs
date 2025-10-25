@@ -29,7 +29,9 @@ pub enum Arg {
     },
 }
 
-#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
+)]
 /// Layout information.
 pub enum LayoutInfo {
     /// The layout if the same as the reference.
@@ -179,12 +181,18 @@ impl FuseOp {
     }
 }
 
-#[derive(CubeType, CubeLaunch, Default)]
+#[derive(CubeType, CubeLaunch, Default, Clone)]
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<GlobalScalar>,
     pub reshapes: Sequence<u32>,
+}
+
+impl GlobalArgsExpand {
+    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
+        self.clone()
+    }
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -293,12 +301,12 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         match arg {
             Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
             Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            _ => panic!("Arg not found"),
+            other => panic!("Arg not found: {other:?}"),
         }
     }
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone)]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
@@ -346,6 +354,12 @@ impl LocalArgs {
             ref_strides,
             ref_line_size,
         }
+    }
+}
+
+impl LocalArgsExpand {
+    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
+        self.clone()
     }
 }
 
@@ -463,6 +477,9 @@ impl From<DType> for FusePrecision {
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => Self::I8,
+                    QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                        unimplemented!("Unsupported precision for fusion")
+                    }
                     QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                         panic!("Can't store native sub-byte values")
                     }

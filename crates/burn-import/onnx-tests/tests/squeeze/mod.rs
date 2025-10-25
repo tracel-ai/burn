@@ -6,7 +6,9 @@ include_models!(
     squeeze_shape_noop,
     squeeze_scalar,
     squeeze_float,
-    squeeze_tensor_to_scalar
+    squeeze_tensor_to_scalar,
+    squeeze_opset13_axes_input,
+    squeeze_no_axes
 );
 
 #[cfg(test)]
@@ -91,5 +93,32 @@ mod tests {
         let input = Tensor::<TestBackend, 3>::from_data([[[42.5f32]]], &device);
         let output = model.forward(input);
         assert!((output - 42.5f32).abs() < 1e-6);
+    }
+
+    #[test]
+    fn squeeze_opset13_axes_input() {
+        // Test ONNX opset 13+ style where axes are provided as input instead of attribute
+        // This simulates the FaceNet512 model case with GlobalAvgPool output
+        let device = Default::default();
+        let model = squeeze_opset13_axes_input::Model::<TestBackend>::new(&device);
+        let input_shape = Shape::from([1, 512, 1, 1]);
+        let expected_shape = Shape::from([1, 512]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn squeeze_no_axes() {
+        // Test squeeze without axes specified - should squeeze all dimensions with size 1
+        // Input shape: [2, 1, 3, 1, 4]
+        // Output shape: [2, 3, 4]
+        let device = Default::default();
+        let model = squeeze_no_axes::Model::<TestBackend>::new(&device);
+        let input_shape = Shape::from([2, 1, 3, 1, 4]);
+        let expected_shape = Shape::from([2, 3, 4]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
     }
 }

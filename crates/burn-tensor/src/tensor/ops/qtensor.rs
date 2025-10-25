@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use core::ops::Range;
 use cubecl_quant::scheme::QuantScheme;
 
 use crate::{
@@ -278,17 +277,17 @@ pub trait QTensorOps<B: Backend> {
         indices: IntTensor<B>,
     ) -> QuantizedTensor<B>;
 
-    /// Select tensor elements corresponding for the given ranges.
+    /// Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn q_slice(tensor: QuantizedTensor<B>, ranges: &[Range<usize>]) -> QuantizedTensor<B>;
+    fn q_slice(tensor: QuantizedTensor<B>, slices: &[crate::Slice]) -> QuantizedTensor<B>;
 
     /// Gather elements from a tensor.
     ///
@@ -541,13 +540,33 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
-    fn q_matmul(lhs: QuantizedTensor<B>, rhs: QuantizedTensor<B>) -> TensorPrimitive<B> {
-        dequant_op_flow!(
-            ty Self,
-            float_op |lhs, rhs| B::float_matmul(lhs, rhs),
-            lhs,
-            rhs
-        )
+    fn q_matmul(lhs: TensorPrimitive<B>, rhs: TensorPrimitive<B>) -> TensorPrimitive<B> {
+        let mut propagation = QuantPropagation::Inhibit;
+        let mut scheme = QuantScheme::default();
+        let lhs = match lhs {
+            TensorPrimitive::Float(lhs) => lhs,
+            TensorPrimitive::QFloat(lhs) => {
+                propagation = lhs.propagation();
+                scheme = *lhs.scheme();
+                Self::dequantize(lhs)
+            }
+        };
+        let rhs = match rhs {
+            TensorPrimitive::Float(rhs) => rhs,
+            TensorPrimitive::QFloat(rhs) => {
+                propagation = rhs.propagation();
+                scheme = *rhs.scheme();
+                Self::dequantize(rhs)
+            }
+        };
+
+        let out_f = B::float_matmul(lhs, rhs);
+        match propagation {
+            QuantPropagation::Propagate => {
+                TensorPrimitive::QFloat(<Self>::quantize_dynamic(out_f, &scheme))
+            }
+            QuantPropagation::Inhibit => TensorPrimitive::Float(out_f),
+        }
     }
 
     /// Negates a tensor element-wise.
@@ -668,6 +687,82 @@ pub trait QTensorOps<B: Backend> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_mean_dim(tensor, dim),
+            tensor
+        )
+    }
+
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative sum
+    /// of all elements up to and including that position along the dimension.
+    fn q_cumsum(tensor: QuantizedTensor<B>, dim: usize) -> TensorPrimitive<B> {
+        dequant_op_flow!(
+            ty Self,
+            float_op |tensor| B::float_cumsum(tensor, dim),
+            tensor
+        )
+    }
+
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative product
+    /// of all elements up to and including that position along the dimension.
+    fn q_cumprod(tensor: QuantizedTensor<B>, dim: usize) -> TensorPrimitive<B> {
+        dequant_op_flow!(
+            ty Self,
+            float_op |tensor| B::float_cumprod(tensor, dim),
+            tensor
+        )
+    }
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the minimum
+    /// of all elements up to and including that position along the dimension.
+    fn q_cummin(tensor: QuantizedTensor<B>, dim: usize) -> TensorPrimitive<B> {
+        dequant_op_flow!(
+            ty Self,
+            float_op |tensor| B::float_cummin(tensor, dim),
+            tensor
+        )
+    }
+
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the maximum
+    /// of all elements up to and including that position along the dimension.
+    fn q_cummax(tensor: QuantizedTensor<B>, dim: usize) -> TensorPrimitive<B> {
+        dequant_op_flow!(
+            ty Self,
+            float_op |tensor| B::float_cummax(tensor, dim),
             tensor
         )
     }

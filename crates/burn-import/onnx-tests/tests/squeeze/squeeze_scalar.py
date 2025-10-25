@@ -41,9 +41,11 @@ def main():
         ],
     )
     
-    # Create the model
-    model = helper.make_model(graph)
-    model.opset_import[0].version = 16
+    # Create the model with opset 16
+    model = helper.make_model(
+        graph,
+        opset_imports=[helper.make_opsetid("", 16)]
+    )
     
     # Check and save
     onnx.checker.check_model(model)

@@ -1,7 +1,5 @@
-use core::ops::Range;
-
 use burn_tensor::{
-    Device, Shape, TensorData,
+    Device, Shape, Slice, TensorData,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -83,7 +81,7 @@ impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(_tensor: QuantizedTensor<Self>, _slices: &[Slice]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

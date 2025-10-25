@@ -1,4 +1,3 @@
-use burn_tensor::Shape;
 use hashbrown::HashMap;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
@@ -64,6 +63,17 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.contains_key(id)
     }
 
+    /// Get the reference to a handle.
+    pub fn get_handle_ref(&self, id: &TensorId) -> Option<&H> {
+        self.handles
+            .get(id)
+            .filter(|h| !matches!(h, Handle::NotInit))
+            .map(|h| match h {
+                Handle::Existing(handle) => handle,
+                Handle::NotInit => unreachable!(),
+            })
+    }
+
     /// Get the handle for the given [tensor id](TensorId). The status is used to determine if the
     /// tensor should be popped out of the current tensor map, necessary for inplace operations.
     ///
@@ -96,7 +106,7 @@ impl<H: Clone> HandleContainer<H> {
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> TensorHandle<H> {
         TensorHandle {
             handle: self.get_handle(&tensor.id, &tensor.status),
-            shape: Shape::from(&tensor.shape),
+            shape: tensor.shape.clone(),
         }
     }
 

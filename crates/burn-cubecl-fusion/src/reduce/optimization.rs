@@ -43,7 +43,7 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R::Server, R::Channel>,
+    pub(crate) client: ComputeClient<R::Server>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) len_read: usize,
@@ -193,7 +193,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 
             handles.insert(
                 self.info.reduce.op.out.id,
-                (out_desc.shape.clone(), handle_out.clone()),
+                (out_desc.shape.dims.clone(), handle_out.clone()),
             );
         }
 
@@ -218,7 +218,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         device: R::Device,
         len: usize,
         len_read: usize,
@@ -323,7 +323,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R::Server, R::Channel>,
+        client: &'a ComputeClient<R::Server>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
@@ -383,10 +383,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             axis: self.axis as u32,
             strategy: &strategy,
             config_reduce,
-            config_fuse_read: config_read,
-            config_fuse_write: config_write,
-            input: &self.input,
-            output: &self.output,
+            config_fuse_read: config_read.clone(),
+            config_fuse_write: config_write.clone(),
+            input: self.input.clone(),
+            output: self.output.clone(),
         };
         launch_reduce_mixed_precision::<R>(
             kwargs,
@@ -401,16 +401,16 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
 }
 
 struct ReduceKwArgs<'a, 'b, Run: Runtime> {
-    client: &'b ComputeClient<Run::Server, Run::Channel>,
+    client: &'b ComputeClient<Run::Server>,
     inputs: GlobalArgsLaunch<'a, Run>,
     outputs: GlobalArgsLaunch<'a, Run>,
     axis: u32,
     strategy: &'b ReduceStrategy,
     config_reduce: ReduceConfig,
-    config_fuse_read: &'a FuseBlockConfig,
-    config_fuse_write: &'a FuseBlockConfig,
-    input: &'a Arg,
-    output: &'a Arg,
+    config_fuse_read: FuseBlockConfig,
+    config_fuse_write: FuseBlockConfig,
+    input: Arg,
+    output: Arg,
 }
 
 fn launch_reduce_mixed_precision<Run: Runtime>(

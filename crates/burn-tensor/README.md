@@ -8,5 +8,5 @@
 This library provides the core abstractions required to run tensor operations with Burn.
 
 `Tensor`s are generic over the backend to allow users to perform operations using different
-`Backend` implementations. Burn's tensors also support support auto-differentiation thanks to the
+`Backend` implementations. Burn's tensors also support auto-differentiation thanks to the
 `AutodiffBackend` trait.

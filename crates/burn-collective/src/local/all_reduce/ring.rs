@@ -1,6 +1,6 @@
 use super::tree::all_reduce_sum_tree;
 use crate::PeerId;
-use burn_tensor::{Shape, TensorMetadata, backend::Backend};
+use burn_tensor::{Shape, Slice, TensorMetadata, backend::Backend};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
@@ -43,7 +43,7 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     // Chose an axis
     let slice_dim = get_slice_dim(&shape);
 
-    let slice_dim_size = shape.dims[slice_dim];
+    let slice_dim_size = shape[slice_dim];
     let tensor_count = tensors.len();
     if slice_dim_size < tensor_count {
         // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
@@ -120,16 +120,16 @@ fn ring_cycles<B: Backend>(
             if is_phase_one {
                 dest_slice = B::float_add(dest_slice, src_slice_on_dest);
             } else {
-                let ranges: Vec<Range<usize>> = dest_slice
+                let slices: Vec<Slice> = dest_slice
                     .shape()
                     .dims
                     .iter()
-                    .map(|d| Range { start: 0, end: *d })
+                    .map(|&d| Slice::new(0, Some(d as isize), 1))
                     .collect();
 
                 // in phase 2, we don't sum the two slices, we replace with the new one.
                 dest_slice =
-                    B::float_slice_assign(dest_slice, ranges.as_slice(), src_slice_on_dest);
+                    B::float_slice_assign(dest_slice, slices.as_slice(), src_slice_on_dest);
             }
 
             sliced_tensors[src_tensor_idx]
@@ -150,7 +150,7 @@ fn slice_tensors<B: Backend>(
     slice_dim: usize,
 ) -> Vec<(PeerId, Vec<<B as Backend>::FloatTensorPrimitive>)> {
     // Get slice index ranges
-    let ranges = get_ring_reduce_slice_ranges(shape.dims[slice_dim], tensors.len());
+    let ranges = get_ring_reduce_slice_ranges(shape[slice_dim], tensors.len());
 
     // Slice tensors
     let mut sliced_tensors = vec![];
@@ -163,12 +163,9 @@ fn slice_tensors<B: Backend>(
                 .enumerate()
                 .map(|(dim_idx, dim)| {
                     if dim_idx == slice_dim {
-                        range.clone()
+                        Slice::from(range.clone())
                     } else {
-                        Range {
-                            start: 0,
-                            end: *dim,
-                        }
+                        Slice::from(0..*dim)
                     }
                 })
                 .collect::<Vec<_>>();

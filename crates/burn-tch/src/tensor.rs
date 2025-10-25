@@ -85,6 +85,10 @@ impl TensorMetadata for TchTensor {
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.size())
     }
+
+    fn rank(&self) -> usize {
+        self.tensor.dim()
+    }
 }
 
 impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
@@ -249,7 +253,7 @@ impl TchTensor {
         let mut out_shape = Shape::from(vec![1usize; d_out]);
 
         for i in 0..d_out {
-            out_shape.dims[i] = usize::max(lhs_shape.dims[i], rhs_shape.dims[i]);
+            out_shape[i] = usize::max(lhs_shape[i], rhs_shape[i]);
         }
 
         let num_elements_out = out_shape.num_elements();
@@ -294,7 +298,7 @@ pub struct TchShape {
 impl From<Shape> for TchShape {
     fn from(shape: Shape) -> Self {
         TchShape {
-            dims: shape.dims.into_iter().map(|d| d as i64).collect(),
+            dims: shape.into_iter().map(|d| d as i64).collect(),
         }
     }
 }

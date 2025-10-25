@@ -1,9 +1,9 @@
 use alloc::{vec, vec::Vec};
-use burn_tensor::ElementConversion;
 #[cfg(feature = "simd")]
 use burn_tensor::{DType, quantization::QuantValue};
+use burn_tensor::{ElementConversion, Slice};
 use core::fmt::Debug;
-use core::{marker::PhantomData, ops::Range};
+use core::marker::PhantomData;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
@@ -16,12 +16,6 @@ use paste::paste;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
-
-use burn_tensor::Shape;
-use ndarray::Axis;
-use ndarray::Dim;
-use ndarray::IxDyn;
-use ndarray::SliceInfoElem;
 
 #[cfg(feature = "simd")]
 use crate::ops::simd::{
@@ -39,9 +33,17 @@ use crate::ops::simd::{
 use crate::reshape;
 use crate::{
     IntNdArrayElement, ShapeOps,
-    ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
+    ops::macros::{
+        cummax_dim, cummin_dim, cumprod_dim, cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim,
+    },
 };
 use crate::{SharedArray, element::NdArrayElement};
+use burn_tensor::Shape;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
+use ndarray::Axis;
+use ndarray::Dim;
+use ndarray::IxDyn;
+use ndarray::SliceInfoElem;
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
@@ -55,17 +57,17 @@ impl<E> NdArrayOps<E>
 where
     E: Copy + Debug + burn_tensor::Element,
 {
-    pub fn slice(tensor: SharedArray<E>, ranges: &[Range<usize>]) -> SharedArray<E> {
-        let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
+    pub fn slice(tensor: SharedArray<E>, slices: &[burn_tensor::Slice]) -> SharedArray<E> {
+        let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         tensor.slice_move(slices.as_slice()).into_shared()
     }
 
     pub fn slice_assign(
         tensor: SharedArray<E>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: SharedArray<E>,
     ) -> SharedArray<E> {
-        let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
+        let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
         array.into_shared()
@@ -97,23 +99,47 @@ where
         Self::concatenate(&arrays, dim)
     }
 
-    fn to_slice_args(ranges: &[Range<usize>], ndims: usize) -> Vec<SliceInfoElem> {
+    #[allow(clippy::wrong_self_convention)]
+    fn to_slice_args_with_steps(
+        burn_slices: &[burn_tensor::Slice],
+        ndims: usize,
+    ) -> Vec<SliceInfoElem> {
         let mut slices = vec![SliceInfoElem::NewAxis; ndims];
+
         for i in 0..ndims {
-            if i >= ranges.len() {
-                slices[i] = SliceInfoElem::Slice {
+            slices[i] = if i < burn_slices.len() {
+                let slice = &burn_slices[i];
+
+                // Check for empty range (would result in no elements)
+                if let Some(end) = slice.end
+                    && slice.start == end
+                {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: Some(0),
+                        step: 1,
+                    }
+                } else {
+                    // Pass slice parameters directly to ndarray
+                    // ndarray handles both positive and negative steps correctly:
+                    // - Positive step: iterates forward from start
+                    // - Negative step: iterates backward from the last element in range
+                    SliceInfoElem::Slice {
+                        start: slice.start,
+                        end: slice.end,
+                        step: slice.step,
+                    }
+                }
+            } else {
+                // Dimension not specified in slices - use full range
+                SliceInfoElem::Slice {
                     start: 0,
                     end: None,
                     step: 1,
                 }
-            } else {
-                slices[i] = SliceInfoElem::Slice {
-                    start: ranges[i].start as isize,
-                    end: Some(ranges[i].end as isize),
-                    step: 1,
-                }
             }
         }
+
         slices
     }
 
@@ -159,6 +185,57 @@ where
         let slice_info =
             SliceInfo::<Vec<SliceInfoElem>, IxDyn, IxDyn>::try_from(slice_items).unwrap();
         tensor.slice(slice_info).into_owned().into_shared()
+    }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// # Warning
+    ///
+    /// This is a copy impl; `ndarray` doesn't expose the layout machinery
+    /// necessary to build the stride view.
+    ///
+    /// Returns a copy of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the dimension to unfold.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
+    #[allow(unused)]
+    pub(crate) fn unfold(
+        tensor: SharedArray<E>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> SharedArray<E> {
+        let result_shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let windows = result_shape[dim];
+
+        let mut slices = vec![Slice::new(0, None, 1); tensor.shape().len()];
+        let new_axis = slices.len();
+
+        let mut stack = Vec::with_capacity(windows);
+        for widx in 0..windows {
+            let start = widx * step;
+            let end = start + size;
+            slices[dim] = Slice::new(start as isize, Some(end as isize), 1);
+
+            let mut window_slice =
+                tensor.slice(Self::to_slice_args_with_steps(&slices, slices.len()).as_slice());
+            window_slice.insert_axis_inplace(Axis(new_axis));
+            window_slice.swap_axes(dim, new_axis);
+
+            stack.push(window_slice);
+        }
+        Self::concatenate(&stack, dim)
     }
 }
 
@@ -220,7 +297,7 @@ macro_rules! dispatch_binary_scalar_simd {
                 $(DType::[<$ty:upper>] => try_binary_scalar_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
                     QuantValue::Q8F | QuantValue::Q8S => try_binary_scalar_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
-                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => Err($lhs)
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S | QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => Err($lhs)
                 },
                 _ => Err($lhs),
             };
@@ -246,7 +323,7 @@ macro_rules! dispatch_cmp_simd {
                 $(DType::[<$ty:upper>] => try_cmp_simd::<$elem, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
                     QuantValue::Q8F | QuantValue::Q8S => try_cmp_simd::<$elem, i8, $op>($lhs, $rhs),
-                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => Err(($lhs, $rhs))
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S | QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => Err(($lhs, $rhs))
                 },
                 _ => Err(($lhs, $rhs)),
             };
@@ -271,7 +348,7 @@ macro_rules! dispatch_cmp_scalar_simd {
                 $(DType::[<$ty:upper>] => try_cmp_scalar_simd::<$elem, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
                     QuantValue::Q8F | QuantValue::Q8S => try_cmp_scalar_simd::<$elem, i8, $op>($lhs, $rhs),
-                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => Err($lhs)
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S | QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => Err($lhs)
                 },
                 _ => Err($lhs),
             };
@@ -535,6 +612,22 @@ where
             d if (1..=6).contains(&d) => keepdim!(dim, tensor, prod),
             _ => panic!("Dim not supported {ndims}"),
         }
+    }
+
+    pub fn cumsum(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cumsum_dim(tensor, dim)
+    }
+
+    pub fn cumprod(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cumprod_dim(tensor, dim)
+    }
+
+    pub fn cummin(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cummin_dim(tensor, dim)
+    }
+
+    pub fn cummax(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cummax_dim(tensor, dim)
     }
 
     pub fn gather<I: NdArrayElement>(

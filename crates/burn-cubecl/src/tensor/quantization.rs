@@ -13,7 +13,7 @@ pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor
     pub fn new_quantized(
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         handle: Handle,
         shape: Shape,
         device: R::Device,
@@ -50,14 +50,17 @@ impl<R: CubeRuntime> CubeTensor<R> {
                     dtype: DType::I8,
                     qparams: None,
                 },
+                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                    unimplemented!("Not yet supported")
+                }
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     panic!("Can't store native sub-byte values")
                 }
             },
             QuantStore::U32 => {
-                let rank = self.shape.num_dims();
+                let major_dim = self.major_dim();
                 let mut shape = self.shape.clone();
-                shape.dims[rank - 1] /= scheme.num_quants();
+                shape[major_dim] = shape[major_dim].div_ceil(scheme.num_quants());
 
                 CubeTensor {
                     client: self.client.clone(),
@@ -72,6 +75,17 @@ impl<R: CubeRuntime> CubeTensor<R> {
         };
 
         Some((values, params))
+    }
+
+    fn major_dim(&self) -> usize {
+        let rank = self.shape.num_dims();
+        self.strides
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, s)| **s == 1)
+            .map(|(i, _)| i)
+            .unwrap_or(rank - 1)
     }
 
     /// Construct a separate tensor for the quantization scales, if present

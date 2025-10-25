@@ -5,11 +5,8 @@ use burn_tensor::{
     ops::{DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
-    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
-    convolution::components::ConvSetupError,
-    cube,
-    ir::{ElemType, StorageType},
-    prelude::*,
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
+    cube, features::TypeUsage, prelude::*,
 };
 
 use crate::{
@@ -171,7 +168,11 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
         columns = slice_assign::<R, E>(
             columns,
-            &[group..group + 1, 0..col_shape_0, 0..col_shape_1],
+            &[
+                burn_tensor::Slice::from(group..group + 1),
+                burn_tensor::Slice::from(0..col_shape_0),
+                burn_tensor::Slice::from(0..col_shape_1),
+            ],
             values,
         );
     }
@@ -213,10 +214,10 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
             client.clone(),
             device.clone(),
             Shape::new([
-                offset.shape.dims[0],
-                offset.shape.dims[1] / 2,
-                offset.shape.dims[2],
-                offset.shape.dims[3],
+                offset.shape[0],
+                offset.shape[1] / 2,
+                offset.shape[2],
+                offset.shape[3],
             ]),
         )
     });
@@ -273,11 +274,6 @@ struct DeformConv2dCol2ImgCoordArgs<F: Float> {
 
 #[expect(clippy::collapsible_if)]
 #[cube(launch_unchecked)]
-#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
-#[expect(
-    clippy::manual_is_multiple_of,
-    reason = "cubecl cannot expand is_multiple_of"
-)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
@@ -331,7 +327,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     let mask_base_idx = (b * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
 
     let offset_c = c - offset_group * 2 * kernel_h * kernel_w;
-    let is_y_direction = offset_c % 2 == 0;
+    let is_y_direction = offset_c.is_multiple_of(2);
 
     let c_bound = channels_per_offset_group * kernel_h * kernel_w;
 
@@ -461,15 +457,8 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
-    let kind = match E::as_type_native_unchecked().elem_type() {
-        ElemType::Float(kind) => kind,
-        _ => unreachable!("Should be float"),
-    };
-    let props = client.properties();
-
-    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
-    let supports_same_type =
-        props.feature_enabled(Feature::Type(StorageType::Atomic(ElemType::Float(kind))));
+    let supports_fadd = Atomic::<f32>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
+    let supports_same_type = Atomic::<E>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
@@ -618,9 +607,9 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     let x =
         F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
-    for dy in -1..=1 {
+    for dy in -1..=1i32 {
         #[unroll]
-        for dx in -1..=1 {
+        for dx in -1..=1i32 {
             let yp = F::floor(y) + F::cast_from(dy);
             let xp = F::floor(x) + F::cast_from(dx);
 

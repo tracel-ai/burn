@@ -4,11 +4,10 @@ use crate::{
     metric::{ItemLazy, processor::EventProcessorTraining},
 };
 use burn_core::{
-    lr_scheduler::LrScheduler,
     module::{AutodiffModule, Module},
-    optim::Optimizer,
     tensor::backend::AutodiffBackend,
 };
+use burn_optim::{Optimizer, lr_scheduler::LrScheduler};
 use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.

@@ -121,11 +121,11 @@ pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
-    for dim in tensor.shape.dims[1..].iter() {
+    for dim in tensor.shape[1..].iter() {
         indices.push(0..*dim);
     }
     let mut tensor = slice::<R, E>(tensor, &indices);
-    tensor.shape.dims.remove(0);
+    tensor.shape.remove(0);
     tensor.strides.remove(0);
     tensor
 }
@@ -233,11 +233,6 @@ struct Col2ImArgs {
 }
 
 #[cube(launch_unchecked)]
-#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
-#[expect(
-    clippy::manual_is_multiple_of,
-    reason = "cubecl cannot expand is_multiple_of"
-)]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
     bias: &Tensor<E>,
@@ -277,7 +272,8 @@ fn col2im_kernel<E: Numeric>(
         for col_x in x_col_start..x_col_end {
             let kernel_x = im_x - col_x * args.stride_w;
 
-            if kernel_y % args.dilation_h == 0 && kernel_x % args.dilation_w == 0 {
+            if kernel_y.is_multiple_of(args.dilation_h) && kernel_x.is_multiple_of(args.dilation_w)
+            {
                 let kernel_y = kernel_y / args.dilation_h;
                 let kernel_x = kernel_x / args.dilation_w;
 

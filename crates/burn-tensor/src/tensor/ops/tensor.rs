@@ -5,10 +5,8 @@ use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
-use alloc::vec::Vec;
-use core::ops::Range;
-
 use crate::{argsort, sort, sort_with_indices};
+use alloc::vec::Vec;
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -169,8 +167,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -181,8 +179,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -241,8 +239,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -253,8 +251,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -268,8 +266,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -280,8 +278,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -292,8 +290,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -304,8 +302,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -315,8 +313,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// Computes the modulus of a tensor given a scalar.
     ///
     /// # Arguments
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -327,13 +325,26 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
     fn float_matmul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Computes the cross product of two tensors along a given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `dim` - The dimension to compute the cross product along.
+    ///
+    /// # Returns
+    ///
+    /// The cross product of the two tensors.
+    fn float_cross(lhs: FloatTensor<B>, rhs: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
     /// Negates a tensor element-wise.
     fn float_neg(tensor: FloatTensor<B>) -> FloatTensor<B> {
@@ -468,19 +479,19 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
-    /// Select tensor elements corresponding for the given ranges.
+    /// Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn float_slice(tensor: FloatTensor<B>, ranges: &[Range<usize>]) -> FloatTensor<B>;
+    fn float_slice(tensor: FloatTensor<B>, slices: &[crate::Slice]) -> FloatTensor<B>;
 
-    /// Assign the selected elements corresponding for the given ranges to the given value.
+    /// Assign the selected elements corresponding to the given slices to the given value.
     ///
     /// # Arguments
     ///
@@ -493,7 +504,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The tensor with the selected elements assigned to the given value.
     fn float_slice_assign(
         tensor: FloatTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
@@ -535,8 +546,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -547,8 +558,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -562,8 +573,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -574,8 +585,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -589,8 +600,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -601,8 +612,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -613,8 +624,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -625,8 +636,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -637,8 +648,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -649,8 +660,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -661,8 +672,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -673,8 +684,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -776,6 +787,58 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the mean of all elements in `tensor` along `dim`.
     fn float_mean_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative sum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cumsum(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative product
+    /// of all elements up to and including that position along the dimension.
+    fn float_cumprod(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the minimum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cummin(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the maximum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cummax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
     /// Converts a tensor to another floating point data type.
     ///
     /// # Arguments
@@ -825,8 +888,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -837,8 +900,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side floatTensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side floatTensor.
     ///
     /// # Returns
     ///
@@ -847,21 +910,68 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_powf(lhs, B::int_into_float(rhs))
     }
 
-    /// raises a tensor to the power of an int scalar.
+    /// Raises a tensor to the power of an int scalar.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// A number of common exponent cases can be implemented with operations
+    /// which are much cheaper than generic exponentiation.
+    ///
+    /// This (`Backend` impl overridable) operation handles generic optimizations
+    /// for several common integer exponent cases; and then dispatches to
+    /// the (`Backend` impl overridable) [`Self::float_powi_scalar_impl`]
+    /// operation to handle the generic case.
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn float_powi_scalar(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
-        Self::float_powf_scalar(lhs, rhs.elem::<f32>())
+        let exp = rhs.elem::<i32>();
+        match exp {
+            0 => Self::float_ones(lhs.shape(), &B::float_device(&lhs), lhs.dtype().into()),
+            1 => lhs,
+            2 => B::float_mul(lhs.clone(), lhs),
+            -1 => Self::float_recip(lhs),
+            -2 => Self::float_recip(B::float_mul(lhs.clone(), lhs)),
+            _ => Self::float_powi_scalar_impl(lhs, rhs),
+        }
+    }
+
+    /// Raises a tensor to the power of an int scalar.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::float_powi_scalar`] in the fallback case.
+    ///
+    /// As a general rule, this should not be called directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn float_powi_scalar_impl(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
+        // Avoid a recursive loop by deferring directly to float_powf_scalar_impl.
+        Self::float_powf_scalar_impl(lhs, rhs.elem::<f32>())
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This (`Backend` impl overridable) operation dispatches integer exponentiation
+    /// to [`Self::float_powi_scalar`], and the remaining non-integer exponent cases to
+    /// the (`Backend` impl overridable) [`Self::float_powf_scalar_impl`]
+    /// operation to handle the generic case.
     ///
     /// # Arguments
     ///
@@ -871,7 +981,37 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn float_powf_scalar(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B>;
+    fn float_powf_scalar(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B> {
+        if num_traits::Float::floor(value) == value {
+            // When the exponent is an integer, use the integer exponentiation implementation.
+            let exp = B::IntElem::from_elem(value as i32);
+            Self::float_powi_scalar(tensor, exp)
+        } else {
+            Self::float_powf_scalar_impl(tensor, value)
+        }
+    }
+
+    /// Returns a new tensor with values raised to the power of float `value`.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::float_powf_scalar`] in the fallback case.
+    ///
+    /// This is the minimal required support a `Backend` must implement
+    /// for exponentiation.
+    ///
+    /// As a general rule, this should not be called directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to exponentiate.
+    /// * `value` - The exponent.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
+    fn float_powf_scalar_impl(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B>;
 
     /// Returns a new tensor with square root values.
     ///
@@ -1016,6 +1156,17 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with ceiled values.
     fn float_ceil(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with truncated values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be truncated.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with truncated values.
+    fn float_trunc(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with the error function values.
     ///
@@ -1384,5 +1535,45 @@ pub trait FloatTensorOps<B: Backend> {
             InterpolateMode::Bilinear => float_grid_sample_2d_bilinear::<B>(tensor, grid),
             _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
         }
+    }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
+    -> FloatTensor<B>;
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    fn float_is_nan(tensor: FloatTensor<B>) -> BoolTensor<B> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        B::float_not_equal(tensor.clone(), tensor)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is infinite
+    fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
+        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.elem())
     }
 }

@@ -20,4 +20,6 @@ workspace = true
 burn = { path = "../burn", version = "0.19.0", default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", default-features = false }
 
-serde = { workspace = true }
+# safetensors is disabled for now because https://github.com/huggingface/safetensors/issues/650 is not published
+# burn-store = { path = "../burn-store", version = "0.19.0", default-features = false, features = ["safetensors", "burnpack"]}
+burn-store = { path = "../burn-store", version = "0.19.0", default-features = false, features = ["burnpack"]}

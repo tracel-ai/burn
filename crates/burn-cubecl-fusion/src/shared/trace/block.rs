@@ -168,6 +168,9 @@ impl FuseBlockBuilder {
                 QuantParam::F32 => FusePrecision::F32,
                 QuantParam::F16 => FusePrecision::F16,
                 QuantParam::BF16 => FusePrecision::BF16,
+                QuantParam::UE8M0 | QuantParam::UE4M3 => {
+                    unimplemented!("Unsupported fuse precision");
+                }
             },
             _ => return None,
         };
@@ -239,7 +242,7 @@ impl FuseBlockBuilder {
         let out = self.output(output, resources)?;
         let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
-        let broadcasted = output.shape[output.shape.len() - 1] == 0;
+        let broadcasted = output.shape[output.shape.rank() - 1] == 0;
 
         resources.views.push(TensorView::SwapDims {
             swapped: output.id,
@@ -314,9 +317,9 @@ impl FuseBlockBuilder {
         let index = resources.num_reshaped;
         resources.num_reshaped += 1;
 
-        let rank = output.shape.len();
+        let rank = output.shape.rank();
 
-        for i in 0..output.shape.len() {
+        for i in 0..output.shape.rank() {
             let id = index * rank + i;
             shape.push(Arg::ScalarShape(id as u32));
         }
@@ -325,7 +328,7 @@ impl FuseBlockBuilder {
             reshaped: output.id,
             original: tensor.id,
             reshape_pos: index as u32,
-            shape_relative: output.shape.clone(),
+            shape_relative: output.shape.dims.clone(),
         });
 
         let input = Arg::InputReshaped {

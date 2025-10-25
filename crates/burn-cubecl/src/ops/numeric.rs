@@ -1,11 +1,17 @@
-use crate::kernel::{
-    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
-    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
+use crate::{
+    CubeRuntime, FloatElement, IntElement,
+    kernel::utils::{linear_view, shape_divmod},
 };
-use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{element::CubeElement, tensor::CubeTensor};
+use crate::{
+    kernel::{
+        AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+        launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
+    },
+    ops::max_line_size,
+};
 use burn_tensor::{ElementConversion, Shape};
-use cubecl::tensor_vectorization_factor;
+use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
 
@@ -22,17 +28,16 @@ pub fn full<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor filled with `value`
 pub fn full_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     shape: Shape,
     device: R::Device,
     value: E,
 ) -> CubeTensor<R> {
-    let ndims = shape.num_dims();
     let empty = empty_device::<R, E>(client, device, shape);
 
     #[cube(launch)]
-    pub fn full_kernel<C: Numeric>(tensor: &mut Tensor<C>, value: C) {
-        if ABSOLUTE_POS >= tensor.len() {
+    pub fn full_kernel<C: Numeric>(tensor: &mut LinearView<C, ReadWrite>, value: C) {
+        if !tensor.is_in_bounds(ABSOLUTE_POS) {
             terminate!();
         }
 
@@ -40,18 +45,16 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
     }
 
     let num_elems = empty.shape.num_elements();
-    let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, ndims - 1);
+    let line_size = max_line_size(&empty);
 
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     full_kernel::launch::<E, R>(
         &empty.client,
         cube_count,
         cube_dim,
-        empty.as_tensor_arg::<E>(vectorization_factor),
+        linear_view(&empty, line_size),
         ScalarArg::new(value),
     );
 
@@ -67,7 +70,7 @@ pub fn zeros<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -
 
 /// Create a tensor filled with zeros
 pub fn zeros_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -83,7 +86,7 @@ pub fn ones<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) ->
 
 /// Create a tensor filled with ones
 pub fn ones_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -92,7 +95,7 @@ pub fn ones_device<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -102,8 +105,8 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -234,4 +237,192 @@ pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
     rhs: E,
 ) -> CubeTensor<R> {
     launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
+}
+
+/// Operation family trait for cumulative operations
+pub(crate) trait CumulativeOpFamily: Send + Sync + 'static {
+    type CumulativeOp<C: Numeric>: CumulativeOp<C>;
+}
+
+/// Trait for cumulative operations
+#[cube]
+pub(crate) trait CumulativeOp<C: Numeric>: 'static + Send + Sync {
+    /// Execute a cumulative operation
+    fn execute(lhs: C, rhs: C) -> C;
+
+    /// Get the initial value for the accumulator
+    fn init_value(first_element: C) -> C;
+}
+
+// Operation types
+struct SumOp;
+struct ProdOp;
+struct MaxOp;
+struct MinOp;
+
+// Implement CumulativeOpFamily for each operation
+impl CumulativeOpFamily for SumOp {
+    type CumulativeOp<C: Numeric> = Self;
+}
+
+impl CumulativeOpFamily for ProdOp {
+    type CumulativeOp<C: Numeric> = Self;
+}
+
+impl CumulativeOpFamily for MaxOp {
+    type CumulativeOp<C: Numeric> = Self;
+}
+
+impl CumulativeOpFamily for MinOp {
+    type CumulativeOp<C: Numeric> = Self;
+}
+
+// Implement CumulativeOp for each operation type
+#[cube]
+impl<N: Numeric> CumulativeOp<N> for SumOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        lhs + rhs
+    }
+
+    fn init_value(_first_element: N) -> N {
+        N::from_int(0)
+    }
+}
+
+#[cube]
+impl<N: Numeric> CumulativeOp<N> for ProdOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        lhs * rhs
+    }
+
+    fn init_value(_first_element: N) -> N {
+        N::from_int(1)
+    }
+}
+
+#[cube]
+impl<N: Numeric> CumulativeOp<N> for MaxOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        N::max(lhs, rhs)
+    }
+
+    fn init_value(first_element: N) -> N {
+        first_element
+    }
+}
+
+#[cube]
+impl<N: Numeric> CumulativeOp<N> for MinOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        N::min(lhs, rhs)
+    }
+
+    fn init_value(first_element: N) -> N {
+        first_element
+    }
+}
+
+/// Generic cumulative operation kernel
+///
+/// # Limitations
+///
+/// This is a **naive sequential implementation** along the cumulative dimension:
+/// - Each output element sequentially reads all previous elements along the dimension
+/// - Computational complexity: O(n^2) memory reads where n is the size of the cumulative dimension
+/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
+///   performance will degrade significantly compared to an optimized parallel scan algorithm.
+///
+/// # TODO
+///
+/// Implement an efficient GPU-optimized parallel scan algorithm.
+#[cube(launch)]
+fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
+    input: &Tensor<C>,
+    output: &mut LinearView<C, ReadWrite>,
+    shape: Sequence<FastDivmod>,
+    #[comptime] dim: u32,
+) {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
+        terminate!();
+    }
+
+    let rank = comptime![shape.len()];
+    let dim_stride = input.stride(dim);
+
+    let mut remainder = ABSOLUTE_POS;
+    let mut offset = 0;
+    let mut dim_idx = 0;
+
+    #[unroll]
+    for i in 0..shape.len() {
+        let i = comptime![rank - i - 1];
+        let (rem, local_idx) = shape.index(i).div_mod(remainder);
+        remainder = rem;
+        if i == dim {
+            dim_idx = local_idx;
+        } else {
+            offset += local_idx * input.stride(i);
+        }
+    }
+
+    // Read first element
+    let first_read_idx = offset + dim_idx * dim_stride;
+    let first_elem = input[first_read_idx];
+
+    // Initialize accumulator
+    let mut result = O::CumulativeOp::<C>::init_value(first_elem);
+
+    // Accumulate values
+    for i in 0..=dim_idx {
+        let read_idx = offset + i * dim_stride;
+        result = O::CumulativeOp::<C>::execute(result, input[read_idx]);
+    }
+    output[ABSOLUTE_POS] = result;
+}
+
+/// Compute the cumulative sum along a dimension
+pub fn cumsum<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, E, SumOp>(input, dim)
+}
+
+/// Compute the cumulative product along a dimension
+pub fn cumprod<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, E, ProdOp>(input, dim)
+}
+
+/// Compute the cumulative minimum along a dimension
+pub fn cummin<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, E, MinOp>(input, dim)
+}
+
+/// Compute the cumulative maximum along a dimension
+pub fn cummax<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, E, MaxOp>(input, dim)
+}
+
+/// Generic cumulative operation function
+fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
+    input: CubeTensor<R>,
+    dim: usize,
+) -> CubeTensor<R> {
+    let client = input.client.clone();
+    let device = input.device.clone();
+
+    let output = empty_device::<R, E>(client.clone(), device, input.shape.clone());
+
+    let num_elems = output.shape.num_elements();
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+
+    cumulative_kernel::launch::<E, O, R>(
+        &client,
+        cube_count,
+        cube_dim,
+        input.as_tensor_arg::<E>(1),
+        linear_view(&output, 1),
+        shape_divmod(&input),
+        dim as u32,
+    );
+
+    output
 }

@@ -4,7 +4,7 @@ use quote::quote;
 
 use burn::record::PrecisionSettings;
 
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 
 #[derive(Debug, Clone)]
@@ -82,11 +82,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool1dNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::AvgPool1d(self)
+        Node::AveragePool1d(self)
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         S::serialize_none(serializer)
+    }
+}
+
+impl OnnxIntoNode for AvgPool1dNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::avg_pool1d::avg_pool1d_config(&node);
+        let name = &node.name;
+        Self::new(name, input, output, config)
     }
 }
 

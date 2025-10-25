@@ -3,7 +3,7 @@ use cubecl::{CubeCount, CubeDim, prelude::*};
 
 use crate::{
     CubeElement, CubeRuntime,
-    ops::{max_line_size, numeric::empty_device_strided},
+    ops::{max_line_size, numeric::empty_device_optimized},
     tensor::CubeTensor,
 };
 
@@ -27,7 +27,7 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
     let hw = h * w;
 
     let out_shape = Shape::new([batch_size, h, w, in_c]);
-    let out = empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), out_shape);
+    let out = empty_device_optimized::<R, E>(input.client.clone(), input.device.clone(), out_shape);
 
     let tiles_channel = in_c.div_ceil(tile_dim) as u32;
     let tiles_hw = hw.div_ceil(tile_dim) as u32;

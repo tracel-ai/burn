@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
+use burn::module::Initializer;
 use burn::module::{Module, Param};
-use burn::nn::Initializer;
 use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
@@ -16,6 +16,7 @@ pub struct ModuleBasic<B: Backend> {
 }
 
 #[derive(Module, Debug)]
+#[allow(unused)]
 struct ModuleTensorConstInt<B: Backend> {
     weight_basic: Tensor<B, 2, Int>,
 }
@@ -44,12 +45,14 @@ struct ModuleWithGenericModule<B: Backend, M> {
 }
 
 #[derive(Module, Debug)]
+#[allow(clippy::large_enum_variant)]
 enum ModuleEnum<B: Backend> {
     Basic(ModuleBasic<B>),
     Composed(ModuleComposed<B>),
 }
 
 #[derive(Module, Debug)]
+#[allow(unused)]
 enum ModuleEnumNested<B: Backend> {
     AnotherEnum(ModuleEnum<B>),
 }

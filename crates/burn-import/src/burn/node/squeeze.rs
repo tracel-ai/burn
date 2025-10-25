@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -8,7 +8,7 @@ use quote::quote;
 pub struct SqueezeNode {
     pub input: Type,
     pub output: Type,
-    pub axes: Vec<i64>,
+    pub axes: Option<Vec<i64>>,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
@@ -23,12 +23,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         match (&self.input, &self.output) {
             (Type::Tensor(input), Type::Tensor(output)) => {
-                let input = scope.tensor_use_owned(input, node_position);
-                let output = &output.name;
-                let axes_arg = &self.axes.to_tokens();
+                let input_tensor = scope.tensor_use_owned(input, node_position);
+                let output_name = &output.name;
 
-                quote! {
-                    let #output = #input.squeeze_dims(&#axes_arg);
+                match &self.axes {
+                    Some(axes_vec) => {
+                        // Use squeeze_dims with specific axes
+                        let axes_arg = axes_vec.to_tokens();
+                        quote! {
+                            let #output_name = #input_tensor.squeeze_dims(&#axes_arg);
+                        }
+                    }
+                    None => {
+                        // When axes is None, squeeze all dimensions with size 1
+                        let output_rank = output.rank;
+                        quote! {
+                            let #output_name = #input_tensor.squeeze::<#output_rank>();
+                        }
+                    }
                 }
             }
             (Type::Shape(input), Type::Scalar(output)) => {
@@ -98,6 +110,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
     }
 }
 
+impl OnnxIntoNode for SqueezeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let axes = onnx_ir::node::squeeze::squeeze_config(&node);
+        Self::new(input, output, axes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::record::FullPrecisionSettings;
@@ -116,7 +137,7 @@ mod tests {
         graph.register(SqueezeNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 3)),
             Type::Tensor(TensorType::new_float("tensor2", 2)),
-            [1].into(),
+            Some(vec![1]),
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -159,7 +180,7 @@ mod tests {
                 "scalar1",
                 crate::burn::ty::ScalarKind::Int64,
             )),
-            [0].into(),
+            Some(vec![0]),
         ));
 
         graph.register_input_output(vec!["shape1".to_string()], vec!["scalar1".to_string()]);
@@ -199,7 +220,7 @@ mod tests {
         graph.register(SqueezeNode::new(
             Type::Shape(ShapeType::new("shape1", 2)),
             Type::Shape(ShapeType::new("shape2", 2)),
-            [0].into(),
+            Some(vec![0]),
         ));
 
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
@@ -239,7 +260,7 @@ mod tests {
         graph.register(SqueezeNode::new(
             Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
             Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
-            [].into(),
+            None,
         ));
 
         graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);

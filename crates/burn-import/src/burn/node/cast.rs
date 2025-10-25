@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::ir::ElementType;
@@ -44,6 +44,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     ElementType::Int32
                     | ElementType::Int64
                     | ElementType::Int8
+                    | ElementType::Uint16
                     | ElementType::Uint8 => ScalarKind::Int64,
                     ElementType::Bool => ScalarKind::Bool,
                     ElementType::String => panic!("Cast: String type not supported"),
@@ -61,6 +62,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                         ElementType::Float64 => quote! { f64 },
                         ElementType::Int32 => quote! { i32 },
                         ElementType::Int64 => quote! { i64 },
+                        ElementType::Uint16 => quote! { u16 },
                         ElementType::Int8 => quote! { i8 },
                         ElementType::Uint8 => quote! { u8 },
                         ElementType::Bool => quote! { bool },
@@ -88,6 +90,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     ElementType::Int32
                     | ElementType::Int64
                     | ElementType::Int8
+                    | ElementType::Uint16
                     | ElementType::Uint8 => TensorKind::Int,
                     ElementType::Bool => TensorKind::Bool,
                     ElementType::String => panic!("Cast: String type not supported"),
@@ -163,6 +166,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     ElementType::Int32
                     | ElementType::Int64
                     | ElementType::Int8
+                    | ElementType::Uint16
                     | ElementType::Uint8 => {
                         panic!(
                             "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
@@ -178,6 +182,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Cast(self)
+    }
+}
+
+impl OnnxIntoNode for CastNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = crate::burn::Type::from(node.inputs.first().unwrap());
+        let output = crate::burn::Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::cast::cast_config(&node);
+        Self::new(input, output, config.to)
     }
 }
 
