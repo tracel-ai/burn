@@ -92,29 +92,65 @@ impl<B: Backend> Muon<B> {
     /// This computes the zeroth power (orthogonalization) of the input matrix G
     /// using a quintic Newton-Schulz iteration.
     /// 
-    /// # Algorithm
-    /// 
-    /// ```text
-    /// X = G / ||G||  (normalize spectral norm)
-    /// for _ in range(steps):
-    ///     A = X @ X^T
-    ///     B = b*A + c*A@A
-    ///     X = a*X + B@X
-    /// ```
-    /// 
-    /// The iteration does not converge all the way to an orthogonal matrix, but rather
-    /// produces something like US'V^T where S' is diagonal with S_{ii}' ~ Uniform(0.5, 1.5),
-    /// which empirically does not hurt model performance relative to UV^T.
+    /// References:
+    /// - original implementation: https://github.com/KellerJordan/Muon/blob/master/muon.py
+    /// - pytorch implementation: https://github.com/pytorch/pytorch/blob/main/torch/optim/_muon.py
     fn zeropower_via_newtonschulz<const D: usize>(
         &self,
         g: Tensor<B, D>,
     ) -> Tensor<B, D> {
-        // TODO: Implement Newton-Schulz iteration
-        // 1. Handle transpose for tall matrices (rows > cols)
-        // 2. Normalize spectral norm: X = G / (||G|| + epsilon)
-        // 3. Perform quintic iteration
-        // 4. Restore transpose if needed
-        unimplemented!()
+        assert!(
+            D >= 2,
+            "Newton-Schulz iteration requires at least 2D tensors, got {}D",
+            D
+        );
+
+        let shape = g.shape();
+        let dims: [_; D] = shape.dims();
+        let dim_m2 = dims[D - 2];
+        let dim_m1 = dims[D - 1];
+
+        // Step 1: Transpose if tall matrix
+        let (mut x, needs_transpose) = if dim_m2 > dim_m1 {
+            (g.swap_dims(D - 2, D - 1), true)
+        } else {
+            (g, false)
+        };
+
+        // Step 2: Normalize by Frobenius norm
+        // X = X / (||X|| + epsilon)
+        let norm = x.clone()
+            .powf_scalar(2.0)
+            .sum()
+            .sqrt()
+            .add_scalar(self.epsilon)
+            .into_scalar();
+        
+        x = x.div_scalar(norm);
+
+        // Step 3: Newton-Schulz iteration
+        let NewtonSchulzParams { a, b, c, steps } = self.ns_params;
+        
+        for _ in 0..steps {
+            // A = X @ X^T
+            // swap last two dims
+            let x_t = x.clone().swap_dims(D - 2, D - 1);
+            let a_matrix = x.clone().matmul(x_t);
+            
+            // B = b*A + c*A@A
+            let a_squared = a_matrix.clone().matmul(a_matrix.clone());
+            let b_matrix = a_matrix.mul_scalar(b).add(a_squared.mul_scalar(c));
+            
+            // X = a*X + B@X
+            x = x.clone().mul_scalar(a).add(b_matrix.matmul(x.clone()));
+        }
+
+        // Step 4: Restore transpose
+        if needs_transpose {
+            x = x.swap_dims(D - 2, D - 1);
+        }
+
+        x
     }
 }
 
