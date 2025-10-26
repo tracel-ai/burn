@@ -14,6 +14,7 @@ mod rmsprop;
 mod sgd;
 mod simple;
 mod visitor;
+mod muon;
 
 pub use adagrad::*;
 pub use adam::*;
@@ -24,3 +25,4 @@ pub use grads::*;
 pub use rmsprop::*;
 pub use sgd::*;
 pub use simple::*;
+pub use muon::*;

@@ -25,53 +25,29 @@ use num_traits::Float as _;
 /// should be optimized using a standard method such as AdamW.
 #[derive(Config, Debug)]
 pub struct MuonConfig {
-    /// Weight decay (L2 penalty).
-    /// 
-    /// Uses AdamW-style decoupled weight decay.
-    /// Default: 0.1
-    #[config(default = 0.1)]
-    weight_decay: f64,
+    /// [Weight decay](WeightDecayConfig) config.
+    weight_decay: Option<WeightDecayConfig>,
     
-    /// Momentum factor.
+    /// [Momentum](MomentumConfig) config.
     /// 
-    /// Coefficient for the moving average of gradients.
-    /// Default: 0.95
-    #[config(default = 0.95)]
-    momentum: f64,
-    
-    /// Enable Nesterov momentum.
-    /// 
-    /// When true, uses Nesterov-style momentum which empirically
-    /// works better than standard SGD momentum for Muon.
-    /// Only applicable when momentum is non-zero.
-    /// Default: true
-    #[config(default = true)]
-    nesterov: bool,
+    /// Muon always uses momentum. Default configuration:
+    /// - momentum: 0.95
+    /// - dampening: 0.0
+    /// - nesterov: true
+    #[config(
+        default = "MomentumConfig { momentum: 0.95, dampening: 0.0, nesterov: true }"
+    )]
+    momentum: MomentumConfig,
     
     /// Newton-Schulz iteration coefficients (a, b, c).
-    /// 
-    /// These coefficients define the quintic polynomial used in
-    /// Newton-Schulz orthogonalization: f(X) = aX + bX(X^T X) + cX(X^T X)^2
-    /// 
-    /// The default coefficients (3.4445, -4.775, 2.0315) are optimized
-    /// to maximize convergence speed while maintaining stability.
-    /// Default: (3.4445, -4.775, 2.0315)
     #[config(default = "(3.4445, -4.775, 2.0315)")]
-    ns_coefficients: (f64, f64, f64),
-    
+    ns_coefficients: (f32, f32, f32),
+
     /// Epsilon for numerical stability.
-    /// 
-    /// Small constant added to denominators to prevent division by zero
-    /// when normalizing the spectral norm.
-    /// Default: 1e-7
     #[config(default = 1e-7)]
-    epsilon: f64,
+    epsilon: f32,
     
     /// Number of Newton-Schulz iteration steps.
-    /// 
-    /// More steps = more accurate orthogonalization but higher computational cost.
-    /// 5 steps is typically sufficient for good convergence.
-    /// Default: 5
     #[config(default = 5)]
     ns_steps: usize,
 }
@@ -79,25 +55,18 @@ pub struct MuonConfig {
 /// Parameters for Newton-Schulz orthogonalization.
 #[derive(Clone, Copy)]
 struct NewtonSchulzParams {
-    /// Coefficient 'a' in the quintic iteration.
     a: f32,
-    
-    /// Coefficient 'b' in the quintic iteration.
     b: f32,
-    
-    /// Coefficient 'c' in the quintic iteration.
     c: f32,
-    
-    /// Number of iteration steps.
     steps: usize,
 }
 
 impl NewtonSchulzParams {
-    fn new(coefficients: (f64, f64, f64), steps: usize) -> Self {
+    fn new(coefficients: (f32, f32, f32), steps: usize) -> Self {
         Self {
-            a: coefficients.0 as f32,
-            b: coefficients.1 as f32,
-            c: coefficients.2 as f32,
+            a: coefficients.0,
+            b: coefficients.1,
+            c: coefficients.2,
             steps,
         }
     }
@@ -111,16 +80,9 @@ impl NewtonSchulzParams {
 /// iteration, which has the advantage that it can be stably run in bfloat16 on the GPU.
 #[derive(Clone)]
 pub struct Muon<B: Backend> {
-    /// Momentum transformation (from SGD).
     momentum: Momentum<B>,
-    
-    /// Newton-Schulz iteration parameters.
     ns_params: NewtonSchulzParams,
-    
-    /// Weight decay transformation.
     weight_decay: Option<WeightDecay>,
-    
-    /// Epsilon for numerical stability.
     epsilon: f32,
 }
 
@@ -159,8 +121,6 @@ impl<B: Backend> Muon<B> {
 /// Muon state.
 #[derive(Record, Clone, new)]
 pub struct MuonState<B: Backend, const D: usize> {
-    /// Momentum state (if momentum is enabled).
-    /// This reuses the MomentumState from SGD.
     pub momentum: MomentumState<B, D>,
 }
 
@@ -174,7 +134,6 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        // Muon requires 2D+ parameters (weight matrices)
         assert!(
             D >= 2,
             "Muon optimizer is designed for 2D+ parameters (matrices). \
@@ -189,11 +148,11 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
         
         let (grad, new_momentum_state) = self.momentum.transform(grad, state_momentum);
         
-        grad = self.zeropower_via_newtonschulz(grad);
+        let grad = self.zeropower_via_newtonschulz(grad);
         
         let delta = grad.mul_scalar(lr);
-        
         let new_state = MuonState::new(new_momentum_state);
+        
         (tensor - delta, Some(new_state))
     }
 
@@ -204,35 +163,17 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
 }
 
 impl MuonConfig {
-    /// Initialize Muon optimizer.
-    ///
-    /// # Returns
-    ///
-    /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
-        &self
+        &self,
     ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
-        // When momentum=0, it behaves like vanilla gradient descent
-        // but still maintains the momentum buffer
-        let momentum = Momentum::new(&MomentumConfig {
-            momentum: self.momentum,
-            dampening: 0.0,  // No dampening for Muon
-            nesterov: self.nesterov,
-        });
-        
-        let weight_decay = if self.weight_decay > 0.0 {
-            Some(WeightDecay::new(&WeightDecayConfig {
-                penalty: self.weight_decay as f32,
-            }))
-        } else {
-            None
-        };
+        let momentum = Momentum::new(&self.momentum);
+        let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
 
         let optim = Muon {
             momentum,
             ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
             weight_decay,
-            epsilon: self.epsilon as f32,
+            epsilon: self.epsilon,
         };
 
         OptimizerAdaptor::from(optim)
@@ -247,9 +188,28 @@ mod tests {
     #[test]
     fn test_muon_config_default() {
         let config = MuonConfig::new();
-        assert_eq!(config.momentum, 0.95);
-        assert_eq!(config.weight_decay, 0.1);
-        assert_eq!(config.nesterov, true);
+        assert_eq!(config.momentum.momentum, 0.95);
+        assert_eq!(config.momentum.dampening, 0.0);
+        assert_eq!(config.momentum.nesterov, true);
+        assert!(config.weight_decay.is_none());
         assert_eq!(config.ns_steps, 5);
-    }   
+    }
+    
+    #[test]
+    fn test_muon_config_builder_pattern() {
+        let config = MuonConfig::new()
+            .with_weight_decay(Some(WeightDecayConfig::new(0.1)))
+            .with_momentum(MomentumConfig {
+                momentum: 0.9,
+                dampening: 0.0,
+                nesterov: false,
+            })
+            .with_ns_steps(7)
+            .with_epsilon(1e-8);
+        
+        assert_eq!(config.momentum.momentum, 0.9);
+        assert_eq!(config.momentum.nesterov, false);
+        assert_eq!(config.ns_steps, 7);
+        assert_eq!(config.epsilon, 1e-8);
+    }
 }
