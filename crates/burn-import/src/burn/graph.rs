@@ -395,76 +395,105 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
             // Recursively collect fields from If node subgraphs
             // Note: Subgraph fields are NOT deduplicated - each branch has unique fields
             if let Node::If(if_node) = node {
-                // Helper to collect fields from a subgraph
-                let mut collect_subgraph_fields = |subgraph: &onnx_ir::OnnxGraph| {
+                // Helper to recursively collect fields from a subgraph and its nested subgraphs
+                fn collect_subgraph_fields_recursive<PS: PrecisionSettings + 'static>(
+                    subgraph: &onnx_ir::OnnxGraph,
+                    field_name_counts: &mut HashMap<String, usize>,
+                    all_fields: &mut Vec<(Type, Option<TokenStream>)>,
+                ) {
                     for onnx_node in &subgraph.nodes {
-                        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone())
-                            && let Some(mut field_type) = burn_node.field_type()
-                        {
-                            let field_init = burn_node.field_init();
+                        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                            // Collect this node's field if it has one
+                            if let Some(mut field_type) = burn_node.field_type() {
+                                let field_init = burn_node.field_init();
 
-                            // Make field name unique by appending a counter if needed
-                            let base_name = field_type.name().to_string();
-                            let count = field_name_counts.entry(base_name.clone()).or_insert(0);
-                            *count += 1;
+                                // Make field name unique by appending a counter if needed
+                                let base_name = field_type.name().to_string();
+                                let count = field_name_counts.entry(base_name.clone()).or_insert(0);
+                                *count += 1;
 
-                            // Only append counter if this name has been seen before
-                            if *count > 1 {
-                                // Need to create a new renamed field_type
-                                let new_name_str = format!("{}_{}", base_name, count);
-                                let new_name =
-                                    syn::Ident::new(&new_name_str, proc_macro2::Span::call_site());
+                                // Only append counter if this name has been seen before
+                                if *count > 1 {
+                                    // Need to create a new renamed field_type
+                                    let new_name_str = format!("{}_{}", base_name, count);
+                                    let new_name = syn::Ident::new(
+                                        &new_name_str,
+                                        proc_macro2::Span::call_site(),
+                                    );
 
-                                // Update the field type with new name
-                                field_type = match field_type {
-                                    Type::Tensor(mut t) => {
-                                        t.name = new_name.clone();
-                                        Type::Tensor(t)
+                                    // Update the field type with new name
+                                    field_type = match field_type {
+                                        Type::Tensor(mut t) => {
+                                            t.name = new_name.clone();
+                                            Type::Tensor(t)
+                                        }
+                                        Type::Scalar(mut s) => {
+                                            s.name = new_name.clone();
+                                            Type::Scalar(s)
+                                        }
+                                        Type::Other(mut o) => {
+                                            o.name = new_name.clone();
+                                            Type::Other(o)
+                                        }
+                                        Type::Shape(mut s) => {
+                                            s.name = new_name.clone();
+                                            Type::Shape(s)
+                                        }
+                                    };
+
+                                    // Also need to update field_init to use the renamed variable
+                                    // This is a hack: replace "let base_name" with "let new_name_str" in the TokenStream
+                                    if let Some(init_code) = field_init {
+                                        let init_str = init_code.to_string();
+                                        let old_let = format!("let {} :", base_name);
+                                        let new_let = format!("let {} :", new_name_str);
+                                        let updated_init_str = init_str.replace(&old_let, &new_let);
+
+                                        // Also handle "let base_name ="
+                                        let old_let2 = format!("let {} =", base_name);
+                                        let new_let2 = format!("let {} =", new_name_str);
+                                        let updated_init_str =
+                                            updated_init_str.replace(&old_let2, &new_let2);
+
+                                        // Parse back to TokenStream
+                                        let updated_init: TokenStream =
+                                            updated_init_str.parse().unwrap_or(init_code);
+                                        all_fields.push((field_type, Some(updated_init)));
+                                    } else {
+                                        all_fields.push((field_type, field_init));
                                     }
-                                    Type::Scalar(mut s) => {
-                                        s.name = new_name.clone();
-                                        Type::Scalar(s)
-                                    }
-                                    Type::Other(mut o) => {
-                                        o.name = new_name.clone();
-                                        Type::Other(o)
-                                    }
-                                    Type::Shape(mut s) => {
-                                        s.name = new_name.clone();
-                                        Type::Shape(s)
-                                    }
-                                };
-
-                                // Also need to update field_init to use the renamed variable
-                                // This is a hack: replace "let base_name" with "let new_name_str" in the TokenStream
-                                if let Some(init_code) = field_init {
-                                    let init_str = init_code.to_string();
-                                    let old_let = format!("let {} :", base_name);
-                                    let new_let = format!("let {} :", new_name_str);
-                                    let updated_init_str = init_str.replace(&old_let, &new_let);
-
-                                    // Also handle "let base_name ="
-                                    let old_let2 = format!("let {} =", base_name);
-                                    let new_let2 = format!("let {} =", new_name_str);
-                                    let updated_init_str =
-                                        updated_init_str.replace(&old_let2, &new_let2);
-
-                                    // Parse back to TokenStream
-                                    let updated_init: TokenStream =
-                                        updated_init_str.parse().unwrap_or(init_code);
-                                    all_fields.push((field_type, Some(updated_init)));
                                 } else {
                                     all_fields.push((field_type, field_init));
                                 }
-                            } else {
-                                all_fields.push((field_type, field_init));
+                            }
+
+                            // Recursively collect from nested If nodes
+                            if let Node::If(nested_if_node) = burn_node {
+                                collect_subgraph_fields_recursive::<PS>(
+                                    &nested_if_node.then_branch,
+                                    field_name_counts,
+                                    all_fields,
+                                );
+                                collect_subgraph_fields_recursive::<PS>(
+                                    &nested_if_node.else_branch,
+                                    field_name_counts,
+                                    all_fields,
+                                );
                             }
                         }
                     }
-                };
+                }
 
-                collect_subgraph_fields(&if_node.then_branch);
-                collect_subgraph_fields(&if_node.else_branch);
+                collect_subgraph_fields_recursive::<PS>(
+                    &if_node.then_branch,
+                    &mut field_name_counts,
+                    &mut all_fields,
+                );
+                collect_subgraph_fields_recursive::<PS>(
+                    &if_node.else_branch,
+                    &mut field_name_counts,
+                    &mut all_fields,
+                );
             }
         }
 
@@ -713,28 +742,55 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructMap<'_, PS> {
 
             // Add subgraph nodes from If nodes with unique names
             if let Node::If(if_node) = node {
-                let mut collect_subgraph_nodes = |subgraph: &onnx_ir::OnnxGraph| {
+                fn collect_subgraph_nodes_recursive<PS: PrecisionSettings + 'static>(
+                    subgraph: &onnx_ir::OnnxGraph,
+                    field_name_counts: &mut HashMap<String, usize>,
+                    all_nodes: &mut Vec<(String, Node<PS>)>,
+                ) {
                     for onnx_node in &subgraph.nodes {
-                        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone())
-                            && let Some(field_type) = burn_node.field_type()
-                        {
-                            let base_name = field_type.name().to_string();
-                            let count = field_name_counts.entry(base_name.clone()).or_insert(0);
-                            *count += 1;
+                        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                            if let Some(field_type) = burn_node.field_type() {
+                                let base_name = field_type.name().to_string();
+                                let count = field_name_counts.entry(base_name.clone()).or_insert(0);
+                                *count += 1;
 
-                            // Create unique name if needed
-                            let unique_name = if *count > 1 {
-                                format!("{}_{}", base_name, count)
-                            } else {
-                                base_name
-                            };
+                                // Create unique name if needed
+                                let unique_name = if *count > 1 {
+                                    format!("{}_{}", base_name, count)
+                                } else {
+                                    base_name
+                                };
 
-                            all_nodes.push((unique_name, burn_node));
+                                all_nodes.push((unique_name, burn_node.clone()));
+                            }
+
+                            // Recursively collect from nested If nodes
+                            if let Node::If(nested_if_node) = burn_node {
+                                collect_subgraph_nodes_recursive::<PS>(
+                                    &nested_if_node.then_branch,
+                                    field_name_counts,
+                                    all_nodes,
+                                );
+                                collect_subgraph_nodes_recursive::<PS>(
+                                    &nested_if_node.else_branch,
+                                    field_name_counts,
+                                    all_nodes,
+                                );
+                            }
                         }
                     }
-                };
-                collect_subgraph_nodes(&if_node.then_branch);
-                collect_subgraph_nodes(&if_node.else_branch);
+                }
+
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.then_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.else_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
             }
         }
 
@@ -782,22 +838,49 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructTuple<'_, PS> {
             // Add subgraph nodes from If nodes
             // Apply same uniqueness logic even though tuple serialization doesn't use names
             if let Node::If(if_node) = node {
-                let mut collect_subgraph_nodes = |subgraph: &onnx_ir::OnnxGraph| {
+                fn collect_subgraph_nodes_recursive<PS: PrecisionSettings + 'static>(
+                    subgraph: &onnx_ir::OnnxGraph,
+                    field_name_counts: &mut HashMap<String, usize>,
+                    all_nodes: &mut Vec<Node<PS>>,
+                ) {
                     for onnx_node in &subgraph.nodes {
-                        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone())
-                            && let Some(field_type) = burn_node.field_type()
-                        {
-                            let base_name = field_type.name().to_string();
-                            let count = field_name_counts.entry(base_name.clone()).or_insert(0);
-                            *count += 1;
+                        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                            if let Some(field_type) = burn_node.field_type() {
+                                let base_name = field_type.name().to_string();
+                                let count = field_name_counts.entry(base_name.clone()).or_insert(0);
+                                *count += 1;
 
-                            // Just track the count for ordering consistency
-                            all_nodes.push(burn_node);
+                                // Just track the count for ordering consistency
+                                all_nodes.push(burn_node.clone());
+                            }
+
+                            // Recursively collect from nested If nodes
+                            if let Node::If(nested_if_node) = burn_node {
+                                collect_subgraph_nodes_recursive::<PS>(
+                                    &nested_if_node.then_branch,
+                                    field_name_counts,
+                                    all_nodes,
+                                );
+                                collect_subgraph_nodes_recursive::<PS>(
+                                    &nested_if_node.else_branch,
+                                    field_name_counts,
+                                    all_nodes,
+                                );
+                            }
                         }
                     }
-                };
-                collect_subgraph_nodes(&if_node.then_branch);
-                collect_subgraph_nodes(&if_node.else_branch);
+                }
+
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.then_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.else_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
             }
         }
 

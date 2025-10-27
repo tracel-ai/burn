@@ -51,8 +51,11 @@ impl Scope {
             let name = &tensor.name;
 
             if node_position >= variable.node_position {
-                variable.references -= 1;
-                count = variable.references;
+                // Only decrement if references > 0 to avoid underflow
+                if variable.references > 0 {
+                    variable.references -= 1;
+                    count = variable.references;
+                }
             }
 
             if count > 0 {

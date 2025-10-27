@@ -497,15 +497,22 @@ fn convert_shape(shape: Vec<i64>) -> Vec<usize> {
 
 ///Convert graph attributes from NodeProto for control flow nodes (If, Loop, Scan)
 /// This must be called with opset_version during node processing
-pub fn convert_graph_attributes(node_proto: &NodeProto, opset_version: usize) -> Attributes {
+///
+/// If parent_registry is provided, it will be used to ensure unique names across nested subgraphs.
+/// Otherwise, a new registry is created for sibling subgraphs.
+pub fn convert_graph_attributes(
+    node_proto: &NodeProto,
+    opset_version: usize,
+    parent_registry: Option<crate::graph_state::NameRegistry>,
+) -> Attributes {
     use crate::graph_state::NameRegistry;
     use crate::pipeline::build_graph_from_proto_with_registry;
 
     let mut result = Attributes::new();
 
-    // Create a shared name registry for all sibling subgraphs
-    // This ensures node names are unique across all branches (then/else, loop body, etc.)
-    let name_registry = NameRegistry::new();
+    // Use parent registry if provided, otherwise create a new one for sibling subgraphs
+    // This ensures node names are unique across nested levels and sibling branches
+    let name_registry = parent_registry.unwrap_or_else(NameRegistry::new);
 
     for attr in &node_proto.attribute {
         if let Ok(attr_type) = attr.type_.enum_value() {

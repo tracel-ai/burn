@@ -68,8 +68,30 @@ fn convert_nodes_impl(
             node.node_type,
             NodeType::If | NodeType::Loop | NodeType::Scan
         ) {
-            let graph_attrs =
-                crate::proto_conversion::convert_graph_attributes(node_proto, opset_version);
+            // Pass the current graph's NameRegistry to ensure unique names across nested subgraphs
+            // If no registry exists, create one and initialize with current node counts
+            let parent_registry = if let Some(registry) = state_rc.borrow().name_registry().cloned()
+            {
+                registry
+            } else {
+                // Create new registry and initialize with current node name counters
+                let registry = crate::graph_state::NameRegistry::new();
+                // Initialize counters from the current graph's already-named nodes
+                // IMPORTANT: Increment by 1 to account for the current node which will be
+                // renamed later (at line 109) using the local counter
+                for (node_type, count) in &node_name_counter {
+                    registry.set_initial_counter(node_type, count + 1);
+                }
+                // Also account for the current node's type
+                registry.set_initial_counter(&node.node_type, 1);
+                registry
+            };
+
+            let graph_attrs = crate::proto_conversion::convert_graph_attributes(
+                node_proto,
+                opset_version,
+                Some(parent_registry),
+            );
             // Merge graph attributes with existing attributes
             for (key, value) in graph_attrs {
                 node.attrs.insert(key, value);

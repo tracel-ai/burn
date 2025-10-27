@@ -328,6 +328,7 @@ fn main() {
         .input("tests/xor/xor_broadcast.onnx")
         .input("tests/subgraph/if_conv2d.onnx")
         .input("tests/subgraph/if_linear.onnx")
+        .input("tests/subgraph/nested_if.onnx")
         // TODO: Enable when Loop and Scan support is added
         // .input("tests/subgraph/loop_simple.onnx")
         // .input("tests/subgraph/scan_cumsum.onnx")
