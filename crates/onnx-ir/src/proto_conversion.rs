@@ -505,7 +505,6 @@ pub fn convert_graph_attributes(
     opset_version: usize,
     parent_registry: Option<crate::graph_state::NameRegistry>,
 ) -> Attributes {
-    use crate::graph_state::NameRegistry;
     use crate::pipeline::build_graph_from_proto_with_registry;
 
     let mut result = Attributes::new();
