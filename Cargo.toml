@@ -184,7 +184,7 @@ cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features =
 # cubecl-quant = { version = "0.6.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.1.10" }
+tracel-xtask = { version = "=2.1.11" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
