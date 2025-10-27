@@ -75,13 +75,13 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .summary()
         .build(model, config.optimizer.init(), 1e-3);
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_test);
 
     config
         .save(format!("{artifact_dir}/config.json").as_str())
         .unwrap();
 
-    model_trained
+    result
         .model
         .save_file(
             format!("{artifact_dir}/model"),
