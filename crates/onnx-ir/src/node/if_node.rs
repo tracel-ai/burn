@@ -77,23 +77,33 @@ impl NodeProcessor for IfProcessor {
 
         // Infer output types from branches
         // Both branches should have the same output types, but we'll take then_branch as canonical
-        node.outputs.clear();
-        for (i, then_output) in then_branch.outputs.iter().enumerate() {
-            let else_output = &else_branch.outputs[i];
+        // ONLY update types, preserve existing output structure (names set by add_node)
 
-            // Validate that output types are compatible
-            // For now, we'll just use the then_branch types
-            // TODO: More sophisticated type unification for branches
-            if then_output.ty != else_output.ty {
-                log::warn!(
-                    "If node output {} types differ between branches: then={:?}, else={:?}",
-                    i,
-                    then_output.ty,
-                    else_output.ty
-                );
+        // If outputs don't exist yet, create them from branch outputs
+        if node.outputs.is_empty() {
+            for then_output in then_branch.outputs.iter() {
+                node.outputs.push(then_output.clone());
             }
+        } else {
+            // Update types for existing outputs (preserves names set by add_node)
+            for (i, then_output) in then_branch.outputs.iter().enumerate() {
+                let else_output = &else_branch.outputs[i];
 
-            node.outputs.push(then_output.clone());
+                // Validate that output types are compatible
+                if then_output.ty != else_output.ty {
+                    log::warn!(
+                        "If node output {} types differ between branches: then={:?}, else={:?}",
+                        i,
+                        then_output.ty,
+                        else_output.ty
+                    );
+                }
+
+                // Only update the type, keep the existing name
+                if i < node.outputs.len() {
+                    node.outputs[i].ty = then_output.ty.clone();
+                }
+            }
         }
 
         Ok(())
