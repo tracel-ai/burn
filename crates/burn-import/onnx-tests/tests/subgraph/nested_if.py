@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
-Generate ONNX model with deeply nested If operators (3-4 levels).
-Tests that unique naming works across multiple levels of nested subgraphs.
+Generate ONNX model with deeply nested If operators testing variable scoping.
+Tests that variables can be passed from outer scopes through nested subgraphs.
+
+Pattern:
+  Root: var1 (x)
+    Level 1: uses var1, produces var2 (y)
+      Level 2: uses var2, produces var3 (z)
+        Level 3: uses var3, produces final output
 """
 
 import onnx
@@ -11,154 +17,149 @@ import numpy as np
 
 
 def build_model():
-    """Build ONNX model with 4 levels of nested If operators."""
+    """Build ONNX model with nested If operators testing variable scoping."""
 
     batch_size = 2
     input_size = 3
 
-    # Input
-    x = np.random.randn(batch_size, input_size).astype(np.float32)
-
     # ============================================================================
-    # LEVEL 4: Innermost If nodes (leaf operations)
+    # LEVEL 3: Innermost If node (uses var3 from parent)
     # ============================================================================
 
-    # Level 4a: Then-Then-Then branch (add constant)
-    const_4a = np.array([1.0], dtype=np.float32)
-    level4a_add = helper.make_node('Add', inputs=['x_input', 'const_4a'], outputs=['level4a_out'])
-    level4a_graph = helper.make_graph(
-        nodes=[level4a_add],
-        name='level4a_then_then_then',
-        inputs=[helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size])],
-        outputs=[helper.make_tensor_value_info('level4a_out', TensorProto.FLOAT, [batch_size, input_size])],
-        initializer=[numpy_helper.from_array(const_4a, name='const_4a')]
+    # Level 3 Then: var3 + 1.0
+    const_3_then = np.array([1.0], dtype=np.float32)
+    level3_then_add = helper.make_node('Add', inputs=['var3', 'const_3_then'], outputs=['level3_then_out'])
+    level3_then_graph = helper.make_graph(
+        nodes=[level3_then_add],
+        name='level3_then',
+        inputs=[helper.make_tensor_value_info('var3', TensorProto.FLOAT, [batch_size, input_size])],
+        outputs=[helper.make_tensor_value_info('level3_then_out', TensorProto.FLOAT, [batch_size, input_size])],
+        initializer=[numpy_helper.from_array(const_3_then, name='const_3_then')]
     )
 
-    # Level 4b: Then-Then-Else branch (multiply constant)
-    const_4b = np.array([2.0], dtype=np.float32)
-    level4b_mul = helper.make_node('Mul', inputs=['x_input', 'const_4b'], outputs=['level4b_out'])
-    level4b_graph = helper.make_graph(
-        nodes=[level4b_mul],
-        name='level4b_then_then_else',
-        inputs=[helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size])],
-        outputs=[helper.make_tensor_value_info('level4b_out', TensorProto.FLOAT, [batch_size, input_size])],
-        initializer=[numpy_helper.from_array(const_4b, name='const_4b')]
+    # Level 3 Else: var3 * 2.0
+    const_3_else = np.array([2.0], dtype=np.float32)
+    level3_else_mul = helper.make_node('Mul', inputs=['var3', 'const_3_else'], outputs=['level3_else_out'])
+    level3_else_graph = helper.make_graph(
+        nodes=[level3_else_mul],
+        name='level3_else',
+        inputs=[helper.make_tensor_value_info('var3', TensorProto.FLOAT, [batch_size, input_size])],
+        outputs=[helper.make_tensor_value_info('level3_else_out', TensorProto.FLOAT, [batch_size, input_size])],
+        initializer=[numpy_helper.from_array(const_3_else, name='const_3_else')]
     )
 
     # ============================================================================
-    # LEVEL 3: Second level If nodes
+    # LEVEL 2: Middle If node (uses var2, produces var3, contains level 3)
     # ============================================================================
 
-    # Level 3a: Then-Then branch (contains Level 4a/4b)
-    level3a_if = helper.make_node(
+    # Level 2 Then: produces var3 = var2 - 0.5, then passes to level 3
+    const_2_then = np.array([0.5], dtype=np.float32)
+    level2_then_sub = helper.make_node('Sub', inputs=['var2', 'const_2_then'], outputs=['var3'])
+    level2_then_if = helper.make_node(
         'If',
         inputs=['cond3'],
-        outputs=['level3a_out'],
-        then_branch=level4a_graph,
-        else_branch=level4b_graph,
+        outputs=['level2_then_out'],
+        then_branch=level3_then_graph,
+        else_branch=level3_else_graph,
     )
-    level3a_graph = helper.make_graph(
-        nodes=[level3a_if],
-        name='level3a_then_then',
+    level2_then_graph = helper.make_graph(
+        nodes=[level2_then_sub, level2_then_if],
+        name='level2_then',
         inputs=[
-            helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size]),
+            helper.make_tensor_value_info('var2', TensorProto.FLOAT, [batch_size, input_size]),
             helper.make_tensor_value_info('cond3', TensorProto.BOOL, []),
         ],
-        outputs=[helper.make_tensor_value_info('level3a_out', TensorProto.FLOAT, [batch_size, input_size])],
+        outputs=[helper.make_tensor_value_info('level2_then_out', TensorProto.FLOAT, [batch_size, input_size])],
+        initializer=[numpy_helper.from_array(const_2_then, name='const_2_then')]
     )
 
-    # Level 3b: Then-Else branch (subtract constant)
-    const_3b = np.array([0.5], dtype=np.float32)
-    level3b_sub = helper.make_node('Sub', inputs=['x_input', 'const_3b'], outputs=['level3b_out'])
-    level3b_graph = helper.make_graph(
-        nodes=[level3b_sub],
-        name='level3b_then_else',
-        inputs=[helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size])],
-        outputs=[helper.make_tensor_value_info('level3b_out', TensorProto.FLOAT, [batch_size, input_size])],
-        initializer=[numpy_helper.from_array(const_3b, name='const_3b')]
+    # Level 2 Else: produces var3 = var2 / 3.0, then passes to level 3
+    const_2_else = np.array([3.0], dtype=np.float32)
+    level2_else_div = helper.make_node('Div', inputs=['var2', 'const_2_else'], outputs=['var3'])
+    level2_else_if = helper.make_node(
+        'If',
+        inputs=['cond3'],
+        outputs=['level2_else_out'],
+        then_branch=level3_then_graph,
+        else_branch=level3_else_graph,
     )
-
-    # Level 3c: Else-Then branch (divide constant)
-    const_3c = np.array([3.0], dtype=np.float32)
-    level3c_div = helper.make_node('Div', inputs=['x_input', 'const_3c'], outputs=['level3c_out'])
-    level3c_graph = helper.make_graph(
-        nodes=[level3c_div],
-        name='level3c_else_then',
-        inputs=[helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size])],
-        outputs=[helper.make_tensor_value_info('level3c_out', TensorProto.FLOAT, [batch_size, input_size])],
-        initializer=[numpy_helper.from_array(const_3c, name='const_3c')]
-    )
-
-    # Level 3d: Else-Else branch (negate)
-    level3d_neg = helper.make_node('Neg', inputs=['x_input'], outputs=['level3d_out'])
-    level3d_graph = helper.make_graph(
-        nodes=[level3d_neg],
-        name='level3d_else_else',
-        inputs=[helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size])],
-        outputs=[helper.make_tensor_value_info('level3d_out', TensorProto.FLOAT, [batch_size, input_size])],
+    level2_else_graph = helper.make_graph(
+        nodes=[level2_else_div, level2_else_if],
+        name='level2_else',
+        inputs=[
+            helper.make_tensor_value_info('var2', TensorProto.FLOAT, [batch_size, input_size]),
+            helper.make_tensor_value_info('cond3', TensorProto.BOOL, []),
+        ],
+        outputs=[helper.make_tensor_value_info('level2_else_out', TensorProto.FLOAT, [batch_size, input_size])],
+        initializer=[numpy_helper.from_array(const_2_else, name='const_2_else')]
     )
 
     # ============================================================================
-    # LEVEL 2: First level If nodes
+    # LEVEL 1: Outer If node (uses var1, produces var2, contains level 2)
     # ============================================================================
 
-    # Level 2a: Then branch (contains Level 3a/3b)
-    level2a_if = helper.make_node(
+    # Level 1 Then: produces var2 = var1 + 10.0, then passes to level 2
+    const_1_then = np.array([10.0], dtype=np.float32)
+    level1_then_add = helper.make_node('Add', inputs=['var1', 'const_1_then'], outputs=['var2'])
+    level1_then_if = helper.make_node(
         'If',
         inputs=['cond2'],
-        outputs=['level2a_out'],
-        then_branch=level3a_graph,
-        else_branch=level3b_graph,
+        outputs=['level1_then_out'],
+        then_branch=level2_then_graph,
+        else_branch=level2_else_graph,
     )
-    level2a_graph = helper.make_graph(
-        nodes=[level2a_if],
-        name='level2a_then',
+    level1_then_graph = helper.make_graph(
+        nodes=[level1_then_add, level1_then_if],
+        name='level1_then',
         inputs=[
-            helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size]),
+            helper.make_tensor_value_info('var1', TensorProto.FLOAT, [batch_size, input_size]),
             helper.make_tensor_value_info('cond2', TensorProto.BOOL, []),
             helper.make_tensor_value_info('cond3', TensorProto.BOOL, []),
         ],
-        outputs=[helper.make_tensor_value_info('level2a_out', TensorProto.FLOAT, [batch_size, input_size])],
+        outputs=[helper.make_tensor_value_info('level1_then_out', TensorProto.FLOAT, [batch_size, input_size])],
+        initializer=[numpy_helper.from_array(const_1_then, name='const_1_then')]
     )
 
-    # Level 2b: Else branch (contains Level 3c/3d)
-    level2b_if = helper.make_node(
+    # Level 1 Else: produces var2 = -var1, then passes to level 2
+    level1_else_neg = helper.make_node('Neg', inputs=['var1'], outputs=['var2'])
+    level1_else_if = helper.make_node(
         'If',
         inputs=['cond2'],
-        outputs=['level2b_out'],
-        then_branch=level3c_graph,
-        else_branch=level3d_graph,
+        outputs=['level1_else_out'],
+        then_branch=level2_then_graph,
+        else_branch=level2_else_graph,
     )
-    level2b_graph = helper.make_graph(
-        nodes=[level2b_if],
-        name='level2b_else',
+    level1_else_graph = helper.make_graph(
+        nodes=[level1_else_neg, level1_else_if],
+        name='level1_else',
         inputs=[
-            helper.make_tensor_value_info('x_input', TensorProto.FLOAT, [batch_size, input_size]),
+            helper.make_tensor_value_info('var1', TensorProto.FLOAT, [batch_size, input_size]),
             helper.make_tensor_value_info('cond2', TensorProto.BOOL, []),
+            helper.make_tensor_value_info('cond3', TensorProto.BOOL, []),
         ],
-        outputs=[helper.make_tensor_value_info('level2b_out', TensorProto.FLOAT, [batch_size, input_size])],
+        outputs=[helper.make_tensor_value_info('level1_else_out', TensorProto.FLOAT, [batch_size, input_size])],
     )
 
     # ============================================================================
-    # LEVEL 1: Main graph
+    # ROOT: Main graph
     # ============================================================================
 
     # Main If node
-    level1_if = helper.make_node(
+    main_if = helper.make_node(
         'If',
         inputs=['cond1'],
         outputs=['output'],
-        then_branch=level2a_graph,
-        else_branch=level2b_graph,
+        then_branch=level1_then_graph,
+        else_branch=level1_else_graph,
     )
 
-    # Use Identity node to make 'x' available to subgraphs as 'x_input'
-    identity = helper.make_node('Identity', inputs=['x'], outputs=['x_input'])
+    # Identity to create var1 from input x
+    identity = helper.make_node('Identity', inputs=['x'], outputs=['var1'])
 
     # Main graph
     graph = helper.make_graph(
-        nodes=[identity, level1_if],
-        name='nested_if_model',
+        nodes=[identity, main_if],
+        name='nested_if_scoped_vars',
         inputs=[
             helper.make_tensor_value_info('x', TensorProto.FLOAT, [batch_size, input_size]),
             helper.make_tensor_value_info('cond1', TensorProto.BOOL, []),
@@ -190,31 +191,37 @@ def generate_test_data(model):
     input_size = 3
 
     # Input tensor
-    x = np.random.randn(batch_size, input_size).astype(np.float32)
+    x = np.array([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0]
+    ], dtype=np.float32)
 
     # Create reference evaluator
     sess = ReferenceEvaluator(model)
 
     # Test different paths through the nested structure
     test_cases = [
-        # (cond1, cond2, cond3, description)
-        (True, True, True, "then_then_then"),      # Level 4a: x + 1.0
-        (True, True, False, "then_then_else"),     # Level 4b: x * 2.0
-        (True, False, None, "then_else"),          # Level 3b: x - 0.5
-        (False, True, None, "else_then"),          # Level 3c: x / 3.0
-        (False, False, None, "else_else"),         # Level 3d: -x
+        # (cond1, cond2, cond3, description, computation)
+        (True, True, True, "then_then_then", "((x + 10) - 0.5) + 1.0"),
+        (True, True, False, "then_then_else", "((x + 10) - 0.5) * 2.0"),
+        (True, False, True, "then_else_then", "((x + 10) / 3.0) + 1.0"),
+        (True, False, False, "then_else_else", "((x + 10) / 3.0) * 2.0"),
+        (False, True, True, "else_then_then", "((-x) - 0.5) + 1.0"),
+        (False, True, False, "else_then_else", "((-x) - 0.5) * 2.0"),
+        (False, False, True, "else_else_then", "((-x) / 3.0) + 1.0"),
+        (False, False, False, "else_else_else", "((-x) / 3.0) * 2.0"),
     ]
 
     results = {}
-    for cond1, cond2, cond3, desc in test_cases:
+    for cond1, cond2, cond3, desc, computation in test_cases:
         inputs = {
             'x': x,
             'cond1': np.array(cond1),
-            'cond2': np.array(cond2 if cond2 is not None else False),
-            'cond3': np.array(cond3 if cond3 is not None else False),
+            'cond2': np.array(cond2),
+            'cond3': np.array(cond3),
         }
         output = sess.run(None, inputs)[0]
-        results[desc] = output
+        results[desc] = (output, computation)
 
     return {'input': x, 'outputs': results}
 
@@ -234,15 +241,15 @@ def main():
 
     # Print test data for copying into Rust tests
     print("\n" + "="*80)
-    print("Test data for nested_if:")
+    print("Test data for nested_if (scoped variables):")
     print("="*80)
 
     print("\nInput tensor:")
     print(f"Shape: {test_data['input'].shape}")
     print(f"Data: {test_data['input'].flatten().tolist()}")
 
-    for path, output in test_data['outputs'].items():
-        print(f"\nPath '{path}' output:")
+    for path, (output, computation) in test_data['outputs'].items():
+        print(f"\nPath '{path}' - {computation}:")
         print(f"Shape: {output.shape}")
         print(f"Data: {output.flatten().tolist()}")
 

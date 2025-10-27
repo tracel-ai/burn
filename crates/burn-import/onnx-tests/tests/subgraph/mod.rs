@@ -644,26 +644,24 @@ mod tests {
 
     #[test]
     fn test_nested_if_then_then_then() {
-        // Test 4-level nested If - path: then->then->then (Level 4a: x + 1.0)
-        // Values generated from nested_if.py using ONNX ReferenceEvaluator
+        // Test nested If with scoped variables: then->then->then
+        // Path: ((x + 10) - 0.5) + 1.0
         let device = Default::default();
         let model: nested_if::Model<TestBackend> = Default::default();
 
-        // Input shape: [2, 3]
         let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([
-                [-0.6889088153839111, 0.1304830014705658, -1.7456004619598389],
-                [-0.12130220234394073, 0.6268687844276428, -0.34768182039260864],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
             ]),
             &device,
         );
 
-        // Path: cond1=true, cond2=true, cond3=true -> then->then->then: x + 1.0
         let output = model.forward(input, true, true, true);
 
         let expected = TensorData::from([
-            [0.31109118461608887, 1.1304830312728882, -0.7456004619598389],
-            [0.8786978125572205, 1.626868724822998, 0.6523181796073914],
+            [11.5, 12.5, 13.5],
+            [14.5, 15.5, 16.5],
         ]);
 
         output
@@ -673,25 +671,24 @@ mod tests {
 
     #[test]
     fn test_nested_if_then_then_else() {
-        // Test 4-level nested If - path: then->then->else (Level 4b: x * 2.0)
-        // Values generated from nested_if.py using ONNX ReferenceEvaluator
+        // Test nested If with scoped variables: then->then->else
+        // Path: ((x + 10) - 0.5) * 2.0
         let device = Default::default();
         let model: nested_if::Model<TestBackend> = Default::default();
 
         let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([
-                [-0.6889088153839111, 0.1304830014705658, -1.7456004619598389],
-                [-0.12130220234394073, 0.6268687844276428, -0.34768182039260864],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
             ]),
             &device,
         );
 
-        // Path: cond1=true, cond2=true, cond3=false -> then->then->else: x * 2.0
         let output = model.forward(input, true, true, false);
 
         let expected = TensorData::from([
-            [-1.3778176307678223, 0.2609660029411316, -3.4912009239196777],
-            [-0.24260440468788147, 1.2537375688552856, -0.6953636407852173],
+            [21.0, 23.0, 25.0],
+            [27.0, 29.0, 31.0],
         ]);
 
         output
@@ -700,26 +697,25 @@ mod tests {
     }
 
     #[test]
-    fn test_nested_if_then_else() {
-        // Test 3-level nested If - path: then->else (Level 3b: x - 0.5)
-        // Values generated from nested_if.py using ONNX ReferenceEvaluator
+    fn test_nested_if_then_else_then() {
+        // Test nested If with scoped variables: then->else->then
+        // Path: ((x + 10) / 3.0) + 1.0
         let device = Default::default();
         let model: nested_if::Model<TestBackend> = Default::default();
 
         let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([
-                [-0.6889088153839111, 0.1304830014705658, -1.7456004619598389],
-                [-0.12130220234394073, 0.6268687844276428, -0.34768182039260864],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
             ]),
             &device,
         );
 
-        // Path: cond1=true, cond2=false -> then->else: x - 0.5
         let output = model.forward(input, true, false, true);
 
         let expected = TensorData::from([
-            [-1.1889088153839111, -0.3695169985294342, -2.245600461959839],
-            [-0.6213021874427795, 0.12686878442764282, -0.8476818203926086],
+            [4.6666669845581055, 5.0, 5.333333492279053],
+            [5.666666507720947, 6.0, 6.333333492279053],
         ]);
 
         output
@@ -728,26 +724,52 @@ mod tests {
     }
 
     #[test]
-    fn test_nested_if_else_then() {
-        // Test 3-level nested If - path: else->then (Level 3c: x / 3.0)
-        // Values generated from nested_if.py using ONNX ReferenceEvaluator
+    fn test_nested_if_then_else_else() {
+        // Test nested If with scoped variables: then->else->else
+        // Path: ((x + 10) / 3.0) * 2.0
         let device = Default::default();
         let model: nested_if::Model<TestBackend> = Default::default();
 
         let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([
-                [-0.6889088153839111, 0.1304830014705658, -1.7456004619598389],
-                [-0.12130220234394073, 0.6268687844276428, -0.34768182039260864],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
             ]),
             &device,
         );
 
-        // Path: cond1=false, cond2=true -> else->then: x / 3.0
+        let output = model.forward(input, true, false, false);
+
+        let expected = TensorData::from([
+            [7.333333492279053, 8.0, 8.666666984558105],
+            [9.333333015441895, 10.0, 10.666666984558105],
+        ]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn test_nested_if_else_then_then() {
+        // Test nested If with scoped variables: else->then->then
+        // Path: ((-x) - 0.5) + 1.0
+        let device = Default::default();
+        let model: nested_if::Model<TestBackend> = Default::default();
+
+        let input = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+            ]),
+            &device,
+        );
+
         let output = model.forward(input, false, true, true);
 
         let expected = TensorData::from([
-            [-0.2296362668275833, 0.0434943325817585, -0.5818668007850647],
-            [-0.04043406620621681, 0.2089562565088272, -0.11589393764734268],
+            [-0.5, -1.5, -2.5],
+            [-3.5, -4.5, -5.5],
         ]);
 
         output
@@ -756,26 +778,79 @@ mod tests {
     }
 
     #[test]
-    fn test_nested_if_else_else() {
-        // Test 3-level nested If - path: else->else (Level 3d: -x)
-        // Values generated from nested_if.py using ONNX ReferenceEvaluator
+    fn test_nested_if_else_then_else() {
+        // Test nested If with scoped variables: else->then->else
+        // Path: ((-x) - 0.5) * 2.0
         let device = Default::default();
         let model: nested_if::Model<TestBackend> = Default::default();
 
         let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([
-                [-0.6889088153839111, 0.1304830014705658, -1.7456004619598389],
-                [-0.12130220234394073, 0.6268687844276428, -0.34768182039260864],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
             ]),
             &device,
         );
 
-        // Path: cond1=false, cond2=false -> else->else: -x
+        let output = model.forward(input, false, true, false);
+
+        let expected = TensorData::from([
+            [-3.0, -5.0, -7.0],
+            [-9.0, -11.0, -13.0],
+        ]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn test_nested_if_else_else_then() {
+        // Test nested If with scoped variables: else->else->then
+        // Path: ((-x) / 3.0) + 1.0
+        let device = Default::default();
+        let model: nested_if::Model<TestBackend> = Default::default();
+
+        let input = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+            ]),
+            &device,
+        );
+
         let output = model.forward(input, false, false, true);
 
         let expected = TensorData::from([
-            [0.6889088153839111, -0.1304830014705658, 1.7456004619598389],
-            [0.12130220234394073, -0.6268687844276428, 0.34768182039260864],
+            [0.6666666269302368, 0.3333333134651184, 0.0],
+            [-0.3333333730697632, -0.6666666269302368, -1.0],
+        ]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn test_nested_if_else_else_else() {
+        // Test nested If with scoped variables: else->else->else
+        // Path: ((-x) / 3.0) * 2.0
+        let device = Default::default();
+        let model: nested_if::Model<TestBackend> = Default::default();
+
+        let input = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+            ]),
+            &device,
+        );
+
+        let output = model.forward(input, false, false, false);
+
+        let expected = TensorData::from([
+            [-0.6666666865348816, -1.3333333730697632, -2.0],
+            [-2.6666667461395264, -3.3333332538604736, -4.0],
         ]);
 
         output

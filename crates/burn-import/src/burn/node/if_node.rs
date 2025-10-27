@@ -44,6 +44,7 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
     // Register subgraph inputs in scope (they reference parent scope values)
     for input in &subgraph.inputs {
         if let Some(tensor) = to_tensor(Type::from(input)) {
+            // Register the input variable
             scope.tensor_register_variable(&tensor, node_position);
         }
     }
