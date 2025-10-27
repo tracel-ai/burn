@@ -69,6 +69,7 @@ where
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
+    persistent_renderer: bool,
     _p: PhantomData<(TI, VI, TO, VO)>,
 }
 
@@ -121,6 +122,7 @@ where
             early_stopping: None,
             summary_metrics: BTreeSet::new(),
             summary: false,
+            persistent_renderer: false,
             _p: PhantomData,
         }
     }
@@ -318,6 +320,15 @@ where
         self
     }
 
+    /// Set the renderer to persistent mode.
+    ///
+    /// The renderer will be returned from `.fit()` as part of the [training result](crate::TrainingResult).
+    /// It can be used for follow up training and evaluation.
+    pub fn persistent_renderer(mut self) -> Self {
+        self.persistent_renderer = true;
+        self
+    }
+
     /// Create the [learner](Learner) from a [model](AutodiffModule) and an [optimizer](Optimizer).
     /// The [learning rate scheduler](LrScheduler) can also be a simple
     /// [learning rate](burn_optim::LearningRate).
@@ -399,6 +410,7 @@ where
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             summary,
+            persistent_renderer: self.persistent_renderer,
         }
     }
 

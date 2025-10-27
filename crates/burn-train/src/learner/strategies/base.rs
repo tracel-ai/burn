@@ -119,7 +119,9 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         });
 
         let model = model.valid();
-        let renderer = event_processor.renderer();
+        let renderer = learner
+            .persistent_renderer
+            .then(|| event_processor.renderer());
 
         TrainingResult::<LC::InnerModel> {
             model,

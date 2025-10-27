@@ -111,7 +111,7 @@ pub struct TrainingResult<M> {
     /// The model trained.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
-    pub renderer: Box<dyn MetricsRenderer>,
+    pub renderer: Option<Box<dyn MetricsRenderer>>,
     /// A summary of the training.
     pub summary: Option<LearnerSummary>,
 }

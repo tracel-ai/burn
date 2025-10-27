@@ -95,4 +95,8 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();
+
+    if let Some(summary) = result.summary {
+        println!("{summary}");
+    }
 }

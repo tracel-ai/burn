@@ -256,6 +256,10 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .model
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
+
+    if let Some(summary) = result.summary {
+        println!("{summary}");
+    }
 }
 ```
 

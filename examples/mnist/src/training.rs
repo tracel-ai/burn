@@ -107,13 +107,14 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .num_epochs(config.num_epochs)
         .summary()
+        .persistent_renderer() // return renderer to use for eval
         .learning_strategy(burn::train::LearningStrategy::SingleDevice(device))
         .build(model, config.optimizer.init(), lr_scheduler.init().unwrap());
 
     let result = learner.fit(dataloader_train, dataloader_valid);
 
     let dataset_test_plain = Arc::new(MnistDataset::test());
-    let mut renderer = result.renderer;
+    let mut renderer = result.renderer.unwrap();
 
     let idents_tests = generate_idents(None);
 
