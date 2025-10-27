@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
@@ -142,14 +142,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .unwrap();
 
     renderer.manual_close();
-    core::mem::drop(renderer);
-
-    // Making sure the Terminal is reset.
-    std::thread::sleep(Duration::from_secs(1));
-    if let Some(summary) = result.summary {
-        log::info!("{}", summary);
-        println!("{}", summary);
-    }
 }
 
 fn evaluate<B: Backend>(

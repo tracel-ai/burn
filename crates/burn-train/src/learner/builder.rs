@@ -312,7 +312,7 @@ where
 
     /// Enable the training summary report.
     ///
-    /// The summary will be displayed at the end of `.fit()`.
+    /// The summary will be displayed after `.fit()`, when the renderer is dropped.
     pub fn summary(mut self) -> Self {
         self.summary = true;
         self

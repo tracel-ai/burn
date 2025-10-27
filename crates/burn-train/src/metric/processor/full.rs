@@ -128,8 +128,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
-            LearnerEvent::End => {
-                self.renderer.on_train_end().ok();
+            LearnerEvent::End(summary) => {
+                self.renderer.on_train_end(summary).ok();
             }
         }
     }
@@ -166,7 +166,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
-            LearnerEvent::End => {} // no-op for now
+            LearnerEvent::End(_) => {} // no-op for now
         }
     }
     fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
