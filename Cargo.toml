@@ -55,7 +55,7 @@ flate2 = "1.1.4"
 float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
-gix-tempfile = { version = "18.0.0", features = ["signals"] }
+gix-tempfile = { version = "19.0.1", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.5"
 hound = "3.5.1"
@@ -184,7 +184,7 @@ cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features =
 # cubecl-quant = { version = "0.6.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.1.10" }
+tracel-xtask = { version = "=2.1.11" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
