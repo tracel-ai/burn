@@ -54,8 +54,6 @@ fn create_artifact_dir(artifact_dir: &str) {
 }
 
 pub fn run<B: AutodiffBackend>(device: B::Device) {
-    println!("Run method of custom-learning-strat");
-
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_model = ModelConfig::new(10, 1024);
@@ -188,7 +186,6 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<
             }
             processor.process_train(LearnerEvent::EndEpoch(epoch));
 
-            log::info!("Executing validation step for epoch {}", epoch);
             let model_valid = model.valid();
 
             let mut iterator = dataloader_valid.iter();

@@ -333,7 +333,7 @@ where
         model: M,
         optim: O,
         lr_scheduler: S,
-        learning_strategy: LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>,
+        learning_strategy: LearningStrategy<LC<B, S, M, O, TO, VO, TI, VI>>,
     ) -> Learner<LC<B, S, M, O, TO, VO, TI, VI>>
     where
         M::Record: 'static,
@@ -395,9 +395,10 @@ where
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn prepare_learning_strategy(
-        learning_strategy: LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>,
-    ) -> LearningStrategy<B, LC<B, S, M, O, TO, VO, TI, VI>>
+        learning_strategy: LearningStrategy<LC<B, S, M, O, TO, VO, TI, VI>>,
+    ) -> LearningStrategy<LC<B, S, M, O, TO, VO, TI, VI>>
     where
         M::Record: 'static,
         O::Record: 'static,

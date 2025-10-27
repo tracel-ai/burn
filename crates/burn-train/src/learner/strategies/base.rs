@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_collective::CollectiveConfig;
-use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
+use burn_core::{module::AutodiffModule, prelude::Backend, tensor::backend::AutodiffBackend};
 
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
@@ -12,27 +12,33 @@ use crate::{
         processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
     },
+    multi::CustomMultiDeviceLearningStrategy,
     single::CustomSingleDeviceLearningStrategy,
 };
 
+type LearnerDevice<LC> = <<LC as LearnerComponentTypes>::Backend as Backend>::Device;
+
 /// How should the learner run the learning for the model
 #[derive(Clone)]
-pub enum LearningStrategy<B: AutodiffBackend, LC: LearnerComponentTypes> {
+pub enum LearningStrategy<LC: LearnerComponentTypes> {
     /// Training on one device
-    SingleDevice(B::Device),
+    SingleDevice(LearnerDevice<LC>),
 
     /// Training on one device with a custom learning strategy
     CustomSingleDevice(CustomSingleDeviceLearningStrategy<LC>),
 
     /// Legacy implementation of local multi-device training
-    MultiDeviceNaive(Vec<B::Device>),
+    MultiDeviceNaive(Vec<LearnerDevice<LC>>),
+
+    /// Training on multiple devices with a custom learning strategy.
+    CustomMultiDevice(CustomMultiDeviceLearningStrategy<LC>),
 
     /// Training with input distributed across devices, each device has its own copy of the model.
     /// Collective ops are used to sync the gradients after each pass.
     #[cfg(feature = "ddp")]
     DistributedDataParallel {
         /// Devices on this node for the DDP
-        devices: Vec<B::Device>,
+        devices: Vec<LearnerDevice<LC>>,
 
         /// The configuration for collective operations
         /// num_devices is ignored
@@ -43,13 +49,13 @@ pub enum LearningStrategy<B: AutodiffBackend, LC: LearnerComponentTypes> {
 /// Constructor for a distributed data parallel (DDP) learning strategy
 #[cfg(feature = "ddp")]
 pub fn ddp<B: AutodiffBackend, LC: LearnerComponentTypes>(
-    devices: Vec<B::Device>,
+    devices: Vec<LearnerDevice<LC>>,
     config: CollectiveConfig,
-) -> LearningStrategy<B, LC> {
+) -> LearningStrategy<LC> {
     LearningStrategy::DistributedDataParallel { devices, config }
 }
 
-impl<B: AutodiffBackend, LC: LearnerComponentTypes> Default for LearningStrategy<B, LC> {
+impl<LC: LearnerComponentTypes> Default for LearningStrategy<LC> {
     fn default() -> Self {
         Self::SingleDevice(Default::default())
     }
@@ -165,14 +171,14 @@ pub struct LearnerComponents<LC: LearnerComponentTypes> {
     pub num_epochs: usize,
     /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
-    /// A [LearnerCheckpointer](LearnerCheckpointer) object.
+    /// A [LearnerCheckpointer](LearnerCheckpointer) used to save and load training checkpoints.
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
-    /// An [Interupter](Interrupter) object that allows aborting the training/evaluation process early.
+    /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
     /// [Cloneable reference to an early stopping strategy](EarlyStoppingStrategyRef).
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// A [EventProcessor](LearnerComponentTypes::EventProcessor) object. Processes events happening during training and validation.
+    /// An [EventProcessor](LearnerComponentTypes::EventProcessor) that processes events happening during training and validation.
     pub event_processor: LC::EventProcessor,
-    /// A reference to an [EventStoreClient](EventStoreClient) object.
+    /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
 }

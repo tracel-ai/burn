@@ -4,7 +4,7 @@ use crate::{
     multi::epoch::MultiDeviceTrainEpoch,
 };
 use burn_core::{data::dataloader::split::split_dataloader, module::Module, prelude::Backend};
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 pub struct MultiDeviceLearningStrategy<LC: LearnerComponentTypes> {
     devices: Vec<<LC::Backend as Backend>::Device>,
@@ -18,6 +18,14 @@ impl<LC: LearnerComponentTypes> MultiDeviceLearningStrategy<LC> {
         }
     }
 }
+
+pub type CustomMultiDeviceLearningStrategy<LC> = Arc<
+    dyn LearningMethod<
+            LC,
+            PreparedDataloaders = (Vec<TrainLoader<LC>>, ValidLoader<LC>),
+            PreparedModel = <LC as LearnerComponentTypes>::Model,
+        >,
+>;
 
 impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrategy<LC> {
     type PreparedDataloaders = (Vec<TrainLoader<LC>>, ValidLoader<LC>);

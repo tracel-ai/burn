@@ -20,7 +20,7 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub(crate) learning_strategy: LearningStrategy<LC::Backend, LC>,
+    pub(crate) learning_strategy: LearningStrategy<LC>,
     pub(crate) interrupter: Interrupter,
     pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,
@@ -32,7 +32,7 @@ pub struct Learner<LC: LearnerComponentTypes> {
 pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
 #[derive(new)]
-/// Object used to create, delete, or load checkpoints of the training process.
+/// Used to create, delete, or load checkpoints of the training process.
 pub struct LearnerCheckpointer<LC: LearnerComponentTypes> {
     model: LC::CheckpointerModel,
     optim: LC::CheckpointerOptimizer,
