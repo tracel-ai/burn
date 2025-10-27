@@ -52,7 +52,7 @@ pub struct Node {
     pub outputs: Vec<Argument>,
 
     /// ONNX attributes (opset-specific parameters)
-    pub attrs: Attributes,
+    pub(crate) attrs: Attributes,
 
     /// Node-specific configuration (populated during processing)
     pub(crate) config: Option<Box<dyn NodeConfig>>,

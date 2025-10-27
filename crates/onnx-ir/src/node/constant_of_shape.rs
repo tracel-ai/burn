@@ -20,9 +20,20 @@
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{
+    ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
+};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
+
+/// Configuration for the ConstantOfShape operation.
+#[derive(Debug, Clone)]
+pub struct ConstantOfShapeConfig {
+    /// Shape information (static or runtime).
+    pub shape: ConstantOfShapeShape,
+    /// The fill value. If None, defaults to 0.0f32.
+    pub value: Option<TensorData>,
+}
 
 /// Shape information for the ConstantOfShape operation.
 #[derive(Debug, Clone)]
@@ -33,7 +44,7 @@ pub enum ConstantOfShapeShape {
     Runtime(RuntimeInputRef),
 }
 
-impl NodeConfig for ConstantOfShapeShape {
+impl NodeConfig for ConstantOfShapeConfig {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -176,7 +187,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Check if we have static values or need runtime resolution
-        let config = match node.inputs[0].value() {
+        let shape = match node.inputs[0].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
                 Ok(shape) => ConstantOfShapeShape::Static(shape),
                 Err(_) => {
@@ -191,6 +202,11 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 ConstantOfShapeShape::Runtime(RuntimeInputRef::new(node.inputs[0].name.clone(), 0))
             }
         };
+
+        // Extract the value attribute if present
+        let value = node.attrs.get("value").map(|v| v.clone().into_tensor());
+
+        let config = ConstantOfShapeConfig { shape, value };
         Ok(Some(Box::new(config)))
     }
 }

@@ -239,14 +239,6 @@ fn test_all_data_types_conversion() {
             continue;
         }
 
-        // CRITICAL: After constant lifting in Phase 2, Constant nodes should have NO attributes
-        // The 'value' attribute should be moved to the first input
-        assert!(
-            node.attrs.is_empty(),
-            "Constant node '{}' should have no attributes after constant lifting - 'value' should be in first input",
-            node.name
-        );
-
         // After constant lifting, Constant nodes MUST have their data in the first input
         assert!(
             !node.inputs.is_empty(),

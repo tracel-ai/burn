@@ -52,17 +52,8 @@ impl OnnxIntoNode for RandomNormalLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let mean = node
-            .attrs
-            .get("mean")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(0.0f64);
-        let scale = node
-            .attrs
-            .get("scale")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(1.0f64);
-        Self::new(mean, scale, input, output)
+        let config = node.config::<onnx_ir::node::random_like::RandomNormalLikeConfig>();
+        Self::new(config.mean, config.scale, input, output)
     }
 }
 

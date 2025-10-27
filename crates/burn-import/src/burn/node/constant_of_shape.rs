@@ -193,10 +193,10 @@ impl OnnxIntoNode for ConstantOfShapeNode {
         use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 
         // Get the shape configuration from onnx-ir
-        let onnx_shape = node.config::<ConstantOfShapeShape>();
+        let config = node.config::<onnx_ir::node::constant_of_shape::ConstantOfShapeConfig>();
 
         // Convert from onnx-ir enum to codegen enum
-        let shape = match onnx_shape {
+        let shape = match &config.shape {
             ConstantOfShapeShape::Static(values) => {
                 ConstantOfShapeShapeParam::Static(values.clone())
             }
@@ -210,29 +210,26 @@ impl OnnxIntoNode for ConstantOfShapeNode {
 
         // The value of the output elements. Should be a one-element tensor.
         // If not specified, it defaults to a tensor of value 0 and datatype float32
-        let value = node
-            .attrs
-            .get("value")
-            .map(|val| {
-                let tensor_data = val.clone().into_tensor();
-                match tensor_data.dtype {
-                    onnx_ir::ir::DType::F32 => {
-                        ConstantValue::from_vec(tensor_data.to_vec::<f32>().unwrap())
-                    }
-                    onnx_ir::ir::DType::F64 => {
-                        ConstantValue::from_vec(tensor_data.to_vec::<f64>().unwrap())
-                    }
-                    onnx_ir::ir::DType::I32 => {
-                        ConstantValue::from_vec(tensor_data.to_vec::<i32>().unwrap())
-                    }
-                    onnx_ir::ir::DType::I64 => {
-                        ConstantValue::from_vec(tensor_data.to_vec::<i64>().unwrap())
-                    }
-                    onnx_ir::ir::DType::Bool => {
-                        ConstantValue::from_vec(tensor_data.to_vec::<bool>().unwrap())
-                    }
-                    ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
+        let value = config
+            .value
+            .as_ref()
+            .map(|tensor_data| match tensor_data.dtype {
+                onnx_ir::ir::DType::F32 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<f32>().unwrap())
                 }
+                onnx_ir::ir::DType::F64 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<f64>().unwrap())
+                }
+                onnx_ir::ir::DType::I32 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<i32>().unwrap())
+                }
+                onnx_ir::ir::DType::I64 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<i64>().unwrap())
+                }
+                onnx_ir::ir::DType::Bool => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<bool>().unwrap())
+                }
+                ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
 

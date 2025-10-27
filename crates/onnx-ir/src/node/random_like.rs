@@ -39,10 +39,45 @@
 //! - Available since opset version 1
 //! - Current version: 22
 
-use crate::ir::{ArgType, DType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
+use std::any::Any;
+
+/// Configuration for RandomNormalLike operation.
+#[derive(Debug, Clone)]
+pub struct RandomNormalLikeConfig {
+    pub mean: f64,
+    pub scale: f64,
+}
+
+impl NodeConfig for RandomNormalLikeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+/// Configuration for RandomUniformLike operation.
+#[derive(Debug, Clone)]
+pub struct RandomUniformLikeConfig {
+    pub low: f64,
+    pub high: f64,
+}
+
+impl NodeConfig for RandomUniformLikeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 pub struct RandomLikeProcessor;
 
@@ -99,11 +134,45 @@ impl NodeProcessor for RandomLikeProcessor {
 
     fn extract_config(
         &self,
-        _node: &Node,
+        node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
-        // RandomLike has no config
-        Ok(None)
+        let config: Box<dyn NodeConfig> = match node.node_type {
+            crate::ir::NodeType::RandomNormalLike => {
+                let mean = node
+                    .attrs
+                    .get("mean")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(0.0);
+                let scale = node
+                    .attrs
+                    .get("scale")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(1.0);
+                Box::new(RandomNormalLikeConfig { mean, scale })
+            }
+            crate::ir::NodeType::RandomUniformLike => {
+                let low = node
+                    .attrs
+                    .get("low")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(0.0);
+                let high = node
+                    .attrs
+                    .get("high")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(1.0);
+                Box::new(RandomUniformLikeConfig { low, high })
+            }
+            _ => {
+                return Err(ProcessError::Custom(format!(
+                    "RandomLikeProcessor does not support node type {:?}",
+                    node.node_type
+                )));
+            }
+        };
+
+        Ok(Some(config))
     }
 }
 

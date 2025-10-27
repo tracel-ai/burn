@@ -23,10 +23,47 @@
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
-use crate::ir::{ArgType, DType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
+use std::any::Any;
+
+/// Configuration for RandomNormal operation.
+#[derive(Debug, Clone)]
+pub struct RandomNormalConfig {
+    pub mean: f64,
+    pub scale: f64,
+    pub shape: Vec<usize>,
+}
+
+impl NodeConfig for RandomNormalConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+/// Configuration for RandomUniform operation.
+#[derive(Debug, Clone)]
+pub struct RandomUniformConfig {
+    pub low: f64,
+    pub high: f64,
+    pub shape: Vec<usize>,
+}
+
+impl NodeConfig for RandomUniformConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 pub struct RandomProcessor;
 
@@ -108,11 +145,53 @@ impl NodeProcessor for RandomProcessor {
 
     fn extract_config(
         &self,
-        _node: &Node,
+        node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
-        // Random has no config
-        Ok(None)
+        let shape = node
+            .attrs
+            .get("shape")
+            .ok_or_else(|| ProcessError::Custom("required shape attribute missing".to_string()))?
+            .clone()
+            .into_i64s();
+        let shape: Vec<usize> = shape.into_iter().map(|i| i as usize).collect();
+
+        let config: Box<dyn NodeConfig> = match node.node_type {
+            crate::ir::NodeType::RandomNormal => {
+                let mean = node
+                    .attrs
+                    .get("mean")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(0.0);
+                let scale = node
+                    .attrs
+                    .get("scale")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(1.0);
+                Box::new(RandomNormalConfig { mean, scale, shape })
+            }
+            crate::ir::NodeType::RandomUniform => {
+                let low = node
+                    .attrs
+                    .get("low")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(0.0);
+                let high = node
+                    .attrs
+                    .get("high")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(1.0);
+                Box::new(RandomUniformConfig { low, high, shape })
+            }
+            _ => {
+                return Err(ProcessError::Custom(format!(
+                    "RandomProcessor does not support node type {:?}",
+                    node.node_type
+                )));
+            }
+        };
+
+        Ok(Some(config))
     }
 }
 
