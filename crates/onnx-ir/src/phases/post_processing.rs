@@ -85,7 +85,7 @@ fn rewire_node_subgraphs(
 
     match node.node_type {
         NodeType::If => {
-            // If node has then_branch and else_branch
+            // If node has then_branch and else_branch - update both attrs and config
             if let Some(then_attr) = node.attrs.get_mut("then_branch")
                 && let AttributeValue::Graph(subgraph) = then_attr
             {
@@ -95,6 +95,19 @@ fn rewire_node_subgraphs(
                 && let AttributeValue::Graph(subgraph) = else_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
+            }
+
+            // Also update the config
+            if let Some(config) = node.config.as_mut()
+                && let Some(if_config) = config
+                    .as_any()
+                    .downcast_ref::<crate::node::if_node::IfConfig>()
+            {
+                // Clone, modify, and replace the config
+                let mut new_config = if_config.clone();
+                rewire_subgraph(&mut new_config.then_branch, rewire_map, output_arg_map);
+                rewire_subgraph(&mut new_config.else_branch, rewire_map, output_arg_map);
+                node.config = Some(Box::new(new_config));
             }
         }
         NodeType::Loop | NodeType::Scan => {

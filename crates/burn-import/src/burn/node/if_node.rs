@@ -225,20 +225,10 @@ impl OnnxIntoNode for IfNode {
         // Extract condition input (always first input)
         let condition = Type::from(node.inputs.first().unwrap());
 
-        // Get then_branch and else_branch from attributes
-        let then_branch = node
-            .attrs
-            .get("then_branch")
-            .expect("If node missing then_branch attribute")
-            .clone()
-            .into_graph();
-
-        let else_branch = node
-            .attrs
-            .get("else_branch")
-            .expect("If node missing else_branch attribute")
-            .clone()
-            .into_graph();
+        // Get then_branch and else_branch from config
+        let config = node.config::<onnx_ir::node::if_node::IfConfig>();
+        let then_branch = config.then_branch.clone();
+        let else_branch = config.else_branch.clone();
 
         // IMPORTANT: In ONNX, If nodes have implicit variable capture
         // The ONNX If node itself only lists explicit inputs (e.g., just condition)

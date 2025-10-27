@@ -21,8 +21,27 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use crate::ir::{ArgType, DType, Node};
+use std::any::Any;
+
+use crate::ir::{ArgType, DType, Node, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+
+/// Configuration for If operation
+#[derive(Debug, Clone)]
+pub struct IfConfig {
+    pub then_branch: OnnxGraph,
+    pub else_branch: OnnxGraph,
+}
+
+impl NodeConfig for IfConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 /// If node processor
 pub struct IfProcessor;
@@ -51,27 +70,17 @@ impl NodeProcessor for IfProcessor {
             }
         }
 
-        // Extract then_branch and else_branch from attributes
-        let then_branch = node
-            .attrs
-            .get("then_branch")
-            .ok_or_else(|| ProcessError::MissingAttribute("then_branch".to_string()))?
-            .clone()
-            .into_graph();
-
-        let else_branch = node
-            .attrs
-            .get("else_branch")
-            .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
-            .clone()
-            .into_graph();
+        // Get branches from config (clone to avoid borrow checker issues)
+        let config = node.config::<IfConfig>();
+        let then_outputs = config.then_branch.outputs.clone();
+        let else_outputs = config.else_branch.outputs.clone();
 
         // Both branches must produce the same number of outputs
-        if then_branch.outputs.len() != else_branch.outputs.len() {
+        if then_outputs.len() != else_outputs.len() {
             return Err(ProcessError::Custom(format!(
                 "If node branches must have same number of outputs: then={}, else={}",
-                then_branch.outputs.len(),
-                else_branch.outputs.len()
+                then_outputs.len(),
+                else_outputs.len()
             )));
         }
 
@@ -81,13 +90,13 @@ impl NodeProcessor for IfProcessor {
 
         // If outputs don't exist yet, create them from branch outputs
         if node.outputs.is_empty() {
-            for then_output in then_branch.outputs.iter() {
+            for then_output in then_outputs.iter() {
                 node.outputs.push(then_output.clone());
             }
         } else {
             // Update types for existing outputs (preserves names set by add_node)
-            for (i, then_output) in then_branch.outputs.iter().enumerate() {
-                let else_output = &else_branch.outputs[i];
+            for (i, then_output) in then_outputs.iter().enumerate() {
+                let else_output = &else_outputs[i];
 
                 // Validate that output types are compatible
                 if then_output.ty != else_output.ty {
@@ -107,6 +116,32 @@ impl NodeProcessor for IfProcessor {
         }
 
         Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Extract then_branch and else_branch from attributes
+        let then_branch = node
+            .attrs
+            .get("then_branch")
+            .ok_or_else(|| ProcessError::MissingAttribute("then_branch".to_string()))?
+            .clone()
+            .into_graph();
+
+        let else_branch = node
+            .attrs
+            .get("else_branch")
+            .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
+            .clone()
+            .into_graph();
+
+        Ok(Some(Box::new(IfConfig {
+            then_branch,
+            else_branch,
+        })))
     }
 }
 
@@ -155,6 +190,11 @@ mod tests {
         node.attrs = attrs;
 
         let processor = IfProcessor;
+
+        // Extract config first
+        let config = processor.extract_config(&node, 16).unwrap().unwrap();
+        node.config = Some(config);
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
@@ -186,6 +226,11 @@ mod tests {
         node.attrs = attrs;
 
         let processor = IfProcessor;
+
+        // Extract config first
+        let config = processor.extract_config(&node, 16).unwrap().unwrap();
+        node.config = Some(config);
+
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
@@ -224,6 +269,11 @@ mod tests {
         node.attrs = attrs;
 
         let processor = IfProcessor;
+
+        // Extract config first
+        let config = processor.extract_config(&node, 16).unwrap().unwrap();
+        node.config = Some(config);
+
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
