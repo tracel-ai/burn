@@ -6,7 +6,7 @@ use cubecl::{
         MatmulIdent, MatrixLayout,
         global::{
             GlobalConfig,
-            args::MatmulArgs,
+            args::{BatchedMatrix, MatmulArgs},
             memory::{
                 BatchedGlobalLayout, BatchedGlobalLayoutExpand, BatchedGlobalScaleLayout,
                 BatchedGlobalScaleLayoutExpand, BlockScaledLayout, GlobalLayoutConfig,
@@ -92,35 +92,35 @@ impl MatmulArgs for FusedMatmulArgs {
         )
     }
 
-    fn view_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn get_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> View<Line<Lhs>, Coords3d> {
-        global_view(
+    ) -> BatchedMatrix<Lhs> {
+        BatchedMatrix::new_Viewed(global_view(
             &state.inputs,
             &state.locals,
             state.batch_shape.clone(),
             comptime![state.a.clone()],
             comptime![state.config.clone()],
             comptime![state.lhs_layout_config],
-        )
+        ))
     }
 
-    fn view_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn get_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> View<Line<Rhs>, Coords3d> {
-        global_view(
+    ) -> BatchedMatrix<Rhs> {
+        BatchedMatrix::new_Viewed(global_view(
             &state.inputs,
             &state.locals,
             state.batch_shape.clone(),
             comptime![state.b.clone()],
             comptime![state.config.clone()],
             comptime![state.rhs_layout_config],
-        )
+        ))
     }
 
-    fn view_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn get_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> CubeOption<View<Line<EO>, Coords3d>> {
+    ) -> CubeOption<BatchedMatrix<EO>> {
         match comptime![state.c.clone()] {
             Option::Some(c) => {
                 let view = global_view(
@@ -131,13 +131,13 @@ impl MatmulArgs for FusedMatmulArgs {
                     comptime![state.config.clone()],
                     comptime![state.out_layout_config],
                 );
-                CubeOption::new_Some(view)
+                CubeOption::new_Some(BatchedMatrix::new_Viewed(view))
             }
             Option::None => CubeOption::new_None(),
         }
     }
 
-    fn view_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn get_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &mut Self::State<Lhs, Rhs, EO>,
     ) -> View<Line<EO>, Coords3d, ReadWrite> {
         let rank = comptime![state.config.rank];
