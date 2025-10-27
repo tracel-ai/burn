@@ -31,7 +31,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
-            LearnerEvent::End => {} // no-op for now
+            LearnerEvent::End(_summary) => {} // no-op for now
         }
     }
 
@@ -51,7 +51,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
-            LearnerEvent::End => {} // no-op for now
+            LearnerEvent::End(_) => {} // no-op for now
         }
     }
     fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {

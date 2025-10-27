@@ -85,13 +85,13 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .summary()
         .build(model, optim, lr_scheduler);
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_test);
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 
     DefaultRecorder::new()
         .record(
-            model_trained.model.into_record(),
+            result.model.into_record(),
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();

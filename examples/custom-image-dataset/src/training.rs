@@ -114,11 +114,11 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
 
     // Training
     let now = Instant::now();
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_test);
     let elapsed = now.elapsed().as_secs();
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
 
-    model_trained
+    result
         .model
         .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
