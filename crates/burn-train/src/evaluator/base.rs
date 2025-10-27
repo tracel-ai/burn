@@ -4,7 +4,7 @@ use crate::{
     metric::processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerItem},
     renderer::{EvaluationName, MetricsRenderer},
 };
-use burn_core::data::dataloader::DataLoader;
+use burn_core::{data::dataloader::DataLoader, module::Module};
 use std::sync::Arc;
 
 /// Evaluates a model on a specific dataset.
@@ -28,6 +28,9 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         name: S,
         dataloader: TestLoader<EC>,
     ) -> Box<dyn MetricsRenderer> {
+        // Move dataloader to the model device
+        let dataloader = dataloader.to_device(self.model.devices().first().unwrap());
+
         let name = EvaluationName::new(name);
         let mut iterator = dataloader.iter();
         let mut iteration = 0;

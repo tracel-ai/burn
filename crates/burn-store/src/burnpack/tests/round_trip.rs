@@ -17,7 +17,7 @@ where
 
     // Sort snapshots by name to ensure consistent ordering
     // This is necessary because BTreeMap will store them sorted
-    snapshots.sort_by(|a, b| a.full_path().cmp(&b.full_path()));
+    snapshots.sort_by_key(|a| a.full_path());
 
     // Create writer with snapshots and metadata
     let mut writer = BurnpackWriter::new(snapshots);
@@ -69,7 +69,7 @@ fn test_round_trip_metadata_only() {
 #[test]
 fn test_round_trip_f32() {
     round_trip_test(|snapshots, _metadata| {
-        let data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0];
+        let data = [1.0f32, 2.0, 3.0, 4.0, 5.0];
         let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes, vec![5], DType::F32),
@@ -84,7 +84,7 @@ fn test_round_trip_f32() {
 #[test]
 fn test_round_trip_f64() {
     round_trip_test(|snapshots, _metadata| {
-        let data = vec![1.0f64, 2.0, 3.0];
+        let data = [1.0f64, 2.0, 3.0];
         let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes, vec![3], DType::F64),
@@ -99,7 +99,7 @@ fn test_round_trip_f64() {
 #[test]
 fn test_round_trip_i32() {
     round_trip_test(|snapshots, _metadata| {
-        let data = vec![-10i32, 0, 10, 20];
+        let data = [-10i32, 0, 10, 20];
         let bytes: Vec<u8> = data.iter().flat_map(|i| i.to_le_bytes()).collect();
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes, vec![4], DType::I32),
@@ -114,7 +114,7 @@ fn test_round_trip_i32() {
 #[test]
 fn test_round_trip_i64() {
     round_trip_test(|snapshots, _metadata| {
-        let data = vec![i64::MIN, 0, i64::MAX];
+        let data = [i64::MIN, 0, i64::MAX];
         let bytes: Vec<u8> = data.iter().flat_map(|i| i.to_le_bytes()).collect();
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes, vec![3], DType::I64),
@@ -129,7 +129,7 @@ fn test_round_trip_i64() {
 #[test]
 fn test_round_trip_u32() {
     round_trip_test(|snapshots, _metadata| {
-        let data = vec![0u32, 100, 1000, u32::MAX];
+        let data = [0u32, 100, 1000, u32::MAX];
         let bytes: Vec<u8> = data.iter().flat_map(|u| u.to_le_bytes()).collect();
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes, vec![4], DType::U32),
@@ -144,7 +144,7 @@ fn test_round_trip_u32() {
 #[test]
 fn test_round_trip_u64() {
     round_trip_test(|snapshots, _metadata| {
-        let data = vec![0u64, u64::MAX / 2, u64::MAX];
+        let data = [0u64, u64::MAX / 2, u64::MAX];
         let bytes: Vec<u8> = data.iter().flat_map(|u| u.to_le_bytes()).collect();
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes, vec![3], DType::U64),
@@ -188,7 +188,7 @@ fn test_round_trip_bool() {
 fn test_round_trip_mixed_dtypes() {
     round_trip_test(|snapshots, _metadata| {
         // F32
-        let f32_data = vec![1.0f32, 2.0];
+        let f32_data = [1.0f32, 2.0];
         let f32_bytes: Vec<u8> = f32_data.iter().flat_map(|f| f.to_le_bytes()).collect();
         let f32_snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(f32_bytes, vec![2], DType::F32),
@@ -199,7 +199,7 @@ fn test_round_trip_mixed_dtypes() {
         snapshots.push(f32_snapshot);
 
         // I64
-        let i64_data = vec![100i64, 200];
+        let i64_data = [100i64, 200];
         let i64_bytes: Vec<u8> = i64_data.iter().flat_map(|i| i.to_le_bytes()).collect();
         let i64_snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(i64_bytes, vec![2], DType::I64),
@@ -224,7 +224,7 @@ fn test_round_trip_mixed_dtypes() {
 fn test_round_trip_multidimensional() {
     round_trip_test(|snapshots, _metadata| {
         // 2D tensor
-        let data_2d = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let data_2d = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
         let bytes_2d: Vec<u8> = data_2d.iter().flat_map(|f| f.to_le_bytes()).collect();
         let snapshot_2d = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes_2d, vec![2, 3], DType::F32),
@@ -235,7 +235,7 @@ fn test_round_trip_multidimensional() {
         snapshots.push(snapshot_2d);
 
         // 3D tensor
-        let data_3d = vec![1.0f32; 24];
+        let data_3d = [1.0f32; 24];
         let bytes_3d: Vec<u8> = data_3d.iter().flat_map(|f| f.to_le_bytes()).collect();
         let snapshot_3d = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bytes_3d, vec![2, 3, 4], DType::F32),
@@ -270,7 +270,7 @@ fn test_round_trip_with_metadata_and_tensors() {
         );
 
         // Add tensors
-        let weights = vec![0.1f32, 0.2, 0.3, 0.4];
+        let weights = [0.1f32, 0.2, 0.3, 0.4];
         let weights_bytes: Vec<u8> = weights.iter().flat_map(|f| f.to_le_bytes()).collect();
         let weights_snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(weights_bytes, vec![2, 2], DType::F32),
@@ -280,7 +280,7 @@ fn test_round_trip_with_metadata_and_tensors() {
         );
         snapshots.push(weights_snapshot);
 
-        let bias = vec![0.5f32, 0.6];
+        let bias = [0.5f32, 0.6];
         let bias_bytes: Vec<u8> = bias.iter().flat_map(|f| f.to_le_bytes()).collect();
         let bias_snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(bias_bytes, vec![2], DType::F32),
@@ -296,7 +296,7 @@ fn test_round_trip_with_metadata_and_tensors() {
 fn test_round_trip_special_values() {
     round_trip_test(|snapshots, _metadata| {
         // Test special float values
-        let special_f32 = vec![
+        let special_f32 = [
             0.0f32,
             -0.0,
             f32::INFINITY,
@@ -316,7 +316,7 @@ fn test_round_trip_special_values() {
         snapshots.push(f32_snapshot);
 
         // Test special f64 values
-        let special_f64 = vec![
+        let special_f64 = [
             0.0f64,
             -0.0,
             f64::INFINITY,
@@ -366,7 +366,7 @@ fn test_round_trip_file_io() {
     let file_path = dir.path().join("round_trip.bpk");
 
     // Create original data
-    let data = vec![1.0f32, 2.0, 3.0, 4.0];
+    let data = [1.0f32, 2.0, 3.0, 4.0];
     let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
     let snapshot = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32),
@@ -415,7 +415,7 @@ fn test_round_trip_file_io() {
 fn test_round_trip_empty_shapes() {
     round_trip_test(|snapshots, _metadata| {
         // Scalar (0-dimensional)
-        let scalar = vec![42.0f32];
+        let scalar = [42.0f32];
         let scalar_bytes: Vec<u8> = scalar.iter().flat_map(|f| f.to_le_bytes()).collect();
         let scalar_snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(scalar_bytes, vec![], DType::F32),
@@ -443,7 +443,7 @@ fn test_param_id_persistence() {
     // Create a specific ParamId with a known value
     let original_param_id = ParamId::from(123456789u64);
 
-    let data = vec![1.0f32, 2.0, 3.0, 4.0];
+    let data = [1.0f32, 2.0, 3.0, 4.0];
     let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
     let snapshot = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32),
@@ -552,7 +552,7 @@ fn test_multiple_tensors_preserve_distinct_param_ids() {
 
     let mut snapshots = Vec::new();
 
-    let data1 = vec![1.0f32, 2.0];
+    let data1 = [1.0f32, 2.0];
     let bytes1: Vec<u8> = data1.iter().flat_map(|f| f.to_le_bytes()).collect();
     snapshots.push(TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes1, vec![2], DType::F32),
@@ -561,7 +561,7 @@ fn test_multiple_tensors_preserve_distinct_param_ids() {
         param_id_1,
     ));
 
-    let data2 = vec![3.0f32, 4.0];
+    let data2 = [3.0f32, 4.0];
     let bytes2: Vec<u8> = data2.iter().flat_map(|f| f.to_le_bytes()).collect();
     snapshots.push(TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes2, vec![2], DType::F32),
@@ -570,7 +570,7 @@ fn test_multiple_tensors_preserve_distinct_param_ids() {
         param_id_2,
     ));
 
-    let data3 = vec![5.0f32, 6.0];
+    let data3 = [5.0f32, 6.0];
     let bytes3: Vec<u8> = data3.iter().flat_map(|f| f.to_le_bytes()).collect();
     snapshots.push(TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes3, vec![2], DType::F32),

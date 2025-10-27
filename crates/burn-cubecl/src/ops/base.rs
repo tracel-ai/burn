@@ -1,11 +1,12 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
-use burn_common::tensor::{ReshapeAction, reshape_action};
-use burn_tensor::ops::unfold::calculate_unfold_shape;
+use burn_common::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use burn_tensor::{
-    Shape, TensorData,
-    quantization::{QTensorPrimitive, QuantLevel},
+    DType, Shape, TensorData,
+    quantization::{QTensorPrimitive, QuantLevel, params_shape},
 };
+use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
+use cubecl_quant::scheme::BlockSize;
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -68,6 +69,29 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     tensor.strides.swap(dim1, dim2);
     tensor.shape = tensor.shape.swap(dim1, dim2).unwrap();
 
+    if let DType::QFloat(scheme) = tensor.dtype
+        && let QuantLevel::Block(block_size) = scheme.level
+    {
+        let rank = tensor.rank();
+        let qparams = tensor.qparams.as_mut().unwrap();
+        let mut block_size = block_size.to_dim_vec(rank);
+        block_size.swap(dim1, dim2);
+
+        // Truncate unit dims from the start
+        let block_size = block_size
+            .into_iter()
+            .skip_while(|it| *it == 1)
+            .collect::<Vec<_>>();
+        if block_size.len() > BlockSize::MAX_DIMS {
+            panic!("Swapped block size would exceed max dims");
+        }
+
+        qparams.scales.shape.dims.swap(dim1, dim2);
+        qparams.scales.strides.swap(dim1, dim2);
+
+        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
+
     tensor
 }
 
@@ -78,6 +102,30 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
 
     // remap shape
     tensor.shape = tensor.shape.permute(axes).unwrap();
+
+    if let DType::QFloat(scheme) = tensor.dtype
+        && let QuantLevel::Block(block_size) = scheme.level
+    {
+        let rank = tensor.rank();
+        let qparams = tensor.qparams.as_mut().unwrap();
+
+        let mut block_size = block_size.to_dim_vec(rank);
+        block_size = axes.iter().map(|i| block_size[*i]).collect();
+
+        // Truncate unit dims from the start
+        let block_size = block_size
+            .into_iter()
+            .skip_while(|it| *it == 1)
+            .collect::<Vec<_>>();
+        if block_size.len() > BlockSize::MAX_DIMS {
+            panic!("Swapped block size would exceed max dims");
+        }
+
+        qparams.scales.strides = axes.iter().map(|i| qparams.scales.strides[*i]).collect();
+        qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
+
+        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
 
     tensor
 }
@@ -189,6 +237,68 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
     );
     out.qparams = tensor.qparams;
     out
+}
+
+/// Reshape a jit tensor to a new shape
+pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+    let scheme = *tensor.scheme();
+
+    let shape_values = {
+        let rank = shape.num_dims();
+        let mut shape = shape.clone();
+        shape[rank - 1] = shape[rank - 1].div_ceil(scheme.num_quants());
+        shape
+    };
+    let shape_scales = params_shape(&shape, scheme.level);
+    let (values, scales) = tensor.quantized_handles().unwrap();
+
+    let analysis_values = reshape_action(&values.shape.dims, &values.strides, &shape_values.dims);
+    let analysis_scales = reshape_action(&scales.shape.dims, &scales.strides, &shape_scales.dims);
+
+    match (analysis_values, analysis_scales) {
+        (
+            ReshapeAction::UpdateStrides { strides },
+            ReshapeAction::UpdateStrides {
+                strides: scales_strides,
+            },
+        ) => {
+            let qparams = tensor.qparams.as_mut().unwrap();
+
+            tensor.shape = shape;
+            tensor.strides = strides;
+
+            qparams.scales.shape = shape_scales;
+            qparams.scales.strides = scales_strides;
+        }
+        (ReshapeAction::UpdateStrides { strides }, ReshapeAction::NoChange) => {
+            tensor.shape = shape;
+            tensor.strides = strides;
+        }
+        (
+            ReshapeAction::NoChange,
+            ReshapeAction::UpdateStrides {
+                strides: scales_strides,
+            },
+        ) => {
+            let qparams = tensor.qparams.as_mut().unwrap();
+
+            qparams.scales.shape = shape_scales;
+            qparams.scales.strides = scales_strides;
+        }
+        (ReshapeAction::NoChange, ReshapeAction::NoChange) => {}
+        _ => {
+            tensor = kernel::into_contiguous(tensor);
+            tensor.shape = shape;
+            tensor.strides = contiguous_strides(&shape_values.dims);
+
+            let qparams = tensor.qparams.as_mut().unwrap();
+
+            qparams.scales.strides = contiguous_strides(&shape_scales.dims);
+            qparams.scales.shape = shape_scales;
+        }
+    }
+
+    tensor
 }
 
 pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {

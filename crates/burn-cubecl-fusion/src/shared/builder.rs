@@ -165,6 +165,11 @@ impl FuseOptimizationBuilder {
         self.builder.builder.input_unhandled(tensor)
     }
 
+    /// Declares an input tensor argument where the kernel is responsible to load.
+    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(Arg, Arg)> {
+        self.builder.builder.input_quantized_unhandled(tensor)
+    }
+
     /// Declares an output tensor argument where the kernel is responsible to write values.
     ///
     /// Normally you don't have to declare outputs explicitly before they are going to be

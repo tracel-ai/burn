@@ -163,9 +163,9 @@ fn index_offset_with_quant_layout(
 
     // Handle packed representation in last dim
     let ogwl = offset_ref / locals.ref_strides[end];
-    let shape_last = tensor.tensor.shape(end) / num_quants;
+    let shape_last = tensor.tensor.shape(end).div_ceil(num_quants);
     let stride_last = tensor.tensor.stride(end);
-    offset += (ogwl / num_quants) % shape_last * stride_last;
+    offset += (ogwl.div_ceil(num_quants)) % shape_last * stride_last;
 
     offset / tensor.tensor.line_size()
 }
@@ -236,7 +236,7 @@ pub fn read_input_window<C: CubePrimitive>(
     #[comptime] pos: u32,
     start: u32,
     end: u32,
-) -> Slice<Line<C>> {
+) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
     slice.try_cast_unchecked()
@@ -267,6 +267,7 @@ pub fn input_as_scales_view<C: CubePrimitive>(
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
 ) -> View<C, u32> {
+    set_polyfill_typed::<C, NumericExpand<DYN_ELEM_ID>>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
@@ -294,6 +295,15 @@ pub fn input_as_scales_view<C: CubePrimitive>(
         }
     };
     View::new::<Slice<C>, u32>(&scales.tensor.to_slice().try_cast_unchecked(), layout)
+}
+
+#[cube]
+#[allow(clippy::extra_unused_type_parameters)]
+fn set_polyfill_typed<C: CubePrimitive, Dyn: CubePrimitive>() {
+    intrinsic!(|scope| {
+        let elem_type = C::as_type(scope);
+        set_polyfill::expand::<Dyn>(scope, elem_type);
+    })
 }
 
 #[cube]

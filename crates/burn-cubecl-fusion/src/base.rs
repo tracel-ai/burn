@@ -193,7 +193,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 QuantParam::BF16 => DType::BF16,
                 QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
             },
-            strides: vec![1],
+            strides: qparams.scales.strides.clone(),
             qparams: None,
         })
     }

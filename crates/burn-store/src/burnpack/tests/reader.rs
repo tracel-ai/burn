@@ -106,7 +106,7 @@ fn test_reader_get_tensor_not_found() {
 
 #[test]
 fn test_reader_get_tensor_snapshot() {
-    let data = vec![1.0f32, 2.0, 3.0, 4.0];
+    let data = [1.0f32, 2.0, 3.0, 4.0];
     let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
     let snapshot = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32),
@@ -190,12 +190,12 @@ fn test_reader_lazy_loading() {
 fn test_reader_all_dtypes() {
     // Test all data types
     let test_data = vec![
-        (DType::F32, vec![1.0f32.to_le_bytes().to_vec()].concat()),
-        (DType::F64, vec![2.0f64.to_le_bytes().to_vec()].concat()),
-        (DType::I32, vec![3i32.to_le_bytes().to_vec()].concat()),
-        (DType::I64, vec![4i64.to_le_bytes().to_vec()].concat()),
-        (DType::U32, vec![5u32.to_le_bytes().to_vec()].concat()),
-        (DType::U64, vec![6u64.to_le_bytes().to_vec()].concat()),
+        (DType::F32, [1.0f32.to_le_bytes().to_vec()].concat()),
+        (DType::F64, [2.0f64.to_le_bytes().to_vec()].concat()),
+        (DType::I32, [3i32.to_le_bytes().to_vec()].concat()),
+        (DType::I64, [4i64.to_le_bytes().to_vec()].concat()),
+        (DType::U32, [5u32.to_le_bytes().to_vec()].concat()),
+        (DType::U64, [6u64.to_le_bytes().to_vec()].concat()),
         (DType::U8, vec![7u8]),
         (DType::Bool, vec![1u8]),
     ];
@@ -414,6 +414,7 @@ fn test_reader_corrupt_metadata() {
     bytes[metadata_size_range()].copy_from_slice(&50u32.to_le_bytes()); // 50 bytes of metadata
 
     // Write garbage as metadata
+    #[allow(clippy::needless_range_loop)]
     for i in HEADER_SIZE..HEADER_SIZE + 50 {
         bytes[i] = 0xFF;
     }

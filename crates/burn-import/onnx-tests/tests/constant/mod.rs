@@ -10,6 +10,7 @@ include_models!(
     constant_tensor_f32,
     constant_tensor_i32,
     constant_tensor_bool,
+    constant_empty_tensor_f32,
     rank_inference_propagation,
     shape_binary_ops_with_constant
 );
@@ -144,6 +145,28 @@ mod tests {
         let expected = burn::tensor::TensorData::from(expected_data);
 
         let output = model.forward(input);
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn constant_empty_tensor_f32_test() {
+        // Test that empty f32 tensor constants with no data are properly handled
+        // This tests the fix for the bug where empty float_data and raw_data caused a panic
+        let device = Default::default();
+        let model: constant_empty_tensor_f32::Model<TestBackend> =
+            constant_empty_tensor_f32::Model::default();
+
+        // Create input tensor [2, 3]
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+
+        // The model should load successfully even with an empty tensor constant attribute
+        // The output is just the identity of the input
+        let output = model.forward(input.clone());
+
+        // Expected: same as input (identity operation)
+        let expected = input.to_data();
+
         output.to_data().assert_eq(&expected, true);
     }
 
