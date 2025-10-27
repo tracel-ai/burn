@@ -326,6 +326,11 @@ fn main() {
         .input("tests/xor/xor.onnx")
         .input("tests/xor/xor_scalar.onnx")
         .input("tests/xor/xor_broadcast.onnx")
+        .input("tests/subgraph/if_conv2d.onnx")
+        .input("tests/subgraph/if_linear.onnx")
+        // TODO: Enable when Loop and Scan support is added
+        // .input("tests/subgraph/loop_simple.onnx")
+        // .input("tests/subgraph/scan_cumsum.onnx")
         .out_dir("model/")
         .run_from_script();
 

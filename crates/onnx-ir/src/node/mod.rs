@@ -44,6 +44,7 @@ pub mod gather_elements;
 pub mod gemm;
 pub mod group_norm;
 pub mod hard_sigmoid;
+pub mod if_node;
 pub mod instance_norm;
 pub mod is_inf;
 pub mod is_nan;

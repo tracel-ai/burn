@@ -4,15 +4,24 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{graph_state::GraphState, ir::NodeType, protos::ModelProto};
+use crate::{
+    graph_state::GraphState,
+    ir::NodeType,
+    protos::{GraphProto, ModelProto},
+};
 
 /// Initialize GraphState, process initializers, attach value_store refs
 pub(crate) fn initialize(model: &ModelProto) -> Rc<RefCell<GraphState>> {
+    initialize_from_graph(&model.graph)
+}
+
+/// Initialize GraphState from GraphProto (for subgraphs)
+pub(crate) fn initialize_from_graph(graph: &GraphProto) -> Rc<RefCell<GraphState>> {
     let state = GraphState::new(
-        &model.graph.input,
-        &model.graph.output,
-        &model.graph.initializer,
-        &model.graph.value_info,
+        &graph.input,
+        &graph.output,
+        &graph.initializer,
+        &graph.value_info,
     );
 
     let state_rc = Rc::new(RefCell::new(state));

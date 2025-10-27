@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use super::argument::{ArgType, Argument, TensorType, ValueSource};
+use super::graph::OnnxGraph;
 use super::tensor_data_ext::TensorDataExt;
 use burn_tensor::{DType, TensorData};
 
@@ -20,6 +21,8 @@ pub enum AttributeValue {
     Strings(Vec<String>),
     Tensor(TensorData),
     Tensors(Vec<TensorData>),
+    Graph(OnnxGraph),
+    Graphs(Vec<OnnxGraph>),
 }
 
 pub type Attributes = HashMap<String, AttributeValue>;
@@ -94,6 +97,22 @@ impl AttributeValue {
             elem
         } else {
             panic!("Expected Tensors, got {self:?}");
+        }
+    }
+
+    pub fn into_graph(self) -> OnnxGraph {
+        if let AttributeValue::Graph(elem) = self {
+            elem
+        } else {
+            panic!("Expected Graph, got {self:?}");
+        }
+    }
+
+    pub fn into_graphs(self) -> Vec<OnnxGraph> {
+        if let AttributeValue::Graphs(elem) = self {
+            elem
+        } else {
+            panic!("Expected Graphs, got {self:?}");
         }
     }
 }
@@ -174,6 +193,16 @@ impl From<AttributeValue> for Argument {
                         value_store: None,
                     }
                 }
+            }
+            AttributeValue::Graph(_) => {
+                panic!(
+                    "Graph attributes cannot be converted to Argument - they should be accessed directly"
+                )
+            }
+            AttributeValue::Graphs(_) => {
+                panic!(
+                    "Graphs attributes cannot be converted to Argument - they should be accessed directly"
+                )
             }
             _ => panic!("Unsupported attribute type"),
         }

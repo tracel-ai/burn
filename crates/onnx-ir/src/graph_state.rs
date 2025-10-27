@@ -131,6 +131,11 @@ impl GraphState {
         self.processed_nodes.push(node);
     }
 
+    /// Get reference to node output map (maps original ONNX names to node outputs)
+    pub(crate) fn node_output_map(&self) -> &HashMap<String, (usize, usize)> {
+        &self.node_output_map
+    }
+
     /// Consume and return (nodes, inputs, outputs)
     pub(super) fn consume(self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         let outputs = self

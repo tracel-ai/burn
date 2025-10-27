@@ -73,7 +73,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     }
 }
 
-impl<PS: PrecisionSettings> Serialize for Node<PS> {
+impl<PS: PrecisionSettings + 'static> Serialize for Node<PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -82,7 +82,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
+impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
     fn output_types(&self) -> Vec<Type> {
         match_all!(self, NodeCodegen::<PS>::output_types)
     }

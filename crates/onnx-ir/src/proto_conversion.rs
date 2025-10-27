@@ -400,15 +400,26 @@ impl TryFrom<AttributeProto> for AttributeValue {
             // warning: tensor can be empty TODO: check if it is empty
             AttributeType::TENSOR => AttributeValue::Tensor(TensorData::try_from(attr.t.unwrap())?),
 
-            // Graph is not supported for now
-            // AttributeType::GRAPH => AttributeValue::Graph(attr.g),
+            // Graph attributes (used by If, Loop, Scan)
+            AttributeType::GRAPH => {
+                // Note: We can't convert the graph here without the opset version
+                // This conversion will be handled during node processing where we have access to opset
+                // For now, we'll store a placeholder and do the actual conversion in the If processor
+                panic!(
+                    "Graph attributes should be converted during node processing, not during proto conversion"
+                )
+            }
             AttributeType::FLOATS => AttributeValue::Float32s(attr.floats),
             AttributeType::INTS => AttributeValue::Int64s(attr.ints),
             AttributeType::STRINGS => AttributeValue::Strings(to_string_vec(attr.strings)),
             AttributeType::TENSORS => {
                 AttributeValue::Tensors(convert_vec_tensor_proto(attr.tensors)?)
             }
-            // AttributeType::GRAPHS => AttributeValue::Graphs(attr.graphs),
+            AttributeType::GRAPHS => {
+                panic!(
+                    "Graphs attributes should be converted during node processing, not during proto conversion"
+                )
+            }
             // AttributeType::SPARSE_TENSORS => AttributeValue::SparseTensors(attr.sparse_tensors),
             // AttributeType::SPARSE_TENSOR => AttributeValue::SparseTensor(attr.sparse_tensor),
             attribute_type => {
@@ -421,9 +432,16 @@ impl TryFrom<AttributeProto> for AttributeValue {
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
+/// Skips GRAPH and GRAPHS attributes as they need special handling with opset version
 pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     let mut result = Attributes::new();
     for attr in attrs {
+        // Skip GRAPH/GRAPHS attributes - they'll be handled separately with opset version
+        if let Ok(attr_type) = attr.type_.enum_value()
+            && (attr_type == AttributeType::GRAPH || attr_type == AttributeType::GRAPHS)
+        {
+            continue;
+        }
         result.insert(attr.name.clone(), AttributeValue::try_from(attr).unwrap());
     }
     result
@@ -475,6 +493,36 @@ fn to_string_vec(bytes: Vec<Vec<u8>>) -> Vec<String> {
 
 fn convert_shape(shape: Vec<i64>) -> Vec<usize> {
     shape.iter().map(|s| *s as usize).collect()
+}
+
+/// Convert graph attributes from NodeProto for control flow nodes (If, Loop, Scan)
+/// This must be called with opset_version during node processing
+pub fn convert_graph_attributes(node_proto: &NodeProto, opset_version: usize) -> Attributes {
+    use crate::pipeline::build_graph_from_proto;
+
+    let mut result = Attributes::new();
+    for attr in &node_proto.attribute {
+        if let Ok(attr_type) = attr.type_.enum_value() {
+            match attr_type {
+                AttributeType::GRAPH => {
+                    if let Some(graph_proto) = attr.g.as_ref() {
+                        let onnx_graph = build_graph_from_proto(graph_proto, opset_version);
+                        result.insert(attr.name.clone(), AttributeValue::Graph(onnx_graph));
+                    }
+                }
+                AttributeType::GRAPHS => {
+                    let graphs: Vec<_> = attr
+                        .graphs
+                        .iter()
+                        .map(|graph_proto| build_graph_from_proto(graph_proto, opset_version))
+                        .collect();
+                    result.insert(attr.name.clone(), AttributeValue::Graphs(graphs));
+                }
+                _ => {}
+            }
+        }
+    }
+    result
 }
 
 impl TryFrom<ValueInfoProto> for Argument {

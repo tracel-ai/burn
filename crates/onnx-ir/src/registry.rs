@@ -550,6 +550,9 @@ impl ProcessorRegistry {
             Box::new(crate::node::prelu::PReluProcessor),
         );
 
+        // Control flow operations
+        registry.register(NodeType::If, Box::new(crate::node::if_node::IfProcessor));
+
         registry
     }
 }

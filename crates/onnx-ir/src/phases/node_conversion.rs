@@ -12,12 +12,29 @@ use crate::{
     ir::{ArgType, AttributeValue, Node, NodeType, TensorData, TensorDataExt},
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
-    protos::{ModelProto, NodeProto},
+    protos::{GraphProto, ModelProto, NodeProto},
 };
 
 /// Convert all ONNX nodes to IR nodes
 pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState>>) {
     let opset_version = extract_opset_version(model);
+    convert_nodes_impl(&model.graph.node, state_rc, opset_version);
+}
+
+/// Convert all ONNX nodes from GraphProto to IR nodes (for subgraphs)
+pub(crate) fn convert_nodes_from_graph(graph: &GraphProto, state_rc: &Rc<RefCell<GraphState>>) {
+    // For subgraphs, we don't have access to opset version here
+    // It should be passed through the conversion chain, but for now use a default
+    // This will be fixed when we properly handle subgraphs in the conversion process
+    convert_nodes_impl(&graph.node, state_rc, 16);
+}
+
+/// Internal implementation for node conversion
+fn convert_nodes_impl(
+    nodes: &[NodeProto],
+    state_rc: &Rc<RefCell<GraphState>>,
+    opset_version: usize,
+) {
     let mut node_name_counter: HashMap<NodeType, usize> = HashMap::new();
 
     // Initialize constant counter from initializers
@@ -33,10 +50,23 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
         }
     }
 
-    let mut node_iter = model.graph.node.iter().peekable();
+    let mut node_iter = nodes.iter().peekable();
 
     while let Some(node_proto) = node_iter.next() {
         let mut node = convert_node_proto(node_proto, &state_rc.borrow());
+
+        // Handle graph attributes for control flow nodes (If, Loop, Scan)
+        if matches!(
+            node.node_type,
+            NodeType::If | NodeType::Loop | NodeType::Scan
+        ) {
+            let graph_attrs =
+                crate::proto_conversion::convert_graph_attributes(node_proto, opset_version);
+            // Merge graph attributes with existing attributes
+            for (key, value) in graph_attrs {
+                node.attrs.insert(key, value);
+            }
+        }
 
         // Attach value_store to all arguments
         attach_value_stores(&mut node, state_rc);

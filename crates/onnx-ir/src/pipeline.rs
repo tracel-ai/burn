@@ -50,14 +50,22 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// Build IR graph from ONNX model through 5 phases:
 /// 1. Initialization 2. Node Conversion 3. Type Inference 4. Post-processing 5. Finalization
 pub fn build_graph(model: &ModelProto) -> OnnxGraph {
+    let opset_version = extract_opset_version(model);
+    build_graph_from_proto(&model.graph, opset_version)
+}
+
+/// Build IR graph from ONNX GraphProto (for subgraphs)
+pub fn build_graph_from_proto(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+) -> OnnxGraph {
     log::debug!(" PHASE 1: Initialization ");
-    let state_rc = initialization::initialize(model);
+    let state_rc = initialization::initialize_from_graph(graph);
 
     log::debug!(" PHASE 2: Node Conversion ");
-    node_conversion::convert_nodes(model, &state_rc);
+    node_conversion::convert_nodes_from_graph(graph, &state_rc);
 
     log::debug!(" PHASE 3: Type Inference ");
-    let opset_version = extract_opset_version(model);
     type_inference::infer_types(&state_rc, opset_version);
 
     log::debug!(" PHASE 4: Post-processing ");

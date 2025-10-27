@@ -88,7 +88,7 @@ macro_rules! node_registry {
         }
 
         // Generate ONNX registry dispatcher (expands grouped mappings)
-        pub(crate) fn try_convert_onnx_node<PS: burn::record::PrecisionSettings>(
+        pub(crate) fn try_convert_onnx_node<PS: burn::record::PrecisionSettings + 'static>(
             node: onnx_ir::Node,
         ) -> Option<Node<PS>> {
             use onnx_ir::NodeType;
