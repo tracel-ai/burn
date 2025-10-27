@@ -59,8 +59,17 @@ pub fn build_graph_from_proto(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
 ) -> OnnxGraph {
+    build_graph_from_proto_with_registry(graph, opset_version, None)
+}
+
+/// Build IR graph with shared name registry (for sibling subgraphs)
+pub fn build_graph_from_proto_with_registry(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+    name_registry: Option<crate::graph_state::NameRegistry>,
+) -> OnnxGraph {
     log::debug!(" PHASE 1: Initialization ");
-    let state_rc = initialization::initialize_from_graph(graph);
+    let state_rc = initialization::initialize_from_graph_with_registry(graph, name_registry);
 
     log::debug!(" PHASE 2: Node Conversion ");
     node_conversion::convert_nodes_from_graph(graph, &state_rc);

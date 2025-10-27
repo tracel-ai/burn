@@ -4,64 +4,15 @@ use crate::burn::{BurnImports, Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::HashMap;
-
-/// Build field name mapping for subgraph nodes
-///
-/// This function tracks which fields need to be renamed to avoid conflicts.
-/// It processes both branches in order (then_branch first, then else_branch)
-/// and assigns renamed field names (e.g., field_2, field_3) when duplicates are found.
-fn build_field_name_mappings<PS: PrecisionSettings + 'static>(
-    then_branch: &onnx_ir::OnnxGraph,
-    else_branch: &onnx_ir::OnnxGraph,
-) -> HashMap<String, String> {
-    let mut field_name_counts: HashMap<String, usize> = HashMap::new();
-    let mut else_mapping = HashMap::new();
-
-    // First pass: count field names in then branch
-    for onnx_node in &then_branch.nodes {
-        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone())
-            && let Some(field_type) = burn_node.field_type()
-        {
-            let base_name = field_type.name().to_string();
-            let count = field_name_counts.entry(base_name.clone()).or_insert(0);
-            *count += 1;
-        }
-    }
-
-    // Second pass: build mapping for else branch
-    for onnx_node in &else_branch.nodes {
-        if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone())
-            && let Some(field_type) = burn_node.field_type()
-        {
-            let base_name = field_type.name().to_string();
-            let count = field_name_counts.entry(base_name.clone()).or_insert(0);
-            *count += 1;
-
-            let renamed = if *count > 1 {
-                format!("{}_{}", base_name, count)
-            } else {
-                base_name.clone()
-            };
-            else_mapping.insert(base_name, renamed);
-        }
-    }
-
-    else_mapping
-}
 
 /// Generate inline code for a subgraph
 ///
 /// Converts an OnnxGraph into a TokenStream that can be inserted into an if/else branch.
 /// Returns (body_code, output_tuple)
-///
-/// The field_mapping parameter maps original field names to renamed field names,
-/// which is necessary when nodes in different branches have fields with the same name.
 fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
     subgraph: &onnx_ir::OnnxGraph,
     scope: &mut Scope,
     node_position: usize,
-    field_mapping: &HashMap<String, String>,
 ) -> (TokenStream, TokenStream) {
     let mut body = quote! {};
     let mut unsupported_ops = vec![];
@@ -127,25 +78,6 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
     for (idx, burn_node) in burn_nodes.iter().enumerate() {
         let node_code = burn_node.forward(scope, node_position + idx + 1);
         body.extend(node_code);
-    }
-
-    // Apply field name mapping if needed
-    if !field_mapping.is_empty() {
-        let mut body_str = body.to_string();
-
-        // Replace field references: self.field_name -> self.field_name_N
-        for (original, renamed) in field_mapping {
-            if original != renamed {
-                let old_ref = format!("self . {}", original);
-                let new_ref = format!("self . {}", renamed);
-                body_str = body_str.replace(&old_ref, &new_ref);
-            }
-        }
-
-        // Parse the modified string back into a TokenStream
-        body = body_str
-            .parse()
-            .unwrap_or_else(|_| panic!("Failed to parse modified subgraph code"));
     }
 
     // Generate output tuple
@@ -223,24 +155,15 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for IfNode {
             other => panic!("If condition must be scalar or tensor, got {:?}", other),
         };
 
-        // Build field name mappings to handle duplicate field names across branches
-        let else_field_mapping =
-            build_field_name_mappings::<PS>(&self.then_branch, &self.else_branch);
-
         // Generate code for then and else branches
-        // Then branch uses original field names (empty mapping)
-        let empty_mapping = HashMap::new();
+        // Field name uniqueness is already handled at the onnx-ir layer
         let (then_body, then_output) =
-            generate_subgraph_code::<PS>(&self.then_branch, scope, node_position, &empty_mapping);
-        // Else branch uses renamed field names to avoid conflicts
-        let (else_body, else_output) = generate_subgraph_code::<PS>(
-            &self.else_branch,
-            scope,
-            node_position,
-            &else_field_mapping,
-        );
+            generate_subgraph_code::<PS>(&self.then_branch, scope, node_position);
+        let (else_body, else_output) =
+            generate_subgraph_code::<PS>(&self.else_branch, scope, node_position);
 
         // Generate output variable declarations
+        // Output names must match the Type objects so other nodes can reference them
         let output_names: Vec<_> = self
             .outputs
             .iter()

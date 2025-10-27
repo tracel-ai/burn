@@ -37,18 +37,26 @@ fn convert_nodes_impl(
 ) {
     let mut node_name_counter: HashMap<NodeType, usize> = HashMap::new();
 
-    // Initialize constant counter from initializers
-    {
+    // Get the name registry (if available)
+    let name_registry = {
         let state = state_rc.borrow();
-        let constant_count = state
-            .processed_nodes
-            .iter()
-            .filter(|n| n.node_type == NodeType::Constant)
-            .count();
-        if constant_count > 0 {
-            node_name_counter.insert(NodeType::Constant, constant_count);
+
+        if let Some(registry) = state.name_registry() {
+            // Registry is shared, already initialized with constant count from initializers
+            Some(registry.clone())
+        } else {
+            // Fall back to local counter for backwards compatibility
+            let constant_count = state
+                .processed_nodes
+                .iter()
+                .filter(|n| n.node_type == NodeType::Constant)
+                .count();
+            if constant_count > 0 {
+                node_name_counter.insert(NodeType::Constant, constant_count);
+            }
+            None
         }
-    }
+    };
 
     let mut node_iter = nodes.iter().peekable();
 
@@ -80,7 +88,7 @@ fn convert_nodes_impl(
         remap_node_type(&mut node);
 
         // Rename node with counter
-        rename_node(&mut node, &mut node_name_counter);
+        rename_node(&mut node, &mut node_name_counter, name_registry.as_ref());
 
         // Track node type before coalesce (may change it)
         let node_type_before = node.node_type.clone();
@@ -93,7 +101,7 @@ fn convert_nodes_impl(
 
         // Rename if coalesce changed node type
         if node.node_type != node_type_before {
-            rename_node(&mut node, &mut node_name_counter);
+            rename_node(&mut node, &mut node_name_counter, name_registry.as_ref());
         }
 
         // Lift constants and extract config
@@ -198,14 +206,31 @@ fn attach_value_stores(node: &mut Node, state_rc: &Rc<RefCell<GraphState>>) {
 }
 
 /// Rename node with type-based counter
-fn rename_node(node: &mut Node, counters: &mut HashMap<NodeType, usize>) {
-    counters
-        .entry(node.node_type.clone())
-        .and_modify(|e| *e += 1)
-        .or_insert(1);
+fn rename_node(
+    node: &mut Node,
+    counters: &mut HashMap<NodeType, usize>,
+    name_registry: Option<&crate::graph_state::NameRegistry>,
+) {
+    // If registry is available, use it to generate unique names across subgraphs
+    if let Some(registry) = name_registry {
+        let old_name = node.name.clone();
+        node.name = registry.generate_node_name(&node.node_type);
+        log::debug!(
+            "Renamed node: '{}' -> '{}' (type: {:?})",
+            old_name,
+            node.name,
+            node.node_type
+        );
+    } else {
+        // Fall back to local counter for backwards compatibility
+        counters
+            .entry(node.node_type.clone())
+            .and_modify(|e| *e += 1)
+            .or_insert(1);
 
-    let new_name = format!("{}{}", node.node_type, counters[&node.node_type]).to_lowercase();
-    node.name = new_name;
+        let new_name = format!("{}{}", node.node_type, counters[&node.node_type]).to_lowercase();
+        node.name = new_name;
+    }
 }
 
 /// Extract opset version from model

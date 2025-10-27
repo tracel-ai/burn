@@ -495,18 +495,28 @@ fn convert_shape(shape: Vec<i64>) -> Vec<usize> {
     shape.iter().map(|s| *s as usize).collect()
 }
 
-/// Convert graph attributes from NodeProto for control flow nodes (If, Loop, Scan)
+///Convert graph attributes from NodeProto for control flow nodes (If, Loop, Scan)
 /// This must be called with opset_version during node processing
 pub fn convert_graph_attributes(node_proto: &NodeProto, opset_version: usize) -> Attributes {
-    use crate::pipeline::build_graph_from_proto;
+    use crate::graph_state::NameRegistry;
+    use crate::pipeline::build_graph_from_proto_with_registry;
 
     let mut result = Attributes::new();
+
+    // Create a shared name registry for all sibling subgraphs
+    // This ensures node names are unique across all branches (then/else, loop body, etc.)
+    let name_registry = NameRegistry::new();
+
     for attr in &node_proto.attribute {
         if let Ok(attr_type) = attr.type_.enum_value() {
             match attr_type {
                 AttributeType::GRAPH => {
                     if let Some(graph_proto) = attr.g.as_ref() {
-                        let onnx_graph = build_graph_from_proto(graph_proto, opset_version);
+                        let onnx_graph = build_graph_from_proto_with_registry(
+                            graph_proto,
+                            opset_version,
+                            Some(name_registry.clone()),
+                        );
                         result.insert(attr.name.clone(), AttributeValue::Graph(onnx_graph));
                     }
                 }
@@ -514,7 +524,13 @@ pub fn convert_graph_attributes(node_proto: &NodeProto, opset_version: usize) ->
                     let graphs: Vec<_> = attr
                         .graphs
                         .iter()
-                        .map(|graph_proto| build_graph_from_proto(graph_proto, opset_version))
+                        .map(|graph_proto| {
+                            build_graph_from_proto_with_registry(
+                                graph_proto,
+                                opset_version,
+                                Some(name_registry.clone()),
+                            )
+                        })
                         .collect();
                     result.insert(attr.name.clone(), AttributeValue::Graphs(graphs));
                 }
