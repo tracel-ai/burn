@@ -88,8 +88,4 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
             &NoStdTrainingRecorder::new(),
         )
         .expect("Failed to save trained model");
-
-    if let Some(summary) = result.summary {
-        println!("{summary}");
-    }
 }

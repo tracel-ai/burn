@@ -26,7 +26,6 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,
-    pub(crate) persistent_renderer: bool,
 }
 
 /// Cloneable reference to an early stopping strategy

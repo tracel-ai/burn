@@ -6,7 +6,7 @@ use crate::ddp::DdpLearningStrategy;
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::MetricsRenderer;
 use crate::single::SingleDeviceLearningStrategy;
-use crate::{Learner, LearnerSummary, LearningMethod, LearningStrategy};
+use crate::{Learner, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
@@ -111,9 +111,7 @@ pub struct TrainingResult<M> {
     /// The model trained.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
-    pub renderer: Option<Box<dyn MetricsRenderer>>,
-    /// A summary of the training.
-    pub summary: Option<LearnerSummary>,
+    pub renderer: Box<dyn MetricsRenderer>,
 }
 
 impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {

@@ -133,8 +133,4 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();
-
-    if let Some(summary) = result.summary {
-        println!("{summary}");
-    }
 }
