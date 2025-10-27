@@ -512,7 +512,7 @@ pub fn convert_graph_attributes(
 
     // Use parent registry if provided, otherwise create a new one for sibling subgraphs
     // This ensures node names are unique across nested levels and sibling branches
-    let name_registry = parent_registry.unwrap_or_else(NameRegistry::new);
+    let name_registry = parent_registry.unwrap_or_default();
 
     for attr in &node_proto.attribute {
         if let Ok(attr_type) = attr.type_.enum_value() {

@@ -570,7 +570,9 @@ fn update_single_subgraph_inputs(
         // Check if this input name exists in the parent's node_output_map
         if let Some(&(node_idx, output_idx)) = node_output_map.get(&input.name) {
             // Get the renamed output name from the parent node
-            let renamed_name = graph_state.processed_nodes[node_idx].outputs[output_idx].name.clone();
+            let renamed_name = graph_state.processed_nodes[node_idx].outputs[output_idx]
+                .name
+                .clone();
             log::debug!(
                 "Updating subgraph input: {} -> {}",
                 input.name,
