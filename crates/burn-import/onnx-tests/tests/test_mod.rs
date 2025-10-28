@@ -108,7 +108,10 @@ pub mod split;
 pub mod sqrt;
 pub mod squeeze;
 pub mod sub;
-pub mod subgraph;
+// Control flow operators
+pub mod if_op;
+pub mod r#loop;
+pub mod scan;
 pub mod sum;
 pub mod tan;
 pub mod tanh;

@@ -326,12 +326,19 @@ fn main() {
         .input("tests/xor/xor.onnx")
         .input("tests/xor/xor_scalar.onnx")
         .input("tests/xor/xor_broadcast.onnx")
-        .input("tests/subgraph/if_conv2d.onnx")
-        .input("tests/subgraph/if_linear.onnx")
-        .input("tests/subgraph/nested_if.onnx")
+        // If operator tests
+        .input("tests/if_op/if_conv2d.onnx")
+        .input("tests/if_op/if_linear.onnx")
+        .input("tests/if_op/nested_if.onnx")
         // TODO: Enable when Loop and Scan support is added
-        // .input("tests/subgraph/loop_simple.onnx")
-        // .input("tests/subgraph/scan_cumsum.onnx")
+        // .input("tests/if_op/nested_if_loop_if.onnx")
+        // .input("tests/if_op/nested_if_loop_if_scan.onnx")
+        // .input("tests/loop/loop_simple.onnx")
+        // .input("tests/loop/loop_dynamic_cond.onnx")
+        // .input("tests/loop/loop_multi_deps.onnx")
+        // .input("tests/scan/scan_cumsum.onnx")
+        // .input("tests/scan/scan_reverse.onnx")
+        // .input("tests/scan/scan_multi_state.onnx")
         .out_dir("model/")
         .run_from_script();
 
