@@ -30,7 +30,7 @@ impl<R: Runtime> Clone for ReduceBuilder<R> {
             builder: self.builder.clone(),
             builder_read_fallback: self.builder_read_fallback.clone(),
             builder_write_fallback: self.builder_write_fallback.clone(),
-            settings_write: self.settings_write.clone(),
+            settings_write: self.settings_write,
             device: self.device.clone(),
             reduce: self.reduce.clone(),
         }
@@ -59,7 +59,7 @@ impl<R: Runtime> ReduceBuilder<R> {
             builder_read_fallback: FuseOptimizationBuilder::new(
                 max_bindings,
                 bool_precision,
-                settings_fallback.clone(),
+                settings_fallback,
             ),
             builder_write_fallback: FuseOptimizationBuilder::new(
                 max_bindings,
