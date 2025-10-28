@@ -19,11 +19,13 @@
 //! cargo bench --bench unified_loading
 //! ```
 
+use burn_core as burn;
+
 use burn_core::module::Module;
 use burn_core::prelude::*;
 use burn_core::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
-use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
-use burn_import::safetensors::SafetensorsFileRecorder;
+// use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
+// use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_nn as nn;
 use burn_store::{
     BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore,
@@ -265,22 +267,22 @@ macro_rules! bench_backend {
                     });
             }
 
-            #[divan::bench]
-            fn safetensors_recorder(bencher: Bencher) {
-                let (_, _, st_path, _) = get_model_paths();
-                let file_size = fs::metadata(&st_path).unwrap().len();
+            // #[divan::bench]
+            // fn safetensors_recorder(bencher: Bencher) {
+            //     let (_, _, st_path, _) = get_model_paths();
+            //     let file_size = fs::metadata(&st_path).unwrap().len();
 
-                bencher
-                    .counter(divan::counter::BytesCount::new(file_size))
-                    .bench(|| {
-                        let device: TestDevice = Default::default();
-                        let recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
-                        let record = recorder
-                            .load(st_path.clone().into(), &device)
-                            .expect("Failed to load");
-                        let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
-                    });
-            }
+            //     bencher
+            //         .counter(divan::counter::BytesCount::new(file_size))
+            //         .bench(|| {
+            //             let device: TestDevice = Default::default();
+            //             let recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
+            //             let record = recorder
+            //                 .load(st_path.clone().into(), &device)
+            //                 .expect("Failed to load");
+            //             let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
+            //         });
+            // }
 
             #[divan::bench]
             fn pytorch_store(bencher: Bencher) {
@@ -299,22 +301,22 @@ macro_rules! bench_backend {
                     });
             }
 
-            #[divan::bench]
-            fn pytorch_recorder(bencher: Bencher) {
-                let (_, _, _, pt_path) = get_model_paths();
-                let file_size = fs::metadata(&pt_path).unwrap().len();
+            // #[divan::bench]
+            // fn pytorch_recorder(bencher: Bencher) {
+            //     let (_, _, _, pt_path) = get_model_paths();
+            //     let file_size = fs::metadata(&pt_path).unwrap().len();
 
-                bencher
-                    .counter(divan::counter::BytesCount::new(file_size))
-                    .bench(|| {
-                        let device: TestDevice = Default::default();
-                        let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-                        let load_args =
-                            LoadArgs::new(pt_path.clone()).with_top_level_key("model_state_dict");
-                        let record = recorder.load(load_args, &device).expect("Failed to load");
-                        let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
-                    });
-            }
+            //     bencher
+            //         .counter(divan::counter::BytesCount::new(file_size))
+            //         .bench(|| {
+            //             let device: TestDevice = Default::default();
+            //             let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
+            //             let load_args =
+            //                 LoadArgs::new(pt_path.clone()).with_top_level_key("model_state_dict");
+            //             let record = recorder.load(load_args, &device).expect("Failed to load");
+            //             let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
+            //         });
+            // }
         }
     };
 }

@@ -1012,11 +1012,9 @@ dependencies = [
 name = "burn-store"
 version = "0.19.0"
 dependencies = [
- "burn",
  "burn-candle",
  "burn-core",
  "burn-cuda",
- "burn-import",
  "burn-ndarray",
  "burn-nn",
  "burn-tch",
