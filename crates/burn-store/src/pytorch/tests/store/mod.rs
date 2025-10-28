@@ -1,4 +1,5 @@
 //! Comprehensive tests for PytorchStore with real model application
+use burn_core as burn;
 
 use std::path::PathBuf;
 

@@ -1,3 +1,5 @@
+use burn_core as burn;
+
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::{Module, Param};
 use burn_tensor::Tensor;

@@ -328,6 +328,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-candle
       - publish-burn-remote
+      - publish-burn-nn
     with:
       crate: burn-optim
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
