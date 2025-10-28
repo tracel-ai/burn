@@ -106,7 +106,7 @@ jobs:
     with:
       crate: burn-tensor
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
-      copy-doc-assets: "docs/katex-header.html"
+      # copy-doc-assets: "docs/katex-header.html" # manually included for now
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
