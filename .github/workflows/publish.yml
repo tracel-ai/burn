@@ -339,6 +339,9 @@ jobs:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
     needs:
       - publish-burn-core
+      - publish-burn-optim
+      - publish-burn-collective
+      - publish-burn-ndarray
     with:
       crate: burn-train
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
