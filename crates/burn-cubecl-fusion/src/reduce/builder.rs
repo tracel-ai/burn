@@ -19,6 +19,7 @@ pub struct ReduceBuilder<R: Runtime> {
     builder: FuseOptimizationBuilder,
     builder_read_fallback: FuseOptimizationBuilder,
     builder_write_fallback: FuseOptimizationBuilder,
+    settings_write: FuseSettings,
     device: R::Device,
     reduce: Option<FusedReduce>,
 }
@@ -29,6 +30,7 @@ impl<R: Runtime> Clone for ReduceBuilder<R> {
             builder: self.builder.clone(),
             builder_read_fallback: self.builder_read_fallback.clone(),
             builder_write_fallback: self.builder_write_fallback.clone(),
+            settings_write: self.settings_write.clone(),
             device: self.device.clone(),
             reduce: self.reduce.clone(),
         }
@@ -41,32 +43,30 @@ impl<R: Runtime> ReduceBuilder<R> {
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
-            broadcast: true,
-            output_shape_updates: true,
             inplace: false,
-            vectorization: VectorizationSetting::Activated,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            ..Default::default()
         };
         let settings_write = FuseSettings {
-            broadcast: true,
             output_shape_updates: false,
-            inplace: true,
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
-            ref_layout: RefLayoutSetting::Any,
+            ..Default::default()
         };
+        let settings_fallback = FuseSettings::default();
 
         Self {
             builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_read),
             builder_read_fallback: FuseOptimizationBuilder::new(
                 max_bindings,
                 bool_precision,
-                settings_read,
+                settings_fallback.clone(),
             ),
             builder_write_fallback: FuseOptimizationBuilder::new(
                 max_bindings,
                 bool_precision,
-                settings_write,
+                settings_fallback,
             ),
+            settings_write,
             device,
             reduce: None,
         }
@@ -79,10 +79,7 @@ impl<R: Runtime> ReduceBuilder<R> {
             return;
         }
 
-        let Some([input]) = self
-            .builder
-            .next_block([&op.input], self.builder_write_fallback.settings)
-        else {
+        let Some([input]) = self.builder.next_block([&op.input], self.settings_write) else {
             self.builder.close();
             self.builder_read_fallback.close();
             return;

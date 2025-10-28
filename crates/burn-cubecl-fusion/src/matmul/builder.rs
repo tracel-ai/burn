@@ -6,11 +6,7 @@ use cubecl::Runtime;
 use crate::{
     CubeOptimization,
     matmul::args::MatmulArg,
-    shared::{
-        builder::FuseOptimizationBuilder,
-        ir::FusePrecision,
-        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
-    },
+    shared::{builder::FuseOptimizationBuilder, ir::FusePrecision, settings::FuseSettings},
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
@@ -40,19 +36,10 @@ impl<R: Runtime> MatmulBuilder<R> {
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_matmul = FuseSettings {
-            broadcast: true,
             output_shape_updates: false,
-            inplace: true,
-            vectorization: VectorizationSetting::Activated,
-            ref_layout: RefLayoutSetting::Any,
+            ..Default::default()
         };
-        let settings_fallback = FuseSettings {
-            broadcast: true,
-            output_shape_updates: true,
-            inplace: true,
-            vectorization: VectorizationSetting::Activated,
-            ref_layout: RefLayoutSetting::Any,
-        };
+        let settings_fallback = FuseSettings::default();
 
         Self {
             builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_matmul),
