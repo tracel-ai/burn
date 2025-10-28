@@ -12,14 +12,8 @@ use crate::{
     ir::{ArgType, AttributeValue, Node, NodeType, TensorData, TensorDataExt},
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
-    protos::{GraphProto, ModelProto, NodeProto},
+    protos::{GraphProto, NodeProto},
 };
-
-/// Convert all ONNX nodes to IR nodes
-pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState>>) {
-    let opset_version = extract_opset_version(model);
-    convert_nodes_impl(&model.graph.node, state_rc, opset_version);
-}
 
 /// Convert all ONNX nodes from GraphProto to IR nodes (for subgraphs)
 pub(crate) fn convert_nodes_from_graph(graph: &GraphProto, state_rc: &Rc<RefCell<GraphState>>) {
@@ -258,16 +252,6 @@ fn rename_node(
         let new_name = format!("{}{}", node.node_type, counters[&node.node_type]).to_lowercase();
         node.name = new_name;
     }
-}
-
-/// Extract opset version from model
-fn extract_opset_version(model: &ModelProto) -> usize {
-    model
-        .opset_import
-        .iter()
-        .find(|opset| opset.domain.is_empty())
-        .map(|opset| opset.version as usize)
-        .expect("ONNX model must specify opset version for default domain")
 }
 
 /// Remap node type using kernel shape
