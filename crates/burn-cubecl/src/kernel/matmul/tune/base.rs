@@ -360,9 +360,5 @@ fn naive<R: CubeRuntime, MP: MatmulPrecision>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    if matches!(lhs.dtype, DType::QFloat(_)) || matches!(rhs.dtype, DType::QFloat(_)) {
-        return Err("QFloat isn't stable yet with quantized inputs".into());
-    }
-
     launch_matmul::<R, MP>(&Strategy::Naive, lhs, rhs, out).map_err(|err| format!("{err:?}"))
 }
