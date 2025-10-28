@@ -60,8 +60,7 @@ burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true }
 
 [dev-dependencies]
-burn = { path = "../burn", version = "0.19.0" }
-burn-import = { path = "../burn-import", version = "0.19.0" }
+# burn-import = { path = "../burn-import", version = "0.19.0" } # disabled (circular dep in publish, only for bench)
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
 divan = "0.1"
 tempfile = { workspace = true }

@@ -1,5 +1,5 @@
 use crate::{ModuleSnapshot, ModuleStore, SafetensorsStore};
-use burn::nn::LinearConfig;
+use burn_nn::LinearConfig;
 
 type TestBackend = burn_ndarray::NdArray;
 
@@ -123,6 +123,8 @@ fn test_store_overwrite_with_metadata() {
 #[test]
 #[cfg(feature = "std")]
 fn test_forward_pass_preservation_after_save_load() {
+    use burn_core as burn;
+
     use burn_core::module::Module;
     use burn_tensor::Tensor;
     use tempfile::tempdir;
@@ -130,8 +132,8 @@ fn test_forward_pass_preservation_after_save_load() {
     // Define a test model with forward pass
     #[derive(Module, Debug)]
     struct ForwardTestModel<B: burn_tensor::backend::Backend> {
-        linear1: burn::nn::Linear<B>,
-        linear2: burn::nn::Linear<B>,
+        linear1: burn_nn::Linear<B>,
+        linear2: burn_nn::Linear<B>,
     }
 
     impl<B: burn_tensor::backend::Backend> ForwardTestModel<B> {

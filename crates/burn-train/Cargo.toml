@@ -30,7 +30,7 @@ burn-core = { path = "../burn-core", version = "0.19.0", features = [
 burn-optim = { path = "../burn-optim", version = "0.19.0", features = [
     "std",
 ], default-features = false }
-burn-collective = { path = "../burn-collective", optional = true }
+burn-collective = { path = "../burn-collective", version = "0.19.0", optional = true }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }

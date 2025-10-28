@@ -1,8 +1,8 @@
-use burn::{
-    module::{Module, Param, ParamId},
-    nn,
-    tensor::{Bool, Int, Tensor, backend::Backend},
-};
+use burn_core as burn;
+
+use burn_core::module::{Module, Param, ParamId};
+use burn_nn as nn;
+use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use crate::{ModuleSnapshot, SafetensorsStore};
 

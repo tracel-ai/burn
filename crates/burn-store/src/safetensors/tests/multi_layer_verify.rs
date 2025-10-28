@@ -1,4 +1,5 @@
 //! Tests for multi-layer model loading with SafeTensors format
+use burn_core as burn;
 
 use burn_core::module::Module;
 use burn_tensor::{Tensor, backend::Backend};
