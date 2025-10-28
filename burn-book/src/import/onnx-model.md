@@ -91,7 +91,7 @@ First, add the `burn-import` crate to your `Cargo.toml`:
 
 ```toml
 [build-dependencies]
-burn-import = "~0.19"
+burn-import = "~0.20"
 ```
 
 Then, in your `build.rs` file:
