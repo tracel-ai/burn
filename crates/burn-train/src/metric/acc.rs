@@ -95,7 +95,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 
     fn attributes(&self) -> MetricAttributes {
         super::NumericAttributes {
-            unit: None,
+            unit: Some("%".to_string()),
             higher_is_better: true,
         }
         .into()
