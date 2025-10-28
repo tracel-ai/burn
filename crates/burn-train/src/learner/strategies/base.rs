@@ -94,7 +94,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         let model = self.prepare_model(model);
 
         // Training loop
-        let components = LearnerComponents {
+        let mut components = LearnerComponents {
             optim,
             lr_scheduler,
             num_epochs: learner.num_epochs,
@@ -105,6 +105,10 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
             event_processor: learner.event_processor,
             event_store: learner.event_store,
         };
+        // Event processor start training
+        components
+            .event_processor
+            .process_train(LearnerEvent::Start);
         let (model, mut event_processor) =
             self.learn(model, dataloaders, starting_epoch, components);
 

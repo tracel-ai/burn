@@ -16,7 +16,7 @@ use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric};
+use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
@@ -63,7 +63,6 @@ where
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
-    num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
@@ -106,7 +105,6 @@ where
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
                 experiment_log_file,
             ))),
-            num_loggers: 0,
             checkpointer_strategy: Box::new(
                 ComposedCheckpointingStrategy::builder()
                     .add(KeepLastNCheckpoints::new(2))
@@ -131,14 +129,11 @@ where
     ///
     /// * `logger_train` - The training logger.
     /// * `logger_valid` - The validation logger.
-    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT, logger_valid: MV) -> Self
+    pub fn with_metric_logger<ML>(mut self, logger: ML) -> Self
     where
-        MT: MetricLogger + 'static,
-        MV: MetricLogger + 'static,
+        ML: MetricLogger + 'static,
     {
-        self.event_store.register_logger_train(logger_train);
-        self.event_store.register_logger_valid(logger_valid);
-        self.num_loggers += 1;
+        self.event_store.register_logger(logger);
         self
     }
 
@@ -213,7 +208,7 @@ where
     /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
-        Me: Metric + crate::metric::Numeric + 'static,
+        Me: Metric + Numeric + 'static,
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
@@ -222,10 +217,7 @@ where
     }
 
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
-    pub fn metric_valid_numeric<Me: Metric + crate::metric::Numeric + 'static>(
-        mut self,
-        metric: Me,
-    ) -> Self
+    pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
         <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
@@ -356,11 +348,9 @@ where
             .renderer
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), self.checkpoint));
 
-        if self.num_loggers == 0 {
+        if !self.event_store.has_loggers() {
             self.event_store
-                .register_logger_train(FileMetricLogger::new_train(self.directory.join("train")));
-            self.event_store
-                .register_logger_valid(FileMetricLogger::new_train(self.directory.join("valid")));
+                .register_logger(FileMetricLogger::new(self.directory.clone()));
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
@@ -495,7 +485,7 @@ macro_rules! gen_tuple {
             VO: ItemLazy + 'static,
             $(TO::ItemSync: Adaptor<$M::Input>,)*
             $(VO::ItemSync: Adaptor<$M::Input>,)*
-            $($M: Metric + $crate::metric::Numeric + 'static,)*
+            $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
