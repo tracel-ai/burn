@@ -39,17 +39,28 @@ impl<R: Runtime> MatmulBuilder<R> {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
-        let settings = FuseSettings {
+        let settings_matmul = FuseSettings {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
             vectorization: VectorizationSetting::Activated,
             ref_layout: RefLayoutSetting::Any,
         };
+        let settings_fallback = FuseSettings {
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
+            vectorization: VectorizationSetting::Activated,
+            ref_layout: RefLayoutSetting::Any,
+        };
 
         Self {
-            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
-            builder_fallback: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
+            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_matmul),
+            builder_fallback: FuseOptimizationBuilder::new(
+                max_bindings,
+                bool_precision,
+                settings_fallback,
+            ),
             device,
             matmul: None,
         }
@@ -72,7 +83,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                         MatmulArg::Quantized {
                             data,
                             scales,
-                            precision: FusePrecision::F32,
+                            precision: op.out.dtype.into(),
                             scheme,
                         }
                     }
@@ -85,7 +96,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                         MatmulArg::Quantized {
                             data,
                             scales,
-                            precision: FusePrecision::F32,
+                            precision: op.out.dtype.into(),
                             scheme,
                         }
                     }

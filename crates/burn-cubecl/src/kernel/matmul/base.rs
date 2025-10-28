@@ -56,6 +56,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime, MP: MatmulPrecision>(
     let client = &lhs.client;
 
     let lhs_quant_handles = lhs.quantized_handles();
+
     let lhs_handle = match &lhs_quant_handles {
         None => MatmulInputHandleRef::new(lhs.as_handle_ref()),
         Some((data, scale)) => MatmulInputHandleRef::quantized(
@@ -67,6 +68,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime, MP: MatmulPrecision>(
     };
 
     let rhs_quant_handles = rhs.quantized_handles();
+
     let rhs_handle = match &rhs_quant_handles {
         None => MatmulInputHandleRef::new(rhs.as_handle_ref()),
         Some((data, scale)) => MatmulInputHandleRef::quantized(
