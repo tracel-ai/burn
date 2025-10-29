@@ -91,15 +91,19 @@ impl GraphMemoryManagement {
 
     fn clear_unused_roots(&mut self, to_delete: &mut Vec<NodeId>) {
         for (id, parents) in self.nodes.iter() {
-            let is_useful = matches!(
-                self.statuses.get(id.as_ref()),
-                Some(NodeMemoryStatus::Useful)
-            );
+            let (is_missing, is_useful) = match self.statuses.get(id.as_ref()) {
+                Some(NodeMemoryStatus::Useful) => (false, true),
+                Some(_) => (false, false),
+                None => (true, false),
+            };
 
             // Check if parents are either empty or absent from self.nodes
             let parents_absent = parents.iter().all(|p| !self.nodes.contains_key(p));
 
-            if !is_useful && Arc::strong_count(id) == 1 && parents_absent {
+            if !is_useful
+                && Arc::strong_count(id) <= (if is_missing { 2 } else { 1 })
+                && parents_absent
+            {
                 to_delete.push(*id.as_ref())
             }
         }
