@@ -104,7 +104,7 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
         let model = self.prepare_model(model);
 
         // Training loop
-        let components = LearnerComponents {
+        let mut components = LearnerComponents {
             optim,
             lr_scheduler,
             num_epochs: learner.num_epochs,
@@ -115,11 +115,12 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
             event_processor: learner.event_processor,
             event_store: learner.event_store,
         };
+        // Event processor start training
+        components
+            .event_processor
+            .process_train(LearnerEvent::Start);
         let (model, mut event_processor) =
             self.learn(model, dataloaders, starting_epoch, components);
-
-        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        event_processor.process_train(LearnerEvent::End);
 
         let summary = learner.summary.and_then(|summary| {
             summary
@@ -128,14 +129,13 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
                 .ok()
         });
 
+        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
+        event_processor.process_train(LearnerEvent::End(summary));
+
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        TrainingResult::<LC::InnerModel> {
-            model,
-            renderer,
-            summary,
-        }
+        TrainingResult::<LC::InnerModel> { model, renderer }
     }
 
     /// Prepare the dataloaders for this strategy.

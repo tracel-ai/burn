@@ -1,10 +1,10 @@
-use crate::Interrupter;
 use crate::renderer::tui::TuiSplit;
 use crate::renderer::{
     EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
     TrainingProgress,
 };
 use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
+use crate::{Interrupter, LearnerSummary};
 use ratatui::{
     Terminal,
     crossterm::{
@@ -48,6 +48,7 @@ pub struct TuiMetricsRenderer {
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
     persistent: bool,
+    summary: Option<LearnerSummary>,
 }
 
 impl MetricsRendererEvaluation for TuiMetricsRenderer {
@@ -98,9 +99,11 @@ impl MetricsRendererTraining for TuiMetricsRenderer {
         self.render().unwrap();
     }
 
-    fn on_train_end(&mut self) -> Result<(), Box<dyn Error>> {
+    fn on_train_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
         // Reset for following steps.
         self.interuptor.reset();
+        // Update the summary
+        self.summary = summary;
         Ok(())
     }
 }
@@ -152,6 +155,7 @@ impl TuiMetricsRenderer {
             popup: PopupState::Empty,
             previous_panic_hook: Some(previous_panic_hook),
             persistent: false,
+            summary: None,
         }
     }
 
@@ -341,6 +345,10 @@ impl Drop for TuiMetricsRenderer {
         // panicking because the panic hook has already reset the terminal
         if !std::thread::panicking() {
             self.reset().unwrap();
+
+            if let Some(summary) = &self.summary {
+                println!("{summary}");
+            }
         }
     }
 }

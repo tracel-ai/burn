@@ -513,7 +513,7 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
     ///    let tensor = tensor.clone().mean_dims(&[0, 1]);
     ///    println!("{tensor}");
-    ///    // [[2.5]]
+    ///    // [[2.0]]
     /// }
     /// ```
     pub fn mean_dims<I: AsIndex>(self, dims: &[I]) -> Self {

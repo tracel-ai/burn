@@ -35,7 +35,7 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = "SeqLengthOption::Fixed(128)")]
+    #[config(default = "SeqLengthOption::Fixed(256)")]
     pub seq_length: SeqLengthOption,
     #[config(default = 8)]
     pub batch_size: usize,
@@ -127,13 +127,13 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .build(model, optim, lr_scheduler);
 
     // Train the model
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_test);
 
     // Save the configuration and the trained model
     config.save(format!("{artifact_dir}/config.json")).unwrap();
     CompactRecorder::new()
         .record(
-            model_trained.model.into_record(),
+            result.model.into_record(),
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();
