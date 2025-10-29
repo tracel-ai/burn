@@ -387,9 +387,9 @@ impl TensorCheck {
             // 0-dim tensor not supported
             check = check.register(
                 "Squeeze",
-                TensorError::new(format!(
-                    "Resulting dimensions cannot be zero. To remove specific singleton dimensions while preserving at least one, use `squeeze_dims` instead."
-                )),
+                TensorError::new(
+                    "Resulting dimensions cannot be zero. To remove specific singleton dimensions while preserving at least one, use `squeeze_dims` instead.".to_string()
+                ),
             );
         }
 
