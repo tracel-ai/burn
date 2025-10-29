@@ -1,4 +1,4 @@
-use crate::indexing::ravel_dims;
+use crate::indexing::ravel_index;
 use crate::{AsIndex, Slice, SliceArg};
 use alloc::vec::Vec;
 use core::{
@@ -78,15 +78,19 @@ impl Shape {
 
     /// Compute the ravel index for the given coordinates.
     ///
-    /// This returns the row-major order raveling.
+    /// This returns the row-major order raveling:
+    /// * `strides[-1] = 1`
+    /// * `strides[i] = strides[i+1] * dims[i+1]`
+    /// * `dim_strides = coords * strides`
+    /// * `ravel = sum(dim_strides)`
     ///
     /// # Arguments
-    /// - `coords`: must be the same size as `self.rank()`.
+    /// - `indices`: the index for each dimension; must be the same length as `shape`.
     ///
     /// # Returns
     /// - the ravel offset index.
-    pub fn ravel<I: AsIndex>(&self, coords: &[I]) -> usize {
-        ravel_dims(coords, &self.dims)
+    pub fn ravel_index<I: AsIndex>(&self, indices: &[I]) -> usize {
+        ravel_index(indices, &self.dims)
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
@@ -648,9 +652,9 @@ mod tests {
     fn test_ravel() {
         let shape = Shape::new([2, 3, 4, 5]);
 
-        assert_eq!(shape.ravel(&[0, 0, 0, 0]), 0);
+        assert_eq!(shape.ravel_index(&[0, 0, 0, 0]), 0);
         assert_eq!(
-            shape.ravel(&[1, 2, 3, 4]),
+            shape.ravel_index(&[1, 2, 3, 4]),
             1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
         );
     }
