@@ -26,6 +26,15 @@ where
     I: IntElement,
     BT: BoolElement,
 {
+    fn float_dtypes(_device: &Device<Self>) -> Vec<FloatDType> {
+        vec![
+            FloatDType::F64,
+            FloatDType::F32,
+            FloatDType::F16,
+            FloatDType::BF16,
+        ]
+    }
+
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         match data.dtype {
             DType::F64 | DType::F32 | DType::F16 | DType::BF16 => {

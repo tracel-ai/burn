@@ -15,6 +15,15 @@ use crate::{
 use super::base::{expand, permute, sign, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
+    fn float_dtypes(_device: &Device<Self>) -> Vec<FloatDType> {
+        vec![
+            FloatDType::F64,
+            FloatDType::F32,
+            FloatDType::F16,
+            FloatDType::BF16,
+        ]
+    }
+
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
         match data.dtype {
             burn_tensor::DType::F64 => super::base::from_data::<f64>(data, device),

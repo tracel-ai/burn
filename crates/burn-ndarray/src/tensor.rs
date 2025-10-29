@@ -1,12 +1,9 @@
 use core::mem;
 
-use burn_tensor::{
-    DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{
-        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue,
-        QuantizationStrategy, SymmetricQuantization,
-    },
-};
+use burn_tensor::{DType, Element, Shape, TensorData, TensorMetadata, quantization::{
+    QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue,
+    QuantizationStrategy, SymmetricQuantization,
+}, FloatDType};
 
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
@@ -458,6 +455,13 @@ macro_rules! reshape {
 }
 
 impl NdArrayTensor {
+    pub fn dtypes() -> Vec<FloatDType> {
+        vec![
+            FloatDType::F64,
+            FloatDType::F32,
+        ]
+    }
+
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
     pub fn from_data(mut data: TensorData) -> NdArrayTensor {
         let shape = mem::take(&mut data.shape);

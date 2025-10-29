@@ -2,7 +2,7 @@
 use alloc::vec::Vec;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::InterpolateMode;
-use burn_tensor::{TensorMetadata, cast::ToElement};
+use burn_tensor::{TensorMetadata, cast::ToElement, Device};
 
 // Current crate
 use super::{
@@ -52,6 +52,10 @@ where
     NdArrayTensor: From<SharedArray<E>>,
     NdArrayTensor: From<SharedArray<I>>,
 {
+    fn float_dtypes(_device: &Device<Self>) -> Vec<FloatDType> {
+        NdArrayTensor::dtypes()
+    }
+
     fn float_from_data(data: TensorData, _device: &NdArrayDevice) -> FloatTensor<Self> {
         NdArrayTensor::from_data(data)
     }

@@ -10,6 +10,9 @@ use alloc::vec::Vec;
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
+    /// Returns the `FloatDType`s supported by the device.
+    fn float_dtypes(device: &Device<B>) -> Vec<FloatDType>;
+
     /// Creates a new tensor from the data structure.
     ///
     /// # Arguments
