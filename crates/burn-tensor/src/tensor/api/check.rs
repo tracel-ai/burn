@@ -383,6 +383,16 @@ impl TensorCheck {
 
     pub(crate) fn squeeze_dims_len<const D2: usize>(new_dims_len: usize) -> Self {
         let mut check = Self::Ok;
+        if new_dims_len == 0 {
+            // 0-dim tensor not supported
+            check = check.register(
+                "Squeeze",
+                TensorError::new(
+                    "Resulting dimensions cannot be zero. To remove specific singleton dimensions while preserving at least one, use `squeeze_dims` instead.".to_string()
+                ),
+            );
+        }
+
         if new_dims_len != D2 {
             check = check.register(
                 "Squeeze",
