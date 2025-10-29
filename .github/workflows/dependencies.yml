@@ -36,10 +36,28 @@ jobs:
       - name: checkout
         uses: actions/checkout@v5
 
-      - name: Audit Rust dependencies
-        # If a vulnerability is found, a new issue will automatically be opened
-        # since this action runs on main branch
-        uses: actions-rust-lang/audit@v1
+      - name: Audit Rust dependencies (cargo-audit)
+        # Run cargo-audit and save the report. If advisories are found the job will fail
+        run: |
+          set -eux
+          cargo install --locked cargo-audit || true
+          mkdir -p target/audit
+          # Save both machine and human readable output so CI can upload it
+          cargo audit -q || true
+          cargo audit --json > target/audit/rustsec-report.json || true
+          cargo audit > target/audit/rustsec-report.txt || true
+          # Fail the job if any advisory is present (non-empty JSON array in report)
+          if [ -s target/audit/rustsec-report.json ]; then
+            # If the report contains advisories, exit 2 to mark failure and upload artifact in next step
+            jq '.vulnerabilities[]?' target/audit/rustsec-report.json >/dev/null 2>&1 && exit 2 || true
+          fi
+
+      - name: Upload audit report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustsec-report
+          path: target/audit/
 
       - name: Detect multiple versions of the same crate
         uses: EmbarkStudios/cargo-deny-action@v2

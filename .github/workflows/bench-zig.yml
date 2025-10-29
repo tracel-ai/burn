@@ -17,9 +17,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: actions/setup-rust@v1
+        uses: actions-rs/toolchain@v1
         with:
-          rust-version: stable
+          toolchain: stable
+          profile: minimal
+          override: true
 
       - name: Install Zig (macOS)
         if: runner.os == 'macOS'

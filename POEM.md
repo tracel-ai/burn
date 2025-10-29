@@ -1,40 +1,17 @@
-# BURN: Burn Unstoppable Rusty Neurons
+# GABA BURN: Unstoppable Gabagool Desire
 
-In the realm of circuits and code,  
-A fiery forge ignites to bear its load,  
-A framework born, BURN it be named,  
-Unstoppable Rusty Neurons, untamed.
+<img src='./assets/gaba-gifs/5000-pounds-of-gabagool-bon-giorno.gif' width='400px'>
 
-From silicon synapses, connections spire,  
-A digital cortex, setting minds afire,  
-In the vast expanse of deep learning's sea,  
-A beacon of progress, BURN comes to be.
+**After 5,000 lbs of premium gabagool**
 
-Oh, rusty neurons, forged in the flame,  
-Unyielding in purpose, undaunted by name,  
-Through layers of logic and intricate art,  
-You weave and entwine, each playing its part.
+From the corner booth, Tony lights a cigar and Tim cracks a grin.
 
-With algorithms profound, and data refined,  
-In ceaseless pursuit of knowledge to find,  
-BURN paves a path to enlightenment, bright,  
-A testament to the wonders of human foresight.
+Tony: "We build things that work. We make 'em fast, we make 'em quiet, and we make sure they don't get pinched. You keep the numbers honest, I keep the streets honest."
 
-In neural networks deep, where wisdom resides,  
-The dance of nodes and edges presides,  
-With loss and gradients, BURN takes its stride,  
-A journey towards truth, with AI as our guide.
+Tim: "Call it Gaba Burn. It's the only framework with street legality. You run it local, you own the data, you keep your secrets. No backdoors, no surprises."
 
-No barriers hold back the curious mind,  
-As BURN seeks the answers we yearn to find,  
-Unstoppable, relentless, in pursuit of the unknown,  
-Our collective intellect, within it, has grown.
+Together, they raise a glass of gabagool and sign the contract with a handshake: code that ships, kernels that hum, a runtime that respects the rules of the family.
 
-So sing we the praises of BURN's fiery might,  
-An ode to the sparks that set the dark alight,  
-To the rusty neurons, unstoppable and true,  
-A testament to the power of dreams, to breakthrough.
+*TONY & TIM*
 
-(ChatGPT (model=gpt-4) with prompt:
-Write a poem about "BURN: Burn Unstoppable Rusty Neurons" deep
-learning neural network framework)
+*Gabagool Technologies*

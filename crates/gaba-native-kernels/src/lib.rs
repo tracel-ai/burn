@@ -62,13 +62,23 @@ pub fn gemm(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, k: usize) {
     assert_eq!(a.len(), m * k);
     assert_eq!(b.len(), k * n);
     assert_eq!(c.len(), m * n);
-
+    // Priority: native Zig kernel (if enabled) -> SIMD kernel (if enabled) -> Rust fallback
     #[cfg(feature = "zig")]
     unsafe {
         gemm_f32(a.as_ptr(), b.as_ptr(), c.as_mut_ptr(), m, n, k);
+        return;
     }
 
-    #[cfg(not(feature = "zig"))]
+    #[cfg(all(feature = "simd"))]
+    {
+        // Try SIMD path; if successful return early. The SIMD implementation may choose
+        // to fall back internally and return false, in which case we continue to Rust.
+        if crate::simd::gemm_simd(a, b, c, m, n, k) {
+            return;
+        }
+    }
+
+    // Default fallback
     {
         gemm_rust(a, b, c, m, n, k);
     }
@@ -99,6 +109,10 @@ pub fn gemm_q8(a: &[u8], b: &[u8], c: &mut [u8], m: usize, n: usize, k: usize, s
         gemm_q8_rust(a, b, c, m, n, k, scale_a, scale_b, scale_out);
     }
 }
+
+// Expose simd module when feature enabled; module files handle cfg for architectures.
+#[cfg(feature = "simd")]
+pub mod simd;
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,41 @@
+name: bench-compare
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bench-compare:
+    runs-on: ubuntu-latest
+    env:
+      BENCH_MAX_REGRESSION_PCT: 5.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Build xtask
+        run: cargo build -p xtask --release
+
+      - name: Convert Criterion JSON to CSV
+        run: |
+          cargo run -p xtask --bin criterion_to_csv --release -- --base target/criterion --out target/bench-csv
+
+      - name: Run bench comparator and write JSON summary
+        run: |
+          cargo run -p xtask --bin bench_compare --release -- \
+            --baseline crates/gaba-native-kernels/benches/baseline.csv \
+            --current target/bench-csv/criterion_converted.csv \
+            --max-regression-pct ${BENCH_MAX_REGRESSION_PCT} \
+            --json-out bench-summary.json
+
+      - name: Upload bench summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-summary
+          path: bench-summary.json
