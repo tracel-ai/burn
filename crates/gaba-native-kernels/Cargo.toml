@@ -1,0 +1,18 @@
+[package]
+name = "gaba-native-kernels"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# When enabled, build.rs will attempt to compile the Zig kernel and link it.
+zig = []
+
+[dependencies]
+anyhow = "1.0"
+
+[dev-dependencies]
+approx = "0.5"
+criterion = { version = "0.4", optional = false }
+
+[package.metadata]
+bench = true

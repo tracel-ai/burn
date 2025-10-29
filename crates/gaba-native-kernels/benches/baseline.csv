@@ -1,0 +1,7 @@
+benchmark,median_s
+rust/gemm_64x64x64,0.003200
+native/gemm_64x64x64,0.001900
+rust/gemm_128x128x128,0.025000
+native/gemm_128x128x128,0.012500
+rust/gemm_256x256x256,0.180000
+native/gemm_256x256x256,0.090000

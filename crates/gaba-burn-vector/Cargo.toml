@@ -1,0 +1,15 @@
+[package]
+name = "gaba-burn-vector"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rayon = "1.10.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+
+[lib]
+name = "gaba_burn_vector"
+path = "src/lib.rs"

@@ -32,6 +32,9 @@ pub use burn_common::reader::*; // Useful so that backends don't have to add `bu
 #[cfg(feature = "cubecl")]
 pub use cubecl::flex32;
 
+#[cfg(feature = "gaba-vector-cpu")]
+pub mod gaba_vector;
+
 #[cfg(feature = "cubecl")]
 mod cube {
     use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};

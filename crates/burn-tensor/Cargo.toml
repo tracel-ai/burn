@@ -25,6 +25,7 @@ doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
 std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
+gaba-vector-cpu = ["gaba-burn-vector"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.20.0", default-features = false }
@@ -39,6 +40,8 @@ half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
+
+gaba-burn-vector = { path = "../gaba-burn-vector", optional = true }
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
 hashbrown = { workspace = true } # no_std compatible

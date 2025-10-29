@@ -1,0 +1,60 @@
+name: bench-gaba-native-kernels
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+jobs:
+  bench:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions/setup-rust@v1
+        with:
+          rust-version: stable
+
+      - name: Install Zig (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install zig
+
+      - name: Install Zig (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zig
+
+      - name: Build and run bench CSV
+        working-directory: gaba-burn
+        run: |
+          # Ensure tests/build succeed with fallback Rust kernel
+          cargo test -p gaba-native-kernels --no-default-features --quiet
+
+          # Run the bench CSV writer. If Zig is available, enable the feature; otherwise run fallback.
+          if command -v zig >/dev/null 2>&1; then
+            cargo run -p gaba-native-kernels --bin bench_gemm_csv --features zig --release
+          else
+            cargo run -p gaba-native-kernels --bin bench_gemm_csv --release
+          fi
+
+      - name: Run bench comparator (xtask)
+        working-directory: gaba-burn
+        run: |
+          # xtask bench_compare compares target/bench-csv/... against committed baseline and exits non-zero on regression
+          cargo run -p xtask --bin bench_compare --release
+
+      - name: Archive bench CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-csv-${{ matrix.os }}
+          path: gaba-burn/target/bench-csv/gaba-native-kernels.csv
