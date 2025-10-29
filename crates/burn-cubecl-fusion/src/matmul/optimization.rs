@@ -369,6 +369,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
             FusePrecision::BF16 => {
                 self.matmul_fused::<R, bf16>(client, inputs, outputs, &configs[0])
             }
+            FusePrecision::I64 => self.matmul_fused::<R, i64>(client, inputs, outputs, &configs[0]),
             _ => panic!("Unsupported precision"),
         }
     }
