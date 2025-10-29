@@ -2069,6 +2069,7 @@ dependencies = [
  "cubecl-macros-internal",
  "derive-new",
  "derive_more",
+ "enumset",
  "float-ord",
  "fnv",
  "half",
@@ -2828,6 +2829,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25b07a8dfbbbfc0064c0a6bdf9edcf966de6b1c33ce344bdeca3b41615452634"
 dependencies = [
  "enumset_derive",
+ "serde",
 ]
 
 [[package]]
