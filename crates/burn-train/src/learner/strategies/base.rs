@@ -165,7 +165,7 @@ pub trait LearningMethod<LC: LearnerComponentTypes> {
 pub struct LearnerComponents<LC: LearnerComponentTypes> {
     /// The [Optimizer](LearnerComponentTypes::Optimizer) used for the training.
     pub optim: LC::Optimizer,
-    /// The [learning rate scheduler](LearnerComponentTypes::Optimizer) used for the training.
+    /// The [learning rate scheduler](LearnerComponentTypes::LrScheduler) used for the training.
     pub lr_scheduler: LC::LrScheduler,
     /// The number of epochs the training should last.
     pub num_epochs: usize,
