@@ -720,6 +720,7 @@ where
         new_dims[..dim].copy_from_slice(&current_dims[..dim]);
         new_dims[dim..].copy_from_slice(&current_dims[dim + 1..]);
 
+        check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
         Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
