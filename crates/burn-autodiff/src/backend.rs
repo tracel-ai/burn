@@ -67,7 +67,9 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             let graph_locator = graph_locator.as_ref().unwrap();
             let mut graphs_to_visit = HashMap::new();
             for (_node_id, graph) in &graph_locator.graphs {
-                graphs_to_visit.entry(graph.origin).or_insert_with(|| Arc::clone(graph));
+                graphs_to_visit
+                    .entry(graph.origin)
+                    .or_insert_with(|| Arc::clone(graph));
             }
             graphs_to_visit
         };
