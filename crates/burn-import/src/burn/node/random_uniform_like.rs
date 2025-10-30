@@ -52,17 +52,8 @@ impl OnnxIntoNode for RandomUniformLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let low = node
-            .attrs
-            .get("low")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(0.0f64);
-        let high = node
-            .attrs
-            .get("high")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(1.0f64);
-        Self::new(low, high, input, output)
+        let config = node.config::<onnx_ir::node::random_like::RandomUniformLikeConfig>();
+        Self::new(config.low, config.high, input, output)
     }
 }
 
@@ -84,7 +75,12 @@ mod tests {
             TensorType::new("output", 2, TensorKind::Float),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

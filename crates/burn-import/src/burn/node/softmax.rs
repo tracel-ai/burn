@@ -45,8 +45,8 @@ impl OnnxIntoNode for SoftmaxNode {
             Type::Tensor(t) => t,
             _ => panic!("Softmax expects tensor output"),
         };
-        let dim = onnx_ir::node::softmax::softmax_config(&node);
-        Self::new(input, output, dim)
+        let config = node.config::<onnx_ir::node::softmax::SoftmaxConfig>();
+        Self::new(input, output, config.axis)
     }
 }
 
@@ -67,7 +67,12 @@ mod tests {
             1,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

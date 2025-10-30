@@ -49,7 +49,7 @@ impl OnnxIntoNode for GatherElementsNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let index = TensorType::from(node.inputs.get(1).unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::gather::gather_config(&node);
+        let config = node.config::<onnx_ir::node::gather_elements::GatherElementsConfig>();
         Self::new(input, index, output, config.axis)
     }
 }
@@ -80,6 +80,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

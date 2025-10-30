@@ -53,7 +53,24 @@ impl OnnxIntoNode for ClipNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let (min, max) = onnx_ir::node::clip::clip_config(&node);
+        let config = node.config::<onnx_ir::node::clip::ClipConfig>();
+
+        // Extract static values from ClipInput enum
+        let min = match &config.min {
+            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
+            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
+                panic!("Clip: runtime min values are not supported in burn-import")
+            }
+            None => None,
+        };
+        let max = match &config.max {
+            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
+            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
+                panic!("Clip: runtime max values are not supported in burn-import")
+            }
+            None => None,
+        };
+
         Self::new(input, output, min, max)
     }
 }
@@ -76,7 +93,12 @@ mod tests {
             Some(1.0),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -118,7 +140,12 @@ mod tests {
             None,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -160,7 +187,12 @@ mod tests {
             Some(1.0),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
