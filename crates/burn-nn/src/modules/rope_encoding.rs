@@ -193,7 +193,7 @@ impl<B: Backend> RotaryEncoding<B> {
                 .unsqueeze();
 
         // Sum the real and imaginary components to get output tensor and reshape to original shape
-        out.sum_dim(D - 1).reshape(input_shape)
+        out.sum_dim(-1).reshape(input_shape)
     }
 
     /// Shifts the pre-computed rotary frequency to cover a new range of positions.
