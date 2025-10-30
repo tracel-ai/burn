@@ -35,7 +35,7 @@ pub struct GraphMutexClient;
 /// Multiple node ids can point to the same graph, where the autodiff graph is stored.
 #[derive(Default)]
 pub struct GraphLocator {
-    graphs: HashMap<NodeId, Arc<Graph>>,
+    pub(crate) graphs: HashMap<NodeId, Arc<Graph>>,
     /// We keep a mapping of each original node id (graph id) => all nodes that point to that graph.
     /// This is to ensure that when merging graphs, we correctly move all previous graphs to
     /// the new merged one.
@@ -47,13 +47,13 @@ pub struct GraphLocator {
 /// Each `Graph` contains an [AutodiffServer] and the original [NodeId] where the server was
 /// first created.
 pub(crate) struct Graph {
-    origin: NodeId,
-    state: Mutex<GraphState>,
+    pub(crate) origin: NodeId,
+    pub(crate) state: Mutex<GraphState>,
 }
 
 #[derive(Default)]
-struct GraphState {
-    server: AutodiffServer,
+pub(crate) struct GraphState {
+    pub(crate) server: AutodiffServer,
 }
 
 impl core::fmt::Debug for Graph {
@@ -64,7 +64,7 @@ impl core::fmt::Debug for Graph {
     }
 }
 
-static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
+pub(crate) static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
 
 impl GraphMutexClient {
     /// Retrieves or creates a graph for the given [NodeId] and parent dependencies.
@@ -110,7 +110,7 @@ impl AutodiffClient for GraphMutexClient {
     }
 }
 
-struct GraphCleaner<'a> {
+pub(crate) struct GraphCleaner<'a> {
     guard: spin::MutexGuard<'a, Option<GraphLocator>>,
 }
 

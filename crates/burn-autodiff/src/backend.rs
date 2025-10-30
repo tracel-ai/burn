@@ -1,10 +1,12 @@
 use crate::{
+    NodeId,
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
+    collections::HashMap,
     grads::Gradients,
     runtime::AutodiffClient,
     tensor::AutodiffTensor,
 };
-use alloc::{format, string::String};
+use alloc::{format, string::String, sync::Arc};
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     ops::{BoolTensor, IntTensor, QuantizedTensor},
@@ -60,6 +62,32 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     }
 
     fn memory_cleanup(device: &Self::Device) {
+        let graphs_to_visit = {
+            let graph_locator = crate::runtime::graph::STATE.lock();
+            let graph_locator = graph_locator.as_ref().unwrap();
+            let mut graphs_to_visit = HashMap::new();
+            for (_node_id, graph) in &graph_locator.graphs {
+                if !graphs_to_visit.contains_key(&graph.origin) {
+                    graphs_to_visit.insert(graph.origin.clone(), Arc::clone(&graph));
+                }
+            }
+            graphs_to_visit
+        };
+
+        use crate::runtime::NodeCleaner;
+        let mut cleaner = crate::runtime::graph::GraphCleaner::init();
+        for (_graph_origin, graph) in graphs_to_visit {
+            let mut state = graph.state.lock().unwrap();
+            let server = &mut state.server;
+            server
+                .memory_management
+                .free_unavailable_nodes(|node_id: &NodeId| {
+                    server.steps.remove(node_id);
+                    server.actions_builder.remove(node_id);
+                    cleaner.clean(node_id);
+                });
+        }
+
         B::memory_cleanup(device)
     }
 }

@@ -4,3 +4,4 @@ mod server;
 
 pub mod graph;
 pub use client::*;
+pub(crate) use server::NodeCleaner;
