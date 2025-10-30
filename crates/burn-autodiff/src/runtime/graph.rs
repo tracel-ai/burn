@@ -9,7 +9,7 @@ use crate::{
 };
 use alloc::sync::Arc;
 use burn_common::stub::Mutex;
-use burn_tensor::backend::{Backend, GraphReport};
+use burn_tensor::backend::Backend;
 use hashbrown::{HashMap, HashSet};
 
 /// A client for managing multiple graphs using mutex-based synchronization.
