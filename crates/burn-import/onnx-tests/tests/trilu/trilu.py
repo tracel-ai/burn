@@ -27,7 +27,7 @@ def main():
                            
     # Export Trilu Upper Model
     upper = True  # Change to False for lower triangular matrix
-    diagonal = 1         # Change k to adjust the diagonal
+    diagonal = 0         # Change k to adjust the diagonal
     lower_model = TriluModel(upper=upper, diagonal=diagonal)
     lower_model.eval()
     device = torch.device("cpu")
@@ -50,7 +50,7 @@ def main():
 
     # Export Trilu Lower Model
     upper = False
-    diagonal = 1
+    diagonal = 0
     lower_model = TriluModel(upper=upper, diagonal=diagonal)
     lower_model.eval()
     # Generate test input: a 2D matrix or batch of 2D matrices

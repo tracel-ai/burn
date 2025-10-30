@@ -307,7 +307,7 @@ impl OnnxIntoNode for ReduceNode {
 
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::reduce::reduce_config(&node);
+        let config = node.config::<onnx_ir::node::reduce::ReduceConfig>();
 
         // Determine reduction type from node type
         let reduction_type = match node.node_type {
@@ -324,7 +324,7 @@ impl OnnxIntoNode for ReduceNode {
             _ => panic!("Unsupported reduction type: {:?}", node.node_type),
         };
 
-        ReduceNode::new(input, output, reduction_type, config)
+        ReduceNode::new(input, output, reduction_type, config.clone())
     }
 }
 
@@ -350,7 +350,12 @@ mod tests {
             ReduceConfig::new(vec![0, 2], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -396,7 +401,12 @@ mod tests {
             ReduceConfig::new(vec![1, 3], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -438,7 +448,12 @@ mod tests {
             ReduceConfig::new(vec![], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -480,7 +495,12 @@ mod tests {
             ReduceConfig::new(vec![], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -522,7 +542,12 @@ mod tests {
             ReduceConfig::new(vec![0], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -564,7 +589,12 @@ mod tests {
             ReduceConfig::new(vec![0, 3], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -616,7 +646,12 @@ mod tests {
             ReduceConfig::new(vec![0], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -666,7 +701,12 @@ mod tests {
             ReduceConfig::new(vec![3], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -708,7 +748,12 @@ mod tests {
             ReduceConfig::new(vec![], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -750,7 +795,12 @@ mod tests {
             ReduceConfig::new(vec![2], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

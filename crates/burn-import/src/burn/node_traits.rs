@@ -73,7 +73,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     }
 }
 
-impl<PS: PrecisionSettings> Serialize for Node<PS> {
+impl<PS: PrecisionSettings + 'static> Serialize for Node<PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -82,7 +82,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
+impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
     fn output_types(&self) -> Vec<Type> {
         match_all!(self, NodeCodegen::<PS>::output_types)
     }
@@ -145,20 +145,11 @@ pub fn extract_node_data<E: burn::tensor::Element>(
     node: &onnx_ir::Node,
     input_index: usize,
 ) -> Option<burn::tensor::TensorData> {
-    use burn::tensor::TensorData;
-
     let input = node.inputs.get(input_index)?;
-    let value = input.value.as_ref()?;
+    let value = input.value()?;
 
-    use onnx_ir::ir::Data;
-    let data = match &value.data {
-        Data::Float16s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Float32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Float64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Int32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Int64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        _ => panic!("Unsupported tensor element type"),
-    };
+    // onnx-ir now uses burn_tensor::TensorData directly
+    let data = value.clone().convert::<E>();
 
     Some(data)
 }

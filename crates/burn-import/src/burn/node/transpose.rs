@@ -45,8 +45,8 @@ impl OnnxIntoNode for TransposeNode {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Transpose expects tensor output"),
         };
-        let perm = onnx_ir::node::transpose::transpose_config(&node);
-        Self::new(input, output, perm)
+        let config = node.config::<onnx_ir::node::transpose::TransposeConfig>();
+        Self::new(input, output, config.perm.clone())
     }
 }
 
@@ -67,7 +67,12 @@ mod tests {
             vec![0, 3, 1, 2],
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

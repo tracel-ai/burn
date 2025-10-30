@@ -116,6 +116,11 @@ fn main() {
         .input("tests/mod/mod_broadcast_fixed.onnx")
         .input("tests/mod/mod_broadcast_remainder_fixed.onnx")
         .input("tests/dropout/dropout.onnx")
+        .input("tests/empty_graph/empty_graph_scalar.onnx")
+        .input("tests/empty_graph/empty_graph_scalar_int.onnx")
+        .input("tests/empty_graph/empty_graph_shape.onnx")
+        .input("tests/empty_graph/empty_graph_tensor.onnx")
+        .input("tests/empty_graph/empty_graph_multiple.onnx")
         .input("tests/equal/equal.onnx")
         .input("tests/equal/equal_shape.onnx")
         .input("tests/equal/equal_two_shapes.onnx")
@@ -321,6 +326,19 @@ fn main() {
         .input("tests/xor/xor.onnx")
         .input("tests/xor/xor_scalar.onnx")
         .input("tests/xor/xor_broadcast.onnx")
+        // If operator tests
+        .input("tests/if_op/if_conv2d.onnx")
+        .input("tests/if_op/if_linear.onnx")
+        .input("tests/if_op/nested_if.onnx")
+        // TODO: Enable when Loop and Scan support is added
+        // .input("tests/if_op/nested_if_loop_if.onnx")
+        // .input("tests/if_op/nested_if_loop_if_scan.onnx")
+        // .input("tests/loop/loop_simple.onnx")
+        // .input("tests/loop/loop_dynamic_cond.onnx")
+        // .input("tests/loop/loop_multi_deps.onnx")
+        // .input("tests/scan/scan_cumsum.onnx")
+        // .input("tests/scan/scan_reverse.onnx")
+        // .input("tests/scan/scan_multi_state.onnx")
         .out_dir("model/")
         .run_from_script();
 

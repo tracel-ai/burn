@@ -360,12 +360,12 @@ impl OnnxIntoNode for AttentionNode {
         let present_key = node.outputs.get(1).map(TensorType::from);
         let present_value = node.outputs.get(2).map(TensorType::from);
         let qk_matmul_output = node.outputs.get(3).map(TensorType::from);
-        let config = onnx_ir::node::attention::attention_config(&node);
+        let config = node.config::<onnx_ir::node::attention::AttentionConfig>();
 
         AttentionNode::new(
             AttentionNodeInputs::new(q, k, v, attn_mask, past_key, past_value),
             AttentionNodeOutputs::new(y, present_key, present_value, qk_matmul_output),
-            config,
+            config.clone(),
         )
     }
 }
@@ -393,7 +393,7 @@ mod tests {
 
         graph.register(node_gen.clone());
 
-        graph.register_input_output(input_names, output_names);
+        graph.register_input_output(input_names, output_names, &[], &[]);
 
         let mut imports = BurnImports::default();
         node_gen.register_imports(&mut imports);

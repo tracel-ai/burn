@@ -1,4 +1,41 @@
-use crate::ir::Node;
+//! # InstanceNormalization
+//!
+//! Applies instance normalization to the input as described in
+//! <https://arxiv.org/abs/1607.08022>.
+//!
+//! The operation normalizes each channel in each data instance independently:
+//! `y = scale * (x - mean) / sqrt(variance + epsilon) + B`, where mean and
+//! variance are computed per instance per channel.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__InstanceNormalization.html>
+//!
+//! ## Attributes
+//! - `epsilon` (float, default=1e-5): Small constant for numerical stability to avoid division by zero
+//!
+//! ## Inputs
+//! - `input` (T): Input data tensor with dimensions (N x C x D1 x D2 ... Dn),
+//!   where N is the batch size and C is the number of channels
+//! - `scale` (T): 1-dimensional scale tensor of size C
+//! - `B` (T): 1-dimensional bias tensor of size C
+//!
+//! ## Outputs
+//! - `output` (T): Normalized output tensor with the same shape as input
+//!
+//! ## Type Constraints
+//! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
+//!
+//! ## Opset Versions
+//! - **Opset 1-5**: Earlier versions with different epsilon handling
+//! - **Opset 6+**: Current version with epsilon=1e-5 default and standardized behavior
+//!
+//! ## Missing Test Coverage
+//! - TODO: No test for custom epsilon values (e.g., epsilon=1e-3) - Only default epsilon tested
+//! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
+//! - TODO: No test validating behavior with different batch sizes or spatial dimensions
+
+use crate::ir::{Node, NodeConfig};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use std::any::Any;
 
 /// Configuration for InstanceNorm operations
 #[derive(Debug, Clone)]
@@ -19,26 +56,92 @@ impl InstanceNormConfig {
     }
 }
 
-/// Create a InstanceNormConfig from the attributes of the node
-pub fn instance_norm_config(node: &Node) -> InstanceNormConfig {
-    let weight_shape = node.inputs[1]
-        .value
-        .as_ref()
-        .expect("InstanceNorm: weight tensor must be present")
-        .shape
-        .clone();
-
-    let num_features = weight_shape[0];
-    let mut epsilon = 1e-5;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "epsilon" => epsilon = value.clone().into_f32(),
-            _ => panic!("Unexpected attribute for InstanceNorm: {key}"),
-        }
+impl NodeConfig for InstanceNormConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    InstanceNormConfig::new(num_features, epsilon as f64)
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+pub struct InstanceNormProcessor;
+
+impl NodeProcessor for InstanceNormProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+        // Lift scale (input 1) and bias (input 2)
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
+        }
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
+            node.inputs[2].to_static()?;
+        }
+
+        Ok(())
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        const MIN: usize = 6;
+
+        crate::processor::validate_opset(opset, MIN)?;
+        // TODO: Validate input tensor dtype is floating-point type - Type constraint T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16) not enforced - burn/crates/onnx-ir/src/node/instance_norm.rs:88
+        // TODO: Validate that scale and bias tensors are 1D and have size C matching the channel dimension of input - Shape mismatch could cause runtime errors - burn/crates/onnx-ir/src/node/instance_norm.rs:88
+        // TODO: Validate that input tensor is at least 3D (N x C x D1 ...) - Spec requires minimum rank of 3 - burn/crates/onnx-ir/src/node/instance_norm.rs:88
+        // InstanceNormalization requires exactly 3 inputs: input, scale, and B
+        crate::processor::validate_input_count(node, 3)?;
+        crate::processor::validate_output_count(node, 1)?;
+
+        // Validate attributes before extracting config
+        for (key, _value) in node.attrs.iter() {
+            match key.as_str() {
+                "epsilon" => {}
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for InstanceNorm: {key}"),
+                    });
+                }
+            }
+        }
+
+        // Output type is same as input
+        crate::processor::same_as_input(node);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let weight_shape = node.inputs[1]
+            .value()
+            .ok_or_else(|| {
+                ProcessError::Custom("InstanceNorm: weight tensor must be present".to_string())
+            })?
+            .shape
+            .to_vec();
+
+        let num_features = weight_shape[0];
+        let mut epsilon = 1e-5;
+
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "epsilon" {
+                // TODO: Validate epsilon > 0 for numerical stability - Negative or zero epsilon could cause division by zero or numerical issues - burn/crates/onnx-ir/src/node/instance_norm.rs:128
+                epsilon = value.clone().into_f32()
+            }
+        }
+
+        let config = InstanceNormConfig::new(num_features, epsilon as f64);
+        Ok(Some(Box::new(config)))
+    }
 }
 
 #[cfg(test)]
@@ -47,7 +150,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(epsilon: f32, num_features: usize) -> Node {
+    fn create_test_node(epsilon: f32, num_features: usize) -> NodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
@@ -57,13 +160,18 @@ mod tests {
             .input_tensor_f32_data("bias", bias_data, vec![num_features])
             .output_tensor_f32("output", 3, None)
             .attr_float("epsilon", epsilon)
-            .build()
     }
 
     #[test]
     fn test_instance_norm_config_basic() {
-        let node = create_test_node(1e-5, 64);
-        let config = instance_norm_config(&node);
+        let node = create_test_node(1e-5, 64).build_with_graph_data(16);
+        let mut node = node;
+        let processor = InstanceNormProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let config = node.config::<InstanceNormConfig>();
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);

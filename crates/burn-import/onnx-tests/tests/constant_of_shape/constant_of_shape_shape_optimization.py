@@ -6,18 +6,22 @@ from onnx import TensorProto, helper
 
 def create_model():
     # Create a model that tests the Shape(1) optimization
-    # Input is Shape(1), value is Int64, output should be Shape(1)
-    
-    # Create input (shape input)
-    shape_input = helper.make_tensor_value_info(
-        'shape', TensorProto.INT64, [1]  # Shape tensor with 1 element
+    # Shape is provided as an initializer with value [3]
+    # Value is Int64, output should be Shape(1) optimized to [i64; 1]
+
+    # Create shape initializer - [3] means create 1D array with 3 elements
+    shape_initializer = helper.make_tensor(
+        name='shape',
+        data_type=TensorProto.INT64,
+        dims=[1],  # 1D tensor with 1 element
+        vals=[3]   # The shape will be [3]
     )
-    
-    # Create output - 1D int64 tensor
+
+    # Create output - 1D int64 tensor with 3 elements
     output = helper.make_tensor_value_info(
-        'output', TensorProto.INT64, [1]
+        'output', TensorProto.INT64, [3]
     )
-    
+
     # Create a tensor for the custom value (5 as int64)
     value_tensor = helper.make_tensor(
         name='value',
@@ -25,7 +29,7 @@ def create_model():
         dims=[],  # Scalar value
         vals=[5]
     )
-    
+
     # Create ConstantOfShape node with Int64 value
     constantofshape_node = helper.make_node(
         'ConstantOfShape',
@@ -34,13 +38,14 @@ def create_model():
         name='constantofshape',
         value=value_tensor
     )
-    
-    # Create the graph
+
+    # Create the graph with initializer instead of input
     graph = helper.make_graph(
         [constantofshape_node],
         'constant_of_shape_shape_optimization',
-        [shape_input],
-        [output]
+        [],  # No runtime inputs
+        [output],
+        initializer=[shape_initializer]
     )
     
     # Create the model

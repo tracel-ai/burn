@@ -217,12 +217,16 @@ impl OnnxIntoNode for ReshapeNode {
         let input_arg = node.inputs.first().unwrap();
         let output_arg = node.outputs.first().unwrap();
         let output = Type::from(output_arg);
-        let config = onnx_ir::node::reshape::reshape_config(&node);
+        let config = node.config::<onnx_ir::node::reshape::ReshapeConfig>();
         let input = Type::from(input_arg);
-        match config.shape {
-            onnx_ir::node::reshape::ReshapeInput::Static(shape) => Self::new(input, output, shape),
-            onnx_ir::node::reshape::ReshapeInput::Runtime(shape_arg) => {
-                let shape_input = Type::from(&shape_arg);
+        match &config.shape {
+            onnx_ir::node::reshape::ReshapeInput::Static(shape) => {
+                Self::new(input, output, shape.clone())
+            }
+            onnx_ir::node::reshape::ReshapeInput::Runtime(shape_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let shape_arg = &node.inputs[shape_ref.input_index];
+                let shape_input = Type::from(shape_arg);
                 Self::new(input, output, shape_input)
             }
         }
@@ -250,7 +254,12 @@ mod tests {
             vec![4, 4, 4, 4],
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -294,6 +303,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "shape".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -342,6 +353,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "shape".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -385,7 +398,12 @@ mod tests {
             vec![], // Empty shape for scalar
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

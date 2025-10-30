@@ -1,4 +1,40 @@
-use crate::ir::Node;
+//! # BitShift
+//!
+//! Performs element-wise bitwise shift operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__BitShift.html>
+//!
+//! ## Attributes
+//! - `direction` (string, required): Direction of moving bits. Can be either "RIGHT" (for right shift)
+//!   or "LEFT" (for left shift). When direction is "RIGHT", the operator moves the binary
+//!   representation toward the right side, effectively decreasing the input value. When direction
+//!   is "LEFT", bits move toward the left side, increasing the actual value.
+//!   Note: Implementation provides default "left" despite spec marking as required.
+//!
+//! ## Inputs
+//! - `X` (T, required): Tensor to be shifted
+//! - `Y` (T, required): Tensor specifying the amounts of shifting (number of bits to shift)
+//!
+//! ## Outputs
+//! - `Z` (T): Output tensor with shifted values
+//!
+//! ## Type Constraints
+//! - T in (tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64))
+//!
+//! ## Broadcasting
+//! This operator supports multidirectional (i.e., Numpy-style) broadcasting.
+//!
+//! ## Opset Versions
+//! - **Opset 11**: Initial version with left/right bitwise shift operations on unsigned integers
+//!
+//! ## Examples
+//! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
+//! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
+
+use crate::ir::{Node, NodeConfig};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+
+use std::any::Any;
 
 pub use self::Direction as BitShiftDirection;
 
@@ -20,15 +56,66 @@ impl Direction {
 }
 
 /// Configuration for BitShift operation
-pub fn bitshift_config(node: &Node) -> Direction {
-    let direction_str = node
-        .attrs
-        .get("direction")
-        .map(|val| val.clone().into_string())
-        .unwrap_or_else(|| "left".to_string());
+#[derive(Debug, Clone)]
+pub struct BitShiftConfig {
+    pub direction: Direction,
+}
 
-    Direction::from_str(&direction_str)
-        .unwrap_or_else(|e| panic!("Failed to parse bitshift direction: {e}"))
+impl NodeConfig for BitShiftConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+pub struct BitShiftProcessor;
+
+impl NodeProcessor for BitShiftProcessor {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        crate::processor::validate_opset(opset, 11)?;
+        // BitShift requires exactly 2 inputs: X and Y
+        crate::processor::validate_input_count(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Add validation for unexpected attributes
+        // FIXME: Spec says 'direction' is required but extract_config provides default "left"
+        // Should either validate presence here or update spec documentation
+
+        // Output type is same as input with broadcasting
+        crate::processor::same_as_input_broadcast(node);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Extract direction attribute
+        // FIXME: Spec marks 'direction' as required, but we provide default "left"
+        let direction_str = node
+            .attrs
+            .get("direction")
+            .map(|val| val.clone().into_string())
+            .unwrap_or_else(|| "left".to_string());
+
+        let direction =
+            Direction::from_str(&direction_str).map_err(|e| ProcessError::InvalidAttribute {
+                name: "direction".to_string(),
+                reason: e,
+            })?;
+
+        let config = BitShiftConfig { direction };
+        Ok(Some(Box::new(config)))
+    }
 }
 
 #[cfg(test)]
@@ -46,8 +133,14 @@ mod tests {
             .attr_string("direction", "left")
             .build();
 
-        let config = bitshift_config(&node);
-        assert_eq!(config, Direction::Left);
+        let mut node = node;
+        let processor = BitShiftProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let config = node.config::<BitShiftConfig>();
+        assert_eq!(config.direction, Direction::Left);
     }
 
     #[test]
@@ -59,8 +152,14 @@ mod tests {
             .attr_string("direction", "right")
             .build();
 
-        let config = bitshift_config(&node);
-        assert_eq!(config, Direction::Right);
+        let mut node = node;
+        let processor = BitShiftProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let config = node.config::<BitShiftConfig>();
+        assert_eq!(config.direction, Direction::Right);
     }
 
     #[test]
@@ -71,7 +170,13 @@ mod tests {
             .output_tensor_i32("Z", 2, None)
             .build();
 
-        let config = bitshift_config(&node);
-        assert_eq!(config, Direction::Left);
+        let mut node = node;
+        let processor = BitShiftProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        let config = node.config::<BitShiftConfig>();
+        assert_eq!(config.direction, Direction::Left);
     }
 }

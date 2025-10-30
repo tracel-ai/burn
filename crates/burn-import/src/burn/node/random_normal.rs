@@ -65,23 +65,8 @@ impl OnnxIntoNode for RandomNormalNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let output = node.outputs.first().unwrap();
         let output_type = TensorType::from(output);
-        let mean = node
-            .attrs
-            .get("mean")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(0.0f64);
-        let scale = node
-            .attrs
-            .get("scale")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(1.0f64);
-        let shape = node
-            .attrs
-            .get("shape")
-            .map(|val| val.clone().into_i64s())
-            .unwrap_or_else(|| panic!("Shape attribute is required"));
-        let shape: Vec<usize> = shape.into_iter().map(|i| i as usize).collect();
-        Self::new(output_type, mean, scale, shape)
+        let config = node.config::<onnx_ir::node::random::RandomNormalConfig>();
+        Self::new(output_type, config.mean, config.scale, config.shape.clone())
     }
 }
 
@@ -107,7 +92,7 @@ mod tests {
             vec![2, 3],
         ));
 
-        graph.register_input_output(vec![], vec!["tensor1".to_string()]);
+        graph.register_input_output(vec![], vec!["tensor1".to_string()], &[], &[]);
 
         let expected = quote! {
             use burn::prelude::*;
