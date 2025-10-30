@@ -1,21 +1,24 @@
 use crate::backend::Backend;
+use crate::indexing::canonicalize_dim;
 use crate::tensor::{BasicOps, Tensor};
-use crate::{Numeric, Shape};
+use crate::{AsIndex, Numeric};
 
-/// Computes the outer product (and batched outer product) for rank-1 or rank-2 tensor.
+/// Computes the outer product for the last columns of 2 tensors.
 ///
-/// Supported ranks:
-/// - D = 1, R = 2: vectors (m,) × (n,) → (m, n)
-/// - D = 2, R = 3: batched (b, m) × (b, n) → (b, m, n)
+/// See also: [`outer_dim`].
 ///
-/// Panics:
-/// - if D > 2
-/// - if (D, R) is not (1,2) or (2,3)
-/// - if D = 2 and batch dimensions differ
-//
-// Notes:
-// - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
-//   than broadcasted elemwise multiply; benchmarking needed to confirm.
+/// # Arguments
+/// - `lhs`: the "row" tensor, with shape ``[..., i]``.
+/// - `rhs`: the "col" tensor, with shape ``[..., j]``.
+/// - `dim`: the dimension to product.
+///
+/// # Returns
+///
+/// A tensor of rank `R = D + 1`, where:
+///
+/// ``
+/// result[..., i, j] = lhs[..., i] * rhs[..., j]
+/// ``
 pub fn outer<B: Backend, const D: usize, const R: usize, K>(
     x: Tensor<B, D, K>,
     y: Tensor<B, D, K>,
@@ -23,26 +26,53 @@ pub fn outer<B: Backend, const D: usize, const R: usize, K>(
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    if D == 1 {
-        assert!(R == 2, "`outer` with D=1 must use R=2 (got R={})", R);
-        let [m] = x.shape().dims();
-        let [n] = y.shape().dims();
+    outer_dim(x, y, -1)
+}
 
-        let x_col = x.reshape(Shape::new([m, 1])); // (m, 1)
-        let y_row = y.reshape(Shape::new([1, n])); // (1, n)
+/// Computes the outer product along a specific dimension, broadcasting over others.
+///
+/// For the given `dim`, computes the outer product of elements along that dimension,
+/// expanding it into two dimensions of size ``M × N`` at positions ``(dim, dim + 1)``.
+///
+/// # Arguments
+///
+/// - `lhs`: left operand, the "row" tensor, with size `M` at dimension `dim`.
+/// - `rhs`: right operand, the "col" tensor, with size `N` at dimension `dim`.
+/// - `dim`: dimension to compute the outer product along (supports negative indexing).
+///
+/// # Returns
+///
+/// A tensor of rank `R = D + 1`, where:
+///
+/// ``
+/// result[..., i, j, ...] = lhs[..., i, ...] * rhs[..., j, ...]
+/// ``
+//
+// Notes:
+// - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
+//   than broadcasted elemwise multiply; benchmarking needed to confirm.
+pub fn outer_dim<B: Backend, const D: usize, const R: usize, I: AsIndex, K>(
+    lhs: Tensor<B, D, K>,
+    rhs: Tensor<B, D, K>,
+    dim: I,
+) -> Tensor<B, R, K>
+where
+    K: BasicOps<B> + Numeric<B>,
+{
+    assert_eq!(
+        R,
+        D + 1,
+        "`outer` with D={D} expects R={} (got R={R})",
+        D + 1
+    );
+    let dim = canonicalize_dim(dim, D, false);
 
-        x_col * y_row // (m, n)
-    } else if D == 2 {
-        assert!(R == 3, "`outer` with D=2 must use R=3 (got R={})", R);
-        let [bx, m] = x.shape().dims();
-        let [by, n] = y.shape().dims();
-        assert_eq!(bx, by, "batch dimensions must match (got {} vs {})", bx, by);
+    // (..., i, 1, ...)
+    let x = lhs.unsqueeze_dim::<R>(dim + 1);
 
-        let x_col = x.reshape(Shape::new([bx, m, 1])); // (b, m, 1)
-        let y_row = y.reshape(Shape::new([by, 1, n])); // (b, 1, n)
+    // (..., 1, j, ...)
+    let y = rhs.unsqueeze_dim::<R>(dim);
 
-        x_col * y_row // (b, m, n)
-    } else {
-        panic!("`outer` only supports rank 1 or 2 tensors (got D={})", D);
-    }
+    // (..., i, j, ...)
+    x * y
 }
