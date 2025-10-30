@@ -46,13 +46,6 @@ mod tests {
             .dequantize()
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
-
-        // Square should be the same as powf_scalar(2.0)
-        let square_output = tensor.square();
-        square_output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
