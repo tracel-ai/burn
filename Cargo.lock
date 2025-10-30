@@ -2307,6 +2307,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom-learning-strategy"
+version = "0.20.0"
+dependencies = [
+ "burn",
+ "derive-new",
+ "guide",
+ "log",
+]
+
+[[package]]
 name = "custom-renderer"
 version = "0.20.0"
 dependencies = [

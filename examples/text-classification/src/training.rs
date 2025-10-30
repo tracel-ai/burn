@@ -37,7 +37,7 @@ pub struct ExperimentConfig {
     pub optimizer: AdamConfig,
     #[config(default = "SeqLengthOption::Fixed(256)")]
     pub seq_length: SeqLengthOption,
-    #[config(default = 32)]
+    #[config(default = 8)]
     pub batch_size: usize,
     #[config(default = 5)]
     pub num_epochs: usize,
@@ -98,10 +98,14 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::MultiDeviceNaive(devices))
         .num_epochs(config.num_epochs)
         .summary()
-        .build(model, optim, lr_scheduler);
+        .build(
+            model,
+            optim,
+            lr_scheduler,
+            LearningStrategy::MultiDeviceNaive(devices),
+        );
 
     #[cfg(feature = "ddp")]
     let collective_config =
