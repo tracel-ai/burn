@@ -54,7 +54,7 @@ impl GraphMemoryManagement {
     /// before going into the next step. Then it deletes what can be safely deleted
     pub(crate) fn free_unavailable_nodes(&mut self, mut on_free_graph: impl FnMut(&NodeId)) {
         // Leaves cache to avoid having a ref to self
-        let leaves = std::mem::replace(&mut self.leaves, HashSet::new());
+        let leaves = std::mem::take(&mut self.leaves);
 
         // When consuming nodes with a backward pass, some other backward passes become
         // unavailable because some of their parents have been consumed. They are
