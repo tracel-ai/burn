@@ -1,8 +1,7 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
-    client::OperationOutput,
-    get_client, reduce_int_ops, scalar_int_cmp_ops, scalar_int_ops,
+    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops, get_client, reduce_int_ops,
+    scalar_int_cmp_ops, scalar_int_ops,
     stream::{OperationStreams, execution::Operation},
     unary_int_ops,
 };
@@ -1449,6 +1448,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 MaxDimWithIndicesOps::<B>::new(desc),
             )
             .outputs()
+            .into()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -1557,6 +1557,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 MinDimWithIndicesOps::<B>::new(desc),
             )
             .outputs()
+            .into()
     }
 
     fn int_random(

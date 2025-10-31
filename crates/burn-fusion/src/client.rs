@@ -297,33 +297,3 @@ where
         server.resolve_server_bool::<B>(&tensor.into_ir())
     }
 }
-
-/// Extension trait to extract outputs when registering an operation.
-pub trait OperationOutput<R: FusionRuntime> {
-    /// Extract a single output tensor.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the operation produced more or fewer than one output.
-    fn output(self) -> FusionTensor<R>;
-
-    /// Extract a pair of output tensors.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the operation produced more or fewer than two outputs.
-    fn outputs(self) -> (FusionTensor<R>, FusionTensor<R>);
-}
-
-impl<R: FusionRuntime> OperationOutput<R> for Vec<FusionTensor<R>> {
-    fn output(mut self) -> FusionTensor<R> {
-        debug_assert_eq!(self.len(), 1, "expected single output, got {}", self.len());
-        self.pop().unwrap()
-    }
-
-    fn outputs(mut self) -> (FusionTensor<R>, FusionTensor<R>) {
-        debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
-        let (b, a) = (self.pop().unwrap(), self.pop().unwrap());
-        (a, b)
-    }
-}

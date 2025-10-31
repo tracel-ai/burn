@@ -7,7 +7,7 @@ use burn_ir::{
     ConvTranspose3dOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr, InterpolateBackwardOpIr,
     InterpolateOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr,
     MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
-    OperationIr,
+    OperationIr, OperationOutput,
 };
 use burn_tensor::Element;
 use burn_tensor::ops::{
@@ -16,7 +16,7 @@ use burn_tensor::ops::{
     MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
-use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RunnerChannel, RunnerClient};
 
 impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
     fn conv1d(
@@ -295,7 +295,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             || client.create_empty_handle(),
         );
 
-        let (out, out_indices) = client
+        let [out, out_indices] = client
             .register(OperationIr::Module(
                 ModuleOperationIr::MaxPool1dWithIndices(desc),
             ))
@@ -322,7 +322,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             || client.create_empty_handle(),
         );
 
-        let (out, out_indices) = client
+        let [out, out_indices] = client
             .register(OperationIr::Module(
                 ModuleOperationIr::MaxPool2dWithIndices(desc),
             ))

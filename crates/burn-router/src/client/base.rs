@@ -124,33 +124,3 @@ impl RunnerClientLocator {
         }
     }
 }
-
-/// Extension trait to extract outputs when registering an operation.
-pub trait OperationOutput<C: RunnerClient> {
-    /// Extract a single output tensor.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the operation produced more or fewer than one output.
-    fn output(self) -> RouterTensor<C>;
-
-    /// Extract a pair of output tensors.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the operation produced more or fewer than two outputs.
-    fn outputs(self) -> (RouterTensor<C>, RouterTensor<C>);
-}
-
-impl<C: RunnerClient> OperationOutput<C> for Vec<RouterTensor<C>> {
-    fn output(mut self) -> RouterTensor<C> {
-        debug_assert_eq!(self.len(), 1, "expected single output, got {}", self.len());
-        self.pop().unwrap()
-    }
-
-    fn outputs(mut self) -> (RouterTensor<C>, RouterTensor<C>) {
-        debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
-        let (b, a) = (self.pop().unwrap(), self.pop().unwrap());
-        (a, b)
-    }
-}

@@ -1,13 +1,11 @@
 use crate::{
-    Fusion, FusionBackend,
-    client::OperationOutput,
-    get_client,
+    Fusion, FusionBackend, get_client,
     stream::{OperationStreams, execution::Operation},
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
-    HandleContainer, InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, ShapeOpIr,
-    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
+    HandleContainer, InitOperationIr, OperationIr, OperationOutput, PermuteOpIr, RepeatDimOpIr,
+    ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::{
     Device, Element, Shape, Slice, TensorData,

@@ -1,8 +1,7 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
-    client::OperationOutput,
-    get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops, get_client, reduce_float_ops,
+    reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{OperationStreams, execution::Operation},
     unary_float_ops,
 };
@@ -1762,6 +1761,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 MaxDimWithIndicesOps::<B>::new(desc),
             )
             .outputs()
+            .into()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -1835,6 +1835,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 MinDimWithIndicesOps::<B>::new(desc),
             )
             .outputs()
+            .into()
     }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

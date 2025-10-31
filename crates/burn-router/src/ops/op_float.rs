@@ -1,14 +1,14 @@
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 
-use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient, get_client};
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
     FlipOpIr, FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
-    MatmulOpIr, NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
-    ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr,
-    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
-    UnfoldOpIr,
+    MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr,
+    ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr,
+    ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr,
+    UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
 use burn_tensor::{Device, Distribution, Element, FloatDType, Shape, Slice, TensorData};
@@ -1022,6 +1022,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MaxDimWithIndices(desc),
             ))
             .outputs()
+            .into()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -1066,6 +1067,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MinDimWithIndices(desc),
             ))
             .outputs()
+            .into()
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

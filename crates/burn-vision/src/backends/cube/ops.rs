@@ -77,10 +77,9 @@ mod fusion {
     use super::*;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        client::OperationOutput,
         stream::{Operation, OperationStreams},
     };
-    use burn_ir::{CustomOpIr, HandleContainer, OperationIr, TensorIr};
+    use burn_ir::{CustomOpIr, HandleContainer, OperationIr, OperationOutput, TensorIr};
     use burn_tensor::Shape;
 
     impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {

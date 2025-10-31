@@ -1,11 +1,11 @@
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 
-use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient, get_client};
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
     GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr,
-    NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
+    NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
     ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr,
     SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
     UnfoldOpIr,
@@ -779,6 +779,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MaxDimWithIndices(desc),
             ))
             .outputs()
+            .into()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -847,6 +848,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MinDimWithIndices(desc),
             ))
             .outputs()
+            .into()
     }
 
     fn int_random(

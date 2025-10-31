@@ -1,6 +1,5 @@
 use crate::{
     Fusion, FusionBackend,
-    client::OperationOutput,
     stream::{OperationStreams, execution::Operation},
 };
 use burn_ir::*;
@@ -756,7 +755,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             || client.create_empty_handle(),
         );
 
-        let (out, out_indices) = client
+        let [out, out_indices] = client
             .register(
                 streams,
                 OperationIr::Module(ModuleOperationIr::MaxPool1dWithIndices(desc.clone())),
@@ -805,7 +804,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             || client.create_empty_handle(),
         );
 
-        let (out, out_indices) = client
+        let [out, out_indices] = client
             .register(
                 streams,
                 OperationIr::Module(ModuleOperationIr::MaxPool2dWithIndices(desc.clone())),

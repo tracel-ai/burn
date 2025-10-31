@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
-    InitOperationIr, MatmulOpIr, NumericOperationIr, OperationIr, PermuteOpIr,
+    InitOperationIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
 };
 use burn_tensor::{
@@ -14,9 +14,7 @@ use burn_tensor::{
 };
 
 use crate::{
-    Fusion, FusionBackend,
-    client::OperationOutput,
-    get_client,
+    Fusion, FusionBackend, get_client,
     stream::{OperationStreams, execution::Operation},
 };
 

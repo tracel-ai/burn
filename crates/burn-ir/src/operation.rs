@@ -2585,3 +2585,23 @@ impl core::hash::Hash for RandomOpIr {
         }
     }
 }
+
+/// Extension trait to extract outputs when registering an operation.
+pub trait OperationOutput<O> {
+    /// Extract a single output.
+    fn output(self) -> O;
+
+    /// Extract a fixed number of outputs.
+    fn outputs<const N: usize>(self) -> [O; N];
+}
+
+impl<O: core::fmt::Debug> OperationOutput<O> for Vec<O> {
+    fn output(self) -> O {
+        let [tensor] = self.outputs();
+        tensor
+    }
+
+    fn outputs<const N: usize>(self) -> [O; N] {
+        self.try_into().unwrap()
+    }
+}
