@@ -15,9 +15,10 @@ use rand::SeedableRng;
 pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum NdArrayDevice {
     /// The CPU device.
+    #[default]
     Cpu,
 }
 
@@ -37,12 +38,6 @@ impl burn_common::device::Device for NdArrayDevice {
 
     fn device_count(_type_id: u16) -> usize {
         1
-    }
-}
-
-impl Default for NdArrayDevice {
-    fn default() -> Self {
-        Self::Cpu
     }
 }
 
