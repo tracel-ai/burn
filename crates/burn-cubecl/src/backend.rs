@@ -66,6 +66,7 @@ where
 
     fn memory_cleanup(device: &Self::Device) {
         let client = R::client(device);
+        futures_lite::future::block_on(client.sync());
         client.memory_cleanup();
     }
 }
