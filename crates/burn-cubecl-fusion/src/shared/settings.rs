@@ -18,6 +18,18 @@ pub struct FuseSettings {
     pub ref_layout: RefLayoutSetting,
 }
 
+impl Default for FuseSettings {
+    fn default() -> Self {
+        Self {
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
+            vectorization: VectorizationSetting::Activated,
+            ref_layout: RefLayoutSetting::Any,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 /// How vectorization is handled during fusion.
 pub enum VectorizationSetting {
