@@ -5,12 +5,22 @@ use crate::{
     Candle, CandleDevice, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
-use burn_tensor::ops::unfold::{calculate_unfold_shape, calculate_unfold_windows};
+use burn_tensor::{
+    Distribution,
+    ops::unfold::{calculate_unfold_shape, calculate_unfold_windows},
+};
 use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
 use candle_core::{Layout, WithDType};
 use half::{bf16, f16};
 
 use super::tensor;
+
+pub fn cpu_random<E: CandleElement>(shape: Shape, distribution: Distribution) -> TensorData {
+    let mut rng = crate::get_seeded_rng();
+    let data = TensorData::random::<E, _, _>(shape, distribution, &mut rng);
+    crate::set_seeded_rng(rng);
+    data
+}
 
 pub fn cat(tensors: Vec<CandleTensor>, dim: usize) -> CandleTensor {
     let tensors: Vec<candle_core::Tensor> = tensors.into_iter().map(|t| t.tensor).collect();

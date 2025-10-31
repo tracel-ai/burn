@@ -60,4 +60,16 @@ mod tests {
 
         assert_eq!(tensor.into_data(), [FloatType::new(1f32); 20].into());
     }
+
+    #[test]
+    fn test_seed_reproducibility() {
+        let device = Default::default();
+        TestBackend::seed(&device, 42);
+        let t1 = TestTensor::<1>::random([5], Distribution::Default, &device);
+        TestBackend::seed(&device, 42);
+        let t2 = TestTensor::<1>::random([5], Distribution::Default, &device);
+
+        t1.into_data()
+            .assert_approx_eq::<FloatType>(&t2.into_data(), Tolerance::default());
+    }
 }
