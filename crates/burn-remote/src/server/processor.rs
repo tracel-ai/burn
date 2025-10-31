@@ -54,7 +54,7 @@ where
             while let Some(item) = task_rec.recv().await {
                 match item {
                     ProcessorTask::RegisterOperation(op) => {
-                        runner.register(*op);
+                        runner.register_op(*op);
                     }
                     ProcessorTask::Sync(id, callback) => {
                         runner.sync();

@@ -25,7 +25,7 @@ use super::{RemoteChannel, RemoteClient};
 impl RunnerClient for RemoteClient {
     type Device = RemoteDevice;
 
-    fn register(&self, op: burn_ir::OperationIr) {
+    fn register_op(&self, op: burn_ir::OperationIr) {
         self.sender
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
@@ -52,20 +52,6 @@ impl RunnerClient for RemoteClient {
         RouterTensor::new(id, Shape::from(shape), dtype, self.clone())
     }
 
-    fn register_empty_tensor(&self, shape: Shape, dtype: burn_tensor::DType) -> RouterTensor<Self> {
-        let id = self.sender.new_tensor_id();
-
-        RouterTensor::new(id, shape, dtype, self.clone())
-    }
-
-    fn register_float_tensor(
-        &self,
-        shape: Shape,
-        dtype: burn_tensor::FloatDType,
-    ) -> RouterTensor<Self> {
-        self.register_empty_tensor(shape, dtype.into())
-    }
-
     fn device(&self) -> Self::Device {
         self.device.clone()
     }
@@ -84,6 +70,10 @@ impl RunnerClient for RemoteClient {
 
     fn seed(&self, seed: u64) {
         self.sender.send(ComputeTask::Seed(seed));
+    }
+
+    fn create_empty_handle(&self) -> burn_ir::TensorId {
+        self.sender.new_tensor_id()
     }
 }
 

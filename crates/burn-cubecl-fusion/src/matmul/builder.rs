@@ -96,7 +96,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                     lhs,
                     rhs,
                     out,
-                    op.clone(),
+                    op.clone().into(),
                     Default::default(),
                 ));
             } else {

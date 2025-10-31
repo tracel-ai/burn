@@ -132,7 +132,7 @@ impl<C: RunnerClient> Drop for RouterTensor<C> {
                     status: TensorStatus::ReadWrite,
                     dtype: self.dtype,
                 };
-                self.client.register(burn_ir::OperationIr::Drop(ir));
+                self.client.register_op(burn_ir::OperationIr::Drop(ir));
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}
