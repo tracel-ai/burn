@@ -494,6 +494,7 @@ impl From<Shape> for Vec<usize> {
 }
 
 #[cfg(test)]
+#[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
     use super::*;
     use crate::s;

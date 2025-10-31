@@ -247,6 +247,7 @@ pub fn ravel_index<I: AsIndex>(indices: &[I], shape: &[usize]) -> usize {
 }
 
 #[cfg(test)]
+#[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
     use super::*;
     use alloc::vec;
