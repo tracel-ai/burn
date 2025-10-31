@@ -40,6 +40,7 @@ pub struct GraphLocator {
     /// This is to ensure that when merging graphs, we correctly move all previous graphs to
     /// the new merged one.
     keys: HashMap<NodeId, HashSet<NodeId>>,
+    untracked_nodes: HashSet<NodeId>,
 }
 
 /// Represents a single computation graph with a mutex-protected server.
@@ -99,6 +100,23 @@ impl AutodiffClient for GraphMutexClient {
         state.server.register(node_id_ref, step, actions);
     }
 
+    fn register_untracked(
+        &self,
+        node_id_ref: NodeRefCount,
+        step: StepBoxed,
+        actions: CheckpointerBuilder,
+    ) {
+        let node_id = *node_id_ref;
+        // Register normally (might be needed by tracked children, required for checkpointing)
+        self.register(node_id_ref, step, actions);
+
+        // But mark this node for cleanup after backward
+        let mut state = STATE.lock();
+        if let Some(locator) = state.as_mut() {
+            locator.mark_untracked(node_id);
+        }
+    }
+
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
         let graph = GraphMutexClient::graph(root.node.id, &[]);
@@ -106,12 +124,25 @@ impl AutodiffClient for GraphMutexClient {
         let grads = Gradients::new::<B>(root.node, root.primitive);
         let mut state = graph.state.lock().unwrap();
 
-        state.server.backward::<GraphCleaner>(grads, node_id)
+        let grads = state.server.backward::<GraphCleaner>(grads, node_id);
+
+        let mut cleaner = GraphCleaner::init();
+        cleaner.cleanup_orphaned_entries();
+
+        grads
     }
 }
 
 struct GraphCleaner<'a> {
     guard: spin::MutexGuard<'a, Option<GraphLocator>>,
+}
+
+impl<'a> GraphCleaner<'a> {
+    fn cleanup_orphaned_entries(&mut self) {
+        if let Some(state) = self.guard.as_mut() {
+            state.cleanup_untracked();
+        }
+    }
 }
 
 impl<'a> NodeCleaner for GraphCleaner<'a> {
@@ -121,21 +152,8 @@ impl<'a> NodeCleaner for GraphCleaner<'a> {
     }
 
     fn clean(&mut self, node: &NodeId) {
-        if let Some(state) = self.guard.as_mut()
-            && let Some(graph) = state.graphs.remove(node)
-        {
-            let mut remove = false;
-
-            if let Some(entry) = state.keys.get_mut(&graph.origin) {
-                entry.remove(node);
-                if entry.is_empty() {
-                    remove = true;
-                }
-            }
-
-            if remove {
-                state.keys.remove(&graph.origin);
-            }
+        if let Some(state) = self.guard.as_mut() {
+            state.remove_entry(node);
         }
     }
 }
@@ -272,6 +290,35 @@ impl GraphLocator {
         self.graphs.insert(origin, graph.clone());
         self.keys.insert(origin, HashSet::new());
         graph
+    }
+
+    fn mark_untracked(&mut self, node_id: NodeId) {
+        self.untracked_nodes.insert(node_id);
+    }
+
+    /// Clean up untracked nodes.
+    fn cleanup_untracked(&mut self) {
+        let mut nodes = core::mem::take(&mut self.untracked_nodes);
+        for node in nodes.drain() {
+            self.remove_entry(&node);
+        }
+    }
+
+    fn remove_entry(&mut self, node: &NodeId) {
+        if let Some(graph) = self.graphs.remove(node) {
+            let mut remove = false;
+
+            if let Some(entry) = self.keys.get_mut(&graph.origin) {
+                entry.remove(node);
+                if entry.is_empty() {
+                    remove = true;
+                }
+            }
+
+            if remove {
+                self.keys.remove(&graph.origin);
+            }
+        }
     }
 }
 
