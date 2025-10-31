@@ -30,13 +30,16 @@ metal = ["wgpu", "burn-wgpu/metal"]
 cuda = ["burn-cuda"]
 candle = ["burn-candle"]
 tch = ["burn-tch"]
-safetensors = []
+
+# no-std safetensors is disabled for now because https://github.com/huggingface/safetensors/issues/650 is not published
+safetensors = ["safetensors/std"]
+
 pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
-burn-nn = { path = "../burn-nn", version = "0.19.0", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
+burn-core = { path = "../burn-core", version = "0.20.0", default-features = false }
+burn-nn = { path = "../burn-nn", version = "0.20.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0", default-features = false }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
@@ -48,22 +51,17 @@ ciborium = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 
-# Note: safetensors requires either std or alloc feature
-# We always require std for file I/O functionality
-# change after https://github.com/huggingface/safetensors/issues/650 is released to support no_std
-# safetensors = { workspace = true }
-safetensors = { git = "https://github.com/huggingface/safetensors", rev = "0816a1a", default-features = false }
+safetensors = { workspace = true, optional = true }
 
 # Optional backend dependencies for benchmarks
-burn-candle = { path = "../burn-candle", version = "0.19.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.19.0", optional = true }
-burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.20.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.20.0", optional = true }
+burn-tch = { path = "../burn-tch", version = "0.20.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.20.0", optional = true }
 
 [dev-dependencies]
-burn = { path = "../burn", version = "0.19.0" }
-burn-import = { path = "../burn-import", version = "0.19.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
+# burn-import = { path = "../burn-import", version = "0.20.0" } # disabled (circular dep in publish, only for bench)
+burn-ndarray = { path = "../burn-ndarray", version = "0.20.0" }
 divan = "0.1"
 tempfile = { workspace = true }
 
@@ -78,4 +76,3 @@ harness = false
 [[bench]]
 name = "unified_saving"
 harness = false
-

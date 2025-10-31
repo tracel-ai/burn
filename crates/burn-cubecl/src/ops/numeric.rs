@@ -1,4 +1,7 @@
-use crate::{CubeRuntime, FloatElement, IntElement, kernel::utils::linear_view};
+use crate::{
+    CubeRuntime, FloatElement, IntElement,
+    kernel::utils::{linear_view, shape_divmod},
+};
 use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{
     kernel::{
@@ -8,7 +11,7 @@ use crate::{
     ops::max_line_size,
 };
 use burn_tensor::{ElementConversion, Shape};
-use cubecl::std::tensor::layout::linear::LinearView;
+use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
 
@@ -102,7 +105,7 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
+pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
@@ -335,34 +338,46 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 #[cube(launch)]
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
-    output: &mut Tensor<C>,
-    dim_stride: u32,
-    #[comptime] dim_size: u32,
+    output: &mut LinearView<C, ReadWrite>,
+    shape: Sequence<FastDivmod>,
+    #[comptime] dim: u32,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
-    let idx = ABSOLUTE_POS;
-    let before_dim = idx / dim_stride;
-    let after_dim = idx % dim_stride;
-    let dim_offset = (idx / dim_stride) % dim_size;
+
+    let rank = comptime![shape.len()];
+    let dim_stride = input.stride(dim);
+
+    let mut remainder = ABSOLUTE_POS;
+    let mut offset = 0;
+    let mut dim_idx = 0;
+
+    #[unroll]
+    for i in 0..shape.len() {
+        let i = comptime![rank - i - 1];
+        let (rem, local_idx) = shape.index(i).div_mod(remainder);
+        remainder = rem;
+        if i == dim {
+            dim_idx = local_idx;
+        } else {
+            offset += local_idx * input.stride(i);
+        }
+    }
 
     // Read first element
-    let first_read_idx = (before_dim / dim_size) * (dim_size * dim_stride) + after_dim;
+    let first_read_idx = offset + dim_idx * dim_stride;
     let first_elem = input[first_read_idx];
 
     // Initialize accumulator
     let mut result = O::CumulativeOp::<C>::init_value(first_elem);
 
     // Accumulate values
-    for i in 0..dim_size {
-        if i <= dim_offset {
-            let read_idx =
-                (before_dim / dim_size) * (dim_size * dim_stride) + i * dim_stride + after_dim;
-            result = O::CumulativeOp::<C>::execute(result, input[read_idx]);
-        }
+    for i in 0..=dim_idx {
+        let read_idx = offset + i * dim_stride;
+        result = O::CumulativeOp::<C>::execute(result, input[read_idx]);
     }
-    output[idx] = result;
+    output[ABSOLUTE_POS] = result;
 }
 
 /// Compute the cumulative sum along a dimension
@@ -392,11 +407,8 @@ fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
-    let shape = input.shape.clone();
-    let dim_size = shape.dims[dim];
 
-    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
-    let output = empty_device::<R, E>(client.clone(), device, shape);
+    let output = empty_device::<R, E>(client.clone(), device, input.shape.clone());
 
     let num_elems = output.shape.num_elements();
     let cube_dim = CubeDim::default();
@@ -406,14 +418,10 @@ fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
         &client,
         cube_count,
         cube_dim,
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
-        },
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
-        },
-        ScalarArg::new(dim_stride as u32),
-        dim_size as u32,
+        input.as_tensor_arg::<E>(1),
+        linear_view(&output, 1),
+        shape_divmod(&input),
+        dim as u32,
     );
 
     output

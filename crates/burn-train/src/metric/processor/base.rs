@@ -1,16 +1,21 @@
 use burn_core::data::dataloader::Progress;
 use burn_optim::LearningRate;
 
-use crate::renderer::{EvaluationName, MetricsRenderer};
+use crate::{
+    LearnerSummary,
+    renderer::{EvaluationName, MetricsRenderer},
+};
 
 /// Event happening during the training/validation process.
 pub enum LearnerEvent<T> {
+    /// Signal the start of the process (e.g., training start)
+    Start,
     /// Signal that an item have been processed.
     ProcessedItem(LearnerItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
-    End,
+    End(Option<LearnerSummary>),
 }
 
 /// Event happening during the evaluation process.

@@ -193,7 +193,7 @@ impl<B: Backend> RotaryEncoding<B> {
                 .unsqueeze();
 
         // Sum the real and imaginary components to get output tensor and reshape to original shape
-        out.sum_dim(D - 1).reshape(input_shape)
+        out.sum_dim(-1).reshape(input_shape)
     }
 
     /// Shifts the pre-computed rotary frequency to cover a new range of positions.
@@ -307,6 +307,42 @@ mod tests {
 
         output
             .squeeze_dim::<3>(0)
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn test_rotary_encoding_3d() {
+        let device = Default::default();
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+
+        let input = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
+                [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
+            ],
+            &device,
+        );
+
+        // Input = [Batch size, Num of heads, Seq_len, d_model]
+        // let input = input.unsqueeze::<4>();
+
+        let output = rotary_encoding.forward(input);
+        let expected_output = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [
+                    [1.0000, 2.0000, 3.0000, 4.0000],
+                    [-2.3473, 7.4492, 6.9197, 8.0696],
+                ],
+                [
+                    [9.0000, 10.0000, 11.0000, 12.0000],
+                    [-4.7567, 18.5034, 14.8393, 16.1492],
+                ],
+            ],
+            &device,
+        );
+
+        output
             .to_data()
             .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }

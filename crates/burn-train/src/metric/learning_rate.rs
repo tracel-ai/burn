@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use super::{
-    MetricMetadata, Numeric,
+    MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry,
     state::{FormatOptions, NumericMetricState},
 };
-use crate::metric::{Metric, MetricEntry, MetricName};
+use crate::metric::{Metric, MetricEntry, MetricName, Numeric};
 
 /// Track the learning rate across iterations.
 #[derive(Clone)]
@@ -46,10 +46,18 @@ impl Metric for LearningRateMetric {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: None,
+            higher_is_better: false,
+        }
+        .into()
+    }
 }
 
 impl Numeric for LearningRateMetric {
-    fn value(&self) -> super::NumericEntry {
+    fn value(&self) -> NumericEntry {
         self.state.value()
     }
 }

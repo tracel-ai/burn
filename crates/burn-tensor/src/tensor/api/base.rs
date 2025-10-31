@@ -186,7 +186,8 @@ where
         Self::new(K::full(shape, fill_value, device, K::Elem::dtype()))
     }
 
-    ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
+    /// Returns a new tensor with the same shape, dtype, and device as the current tensor,
+    /// filled with the provided value.
     ///
     /// # Example
     ///
@@ -203,7 +204,12 @@ where
     /// }
     /// ```
     pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
-        Self::full(self.shape(), fill_value, &self.device())
+        Self::new(K::full(
+            self.shape(),
+            fill_value,
+            &self.device(),
+            self.dtype(),
+        ))
     }
 
     /// Returns the dimensions of the current tensor.
@@ -720,6 +726,7 @@ where
         new_dims[..dim].copy_from_slice(&current_dims[..dim]);
         new_dims[dim..].copy_from_slice(&current_dims[dim + 1..]);
 
+        check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
         Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 

@@ -1,9 +1,16 @@
 name: CI GPU
 
 on:
-  pull_request:
-    types:
-      - labeled
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Number of the pull request that triggers this run if any"
+        type: number
+        required: false
+
+# important to set the run name to this format so that the CI server
+# can track the PR number from the workflow_run events.
+run-name: ${{ github.workflow }}:${{ github.repository }}#${{ inputs.pr_number }}
 
 env:
   # Note: It is not possible to define top level env vars and pass them to composite actions.
@@ -28,7 +35,6 @@ concurrency:
 
 jobs:
   prepare-checks:
-    if: github.event.label.name == 'ci:test-gpu'
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
@@ -41,15 +47,17 @@ jobs:
         run: echo
 
   linux-std-cuda-tests:
-    if: github.event.label.name == 'ci:test-gpu'
     needs: [prepare-checks]
     timeout-minutes: 60
     # '@id:' label must be unique within this worklow
     runs-on: [
       '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@pr_number:${{ inputs.pr_number }}',
+      '@organization:tracel-ai',
+      '@repository:burn',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
       '@gpu:true' ]
     env:
       LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
@@ -64,7 +72,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v4
+        uses: tracel-ai/github-actions/setup-rust@v5
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -73,15 +81,17 @@ jobs:
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-cuda-runner
 
   linux-std-vulkan-tests:
-    if: github.event.label.name == 'ci:test-gpu'
     needs: [prepare-checks]
     timeout-minutes: 60
     # '@id:' label must be unique within this worklow
     runs-on: [
       '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@pr_number:${{ inputs.pr_number }}',
+      '@organization:tracel-ai',
+      '@repository:burn',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
       '@gpu:true' ]
     env:
       # disable incremental compilation (reduces artifact size)
@@ -95,7 +105,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v4
+        uses: tracel-ai/github-actions/setup-rust@v5
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -104,15 +114,17 @@ jobs:
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-vulkan-runner
 
   linux-std-wgpu-tests:
-    if: github.event.label.name == 'ci:test-gpu'
     needs: [prepare-checks]
     timeout-minutes: 60
     # '@id:' label must be unique within this worklow
     runs-on: [
       '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@pr_number:${{ inputs.pr_number }}',
+      '@organization:tracel-ai',
+      '@repository:burn',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
       '@gpu:true' ]
     env:
       # disable incremental compilation (reduces artifact size)
@@ -126,7 +138,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v4
+        uses: tracel-ai/github-actions/setup-rust@v5
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -136,7 +148,6 @@ jobs:
 
 # TODO: fix macos CI tests (M2 virtualization)
   # macos-std-metal-tests:
-  #   if: github.event.label.name == 'ci:test-gpu'
   #   runs-on: blaze/macos-14
   #   needs: [prepare-checks]
   #   timeout-minutes: 60
@@ -149,7 +160,7 @@ jobs:
   #           toolchain: stable
   #   steps:
   #     - name: Setup Rust
-  #       uses: tracel-ai/github-actions/setup-rust@v4
+  #       uses: tracel-ai/github-actions/setup-rust@v5
   #       with:
   #         rust-toolchain: ${{ matrix.toolchain }}
   #         cache-key: ${{ matrix.rust }}-macos

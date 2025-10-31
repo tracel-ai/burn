@@ -38,6 +38,38 @@ impl MetricMetadata {
     }
 }
 
+/// Metric attributes define the properties intrinsic to different types of metric.
+#[derive(Clone, Debug)]
+pub enum MetricAttributes {
+    /// Numeric attributes.
+    Numeric(NumericAttributes),
+    /// No attributes.
+    None,
+}
+
+/// Definition of a metric.
+///
+/// This is used to register a metric with the [learner builder](crate::learner::LearnerBuilder).
+#[derive(Clone, Debug)]
+pub struct MetricDefinition {
+    /// The name of the metric.
+    pub name: String,
+    /// The description of the metric.
+    pub description: Option<String>,
+    /// The attributes of the metric.
+    pub attributes: MetricAttributes,
+}
+
+impl<Me: Metric> From<&Me> for MetricDefinition {
+    fn from(metric: &Me) -> Self {
+        Self {
+            name: metric.name().to_string(),
+            description: metric.description(),
+            attributes: metric.attributes(),
+        }
+    }
+}
+
 /// Metric trait.
 ///
 /// # Notes
@@ -57,8 +89,21 @@ pub trait Metric: Send + Sync + Clone {
     /// values of k), the name should be unique for each instance.
     fn name(&self) -> MetricName;
 
+    /// A short description of the metric.
+    fn description(&self) -> Option<String> {
+        None
+    }
+
+    /// Attributes of the metric.
+    ///
+    /// By default, metrics have no attributes.
+    fn attributes(&self) -> MetricAttributes {
+        MetricAttributes::None
+    }
+
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
+
     /// Clear the metric state.
     fn clear(&mut self);
 }
@@ -77,6 +122,30 @@ pub trait Adaptor<T> {
 
 impl<T> Adaptor<()> for T {
     fn adapt(&self) {}
+}
+
+/// Attributes that describe intrinsic properties of a numeric metric.
+#[derive(Clone, Debug)]
+pub struct NumericAttributes {
+    /// Optional unit (e.g. "%", "ms", "pixels")
+    pub unit: Option<String>,
+    /// Whether larger values are better (true) or smaller are better (false).
+    pub higher_is_better: bool,
+}
+
+impl From<NumericAttributes> for MetricAttributes {
+    fn from(attr: NumericAttributes) -> Self {
+        MetricAttributes::Numeric(attr)
+    }
+}
+
+impl Default for NumericAttributes {
+    fn default() -> Self {
+        Self {
+            unit: None,
+            higher_is_better: true,
+        }
+    }
 }
 
 /// Declare a metric to be numeric.
@@ -139,14 +208,16 @@ impl NumericEntry {
 }
 
 impl NumericEntry {
-    pub(crate) fn serialize(&self) -> String {
+    /// Returns a String representing the NumericEntry
+    pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
             Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
         }
     }
 
-    pub(crate) fn deserialize(entry: &str) -> Result<Self, String> {
+    /// De-serializes a string representing a NumericEntry and returns a Result containing the corresponding NumericEntry.
+    pub fn deserialize(entry: &str) -> Result<Self, String> {
         // Check for comma separated values
         let values = entry.split(',').collect::<Vec<_>>();
         let num_values = values.len();

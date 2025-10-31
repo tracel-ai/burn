@@ -39,8 +39,10 @@ where
 /// // Create a Metal device from its index
 /// let device = CandleDevice::metal(0);
 /// ```
+#[derive(Default)]
 pub enum CandleDevice {
     /// CPU device.
+    #[default]
     Cpu,
 
     /// Cuda device with the given index. The index is the index of the Cuda device in the list of
@@ -165,12 +167,6 @@ impl burn_common::device::Device for CandleDevice {
     }
 }
 impl DeviceOps for CandleDevice {}
-
-impl Default for CandleDevice {
-    fn default() -> Self {
-        Self::Cpu
-    }
-}
 
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;

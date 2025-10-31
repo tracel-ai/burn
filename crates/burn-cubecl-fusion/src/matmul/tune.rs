@@ -8,11 +8,14 @@ use crate::{
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
+use burn_tensor::DType;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     matmul::{
         components::MatmulKind,
-        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+        tune_key::{
+            MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
+        },
     },
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
@@ -43,7 +46,12 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         const PRIORITY_MIN: u8 = 0;
 
         let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
-            if matches!(key.matmul_key.analysis.kind, MatmulKind::General) {
+            if matches!(
+                key.matmul_key.analysis.kind,
+                MatmulKind::General
+                // Those variants are just because the unit alternatives aren't very good yet.
+                | MatmulKind::VecMat | MatmulKind::MatVec
+            ) {
                 PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
@@ -156,9 +164,18 @@ pub(crate) fn create_key<R: Runtime>(
         &rhs.shape.dims,
         &lhs_strides,
         &rhs_strides,
-        lhs.dtype.into(),
-        rhs.dtype.into(),
-        out.dtype.into(),
+        MatmulElemType {
+            elem: lhs.dtype.into(),
+            quantized: matches!(lhs.dtype, DType::QFloat(_)),
+        },
+        MatmulElemType {
+            elem: rhs.dtype.into(),
+            quantized: matches!(rhs.dtype, DType::QFloat(_)),
+        },
+        MatmulElemType {
+            elem: out.dtype.into(),
+            quantized: matches!(out.dtype, DType::QFloat(_)),
+        },
     );
     FusedMatmulAutotuneKey::new(key, opt.info.num_output_buffers(), opt.info.num_ops_fused())
 }

@@ -146,6 +146,8 @@ pub(crate) fn handle_command(
 
                     args_vulkan.features = Some(vec!["test-vulkan".into()]);
                     handle_wgpu_test("burn-core", &args_vulkan)?;
+                    handle_wgpu_test("burn-optim", &args_vulkan)?;
+                    handle_wgpu_test("burn-nn", &args_vulkan)?;
                     handle_wgpu_test("burn-vision", &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
@@ -157,6 +159,8 @@ pub(crate) fn handle_command(
 
                     args_wgpu.features = Some(vec!["test-wgpu".into()]);
                     handle_wgpu_test("burn-core", &args_wgpu)?;
+                    handle_wgpu_test("burn-optim", &args_wgpu)?;
+                    handle_wgpu_test("burn-nn", &args_wgpu)?;
                     handle_wgpu_test("burn-vision", &args_wgpu)?;
                 }
             }

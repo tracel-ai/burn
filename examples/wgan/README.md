@@ -17,7 +17,7 @@ cargo run --example wgan-mnist --release --features cuda
 cargo run --example wgan-mnist --release --features wgpu
 
 # Tch GPU backend
-export TORCH_CUDA_VERSION=cu124 # Set the cuda version
+export TORCH_CUDA_VERSION=cu128 # Set the cuda version
 cargo run --example wgan-mnist --release --features tch-gpu
 
 # Tch CPU backend

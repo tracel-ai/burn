@@ -358,7 +358,7 @@ where
         Self::new(K::zeros(shape, device, K::Elem::dtype()))
     }
 
-    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
+    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
     ///
     /// # Example
     ///
@@ -375,7 +375,7 @@ where
     /// }
     /// ```
     pub fn zeros_like(&self) -> Self {
-        Self::zeros(self.shape(), &self.device())
+        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Create a tensor of the given shape where each element is one.
@@ -399,7 +399,7 @@ where
         Self::new(K::ones(shape, device, K::Elem::dtype()))
     }
 
-    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
+    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
     ///
     /// # Example
     ///
@@ -416,7 +416,7 @@ where
     /// }
     /// ```
     pub fn ones_like(&self) -> Self {
-        Self::ones(self.shape(), &self.device())
+        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -513,7 +513,7 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
     ///    let tensor = tensor.clone().mean_dims(&[0, 1]);
     ///    println!("{tensor}");
-    ///    // [[2.5]]
+    ///    // [[2.0]]
     /// }
     /// ```
     pub fn mean_dims<I: AsIndex>(self, dims: &[I]) -> Self {
@@ -4416,7 +4416,12 @@ impl<B: Backend> Numeric<B> for Float {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        q_bin_ops!(lhs, rhs, float_matmul, q_matmul)
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+            }
+            (lhs, rhs) => B::q_matmul(lhs, rhs),
+        }
     }
 }
 

@@ -17,26 +17,6 @@ use crate::{ScalarIr, TensorId, TensorIr};
 
 use super::operation::*;
 
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub enum IrError {
-    DTypeMismatch,
-}
-
-fn output_dtype<'a, I>(inputs: I) -> Result<DType, IrError>
-where
-    I: IntoIterator<Item = &'a DType>,
-{
-    let mut iter = inputs.into_iter();
-    let dtype = iter.next().unwrap();
-    for d in iter {
-        if d != dtype {
-            return Err(IrError::DTypeMismatch);
-        }
-    }
-    Ok(*dtype)
-}
-
 impl CreationOpIr {
     pub fn create(shape: Shape, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), shape, dtype);
@@ -124,6 +104,44 @@ impl From<ReduceOpIr> for UnaryOpIr {
     }
 }
 
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum IrError {
+    DTypeMismatch,
+}
+
+fn dtype_compat(lhs: &DType, rhs: &DType) -> bool {
+    let lhs_qfloat = matches!(lhs, DType::QFloat(_));
+    let rhs_qfloat = matches!(rhs, DType::QFloat(_));
+    if lhs_qfloat && rhs_qfloat || lhs_qfloat && rhs.is_float() || lhs.is_float() && rhs_qfloat {
+        true
+    } else {
+        lhs == rhs
+    }
+}
+
+fn output_check<'a, I>(inputs: I, compat: impl Fn(&DType, &DType) -> bool) -> Result<DType, IrError>
+where
+    I: IntoIterator<Item = &'a DType>,
+{
+    let mut iter = inputs.into_iter();
+    let first = iter.next().unwrap();
+    for d in iter {
+        if !compat(first, d) {
+            return Err(IrError::DTypeMismatch);
+        }
+    }
+    Ok(*first)
+}
+
+fn output_dtype<'a, I: IntoIterator<Item = &'a DType>>(inputs: I) -> Result<DType, IrError> {
+    output_check(inputs, |a, b| a == b)
+}
+
+fn output_dtype_mixed<'a, I: IntoIterator<Item = &'a DType>>(inputs: I) -> Result<DType, IrError> {
+    output_check(inputs, dtype_compat)
+}
+
 /// Macro to implement `create` constructors for operations with a single output.
 ///
 /// Supports shape and dtype validation.
@@ -209,7 +227,9 @@ impl_ir_create!(
         rhs: TensorIr
     },
     shape = calculate_matmul_output(&lhs.shape, &rhs.shape).unwrap(),
-    dtype = output_dtype([&lhs.dtype, &rhs.dtype]).unwrap()
+    dtype = output_dtype_mixed([&lhs.dtype, &rhs.dtype]).unwrap(),
+    // Additional constructor for mixed dtypes
+    create_mixed(out_dtype: DType)
 );
 
 impl_ir_create!(

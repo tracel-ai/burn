@@ -83,6 +83,7 @@ fn main() {
         .input("tests/constant/constant_tensor_f32.onnx")
         .input("tests/constant/constant_tensor_i32.onnx")
         .input("tests/constant/constant_tensor_bool.onnx")
+        .input("tests/constant/constant_empty_tensor_f32.onnx")
         .input("tests/constant/rank_inference_propagation.onnx")
         .input("tests/constant/shape_binary_ops_with_constant.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")

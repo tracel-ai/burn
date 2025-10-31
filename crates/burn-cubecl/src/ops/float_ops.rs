@@ -1,9 +1,9 @@
 use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
+use crate::kernel::{into_contiguous, unary_basic::BasicFloatUnaryKind};
 use crate::{CubeBackend, execute_with_dtype};
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
@@ -415,6 +415,7 @@ where
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let tensor = into_contiguous::<R>(tensor);
         execute_with_dtype!(
             float(tensor.dtype),
             E,

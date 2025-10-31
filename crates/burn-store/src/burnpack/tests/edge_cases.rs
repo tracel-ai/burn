@@ -135,7 +135,7 @@ fn test_all_supported_dtypes() {
     let dtypes_with_data = vec![
         (
             DType::F32,
-            vec![
+            [
                 f32::MIN.to_le_bytes().to_vec(),
                 f32::MAX.to_le_bytes().to_vec(),
             ]
@@ -143,7 +143,7 @@ fn test_all_supported_dtypes() {
         ),
         (
             DType::F64,
-            vec![
+            [
                 f64::MIN.to_le_bytes().to_vec(),
                 f64::MAX.to_le_bytes().to_vec(),
             ]
@@ -151,7 +151,7 @@ fn test_all_supported_dtypes() {
         ),
         (
             DType::I32,
-            vec![
+            [
                 i32::MIN.to_le_bytes().to_vec(),
                 i32::MAX.to_le_bytes().to_vec(),
             ]
@@ -159,7 +159,7 @@ fn test_all_supported_dtypes() {
         ),
         (
             DType::I64,
-            vec![
+            [
                 i64::MIN.to_le_bytes().to_vec(),
                 i64::MAX.to_le_bytes().to_vec(),
             ]
@@ -167,7 +167,7 @@ fn test_all_supported_dtypes() {
         ),
         (
             DType::U32,
-            vec![
+            [
                 u32::MIN.to_le_bytes().to_vec(),
                 u32::MAX.to_le_bytes().to_vec(),
             ]
@@ -175,7 +175,7 @@ fn test_all_supported_dtypes() {
         ),
         (
             DType::U64,
-            vec![
+            [
                 u64::MIN.to_le_bytes().to_vec(),
                 u64::MAX.to_le_bytes().to_vec(),
             ]
@@ -214,7 +214,7 @@ fn test_all_supported_dtypes() {
 #[test]
 fn test_special_float_values() {
     // Test special floating-point values (NaN, Inf, -Inf)
-    let special_values = vec![
+    let special_values = [
         f32::NAN,
         f32::INFINITY,
         f32::NEG_INFINITY,
@@ -345,7 +345,7 @@ fn test_tensor_name_with_path_separators() {
 
     // All names should be preserved exactly
     for expected_name in &path_like_names {
-        assert!(names.contains(&expected_name.as_ref()));
+        assert!(names.contains(expected_name));
     }
 }
 
