@@ -113,7 +113,9 @@ pub enum IrError {
 fn dtype_compat(lhs: &DType, rhs: &DType) -> bool {
     let lhs_qfloat = matches!(lhs, DType::QFloat(_));
     let rhs_qfloat = matches!(rhs, DType::QFloat(_));
-    if lhs_qfloat && rhs_qfloat || lhs_qfloat && rhs.is_float() || lhs.is_float() && rhs_qfloat {
+    if lhs_qfloat && (rhs_qfloat || rhs.is_float())
+        || lhs.is_float() && (rhs_qfloat || rhs.is_float())
+    {
         true
     } else {
         lhs == rhs
