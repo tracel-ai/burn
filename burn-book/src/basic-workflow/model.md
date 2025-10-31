@@ -22,8 +22,8 @@ edition = "2024"
 
 [dependencies]
 # Disable autotune default for convolutions
-burn = { version = "~0.19", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
-# burn = { version = "~0.19", features = ["train", "vision", "wgpu"] }
+burn = { version = "~0.20", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
+# burn = { version = "~0.20", features = ["train", "vision", "wgpu"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We

@@ -358,7 +358,7 @@ where
         Self::new(K::zeros(shape, device, K::Elem::dtype()))
     }
 
-    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
+    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
     ///
     /// # Example
     ///
@@ -375,7 +375,7 @@ where
     /// }
     /// ```
     pub fn zeros_like(&self) -> Self {
-        Self::zeros(self.shape(), &self.device())
+        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Create a tensor of the given shape where each element is one.
@@ -399,7 +399,7 @@ where
         Self::new(K::ones(shape, device, K::Elem::dtype()))
     }
 
-    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
+    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
     ///
     /// # Example
     ///
@@ -416,7 +416,7 @@ where
     /// }
     /// ```
     pub fn ones_like(&self) -> Self {
-        Self::ones(self.shape(), &self.device())
+        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.

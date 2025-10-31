@@ -103,8 +103,10 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
-pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
+/// A reference to the training split [DataLoader](DataLoader).
+pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
+/// A reference to the validation split [DataLoader](DataLoader).
+pub type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
 pub struct TrainingResult<M> {
@@ -137,10 +139,16 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
                 let single_device = SingleDeviceLearningStrategy::new(device.clone());
                 single_device.fit(self, dataloader_train, dataloader_valid)
             }
+            LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
+                .clone()
+                .fit(self, dataloader_train, dataloader_valid),
             LearningStrategy::MultiDeviceNaive(devices) => {
                 let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
                 multi_device.fit(self, dataloader_train, dataloader_valid)
             }
+            LearningStrategy::CustomMultiDevice(learning_strategy) => learning_strategy
+                .clone()
+                .fit(self, dataloader_train, dataloader_valid),
 
             #[cfg(feature = "ddp")]
             LearningStrategy::DistributedDataParallel { devices, config } => {

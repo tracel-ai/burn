@@ -19,15 +19,6 @@ use rand::RngCore;
 
 use super::quantization::{QuantLevel, QuantMode};
 
-/// The things that can go wrong when manipulating tensor data.
-#[derive(Debug)]
-pub enum DataError {
-    /// Failed to cast the values to a specified element type.
-    CastError(CheckedCastError),
-    /// Invalid target element type.
-    TypeMismatch(String),
-}
-
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
@@ -879,6 +870,23 @@ impl core::fmt::Display for TensorData {
             },
         };
         f.write_str(fmt.as_str())
+    }
+}
+
+/// The things that can go wrong when manipulating tensor data.
+#[derive(Debug)]
+pub enum DataError {
+    /// Failed to cast the values to a specified element type.
+    CastError(CheckedCastError),
+    /// Invalid target element type.
+    TypeMismatch(String),
+}
+
+impl core::error::Error for DataError {}
+
+impl core::fmt::Display for DataError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(format!("{self:?}").as_str())
     }
 }
 

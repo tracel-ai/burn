@@ -92,7 +92,7 @@ mod tests {
         );
         let mut metrics = MetricsTraining::<f64, f64>::default();
         // Register an in memory logger.
-        store.register_logger_train(InMemoryMetricLogger::default());
+        store.register_logger(InMemoryMetricLogger::default());
         // Register the loss metric.
         metrics.register_train_metric_numeric(loss);
         let store = Arc::new(EventStoreClient::new(store));

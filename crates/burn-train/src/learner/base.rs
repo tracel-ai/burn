@@ -20,7 +20,7 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
+    pub(crate) learning_strategy: LearningStrategy<LC>,
     pub(crate) interrupter: Interrupter,
     pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,
@@ -32,7 +32,8 @@ pub struct Learner<LC: LearnerComponentTypes> {
 pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
 #[derive(new)]
-pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
+/// Used to create, delete, or load checkpoints of the training process.
+pub struct LearnerCheckpointer<LC: LearnerComponentTypes> {
     model: LC::CheckpointerModel,
     optim: LC::CheckpointerOptimizer,
     lr_scheduler: LC::CheckpointerLrScheduler,
@@ -40,7 +41,8 @@ pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
 }
 
 impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
-    pub(crate) fn checkpoint(
+    /// Create checkpoint for the training process.
+    pub fn checkpoint(
         &mut self,
         model: &LC::Model,
         optim: &LC::Optimizer,
@@ -78,7 +80,8 @@ impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
         }
     }
 
-    pub(crate) fn load_checkpoint(
+    /// Load a training checkpoint.
+    pub fn load_checkpoint(
         &self,
         model: LC::Model,
         optim: LC::Optimizer,

@@ -186,4 +186,25 @@ mod tests {
         let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
         let output_tensor: Tensor<TestBackend, 5> = input_tensor.unsqueeze_dims(&[0, -6]);
     }
+
+    #[test]
+    #[should_panic]
+    fn squeeze_all_singleton_not_supported() {
+        let tensor = TestTensor::<3>::ones(Shape::new([1, 1, 1]), &Default::default());
+        let _ = tensor.squeeze::<0>();
+    }
+
+    #[test]
+    #[should_panic]
+    fn squeeze_dim_singleton_not_supported() {
+        let tensor = TestTensor::<1>::ones(Shape::new([1]), &Default::default());
+        let _ = tensor.squeeze_dim::<0>(0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn squeeze_dims_all_singleton_not_supported() {
+        let tensor = TestTensor::<3>::ones(Shape::new([1, 1, 1]), &Default::default());
+        let _ = tensor.squeeze_dims::<0>(&[0, 1, 2]);
+    }
 }

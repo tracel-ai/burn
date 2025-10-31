@@ -20,8 +20,10 @@ use burn_tensor::{Int, Tensor};
 /// let device_mps = LibTorchDevice::Mps; // Metal Performance Shaders
 /// let device_vulkan = LibTorchDevice::Vulkan; // Vulkan
 /// ```
+#[derive(Default)]
 pub enum LibTorchDevice {
     /// CPU device.
+    #[default]
     Cpu,
 
     /// Cuda device with the given index. The index is the index of the Cuda device in the list of
@@ -91,12 +93,6 @@ impl burn_common::device::Device for LibTorchDevice {
 }
 
 impl DeviceOps for LibTorchDevice {}
-
-impl Default for LibTorchDevice {
-    fn default() -> Self {
-        Self::Cpu
-    }
-}
 
 /// Tensor backend that uses `LibTorch` with the [tch] crate for executing tensor operations.
 ///

@@ -170,7 +170,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
     let mean = input.clone().sum_dim(2) / hidden_size as f64;
     let input = input.sub(mean);
 
-    let var = input.clone().powi_scalar(2).sum_dim(2) / hidden_size as f64;
+    let var = input.clone().square().sum_dim(2) / hidden_size as f64;
     let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
 
     if affine {

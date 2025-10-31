@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_collective::CollectiveConfig;
-use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
+use burn_core::{module::AutodiffModule, prelude::Backend, tensor::backend::AutodiffBackend};
 
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
@@ -12,23 +12,33 @@ use crate::{
         processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
     },
+    multi::CustomMultiDeviceLearningStrategy,
+    single::CustomSingleDeviceLearningStrategy,
 };
+
+type LearnerDevice<LC> = <<LC as LearnerComponentTypes>::Backend as Backend>::Device;
 
 /// How should the learner run the learning for the model
 #[derive(Clone)]
-pub enum LearningStrategy<B: AutodiffBackend> {
+pub enum LearningStrategy<LC: LearnerComponentTypes> {
     /// Training on one device
-    SingleDevice(B::Device),
+    SingleDevice(LearnerDevice<LC>),
+
+    /// Training on one device with a custom learning strategy
+    CustomSingleDevice(CustomSingleDeviceLearningStrategy<LC>),
 
     /// Legacy implementation of local multi-device training
-    MultiDeviceNaive(Vec<B::Device>),
+    MultiDeviceNaive(Vec<LearnerDevice<LC>>),
+
+    /// Training on multiple devices with a custom learning strategy.
+    CustomMultiDevice(CustomMultiDeviceLearningStrategy<LC>),
 
     /// Training with input distributed across devices, each device has its own copy of the model.
     /// Collective ops are used to sync the gradients after each pass.
     #[cfg(feature = "ddp")]
     DistributedDataParallel {
         /// Devices on this node for the DDP
-        devices: Vec<B::Device>,
+        devices: Vec<LearnerDevice<LC>>,
 
         /// The configuration for collective operations
         /// num_devices is ignored
@@ -38,21 +48,21 @@ pub enum LearningStrategy<B: AutodiffBackend> {
 
 /// Constructor for a distributed data parallel (DDP) learning strategy
 #[cfg(feature = "ddp")]
-pub fn ddp<B: AutodiffBackend>(
-    devices: Vec<B::Device>,
+pub fn ddp<B: AutodiffBackend, LC: LearnerComponentTypes>(
+    devices: Vec<LearnerDevice<LC>>,
     config: CollectiveConfig,
-) -> LearningStrategy<B> {
+) -> LearningStrategy<LC> {
     LearningStrategy::DistributedDataParallel { devices, config }
 }
 
-impl<B: AutodiffBackend> Default for LearningStrategy<B> {
+impl<LC: LearnerComponentTypes> Default for LearningStrategy<LC> {
     fn default() -> Self {
         Self::SingleDevice(Default::default())
     }
 }
 
 /// Provides the `fit` function for any learning strategy
-pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
+pub trait LearningMethod<LC: LearnerComponentTypes> {
     /// The dataloaders after being prepared for this trainin strategy
     ///
     /// (eg: splitting for multiple devices)
@@ -94,7 +104,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         let model = self.prepare_model(model);
 
         // Training loop
-        let components = LearnerComponents {
+        let mut components = LearnerComponents {
             optim,
             lr_scheduler,
             num_epochs: learner.num_epochs,
@@ -105,6 +115,10 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
             event_processor: learner.event_processor,
             event_store: learner.event_store,
         };
+        // Event processor start training
+        components
+            .event_processor
+            .process_train(LearnerEvent::Start);
         let (model, mut event_processor) =
             self.learn(model, dataloaders, starting_epoch, components);
 
@@ -148,14 +162,23 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
 
 /// Struct to minimise parameters passed to [LearningMethod::learn]
 /// These components are used during training
-pub(crate) struct LearnerComponents<LC: LearnerComponentTypes> {
+pub struct LearnerComponents<LC: LearnerComponentTypes> {
+    /// The [Optimizer](LearnerComponentTypes::Optimizer) used for the training.
     pub optim: LC::Optimizer,
+    /// The [learning rate scheduler](LearnerComponentTypes::LrScheduler) used for the training.
     pub lr_scheduler: LC::LrScheduler,
+    /// The number of epochs the training should last.
     pub num_epochs: usize,
+    /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
+    /// A [LearnerCheckpointer](LearnerCheckpointer) used to save and load training checkpoints.
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
+    /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
+    /// [Cloneable reference to an early stopping strategy](EarlyStoppingStrategyRef).
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
+    /// An [EventProcessor](LearnerComponentTypes::EventProcessor) that processes events happening during training and validation.
     pub event_processor: LC::EventProcessor,
+    /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
 }
