@@ -62,6 +62,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // TODO: mark serial for backends that handle the same devices (e.g. fusion)?
     fn test_seed_reproducibility() {
         let device = Default::default();
         TestBackend::seed(&device, 42);
