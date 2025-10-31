@@ -94,7 +94,6 @@ impl CandleDevice {
     }
 
     pub(crate) fn set_seed(&self, seed: u64) {
-        println!("Set device seed {seed}");
         match self {
             CandleDevice::Cpu => {
                 // candle_core::cpu_backend::CpuDevice.set_seed(seed).unwrap();
