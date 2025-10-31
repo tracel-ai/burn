@@ -30,8 +30,6 @@ where
     _int: PhantomData<I>,
 }
 
-// TODO: also check cargo tree features (check if burn-cpu stuff is included somehow) https://discord.com/channels/1038839012602941528/1091796857996451942/1433448112730538187
-
 // Seed for CPU device
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
