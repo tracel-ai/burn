@@ -1,5 +1,9 @@
 use std::marker::PhantomData;
 
+use burn_common::{
+    rand::{SeedableRng, StdRng},
+    stub::Mutex,
+};
 use burn_tensor::{
     Device,
     backend::{Backend, DeviceId, DeviceOps},
@@ -24,6 +28,22 @@ where
 {
     _float: PhantomData<F>,
     _int: PhantomData<I>,
+}
+
+// Seed for CPU device
+pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+
+pub(crate) fn get_seeded_rng() -> StdRng {
+    let mut seed = SEED.lock().unwrap();
+    match seed.as_ref() {
+        Some(rng_seeded) => rng_seeded.clone(),
+        None => burn_common::rand::get_seeded_rng(),
+    }
+}
+
+pub(crate) fn set_seeded_rng(rng_seeded: StdRng) {
+    let mut seed = SEED.lock().unwrap();
+    *seed = Some(rng_seeded);
 }
 
 /// The device type for the candle backend.
@@ -71,6 +91,19 @@ impl CandleDevice {
             device: candle_core::MetalDevice::new(index).unwrap(),
             index,
         })
+    }
+
+    pub(crate) fn set_seed(&self, seed: u64) {
+        match self {
+            CandleDevice::Cpu => {
+                // candle_core::cpu_backend::CpuDevice.set_seed(seed).unwrap();
+                // Candle does not support seeding the CPU rng so we use a global seed
+                let rng = StdRng::seed_from_u64(seed);
+                set_seeded_rng(rng);
+            }
+            CandleDevice::Cuda(cuda_device) => cuda_device.device.set_seed(seed).unwrap(),
+            CandleDevice::Metal(metal_device) => metal_device.device.set_seed(seed).unwrap(),
+        }
     }
 }
 
@@ -196,8 +229,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     }
 
     fn seed(device: &CandleDevice, seed: u64) {
-        // TODO submit an issue at Candle
-        panic!("Manual seed not supported by Candle. ")
+        device.set_seed(seed);
     }
 
     fn sync(device: &Device<Self>) {
