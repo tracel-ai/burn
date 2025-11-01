@@ -7,6 +7,8 @@ use std::{
 use serde::de::DeserializeOwned;
 
 use crate::Dataset;
+use ar_row::arrow::array::RecordBatch;
+use ar_row::deserialize::ArRowDeserialize;
 
 /// Dataset where all items are stored in ram.
 pub struct InMemDataset<I> {
@@ -88,14 +90,37 @@ where
     }
 }
 
+// Support for arrow record batches
+impl<I> InMemDataset<I>
+where
+    I: ArRowDeserialize + Clone,
+{
+    /// Create from Arrow Record Batches
+    /// See:
+    /// - [Deserialize structs in a row-oriented way from Apache Arrow](https://docs.rs/ar_row_derive/latest/ar_row_derive/index.html#examples)
+    pub fn from_arrow_batches(record_batches: Vec<RecordBatch>) -> Result<Self, std::io::Error> {
+        let items: Vec<I> = record_batches
+            .into_iter()
+            .flat_map(|batch| -> Vec<I> { I::from_record_batch(batch).unwrap() })
+            .collect();
+
+        let dataset = Self::new(items);
+
+        Ok(dataset)
+    }
+}
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::{SqliteDataset, test_data};
+    use crate::{test_data, SqliteDataset};
 
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
+
+    // To test Arrow Record Batch Reads
+    use datafusion::prelude::*;
+    use tokio::runtime::Runtime;
 
     const DB_FILE: &str = "tests/data/sqlite-dataset.db";
     const JSON_FILE: &str = "tests/data/dataset.json";
@@ -115,6 +140,14 @@ mod tests {
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct SampleCsv {
+        column_str: String,
+        column_int: i64,
+        column_bool: bool,
+        column_float: f64,
+    }
+
+    #[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
+    pub struct SampleCsvArrow {
         column_str: String,
         column_int: i64,
         column_bool: bool,
@@ -153,6 +186,27 @@ mod tests {
     pub fn from_csv_rows() {
         let rdr = csv::ReaderBuilder::new();
         let dataset = InMemDataset::<SampleCsv>::from_csv(CSV_FILE, &rdr).unwrap();
+
+        let non_existing_record_index: usize = 10;
+        let record_index: usize = 1;
+
+        assert_eq!(dataset.get(non_existing_record_index), None);
+        assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
+        assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
+        assert!(!dataset.get(record_index).unwrap().column_bool);
+        assert_eq!(dataset.get(record_index).unwrap().column_float, 1.0);
+    }
+
+    #[test]
+    pub fn from_csv_arrow() {
+        let rt = Runtime::new().unwrap();
+        let record_batches: Vec<RecordBatch> = rt.block_on(async {
+            let ctx = SessionContext::new();
+
+            let df = ctx.read_csv(CSV_FILE, CsvReadOptions::new()).await.unwrap();
+            df.collect().await.unwrap()
+        });
+        let dataset = InMemDataset::<SampleCsvArrow>::from_arrow_batches(record_batches).unwrap();
 
         let non_existing_record_index: usize = 10;
         let record_index: usize = 1;
