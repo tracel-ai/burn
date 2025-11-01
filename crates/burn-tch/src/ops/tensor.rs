@@ -1,14 +1,19 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_tensor::ops::{BoolTensor, FloatTensor};
-use burn_tensor::{
-    DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
-    backend::Backend,
-    ops::{FloatTensorOps, IntTensor},
-};
+use burn_tensor::{DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata, backend::Backend, ops::{FloatTensorOps, IntTensor}, Device};
 use half::{bf16, f16};
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
+    fn float_dtypes(_device: &Device<Self>) -> Vec<FloatDType> {
+        vec![
+            FloatDType::F64,
+            FloatDType::F32,
+            FloatDType::F16,
+            FloatDType::BF16,
+        ]
+    }
+
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),
