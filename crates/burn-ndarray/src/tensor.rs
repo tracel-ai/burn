@@ -346,7 +346,6 @@ mod utils {
 
     use super::*;
 
-
     impl NdArrayTensor {
         pub(crate) fn into_data(self) -> TensorData {
             let shape = self.shape();

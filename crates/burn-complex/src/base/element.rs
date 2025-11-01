@@ -3,7 +3,7 @@
 /// 32-bit complex number type (real and imaginary parts are f32).
 use burn_tensor::{
     DType, Distribution, Element, ElementComparison, ElementConversion, ElementLimits,
-    ElementPrecision, ElementRandom, Precision, cast::ToElement,
+    ElementRandom, cast::ToElement,
 };
 use core::cmp::Ordering;
 use num_traits::identities::ConstZero;
@@ -172,11 +172,7 @@ macro_rules! make_complex {
             }
         }
 
-        impl ElementPrecision for $type {
-            fn precision() -> Precision {
-                $precision
-            }
-        }
+
 
         impl ElementRandom for $type {
             fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self {

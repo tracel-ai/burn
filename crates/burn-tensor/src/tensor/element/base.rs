@@ -345,8 +345,8 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::Complex64 => 2 * Precision::Full.bytes(),
-            DType::Complex32 => 2 * Precision::Full.bytes(),
+            DType::Complex64 => core::mem::size_of::<f64>() * 2,
+            DType::Complex32 => core::mem::size_of::<f32>() * 2,
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),

@@ -12,7 +12,6 @@ use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
 use rand::SeedableRng;
 
-
 /// The seed for the ndarray backend.
 pub static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 

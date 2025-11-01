@@ -5,9 +5,9 @@ May get split into separate files at some point, but for now it's easier to keep
 definitions in one spot.
 */
 use burn_tensor::{
-    BasicOps, Bytes, DType, Device, Distribution, Element, ElementConversion, Int, Numeric, Shape,
-    Tensor, TensorData, TensorKind, TensorMetadata, TensorPrimitive, Transaction, backend::Backend,
-    ops::FloatTensor,
+    BasicOps, Bytes, DType, Device, Distribution, Element, ElementConversion, FloatDType, Int,
+    Numeric, Shape, Slice, Tensor, TensorData, TensorKind, TensorMetadata, Transaction,
+    backend::Backend, ops::FloatTensor,
 };
 
 use core::ops::Range;
@@ -560,16 +560,18 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         todo!("complex_swap_dims not yet implemented")
     }
 
-    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
-        TensorPrimitive::Complex(B::complex_slice(tensor, ranges))
+    fn slice(tensor: Self::Primitive, ranges: &[Slice]) -> Self::Primitive {
+        //TensorPrimitive::Complex(B::complex_slice(tensor, ranges))
+        todo!()
     }
 
     fn slice_assign(
         tensor: Self::Primitive,
-        ranges: &[Range<usize>],
+        ranges: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        TensorPrimitive::Complex(B::complex_slice_assign(tensor, ranges, value))
+        //TensorPrimitive::Complex(B::complex_slice_assign(tensor, ranges, value))
+        todo!()
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -655,16 +657,9 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         todo!("complex_flip not yet implemented")
     }
 
-    fn full<E: burn_tensor::ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive {
-        todo!()
-    }
-
     fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        TensorPrimitive::Complex(B::complex_select(tensor, dim, indices))
+        //TensorPrimitive::Complex(B::complex_select(tensor, dim, indices))
+        todo!()
     }
 
     fn select_assign(
@@ -673,7 +668,22 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
     ) -> Self::Primitive {
-        TensorPrimitive::Complex(B::complex_select_assign(tensor, dim, indices, values))
+        //TensorPrimitive::Complex(B::complex_select_assign(tensor, dim, indices, values))
+        todo!()
+    }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        //B::float_unfold(tensor.tensor(), dim, size, step)
+        todo!()
+    }
+
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &<B as Backend>::Device,
+        dtype: DType,
+    ) -> Self::Primitive {
+        todo!()
     }
 }
 
@@ -745,13 +755,13 @@ where
         todo!("Complex remainder operation is not supported")
     }
 
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::complex_zeros(shape, device)
-    }
+    // fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
+    //     B::complex_zeros(shape, device)
+    // }
 
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::complex_ones(shape, device)
-    }
+    // fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
+    //     B::complex_ones(shape, device)
+    // }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
         // TODO: Implement complex_sum in ComplexTensorOps
@@ -954,7 +964,15 @@ where
     fn abs(tensor: Self::Primitive) -> Self::Primitive {
         // For complex numbers, abs returns the magnitude as a complex number (real part = magnitude, imag = 0)
         let magnitude = B::complex_abs(tensor.clone());
-        let zeros = B::float_zeros(B::complex_shape(&tensor), &B::complex_device(&tensor));
+        let zeros = B::float_zeros(
+            B::complex_shape(&tensor),
+            &B::complex_device(&tensor),
+            match tensor.dtype() {
+                DType::Complex32 => FloatDType::F32,
+                DType::Complex64 => FloatDType::F64,
+                _ => panic!("Unsupported complex dtype"),
+            },
+        );
         B::complex_from_parts(magnitude, zeros)
     }
 
@@ -1006,6 +1024,30 @@ where
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         // TODO: Implement complex_matmul in ComplexTensorOps
         todo!("complex_matmul not yet implemented")
+    }
+
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        todo!()
+    }
+
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        todo!()
+    }
+
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        todo!()
+    }
+
+    fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        todo!()
+    }
+
+    fn zeros(shape: Shape, device: &<B as Backend>::Device, dtype: DType) -> Self::Primitive {
+        todo!()
+    }
+
+    fn ones(shape: Shape, device: &<B as Backend>::Device, dtype: DType) -> Self::Primitive {
+        todo!()
     }
 }
 
