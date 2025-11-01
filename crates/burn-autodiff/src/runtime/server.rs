@@ -51,12 +51,12 @@ impl AutodiffServer {
         );
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
-        let (tape, checkpointer) = self.build_tape(node_id, step, builder);
+        let mut cleaner = NC::init();
+        let (tape, checkpointer) = self.build_tape(node_id, step, builder, &mut cleaner);
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
 
         // Cleanup
-        let mut cleaner = NC::init();
         self.memory_management
             .free_unavailable_nodes(|node_id: &NodeId| {
                 self.steps.remove(node_id);
@@ -72,6 +72,7 @@ impl AutodiffServer {
         node: NodeId,
         node_step: StepBoxed,
         mut builder: CheckpointerBuilder,
+        cleaner: &mut impl NodeCleaner,
     ) -> (Vec<Vec<StepBoxed>>, Checkpointer) {
         let mut tape = (0..node_step.depth())
             .map(|_| Vec::with_capacity(1))
@@ -81,6 +82,8 @@ impl AutodiffServer {
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
             self.memory_management.consume_node(id);
+            // Clean up consumed node
+            cleaner.clean(&id);
 
             let depth = step.depth();
 

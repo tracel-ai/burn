@@ -199,8 +199,9 @@ pub enum AttributeValue {
 pub type Attributes = HashMap<String, AttributeValue>;
 
 /// The type of an element.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ElementType {
+    #[default]
     Float32,
     Float64,
     Int32,
@@ -224,12 +225,6 @@ pub struct TensorType {
 
     /// The static shape information of the tensor determined during shape inference
     pub static_shape: Option<Vec<usize>>, // TODO fill in with inferred shape information
-}
-
-impl Default for ElementType {
-    fn default() -> Self {
-        Self::Float32
-    }
 }
 
 impl Default for ArgType {

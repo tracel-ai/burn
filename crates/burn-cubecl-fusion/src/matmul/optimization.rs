@@ -342,7 +342,7 @@ pub struct FusedMatmul {
 #[derive(Debug)]
 pub enum FusedMatmulError {
     LaunchError(MatmulSetupError),
-    InvalidInput,
+    InvalidInput(&'static str),
 }
 
 impl From<MatmulSetupError> for FusedMatmulError {
@@ -470,8 +470,15 @@ impl FusedMatmul {
         let (lhs_make_contiguous, lhs_transposed) = check_layout(&lhs_strides);
         let (rhs_make_contiguous, rhs_transposed) = check_layout(&rhs_strides);
 
-        if lhs_make_contiguous || rhs_make_contiguous {
-            return Err(FusedMatmulError::InvalidInput);
+        if lhs_make_contiguous {
+            return Err(FusedMatmulError::InvalidInput(
+                "Lhs needs to be contiguous, but can't when fusing.",
+            ));
+        }
+        if rhs_make_contiguous {
+            return Err(FusedMatmulError::InvalidInput(
+                "Rhs needs to be contiguous, but can't when fusing.",
+            ));
         }
 
         let rank = lhs_shape.len();
@@ -494,7 +501,9 @@ impl FusedMatmul {
         };
 
         if line_sizes.out == 1 && (line_sizes.lhs > 1 || line_sizes.rhs > 1) {
-            return Err(FusedMatmulError::InvalidInput);
+            return Err(FusedMatmulError::InvalidInput(
+                "Output line size of 1 removes the gain from fusion",
+            ));
         }
 
         if let MatmulArg::Quantized { scheme, .. } = self.lhs {
