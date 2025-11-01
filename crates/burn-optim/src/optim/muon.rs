@@ -163,6 +163,57 @@ pub struct MuonConfig {
     adjust_lr_fn: AdjustLrFn,
 }
 
+impl MuonConfig {
+    /// Initialize Muon optimizer.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optimizer adaptor that can be used to optimize a module.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use burn_optim::{MuonConfig, AdjustLrFn, decay::WeightDecayConfig};
+    ///
+    /// // Basic configuration with default (Original) LR adjustment
+    /// let optimizer = MuonConfig::new()
+    ///     .with_weight_decay(Some(WeightDecayConfig::new(0.01)))
+    ///     .init();
+    ///
+    /// // With AdamW-compatible settings using MatchRmsAdamW
+    /// let optimizer = MuonConfig::new()
+    ///     .with_adjust_lr_fn(AdjustLrFn::MatchRmsAdamW)
+    ///     .with_weight_decay(Some(WeightDecayConfig::new(0.1)))
+    ///     .init();
+    ///
+    /// // Custom momentum and NS settings
+    /// let optimizer = MuonConfig::new()
+    ///     .with_momentum(MomentumConfig {
+    ///         momentum: 0.9,
+    ///         dampening: 0.1,
+    ///         nesterov: false,
+    ///     })
+    ///     .with_ns_steps(7)
+    ///     .init();
+    /// ```
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
+        &self,
+    ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
+        let momentum = Momentum::new(&self.momentum);
+        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
+
+        let optim = Muon {
+            momentum,
+            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
+            weight_decay_penalty,
+            epsilon: self.epsilon,
+            adjust_lr_fn: self.adjust_lr_fn,
+        };
+
+        OptimizerAdaptor::from(optim)
+    }
+}
+
 /// Parameters for Newton-Schulz orthogonalization.
 #[derive(Clone, Copy)]
 struct NewtonSchulzParams {
@@ -326,7 +377,7 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
     /// 4. Apply weight decay (using original lr)
     /// 5. Update parameter (using adjusted lr)
     ///
-    /// # Important
+    /// # Notes
     ///
     /// Unlike typical optimizers, the weight decay and parameter update use
     /// different learning rates:
@@ -377,57 +428,6 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
         state.momentum = state.momentum.to_device(device);
         state
-    }
-}
-
-impl MuonConfig {
-    /// Initialize Muon optimizer.
-    ///
-    /// # Returns
-    ///
-    /// Returns an optimizer adaptor that can be used to optimize a module.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// use burn_optim::{MuonConfig, AdjustLrFn, decay::WeightDecayConfig};
-    ///
-    /// // Basic configuration with default (Original) LR adjustment
-    /// let optimizer = MuonConfig::new()
-    ///     .with_weight_decay(Some(WeightDecayConfig::new(0.01)))
-    ///     .init();
-    ///
-    /// // With AdamW-compatible settings using MatchRmsAdamW
-    /// let optimizer = MuonConfig::new()
-    ///     .with_adjust_lr_fn(AdjustLrFn::MatchRmsAdamW)
-    ///     .with_weight_decay(Some(WeightDecayConfig::new(0.1)))
-    ///     .init();
-    ///
-    /// // Custom momentum and NS settings
-    /// let optimizer = MuonConfig::new()
-    ///     .with_momentum(MomentumConfig {
-    ///         momentum: 0.9,
-    ///         dampening: 0.1,
-    ///         nesterov: false,
-    ///     })
-    ///     .with_ns_steps(7)
-    ///     .init();
-    /// ```
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
-        &self,
-    ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
-        let momentum = Momentum::new(&self.momentum);
-        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
-
-        let optim = Muon {
-            momentum,
-            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
-            weight_decay_penalty,
-            epsilon: self.epsilon,
-            adjust_lr_fn: self.adjust_lr_fn,
-        };
-
-        OptimizerAdaptor::from(optim)
     }
 }
 
