@@ -158,10 +158,18 @@ where
 
     /// Converts a tensor to the specified integer data type.
     ///
+    /// This is always a no-op when casting to the current dtype.
+    ///
     /// # Warning
     /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
     /// have the same integer data type for operations multiple input tensors (e.g., binary ops).
     pub fn cast<F: Into<IntDType>>(self, dtype: F) -> Tensor<B, D, Int> {
-        Tensor::new(B::int_cast(self.primitive, dtype.into()))
+        let dtype = dtype.into();
+        let self_dtype: IntDType = self.dtype().into();
+        if dtype == self_dtype {
+            // no-op.
+            return self;
+        }
+        Tensor::new(B::int_cast(self.primitive, dtype))
     }
 }

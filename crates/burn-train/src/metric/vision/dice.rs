@@ -1,7 +1,7 @@
-use crate::metric::MetricName;
+use crate::metric::{MetricAttributes, MetricName};
 
 use super::super::{
-    Metric, MetricEntry, MetricMetadata, Numeric,
+    Metric, MetricEntry, MetricMetadata,
     state::{FormatOptions, NumericMetricState},
 };
 use burn_core::{
@@ -171,10 +171,17 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
     fn clear(&mut self) {
         self.state.reset();
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        crate::metric::NumericAttributes {
+            unit: None,
+            higher_is_better: true,
+        }
+        .into()
+    }
 }
 
-impl<B: Backend, const D: usize> Numeric for DiceMetric<B, D> {
-    /// Returns the current value of the metric.
+impl<B: Backend, const D: usize> crate::metric::Numeric for DiceMetric<B, D> {
     fn value(&self) -> crate::metric::NumericEntry {
         self.state.value()
     }
@@ -183,7 +190,7 @@ impl<B: Backend, const D: usize> Numeric for DiceMetric<B, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
+    use crate::{TestBackend, metric::Numeric};
     use burn_core::tensor::{Shape, Tensor};
 
     #[test]

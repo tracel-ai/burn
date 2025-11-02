@@ -14,6 +14,7 @@
 //! ```bash
 //! cargo bench --bench unified_saving
 //! ```
+use burn_core as burn;
 
 use burn_core::module::Module;
 use burn_core::prelude::*;

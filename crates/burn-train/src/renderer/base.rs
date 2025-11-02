@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::metric::{MetricEntry, NumericEntry};
+use crate::{
+    LearnerSummary,
+    metric::{MetricEntry, NumericEntry},
+};
 use burn_core::data::dataloader::Progress;
 
 /// Trait for rendering metrics.
@@ -39,7 +42,13 @@ pub trait MetricsRendererTraining: Send + Sync {
     /// # Returns
     ///
     /// A result indicating whether the end-of-training actions were successful.
-    fn on_train_end(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+    fn on_train_end(
+        &mut self,
+        summary: Option<LearnerSummary>,
+    ) -> Result<(), Box<dyn core::error::Error>> {
+        if let Some(summary) = summary {
+            println!("{summary}");
+        }
         Ok(())
     }
 }

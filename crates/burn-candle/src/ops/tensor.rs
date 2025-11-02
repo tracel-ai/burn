@@ -8,11 +8,11 @@ use candle_core::{Tensor, backend::BackendStorage, shape};
 use half::{bf16, f16};
 
 use crate::{
-    Candle, CandleTensor, IntoDType,
+    Candle, CandleDevice, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute, sign, unfold};
+use super::base::{cpu_random, expand, permute, sign, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
@@ -30,6 +30,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
+        if let CandleDevice::Cpu = device {
+            // Use our own seed since candle doesn't support it on CPU
+            return Self::float_from_data(cpu_random::<F>(shape, distribution), device);
+        }
+
         let shape = shape.dims;
         let device = &(device.clone()).into();
         match distribution {

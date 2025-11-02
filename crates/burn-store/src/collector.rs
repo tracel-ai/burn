@@ -207,11 +207,14 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
+
+    use burn_core as burn;
+
     type TestBackend = burn_ndarray::NdArray;
     use alloc::collections::BTreeMap;
     use alloc::string::String;
-    use burn::nn::LinearConfig;
     use burn_core::module::{Module, Param};
+    use burn_nn::LinearConfig;
 
     #[test]
     fn tensor_snapshot_collector() {
@@ -769,7 +772,7 @@ mod tests {
     }
 
     use crate::traits::ModuleSnapshot;
-    use burn::nn::Linear;
+    use burn_nn::Linear;
     use hashbrown::HashMap;
 
     // Test module with Option fields

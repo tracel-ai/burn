@@ -71,7 +71,7 @@ impl<B: Backend> RmsNorm<B> {
     pub fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
         // Calculate the root-mean-square norm of the input tensor along the last dimension
         let dtype = x.dtype();
-        let rms = (x.clone().cast(DType::F32).powi_scalar(2).mean_dim(D - 1) + self.epsilon).sqrt();
+        let rms = (x.clone().cast(DType::F32).square().mean_dim(D - 1) + self.epsilon).sqrt();
         (x / rms.cast(dtype)) * self.gamma.val().unsqueeze()
     }
 }

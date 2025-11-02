@@ -94,18 +94,18 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .summary()
         .build(
             config.model.init::<B>(&device),
             config.optimizer.init(),
             config.learning_rate,
+            LearningStrategy::SingleDevice(device.clone()),
         );
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_test);
 
-    model_trained
+    result
         .model
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");

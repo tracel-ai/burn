@@ -265,14 +265,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Tensor::new(B::float_into_int(self.primitive.tensor()))
     }
 
-    /// Returns a new tensor with the same shape and device as the current tensor filled random
+    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
-        Tensor::new(TensorPrimitive::Float(B::float_random(
+        Self::new(TensorPrimitive::Float(B::float_random(
             self.shape(),
             distribution,
             &self.device(),
         )))
+        .cast(self.dtype())
     }
 
     /// Calculate the variance along the given dimension.
@@ -301,13 +302,22 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Converts a tensor to the specified floating point data type.
     ///
+    /// This is always a no-op when casting to the current dtype.
+    ///
     /// # Warning
     /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
     /// have the same floating point precision data type for operations multiple input tensors (e.g., binary ops).
     pub fn cast<F: Into<FloatDType>>(self, dtype: F) -> Tensor<B, D> {
+        let dtype = dtype.into();
+        let self_type: FloatDType = self.dtype().into();
+        if dtype == self_type {
+            // no-op.
+            return self;
+        }
+
         Tensor::new(TensorPrimitive::Float(B::float_cast(
             self.primitive.tensor(),
-            dtype.into(),
+            dtype,
         )))
     }
 

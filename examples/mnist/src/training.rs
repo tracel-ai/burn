@@ -1,11 +1,10 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
     model::Model,
 };
 
-use burn::optim::AdamWConfig;
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -31,6 +30,7 @@ use burn::{
         renderer::MetricsRenderer,
     },
 };
+use burn::{optim::AdamWConfig, train::LearningStrategy};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
@@ -107,8 +107,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .num_epochs(config.num_epochs)
         .summary()
-        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device))
-        .build(model, config.optimizer.init(), lr_scheduler.init().unwrap());
+        .build(
+            model,
+            config.optimizer.init(),
+            lr_scheduler.init().unwrap(),
+            LearningStrategy::SingleDevice(device),
+        );
 
     let result = learner.fit(dataloader_train, dataloader_valid);
 
@@ -142,14 +146,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .unwrap();
 
     renderer.manual_close();
-    core::mem::drop(renderer);
-
-    // Making sure the Terminal is reset.
-    std::thread::sleep(Duration::from_secs(1));
-    if let Some(summary) = result.summary {
-        log::info!("{}", summary);
-        println!("{}", summary);
-    }
 }
 
 fn evaluate<B: Backend>(
