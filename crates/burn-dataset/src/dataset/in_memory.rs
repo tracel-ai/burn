@@ -7,7 +7,10 @@ use std::{
 use serde::de::DeserializeOwned;
 
 use crate::Dataset;
+
+#[cfg(feature = "arrow")]
 use ar_row::arrow::array::RecordBatch;
+#[cfg(feature = "arrow")]
 use ar_row::deserialize::ArRowDeserialize;
 
 /// Dataset where all items are stored in ram.
@@ -91,6 +94,7 @@ where
 }
 
 // Support for arrow record batches
+#[cfg(feature = "arrow")]
 impl<I> InMemDataset<I>
 where
     I: ArRowDeserialize + Clone,
@@ -119,7 +123,9 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     // To test Arrow Record Batch Reads
+    #[cfg(feature = "arrow")]
     use datafusion::prelude::*;
+    #[cfg(feature = "arrow")]
     use tokio::runtime::Runtime;
 
     const DB_FILE: &str = "tests/data/sqlite-dataset.db";
@@ -146,6 +152,7 @@ mod tests {
         column_float: f64,
     }
 
+    #[cfg(feature = "arrow")]
     #[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
     pub struct SampleCsvArrow {
         column_str: String,
@@ -154,6 +161,7 @@ mod tests {
         column_float: f64,
     }
 
+    #[cfg(feature = "arrow")]
     #[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
     pub struct SampleCsvArrowReorder {
         column_bool_r: bool,
@@ -206,6 +214,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "arrow")]
     pub fn from_csv_arrow() {
         let rt = Runtime::new().unwrap();
         let record_batches: Vec<RecordBatch> = rt.block_on(async {
@@ -227,6 +236,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "arrow")]
     pub fn from_csv_arrow_renamed() {
         let rt = Runtime::new().unwrap();
         let record_batches: Vec<RecordBatch> = rt.block_on(async {
