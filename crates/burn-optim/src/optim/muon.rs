@@ -302,8 +302,8 @@ impl<B: Backend> Muon<B> {
     /// - PyTorch: https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py
     fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<B, D>) -> Tensor<B, D> {
         assert!(
-            D >= 2,
-            "Newton-Schulz iteration requires at least 2D tensors, got {}D",
+            D != 2,
+            "Newton-Schulz iteration requires 2D tensors, got {}D",
             D
         );
 
@@ -389,14 +389,6 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        assert!(
-            D >= 2,
-            "Muon optimizer is designed for 2D+ parameters (matrices). \
-            For 1D parameters (biases, layer norms), use AdamW or SGD instead. \
-            Got {}D tensor.",
-            D
-        );
-
         // Step 1: Apply momentum
         let state_momentum = state.map(|s| s.momentum);
         let (grad, new_momentum_state) = self.momentum.transform(grad, state_momentum);
@@ -500,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "2D+ parameters")]
+    #[should_panic(expected = "2D parameters")]
     fn test_1d_tensor_panics() {
         let device = Default::default();
         let config = MuonConfig::new();
@@ -613,82 +605,6 @@ mod tests {
             "Product[1,1] should be ~1.0, got {}",
             values[3]
         );
-    }
-
-    #[test]
-    fn test_muon_with_3d_tensor() {
-        // Test that Muon works with 3D tensors (e.g., batched weight matrices)
-        // Shape: [batch_size, height, width]
-        let device = Default::default();
-
-        // Create a 3D tensor: [2, 4, 3] - 2 batches of 4x3 matrices
-        let tensor_3d = Tensor::<TestBackend, 3>::from_floats(
-            [
-                // Batch 1
-                [
-                    [1.0, 0.5, 0.2],
-                    [0.5, 1.0, 0.3],
-                    [0.2, 0.3, 1.0],
-                    [0.1, 0.2, 0.3],
-                ],
-                // Batch 2
-                [
-                    [1.0, 0.4, 0.1],
-                    [0.4, 1.0, 0.2],
-                    [0.1, 0.2, 1.0],
-                    [0.3, 0.1, 0.2],
-                ],
-            ],
-            &device,
-        );
-
-        let grad_3d = Tensor::<TestBackend, 3>::from_floats(
-            [
-                // Batch 1 gradients
-                [
-                    [0.1, 0.2, 0.3],
-                    [0.2, 0.1, 0.2],
-                    [0.3, 0.2, 0.1],
-                    [0.1, 0.1, 0.1],
-                ],
-                // Batch 2 gradients
-                [
-                    [0.2, 0.1, 0.1],
-                    [0.1, 0.2, 0.1],
-                    [0.1, 0.1, 0.2],
-                    [0.2, 0.2, 0.2],
-                ],
-            ],
-            &device,
-        );
-
-        let config = MuonConfig::new();
-        let muon: Muon<TestBackend> = Muon {
-            momentum: Momentum::new(&config.momentum),
-            ns_params: NewtonSchulzParams::new(config.ns_coefficients, config.ns_steps),
-            weight_decay_penalty: None,
-            epsilon: config.epsilon,
-            adjust_lr_fn: config.adjust_lr_fn,
-        };
-
-        // Should not panic - Muon supports D >= 2
-        let (updated_tensor, state) = muon.step(0.01, tensor_3d.clone(), grad_3d, None);
-
-        // Verify state was created
-        assert!(state.is_some());
-
-        // Verify tensor was updated (should be different from original)
-        let original_data = tensor_3d.into_data();
-        let updated_data = updated_tensor.into_data();
-
-        assert_ne!(
-            original_data.as_slice::<f32>().unwrap(),
-            updated_data.as_slice::<f32>().unwrap(),
-            "Tensor should be updated after optimization step"
-        );
-
-        // Verify shape is preserved
-        assert_eq!(updated_data.shape, original_data.shape);
     }
 
     #[test]
