@@ -113,7 +113,7 @@ where
 mod tests {
 
     use super::*;
-    use crate::{test_data, SqliteDataset};
+    use crate::{SqliteDataset, test_data};
 
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
@@ -152,6 +152,14 @@ mod tests {
         column_int: i64,
         column_bool: bool,
         column_float: f64,
+    }
+
+    #[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
+    pub struct SampleCsvArrowReorder {
+        column_bool_r: bool,
+        column_float_r: f64,
+        column_str_r: String,
+        column_int_r: i64,
     }
 
     #[fixture]
@@ -216,6 +224,45 @@ mod tests {
         assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
         assert!(!dataset.get(record_index).unwrap().column_bool);
         assert_eq!(dataset.get(record_index).unwrap().column_float, 1.0);
+    }
+
+    #[test]
+    pub fn from_csv_arrow_renamed() {
+        let rt = Runtime::new().unwrap();
+        let record_batches: Vec<RecordBatch> = rt.block_on(async {
+            let ctx = SessionContext::new();
+
+            ctx.register_csv("test_csv", CSV_FILE, CsvReadOptions::new())
+                .await
+                .unwrap();
+
+            let df = ctx
+                .sql(
+                    r#"
+                SELECT
+                    column_bool AS column_bool_r,
+                    column_float AS column_float_r,
+                    column_str AS column_str_r,
+                    column_int AS column_int_r,
+                FROM test_csv
+                "#,
+                )
+                .await
+                .unwrap();
+
+            df.collect().await.unwrap()
+        });
+        let dataset =
+            InMemDataset::<SampleCsvArrowReorder>::from_arrow_batches(record_batches).unwrap();
+
+        let non_existing_record_index: usize = 10;
+        let record_index: usize = 1;
+
+        assert_eq!(dataset.get(non_existing_record_index), None);
+        assert_eq!(dataset.get(record_index).unwrap().column_str_r, "HI2");
+        assert_eq!(dataset.get(record_index).unwrap().column_int_r, 1);
+        assert!(!dataset.get(record_index).unwrap().column_bool_r);
+        assert_eq!(dataset.get(record_index).unwrap().column_float_r, 1.0);
     }
 
     #[test]
