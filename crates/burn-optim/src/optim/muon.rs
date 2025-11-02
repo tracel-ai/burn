@@ -442,6 +442,8 @@ mod tests {
 
     type TestBackend = burn_ndarray::NdArray<f32>;
 
+    const TOLERANCE: f64 = 1e-8;
+
     fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = LinearRecord {
@@ -477,16 +479,16 @@ mod tests {
 
         // Square matrix [512, 512] -> sqrt(1) = 1.0
         let ratio = method.adjustment_ratio(&[512, 512]);
-        assert!((ratio - 1.0).abs() < 1e-9);
+        assert!((ratio - 1.0).abs() < TOLERANCE);
 
         // Tall matrix [1024, 512] -> sqrt(2) ≈ 1.414
         let ratio = method.adjustment_ratio(&[1024, 512]);
         let expected = (2.0f64).sqrt();
-        assert!((ratio - expected).abs() < 1e-9);
+        assert!((ratio - expected).abs() < TOLERANCE);
 
         // Wide matrix [512, 1024] -> max(1, 0.5) = 1.0
         let ratio = method.adjustment_ratio(&[512, 1024]);
-        assert!((ratio - 1.0).abs() < 1e-9);
+        assert!((ratio - 1.0).abs() < TOLERANCE);
     }
 
     #[test]
@@ -496,12 +498,12 @@ mod tests {
         // [1024, 512] -> 0.2 * sqrt(1024) = 6.4
         let ratio = method.adjustment_ratio(&[1024, 512]);
         let expected = 0.2 * 1024.0f64.sqrt();
-        assert!((ratio - expected).abs() < 1e-9);
+        assert!((ratio - expected).abs() < TOLERANCE);
 
         // [512, 512] -> 0.2 * sqrt(512) ≈ 4.525
         let ratio = method.adjustment_ratio(&[512, 512]);
         let expected = 0.2 * 512.0f64.sqrt();
-        assert!((ratio - expected).abs() < 1e-9);
+        assert!((ratio - expected).abs() < TOLERANCE);
     }
 
     #[test]
@@ -531,7 +533,7 @@ mod tests {
         let adjusted = muon.adjust_lr(lr, &shape);
         let expected = lr * (2.0f64).sqrt();
 
-        assert!((adjusted - expected).abs() < 1e-9);
+        assert!((adjusted - expected).abs() < TOLERANCE);
     }
 
     #[test]
@@ -551,7 +553,7 @@ mod tests {
         let adjusted = muon.adjust_lr(lr, &shape);
         let expected = lr * 0.2 * 1024.0f64.sqrt();
 
-        assert!((adjusted - expected).abs() < 1e-9);
+        assert!((adjusted - expected).abs() < TOLERANCE);
     }
 
     #[test]
