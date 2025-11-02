@@ -302,7 +302,7 @@ impl<B: Backend> Muon<B> {
     /// - PyTorch: https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py
     fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<B, D>) -> Tensor<B, D> {
         assert!(
-            D != 2,
+            D == 2,
             "Newton-Schulz iteration requires 2D tensors, got {}D",
             D
         );
@@ -492,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "2D parameters")]
+    #[should_panic(expected =  "Newton-Schulz iteration requires 2D tensors, got 1D")]
     fn test_1d_tensor_panics() {
         let device = Default::default();
         let config = MuonConfig::new();
