@@ -321,12 +321,11 @@ impl<B: Backend> Muon<B> {
 
         // Step 2: Normalize by Frobenius norm
         // X = X / (||X|| + epsilon)
-        let norm = x
-            .clone()
+        let norm = x.clone()
             .powf_scalar(2.0)
             .sum()
             .sqrt()
-            .add_scalar(self.epsilon)
+            .clamp_min(self.epsilon)
             .into_scalar();
 
         x = x.div_scalar(norm);
