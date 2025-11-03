@@ -263,6 +263,26 @@ let dataset = InMemDataset::from_csv("path/to/csv", rdr).unwrap();
 
 Note that this requires the `csv` crate.
 
+### Arrow Record Batches
+`InMemDataset` can also load data from `arrow` record batches produced by query engines such as `datafusion` and `duckdb-rs`. This requires the optional `arrow` feature which utilizes the `ar_row` and `ar_row_derive` crates.
+
+```rust, ignore
+// Build dataset from arrow recrod batches
+#[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
+pub struct SampleCsvArrow {
+    column_str: String,
+    column_int: i64,
+    column_bool: bool,
+    column_float: f64,
+}
+let ctx = SessionContext::new();
+let df = ctx.read_csv("path/to/csv", CsvReadOptions::new()).await.unwrap();
+
+let record_batches: Vec<RecordBatch> = df.collect().await.unwrap()
+
+let dataset = InMemDataset::<SampleCsvArrow>::from_arrow_batches(record_batches).unwrap();
+```
+
 **What about streaming datasets?**
 
 There is no streaming dataset API with Burn, and this is by design! The learner struct will iterate
