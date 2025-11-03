@@ -2,6 +2,8 @@
 use crate::KeyRemapper;
 use crate::burnpack::store::BurnpackStore;
 use crate::{ModuleSnapshot, ModuleStore, PathFilter};
+
+use burn_core as burn;
 use burn_core::module::{Module, Param};
 use burn_tensor::{Tensor, backend::Backend};
 
@@ -757,8 +759,8 @@ fn test_partial_loading_preserves_lazy_initialization() {
 // Model with forward pass for testing weight preservation
 #[derive(Module, Debug)]
 struct ForwardTestModel<B: Backend> {
-    linear1: burn::nn::Linear<B>,
-    linear2: burn::nn::Linear<B>,
+    linear1: burn_nn::Linear<B>,
+    linear2: burn_nn::Linear<B>,
 }
 
 impl<B: Backend> ForwardTestModel<B> {
@@ -780,10 +782,10 @@ struct ForwardTestModelConfig {
 impl ForwardTestModelConfig {
     fn init<B: Backend>(&self, device: &B::Device) -> ForwardTestModel<B> {
         ForwardTestModel {
-            linear1: burn::nn::LinearConfig::new(self.input_size, self.hidden_size)
+            linear1: burn_nn::LinearConfig::new(self.input_size, self.hidden_size)
                 .with_bias(true)
                 .init(device),
-            linear2: burn::nn::LinearConfig::new(self.hidden_size, self.output_size)
+            linear2: burn_nn::LinearConfig::new(self.hidden_size, self.output_size)
                 .with_bias(true)
                 .init(device),
         }

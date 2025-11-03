@@ -13,6 +13,7 @@
 //!   hexdump -C sample.bpk | head -100
 //!   xxd sample.bpk | head -100
 //!   hexyl sample.bpk
+use burn_core as burn;
 
 use burn_core::module::Module;
 use burn_ndarray::NdArray;

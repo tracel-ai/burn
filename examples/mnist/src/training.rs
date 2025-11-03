@@ -5,7 +5,6 @@ use crate::{
     model::Model,
 };
 
-use burn::optim::AdamWConfig;
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -31,6 +30,7 @@ use burn::{
         renderer::MetricsRenderer,
     },
 };
+use burn::{optim::AdamWConfig, train::LearningStrategy};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
@@ -107,8 +107,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .num_epochs(config.num_epochs)
         .summary()
-        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device))
-        .build(model, config.optimizer.init(), lr_scheduler.init().unwrap());
+        .build(
+            model,
+            config.optimizer.init(),
+            lr_scheduler.init().unwrap(),
+            LearningStrategy::SingleDevice(device),
+        );
 
     let result = learner.fit(dataloader_train, dataloader_valid);
 

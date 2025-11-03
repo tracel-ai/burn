@@ -20,6 +20,8 @@ pub mod logger;
 /// The metric module.
 pub mod metric;
 
+pub use metric::processor::*;
+
 mod learner;
 
 pub use learner::*;
@@ -27,6 +29,8 @@ pub use learner::*;
 mod evaluator;
 
 pub use evaluator::*;
+
+pub use components::LearnerComponentTypes;
 
 #[cfg(test)]
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;

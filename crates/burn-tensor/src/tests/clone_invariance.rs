@@ -231,7 +231,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: PowScalar,
-                                        ops_float: |tensor: TestTensor<2>| tensor.powf_scalar(2.0)
+            ops_float: |tensor: TestTensor<2>| tensor.powf_scalar(2.0)
+        );
+        clone_invariance_test!(
+            unary: Square,
+            ops_float: |tensor: TestTensor<2>| tensor.square()
         );
         clone_invariance_test!(
             unary: Sqrt,

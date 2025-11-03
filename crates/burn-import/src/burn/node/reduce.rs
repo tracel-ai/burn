@@ -139,7 +139,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
 
         let raw_output_expr = match self.reduction_type {
             ReductionType::SumSquare => {
-                let input_square = quote! { #input.powi_scalar(2) };
+                let input_square = quote! { #input.square() };
                 Self::forward_reduce(
                     ReductionType::Sum,
                     input_square,
@@ -161,7 +161,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
                 )
             }
             ReductionType::L2 => {
-                let input_square = quote! { #input.powi_scalar(2) };
+                let input_square = quote! { #input.square() };
                 let input_square_reduced = Self::forward_reduce(
                     ReductionType::Sum,
                     input_square,
@@ -521,7 +521,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = { tensor1.powi_scalar(2).sum().expand([1; 4usize]) };
+                    let tensor2 = { tensor1.square().sum().expand([1; 4usize]) };
 
                     tensor2
                 }
@@ -618,7 +618,7 @@ mod tests {
                     let tensor2 = {
                         let input_dtype = tensor1.dtype();
                         tensor1
-                            .powi_scalar(2)
+                            .square()
                             .sum_dim(0usize)
                             .sum_dim(3usize)
                             .squeeze_dims(&[0, 3])

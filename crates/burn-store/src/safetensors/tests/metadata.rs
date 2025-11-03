@@ -1,5 +1,5 @@
 use crate::{ModuleSnapshot, SafetensorsStore};
-use burn::nn::LinearConfig;
+use burn_nn::LinearConfig;
 
 type TestBackend = burn_ndarray::NdArray;
 

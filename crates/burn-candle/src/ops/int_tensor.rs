@@ -5,11 +5,11 @@ use burn_tensor::{
 };
 
 use crate::{
-    Candle, CandleTensor, IntoDType,
+    Candle, CandleDevice, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute, sign, unfold};
+use super::base::{cpu_random, expand, permute, sign, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -381,6 +381,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         distribution: Distribution,
         device: &Device<Self>,
     ) -> IntTensor<Self> {
+        if let CandleDevice::Cpu = device {
+            let distribution = if distribution == Distribution::Default {
+                Distribution::Uniform(0.0, 255.0)
+            } else {
+                distribution
+            };
+            // Use our own seed since candle doesn't support it on CPU
+            return Self::int_from_data(cpu_random::<I>(shape, distribution), device);
+        }
+
         let shape = shape.dims;
         let device = &(device.clone()).into();
         match distribution {
