@@ -126,6 +126,21 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         )
     }
 
+    /// Move the module and all of its sub-modules to the autodiff backend.
+    ///
+    /// # Notes
+    ///
+    /// * Only plain modules (not already on an autodiff backend) can be moved.
+    /// * Calling `train()` on a module that is already on an autodiff backend
+    ///   will result in a type error, because the module's inner backend does not match.
+    fn train<AB, M>(self) -> M
+    where
+        AB: AutodiffBackend<InnerBackend = B>,
+        M: AutodiffModule<AB, InnerModule = Self>,
+    {
+        M::from_inner(self)
+    }
+
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize {
         module!(
@@ -370,6 +385,9 @@ pub trait AutodiffModule<B: AutodiffBackend>: Module<B> + Send + core::fmt::Debu
     /// Inner module without auto-differentiation.
     type InnerModule: Module<B::InnerBackend>;
 
-    /// Get the same module, but on the inner backend without auto-differentiation.
+    /// Returns the same module, but on the inner backend without auto-differentiation.
     fn valid(&self) -> Self::InnerModule;
+
+    /// Wraps an inner module back into an auto-diff module.
+    fn from_inner(module: Self::InnerModule) -> Self;
 }

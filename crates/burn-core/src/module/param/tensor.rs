@@ -460,6 +460,10 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     fn valid(&self) -> Self::InnerModule {
         Param::initialized(self.id, self.val().inner().set_require_grad(false))
     }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param::initialized(module.id, Tensor::from_inner(module.val()).require_grad())
+    }
 }
 
 impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D, Int>> {
@@ -468,6 +472,10 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     fn valid(&self) -> Self::InnerModule {
         Param::initialized(self.id, self.val().inner())
     }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param::initialized(module.id, Tensor::from_inner(module.val()))
+    }
 }
 
 impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D, Bool>> {
@@ -475,6 +483,10 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
 
     fn valid(&self) -> Self::InnerModule {
         Param::initialized(self.id, self.val().inner())
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param::initialized(module.id, Tensor::from_inner(module.val()))
     }
 }
 

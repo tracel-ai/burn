@@ -15,6 +15,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_fork(&self) -> TokenStream;
     fn gen_map(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
+    fn gen_from_inner(&self) -> TokenStream;
     fn gen_into_record(&self) -> TokenStream;
     fn gen_load_record(&self) -> TokenStream;
     fn gen_clone(&self) -> TokenStream;
@@ -39,6 +40,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let to_device = codegen.gen_to_device();
     let fork = codegen.gen_fork();
     let valid_fn = codegen.gen_valid();
+    let from_inner_fn = codegen.gen_from_inner();
     let into_record_fn = codegen.gen_into_record();
     let load_record_fn = codegen.gen_load_record();
     let clone_fn = codegen.gen_clone();
@@ -77,6 +79,8 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
             type InnerModule=#name<B::InnerBackend, #generics_ty_inner_module>;
 
             #valid_fn
+
+            #from_inner_fn
         }
 
         impl #generics_module core::fmt::Display for #name #generics_ty_module #generics_where_module {

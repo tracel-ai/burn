@@ -142,6 +142,30 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
+    fn gen_from_inner(&self) -> TokenStream {
+        let (names, body) = self.gen_fields_fn_names(|name| {
+            quote! {
+                let #name = burn::module::AutodiffModule::<B>::from_inner(#name);
+            }
+        });
+
+        // Destructure inner module to move all fields
+        let destructure = quote! {
+            let Self::InnerModule { #(#names),* } = module;
+        };
+
+        quote! {
+            fn from_inner(module: Self::InnerModule) -> Self {
+                #destructure
+                #body
+
+                Self {
+                    #(#names),*
+                }
+            }
+        }
+    }
+
     fn gen_into_record(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
             quote! {
