@@ -144,7 +144,7 @@ half = { version = "2.7.1", features = [
 ], default-features = false }
 macerator = { version = "0.2.9" }
 matrixmultiply = { version = "0.3.10", default-features = false }
-ndarray = { version = "0.16.1", default-features = false }
+ndarray = { version = "0.17.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
