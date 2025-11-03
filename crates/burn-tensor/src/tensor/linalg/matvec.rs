@@ -1,6 +1,3 @@
-// What: Introduce a matrix-vector helper that mirrors Tensor::matmul for ergonomic access.
-// Why: Reuses the optimized matmul kernels while surfacing clear shape validation for vectors.
-// Creative: Adds batch-aware validation with minimal reshaping by unsqueezing/squeezing exactly once.
 use crate::Numeric;
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Shape, Tensor};
