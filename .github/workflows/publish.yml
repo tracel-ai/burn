@@ -16,7 +16,7 @@ jobs:
   check-version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: tracel-ai/github-actions/check-version@v5
         with:
           tag: ${{ github.ref_name }}
