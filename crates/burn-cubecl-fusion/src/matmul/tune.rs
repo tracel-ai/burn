@@ -1,8 +1,9 @@
 use crate::{
     CubeFusionHandle,
     matmul::optimization::{
-        DoubleBuffering, DoubleUnit, DoubleVecMat, Ordered, Simple, SimpleMultiRows, SimpleUnit,
-        SimpleVecMat, Specialized,
+        DoubleBuffering, DoubleBufferingMma, DoubleUnit, DoubleVecMat, Ordered, OrderedMma, Simple,
+        SimpleMma, SimpleMultiRows, SimpleMultiRowsMma, SimpleUnit, SimpleVecMat, Specialized,
+        SpecializedMma,
     },
     shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
@@ -58,6 +59,20 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         });
 
+        let mma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if matches!(
+                key.matmul_key.analysis.kind,
+                // General is usually bad, but I think shapes like 16x8196 would be classed as
+                // general and are very good with MMA
+                // Should highly degenerated matrices that aren't VecMat have their own class?
+                MatmulKind::General | MatmulKind::VecMat | MatmulKind::MatVec
+            ) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MEDIUM
+            }
+        });
+
         let odd = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
             if key.matmul_key.definition.lhs_pow2_factor == 0
                 || key.matmul_key.definition.rhs_pow2_factor == 0
@@ -100,9 +115,14 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                 }),
             )
             .with(Tunable::new(tune_fused::<R, BT, Simple>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(tune_fused::<R, BT, SimpleMma>).group(&mma, |_| PRIORITY_MAX))
             .with(Tunable::new(tune_fused::<R, BT, SimpleMultiRows>).group(&cmma, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(tune_fused::<R, BT, SimpleMultiRowsMma>).group(&mma, |_| PRIORITY_MAX),
+            )
             // Ordered should be tried most of the time.
             .with(Tunable::new(tune_fused::<R, BT, Ordered>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(tune_fused::<R, BT, OrderedMma>).group(&mma, |_| PRIORITY_MAX))
             .with(
                 Tunable::new(tune_fused::<R, BT, Specialized>)
                     .group(&cmma, |key| {
@@ -111,7 +131,21 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                     .group(&odd, |_| PRIORITY_MAX),
             )
             .with(
+                Tunable::new(tune_fused::<R, BT, SpecializedMma>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
                 Tunable::new(tune_fused::<R, BT, DoubleBuffering>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(tune_fused::<R, BT, DoubleBufferingMma>)
                     .group(&cmma, |key| {
                         double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
                     })
