@@ -30,7 +30,7 @@ pub struct AdamWConfig {
 
     /// Cautious weight decay config.
     ///
-    /// See: https://arxiv.org/abs/2510.12402
+    /// See: <https://arxiv.org/abs/2510.12402>
     #[config(default = false)]
     cautious_weight_decay: bool,
 
