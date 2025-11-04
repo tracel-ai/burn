@@ -14,9 +14,9 @@ use alloc::vec::Vec;
 
 #[derive(Default)]
 pub struct AutodiffServer {
-    steps: HashMap<NodeId, StepBoxed>,
-    actions_builder: HashMap<NodeId, CheckpointerBuilder>,
-    memory_management: GraphMemoryManagement,
+    pub(crate) steps: HashMap<NodeId, StepBoxed>,
+    pub(crate) actions_builder: HashMap<NodeId, CheckpointerBuilder>,
+    pub(crate) memory_management: GraphMemoryManagement,
 }
 
 /// Defines how nodes are clean.
