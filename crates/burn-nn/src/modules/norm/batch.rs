@@ -290,7 +290,7 @@ mod tests_1d {
             .to_data()
             .assert_approx_eq::<FT>(&expected_valid(), Tolerance::default());
 
-        let module: BatchNorm<TestAutodiffBackend> = module.train();
+        let module = module.train::<TestAutodiffBackend>();
         let output = module.forward(input_tensor(&device));
         output
             .to_data()
