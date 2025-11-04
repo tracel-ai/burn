@@ -23,30 +23,6 @@ pub(crate) trait ModuleCodegen {
     fn record_codegen(self) -> Self::RecordCodegen;
 }
 
-/*
-        impl<B: burn::tensor::backend::AutodiffBackend> burn::module::HasAutodiffModule<B>
-        for ModuleBasic<B::InnerBackend>
-    where
-        <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: Backend,
-    {
-        type TrainModule = ModuleBasic<B>;
-    }
-
-    Nested working:
-impl<B: Backend, M> burn::module::HasAutodiffModule<B>
-for ModuleWithGenericModule<B::InnerBackend, M>
-where
-B: burn::tensor::backend::AutodiffBackend,
-<B as burn::tensor::backend::AutodiffBackend>::InnerBackend: Backend,
-M: burn::module::Module<B::InnerBackend>,
-M: burn::module::ModuleDisplay,
-M: burn::module::HasAutodiffModule<B>,
-M::TrainModule: burn::module::ModuleDisplay,
-{
-type TrainModule = ModuleWithGenericModule<B, M::TrainModule>;
-}
-    */
-
 pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     ast: &syn::DeriveInput,
     codegen: Codegen,
