@@ -3,7 +3,7 @@
 //! This implementation is based on the candle project's pickle loader with significant
 //! modifications for improved separation of concerns and extended PyTorch compatibility.
 //!
-//! Original source: https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs
+//! Original source: <https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs>
 //!
 //! Modifications include:
 //! - Lazy tensor data loading for memory efficiency
