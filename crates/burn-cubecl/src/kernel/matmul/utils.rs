@@ -1,7 +1,8 @@
+use burn_tensor::calculate_matmul_output;
+
 use crate::{
     CubeRuntime, element::CubeElement, ops::numeric::empty_device_optimized, tensor::CubeTensor,
 };
-use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
 pub fn init_matmul_output<R: CubeRuntime, E: CubeElement>(
@@ -11,6 +12,6 @@ pub fn init_matmul_output<R: CubeRuntime, E: CubeElement>(
     empty_device_optimized::<R, E>(
         lhs.client.clone(),
         lhs.device.clone(),
-        Shape::matmul(&lhs.shape, &rhs.shape).unwrap(),
+        calculate_matmul_output(&lhs.shape, &rhs.shape).unwrap(),
     )
 }

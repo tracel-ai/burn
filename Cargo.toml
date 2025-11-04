@@ -144,7 +144,7 @@ half = { version = "2.7.1", features = [
 ], default-features = false }
 macerator = { version = "0.2.9" }
 matrixmultiply = { version = "0.3.10", default-features = false }
-ndarray = { version = "0.16.1", default-features = false }
+ndarray = { version = "0.17.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
@@ -171,9 +171,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8aac5a9774e4a609078fa28c0cedb079e6fb7d6a" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8aac5a9774e4a609078fa28c0cedb079e6fb7d6a" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8aac5a9774e4a609078fa28c0cedb079e6fb7d6a" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "726ffef6be03e81080a4783523f54be9d330792c" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "726ffef6be03e81080a4783523f54be9d330792c" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "726ffef6be03e81080a4783523f54be9d330792c" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

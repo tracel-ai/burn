@@ -45,7 +45,6 @@ mod tests {
         if (IntType::MAX as u32) < 255 - 1 {
             return;
         }
-
         let device = Default::default();
 
         let input =

@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
+use crate::TensorPrimitive;
 use crate::indexing::canonicalize_dim;
 use crate::{
     AsIndex, BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
@@ -11,7 +12,6 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
-use crate::{DType, TensorPrimitive};
 
 macro_rules! q_bin_ops {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
@@ -335,88 +335,6 @@ where
     /// ```
     pub fn sign(self) -> Self {
         Self::new(K::sign(self.primitive))
-    }
-
-    /// Create a tensor of the given shape where each element is zero.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::zeros(Shape::new([2, 3]), &device);
-    ///    println!("{tensor}");
-    ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
-    /// }
-    /// ```
-    pub fn zeros<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
-        let shape = shape.into();
-        check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
-        Self::new(K::zeros(shape, device, K::Elem::dtype()))
-    }
-
-    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.zeros_like();
-    ///   println!("{tensor}");
-    ///   // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
-    /// }
-    /// ```
-    pub fn zeros_like(&self) -> Self {
-        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
-    }
-
-    /// Create a tensor of the given shape where each element is one.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::ones(Shape::new([2, 3]), &device);
-    ///   println!("{tensor}");
-    ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
-    /// }
-    /// ```
-    pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
-        let shape = shape.into();
-        check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
-        Self::new(K::ones(shape, device, K::Elem::dtype()))
-    }
-
-    /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.ones_like();
-    ///    println!("{tensor}");
-    ///    // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
-    /// }
-    /// ```
-    pub fn ones_like(&self) -> Self {
-        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -2724,50 +2642,6 @@ where
     /// which is more high-level and designed for public use.
     fn sign(tensor: Self::Primitive) -> Self::Primitive;
 
-    /// Creates a tensor filled with zeros.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the tensor.
-    /// * `device` - The device on which the tensor will be allocated.
-    /// * `dtype` - The target data type.
-    ///
-    /// # Returns
-    ///
-    /// The tensor filled with zeros.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor filled with zeros, users should prefer the [Tensor::zeros](Tensor::zeros) function,
-    /// which is more high-level and designed for public use.
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
-
-    /// Creates a tensor filled with ones.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the tensor.
-    /// * `device` - The device on which the tensor will be allocated.
-    /// * `dtype` - The target data type.
-    ///
-    /// # Returns
-    ///
-    /// The tensor filled with ones.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor filled with ones, users should prefer the [Tensor::ones](Tensor::ones) function,
-    /// which is more high-level and designed for public use.
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
-
     /// Sums all the elements of the tensor.
     ///
     /// # Arguments
@@ -3797,12 +3671,6 @@ impl<B: Backend> Numeric<B> for Int {
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
     }
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        B::int_zeros(shape, device, dtype.into())
-    }
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        B::int_ones(shape, device, dtype.into())
-    }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
         B::int_sum(tensor)
@@ -4100,12 +3968,6 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_neg(tensor)),
             TensorPrimitive::QFloat(tensor) => B::q_neg(tensor),
         }
-    }
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_zeros(shape, device, dtype.into()))
-    }
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_ones(shape, device, dtype.into()))
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
