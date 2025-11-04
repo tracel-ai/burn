@@ -1,7 +1,7 @@
 use super::{Param, ParamId, Parameter};
 use crate::module::{
-    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    AutodiffModule, Content, HasAutodiffModule, Module, ModuleDisplay, ModuleDisplayDefault,
+    ModuleMapper, ModuleVisitor,
 };
 use crate::tensor::{
     Tensor,
@@ -458,12 +458,24 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::initialized(self.id, self.val().inner().set_require_grad(false))
+        // Preserve initialized param `require_grad` state, but reset the inner value's
+        let require_grad = self.require_grad;
+        let mut param = Param::initialized(self.id, self.val().inner().set_require_grad(false));
+        param.require_grad = require_grad;
+        param
     }
 
     fn from_inner(module: Self::InnerModule) -> Self {
-        Param::initialized(module.id, Tensor::from_inner(module.val()).require_grad())
+        // Reinstate the param's `require_grad` state
+        let tensor = Tensor::from_inner(module.val()).set_require_grad(module.require_grad);
+        Param::initialized(module.id, tensor)
     }
+}
+
+impl<const D: usize, B: AutodiffBackend> HasAutodiffModule<B>
+    for Param<Tensor<B::InnerBackend, D>>
+{
+    type TrainModule = Param<Tensor<B, D>>;
 }
 
 impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D, Int>> {
@@ -523,5 +535,37 @@ mod tests {
 
         assert!(!no_grad_is_require_grad);
         assert!(with_default_is_require_grad);
+    }
+
+    #[test]
+    fn test_param_require_grad_stateful() {
+        let device = Default::default();
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device).require_grad();
+
+        let param = Param::initialized(ParamId::new(), tensor);
+        assert!(param.is_require_grad());
+        assert!(param.require_grad);
+
+        let param = param.valid();
+        assert!(!param.is_require_grad());
+        assert!(param.require_grad); // stateful
+
+        // Without `HasAutodiffModule`, we would need to specify the param type as well, which would be annoying:
+        // let param: Param<Tensor<TestAutodiffBackend, _>> = param.train();
+        let param = param.train::<TestAutodiffBackend>();
+        assert!(param.is_require_grad());
+        assert!(param.require_grad); // stateful
+
+        let param = param.no_grad();
+        assert!(!param.is_require_grad());
+        assert!(!param.require_grad); // stateful
+
+        let param = param.valid();
+        assert!(!param.is_require_grad()); // always
+        assert!(!param.require_grad); // stateful
+
+        let param = param.train::<TestAutodiffBackend>();
+        assert!(!param.is_require_grad());
+        assert!(!param.require_grad); // stateful
     }
 }

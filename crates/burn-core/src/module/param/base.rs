@@ -56,6 +56,8 @@ pub struct Param<T: Parameter> {
     /// - After lazy init triggers: `Some(RwLock<None>)` (inner Option is taken)
     pub(crate) initialization: Option<RwLock<Option<Uninitialized<T>>>>,
     pub(crate) param_mapper: ParamMapper<T>,
+    // For stateful `module.valid()` <> `module.train()`
+    pub(crate) require_grad: bool,
 }
 
 #[derive(Clone)]
@@ -170,11 +172,13 @@ impl<P: Parameter> Uninitialized<P> {
 impl<T: Parameter> Param<T> {
     /// Create a new parameter that is already initialized.
     pub fn initialized(id: ParamId, value: T) -> Self {
+        let require_grad = value.is_require_grad();
         Self {
             id,
             state: OnceCell::from(value),
             initialization: None,
             param_mapper: Default::default(),
+            require_grad,
         }
     }
 
@@ -199,6 +203,7 @@ impl<T: Parameter> Param<T> {
                 shape,
             }))),
             param_mapper: Default::default(),
+            require_grad: is_require_grad,
         }
     }
 
@@ -247,12 +252,14 @@ impl<T: Parameter> Param<T> {
     pub fn map<F: FnOnce(T) -> T>(self, func: F) -> Self {
         let (id, tensor, param_mapper) = self.consume();
         let tensor = func(tensor);
+        let require_grad = tensor.is_require_grad();
 
         Self {
             id,
             state: OnceCell::from(tensor),
             initialization: None,
             param_mapper,
+            require_grad,
         }
     }
 
@@ -261,11 +268,13 @@ impl<T: Parameter> Param<T> {
     /// This is a helper method for creating parameters while preserving the param mapper,
     /// typically used in ModuleMapper implementations.
     pub fn from_mapped_value(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
+        let require_grad = value.is_require_grad();
         Self {
             id,
             state: OnceCell::from(value),
             initialization: None,
             param_mapper,
+            require_grad,
         }
     }
 

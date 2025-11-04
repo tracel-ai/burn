@@ -133,12 +133,12 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     /// * Only plain modules (not already on an autodiff backend) can be moved.
     /// * Calling `train()` on a module that is already on an autodiff backend
     ///   will result in a type error, because the module's inner backend does not match.
-    fn train<AB, M>(self) -> M
+    fn train<AB>(self) -> <Self as HasAutodiffModule<AB>>::TrainModule
     where
         AB: AutodiffBackend<InnerBackend = B>,
-        M: AutodiffModule<AB, InnerModule = Self>,
+        Self: HasAutodiffModule<AB>,
     {
-        M::from_inner(self)
+        <Self as HasAutodiffModule<AB>>::TrainModule::from_inner(self)
     }
 
     /// Get the number of parameters the module has, including all of its sub-modules.
@@ -390,4 +390,49 @@ pub trait AutodiffModule<B: AutodiffBackend>: Module<B> + Send + core::fmt::Debu
 
     /// Wraps an inner module back into an auto-diff module.
     fn from_inner(module: Self::InnerModule) -> Self;
+}
+
+/// Helper trait to associate a module with its autodiff version.
+pub trait HasAutodiffModule<B: AutodiffBackend> {
+    /// The module with auto-differentiation.
+    type TrainModule: AutodiffModule<B, InnerModule = Self>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::TestAutodiffBackend;
+    use crate::test_utils::SimpleLinear;
+
+    #[test]
+    fn test_module_val_train_stateful() {
+        let device = Default::default();
+        let module = SimpleLinear::<TestAutodiffBackend>::new(4, 4, &device);
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad);
+
+        let module = module.valid();
+        assert!(!module.weight.is_require_grad());
+        assert!(module.weight.require_grad); // stateful
+
+        // Without `HasAutodiffModule`, we would need to specify the module type as well, which would be annoying
+        // let module: SimpleLinear<TestAutodiffBackend> = module.train();
+        let module = module.train::<TestAutodiffBackend>();
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad); // stateful
+
+        let module = module.no_grad();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad); // stateful
+
+        let module = module.valid();
+        assert!(!module.weight.is_require_grad()); // always
+        assert!(!module.weight.require_grad); // stateful
+
+        let module = module.train::<TestAutodiffBackend>();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad); // stateful
+    }
 }
