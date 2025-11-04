@@ -361,6 +361,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
+            FusePrecision::F64 => self.matmul_fused::<R, f64>(client, inputs, outputs, &configs[0]),
             FusePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0]),
             FusePrecision::Flex32 => {
                 self.matmul_fused::<R, flex32>(client, inputs, outputs, &configs[0])
@@ -377,7 +378,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
             FusePrecision::U16 => self.matmul_fused::<R, u16>(client, inputs, outputs, &configs[0]),
             FusePrecision::U32 => self.matmul_fused::<R, u32>(client, inputs, outputs, &configs[0]),
             FusePrecision::U64 => self.matmul_fused::<R, u64>(client, inputs, outputs, &configs[0]),
-            _ => panic!("Unsupported precision"),
+            FusePrecision::Bool => panic!("Unsupported precision"),
         }
     }
 }
