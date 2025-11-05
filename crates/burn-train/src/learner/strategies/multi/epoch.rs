@@ -5,7 +5,7 @@ use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
 use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
 use burn_core::prelude::DeviceOps;
 use burn_core::tensor::backend::{Backend, DeviceId};
-use burn_optim::DistributedGradientsParams;
+use burn_optim::MultiGradientsParams;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 
 /// A training epoch.
@@ -79,12 +79,12 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             accumulation_current += 1;
 
             if accumulation <= accumulation_current {
-                let mut grads = DistributedGradientsParams::default();
+                let mut grads = MultiGradientsParams::default();
                 for (device_id, accumulator) in accumulators.iter_mut() {
                     let grad = accumulator.grads();
                     grads.grads.push((grad, *device_id));
                 }
-                model = model.optimize_distributed(&mut optim, lr, grads);
+                model = model.optimize_multi(&mut optim, lr, grads);
                 accumulation_current = 0;
             }
 

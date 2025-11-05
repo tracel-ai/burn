@@ -63,8 +63,11 @@ impl<LC: LearnerComponentTypes> Worker<LC> {
     }
 }
 
+/// Multiple output items.
 pub struct MultiTrainOutput<TO> {
+    /// The training output.
     pub output: TrainOutput<TO>,
+    /// The device on which the computing happened.
     pub device: DeviceId,
 }
 

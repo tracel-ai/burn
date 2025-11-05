@@ -12,11 +12,18 @@ use burn::record::Record;
 use burn::tensor::backend::AutodiffBackend;
 
 #[derive(Default)]
-pub struct DistributedGradientsParams {
+/// Exposes multiple gradients for each parameter.
+pub struct MultiGradientsParams {
+    /// Each [GradientsParams] has its associated [DeviceId].
     pub grads: Vec<(GradientsParams, DeviceId)>,
 }
 
-impl DistributedGradientsParams {
+impl MultiGradientsParams {
+    /// Removes the gradients for the given [parameter id](ParamId).
+    ///
+    /// Potentially accumulates the gradients from multiple sources using a device associated with
+    /// a parameter id. The same parameter will be accumulated using the same device during
+    /// all training.
     pub fn remove<B: Backend, const D: usize>(
         &mut self,
         id: ParamId,
@@ -51,7 +58,7 @@ impl DistributedGradientsParams {
                 Some(acc) => {
                     let device_id = self.grads[selected_device_index].1.clone();
                     let device = <B::Device as DeviceOps>::from_id(device_id);
-                    return Some((acc, device, selected_device_index));
+                    return Some((acc.to_device(&device), device, selected_device_index));
                 }
                 None => {}
             }
@@ -76,12 +83,7 @@ where
 
     /// Perform the optimizer step using the given learning rate and gradients.
     /// The updated module is returned.
-    fn step_distributed(
-        &mut self,
-        lr: LearningRate,
-        module: M,
-        grads: DistributedGradientsParams,
-    ) -> M;
+    fn step_multi(&mut self, lr: LearningRate, module: M, grads: MultiGradientsParams) -> M;
 
     /// Get the current state of the optimizer as a [record](Record).
     fn to_record(&self) -> Self::Record;

@@ -2,7 +2,7 @@ use burn_core::{self as burn, prelude::Backend, tensor::Device};
 
 use super::{SimpleOptimizer, record::AdaptorRecord};
 use crate::{
-    DistributedGradientsParams, LearningRate,
+    LearningRate, MultiGradientsParams,
     grad_clipping::GradientClipping,
     optim::{GradientsParams, Optimizer},
 };
@@ -90,12 +90,7 @@ where
         module.map(&mut mapper)
     }
 
-    fn step_distributed(
-        &mut self,
-        lr: LearningRate,
-        module: M,
-        grads: crate::DistributedGradientsParams,
-    ) -> M {
+    fn step_multi(&mut self, lr: LearningRate, module: M, grads: crate::MultiGradientsParams) -> M {
         let mut grads = GradAdaptor::Multi(grads);
 
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
@@ -120,7 +115,7 @@ where
 
 enum GradAdaptor {
     Single(GradientsParams),
-    Multi(DistributedGradientsParams),
+    Multi(MultiGradientsParams),
 }
 
 impl GradAdaptor {
@@ -167,11 +162,22 @@ where
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(&id).unzip();
 
+            assert_eq!(
+                grad.device(),
+                device,
+                "The gradient is on the provided device"
+            );
             let clipped_grad = if let Some(g_clipping) = self.grad_clipping {
                 g_clipping.clip_gradient(grad)
             } else {
                 grad
             };
+
+            assert_eq!(
+                tensor.device(),
+                device,
+                "Tensor and gradients are on the same device."
+            );
 
             let (tensor, state) = self.optimizer.step(
                 self.lr,

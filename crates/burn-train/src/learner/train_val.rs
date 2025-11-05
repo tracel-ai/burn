@@ -10,7 +10,7 @@ use crate::{Learner, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_optim::{DistributedGradientsParams, GradientsParams, Optimizer};
+use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::Arc;
 
 /// A training output.
@@ -87,18 +87,24 @@ pub trait TrainStep<TI, TO> {
     {
         optim.step(lr, self, grads)
     }
-    fn optimize_distributed<B, O>(
-        self,
-        optim: &mut O,
-        lr: f64,
-        grads: DistributedGradientsParams,
-    ) -> Self
+    /// Optimize the current module with the provided gradients and learning rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `optim`: Optimizer used for training this model.
+    /// * `lr`: The learning rate used for this step.
+    /// * `grads`: Multiple gradients associated to each parameter in the current model.
+    ///
+    /// # Returns
+    ///
+    /// The updated model.
+    fn optimize_multi<B, O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
     where
         B: AutodiffBackend,
         O: Optimizer<Self, B>,
         Self: AutodiffModule<B>,
     {
-        optim.step_distributed(lr, self, grads)
+        optim.step_multi(lr, self, grads)
     }
 }
 
