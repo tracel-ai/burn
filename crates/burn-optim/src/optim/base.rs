@@ -45,7 +45,7 @@ impl DistributedGradientsParams {
     ) -> Option<(Tensor<B, D>, Device<B>, usize)> {
         let id_val = id.val() as usize;
         for i in 0..self.grads.len() {
-            let selected_device_index = id_val + i % self.grads.len();
+            let selected_device_index = (id_val + i) % self.grads.len();
 
             match self.grads[selected_device_index].0.remove::<B, D>(id) {
                 Some(acc) => {
