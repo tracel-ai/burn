@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use crate::Shape;
 use crate::indexing::AsIndex;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
+use core::str::FromStr;
 
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
@@ -507,9 +508,87 @@ impl From<i32> for Slice {
     }
 }
 
+/// Parse error for [`Slice`] parsing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SliceParseError {
+    /// The value that failed to parse.
+    pub value: String,
+}
+
+impl FromStr for Slice {
+    type Err = SliceParseError;
+
+    fn from_str(buf: &str) -> Result<Self, Self::Err> {
+        let mut s = buf.trim();
+        let make_error = || SliceParseError {
+            value: buf.to_string(),
+        };
+        let parse =
+            |v: &str| -> Result<isize, Self::Err> { v.parse::<isize>().map_err(|_| make_error()) };
+
+        let mut start: isize = 0;
+        let mut end: Option<isize> = None;
+        let mut step: isize = 1;
+
+        if s.is_empty() {
+            return Err(make_error());
+        }
+
+        if let Some((head, tail)) = s.split_once(":") {
+            step = parse(tail)?;
+            s = head;
+        }
+        if let Some((start_s, end_s)) = s.split_once("..") {
+            if !start_s.is_empty() {
+                start = parse(start_s)?;
+            }
+            if !end_s.is_empty() {
+                if let Some(end_s) = end_s.strip_prefix('=') {
+                    end = Some(parse(end_s)? + 1);
+                } else {
+                    end = Some(parse(end_s)?);
+                }
+            }
+        } else {
+            if !s.is_empty() {
+                start = parse(s)?;
+            }
+            end = Some(start + 1);
+        }
+
+        Ok(Slice::new(start, end, step))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_slice_from_str() {
+        assert_eq!("1".parse::<Slice>(), Ok(Slice::new(1, Some(2), 1)));
+        assert_eq!("..".parse::<Slice>(), Ok(Slice::new(0, None, 1)));
+        assert_eq!("..3".parse::<Slice>(), Ok(Slice::new(0, Some(3), 1)));
+        assert_eq!("..=3".parse::<Slice>(), Ok(Slice::new(0, Some(4), 1)));
+
+        assert_eq!("-12..3".parse::<Slice>(), Ok(Slice::new(-12, Some(3), 1)));
+        assert_eq!("..:-1".parse::<Slice>(), Ok(Slice::new(0, None, -1)));
+
+        assert_eq!("..=3:-2".parse::<Slice>(), Ok(Slice::new(0, Some(4), -2)));
+
+        fn expect_err(val: &str) {
+            assert_eq!(
+                val.parse::<Slice>().unwrap_err(),
+                SliceParseError {
+                    value: val.to_string()
+                }
+            );
+        }
+        expect_err("");
+        expect_err("a");
+        expect_err("..a");
+        expect_err("a:b:c");
+    }
 
     #[test]
     fn test_slice_output_size() {
