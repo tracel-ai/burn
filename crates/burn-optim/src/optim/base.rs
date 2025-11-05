@@ -11,6 +11,7 @@ use burn::module::AutodiffModule;
 use burn::record::Record;
 use burn::tensor::backend::AutodiffBackend;
 
+#[derive(Default)]
 pub struct DistributedGradientsParams {
     pub grads: Vec<(GradientsParams, DeviceId)>,
 }

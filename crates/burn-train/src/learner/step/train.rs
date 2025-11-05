@@ -3,14 +3,15 @@ use crate::{TrainOutput, TrainStep};
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
 use burn_core::module::Module;
-use burn_core::prelude::Backend;
+use burn_core::prelude::{Backend, DeviceOps};
+use burn_core::tensor::backend::DeviceId;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<LC: LearnerComponentTypes> {
     workers: Vec<Worker<LC>>,
-    receiver: Receiver<TrainOutput<OutputTrain<LC>>>,
+    receiver: Receiver<MultiTrainOutput<OutputTrain<LC>>>,
 }
 
 struct Message<M, TI> {
@@ -34,7 +35,7 @@ impl<LC: LearnerComponentTypes> Worker<LC> {
 
     fn start(
         &self,
-        sender_output: Sender<TrainOutput<OutputTrain<LC>>>,
+        sender_output: Sender<MultiTrainOutput<OutputTrain<LC>>>,
         receiver_input: Receiver<Message<LC::Model, InputTrain<LC>>>,
     ) {
         let device = self.device.clone();
@@ -45,8 +46,12 @@ impl<LC: LearnerComponentTypes> Worker<LC> {
                     Ok(item) => {
                         let model = item.model.fork(&device);
                         let output = model.step(item.item);
+                        let item = MultiTrainOutput {
+                            output,
+                            device: device.to_id(),
+                        };
 
-                        sender_output.send(output).unwrap();
+                        sender_output.send(item).unwrap();
                     }
                     Err(_err) => {
                         log::info!("Closing thread on device {device:?}");
@@ -56,6 +61,11 @@ impl<LC: LearnerComponentTypes> Worker<LC> {
             }
         });
     }
+}
+
+pub struct MultiTrainOutput<TO> {
+    pub output: TrainOutput<TO>,
+    pub device: DeviceId,
 }
 
 impl<LC: LearnerComponentTypes> MultiDevicesTrainStep<LC> {
@@ -104,7 +114,7 @@ impl<LC: LearnerComponentTypes> MultiDevicesTrainStep<LC> {
         &self,
         dataloaders: &mut [Box<dyn DataLoaderIterator<InputTrain<LC>> + 'a>],
         model: &LC::Model,
-    ) -> (Vec<TrainOutput<OutputTrain<LC>>>, Progress) {
+    ) -> (Vec<MultiTrainOutput<OutputTrain<LC>>>, Progress) {
         let mut num_send = 0;
 
         let mut items_total = 0;

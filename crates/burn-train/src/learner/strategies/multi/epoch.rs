@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
 use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
-use burn_core::tensor::backend::Backend;
+use burn_core::tensor::backend::{Backend, DeviceId};
+use burn_optim::DistributedGradientsParams;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 
 /// A training epoch.
@@ -48,15 +51,11 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             .map(|d| d.iter())
             .collect::<Vec<_>>();
         let mut iteration = 0;
-        let mut accumulator = GradientsAccumulator::new();
+        let mut accumulators = HashMap::<DeviceId, GradientsAccumulator<LC::Model>>::new();
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
         let step = MultiDevicesTrainStep::<LC>::new(&devices);
-
-        // The main device is always the first in the list.
-        let device_main = devices.first().expect("A minimum of one device.").clone();
-        let mut interrupted = false;
 
         loop {
             let (items, progress) = step.step(iterators.as_mut_slice(), &model);
@@ -64,23 +63,31 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
                 break;
             }
 
-            for item in items {
-                iteration += 1;
-                let lr = lr_scheduler.step();
+            let lr = lr_scheduler.step();
 
-                let grads = item.grads.to_device(&device_main, &model);
+            let mut progress_items = Vec::with_capacity(items.len());
+            for item in items.into_iter() {
+                let accumulator = accumulators.get_mut(&item.device).unwrap();
+                accumulator.accumulate(&model, item.output.grads);
+                progress_items.push(item.output.item);
+            }
 
-                accumulator.accumulate(&model, grads);
-                accumulation_current += 1;
+            accumulation_current += 1;
 
-                if accumulation <= accumulation_current {
-                    let grads = accumulator.grads();
-                    model = model.optimize(&mut optim, lr, grads);
-                    accumulation_current = 0;
+            if accumulation <= accumulation_current {
+                let mut grads = DistributedGradientsParams::default();
+                for (device_id, accumulator) in accumulators.iter_mut() {
+                    let grad = accumulator.grads();
+                    grads.grads.push((grad, *device_id));
                 }
+                model = model.optimize_distributed(&mut optim, lr, grads);
+                accumulation_current = 0;
+            }
 
+            for item in progress_items {
+                iteration += devices.len();
                 let item = LearnerItem::new(
-                    item.item,
+                    item,
                     progress.clone(),
                     self.epoch,
                     self.epoch_total,
@@ -89,15 +96,10 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
                 );
 
                 processor.process_train(LearnerEvent::ProcessedItem(item));
-
-                if interrupter.should_stop() {
-                    log::info!("Training interrupted.");
-                    interrupted = true;
-                    break;
-                }
             }
 
-            if interrupted {
+            if interrupter.should_stop() {
+                log::info!("Training interrupted.");
                 break;
             }
         }
