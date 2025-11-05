@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
 use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
+use burn_core::prelude::DeviceOps;
 use burn_core::tensor::backend::{Backend, DeviceId};
 use burn_optim::DistributedGradientsParams;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
@@ -52,9 +53,12 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             .collect::<Vec<_>>();
         let mut iteration = 0;
         let mut accumulators = HashMap::<DeviceId, GradientsAccumulator<LC::Model>>::new();
+        for device in devices.iter() {
+            accumulators.insert(device.to_id(), GradientsAccumulator::new());
+        }
         let mut accumulation_current = 0;
 
-        let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
+        let accumulation = self.grad_accumulation.unwrap_or(1);
         let step = MultiDevicesTrainStep::<LC>::new(&devices);
 
         loop {
