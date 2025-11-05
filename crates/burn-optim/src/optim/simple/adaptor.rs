@@ -161,7 +161,11 @@ where
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(&id).unzip();
-            let tensor = tensor.to_device(&device);
+            let tensor = if tensor.device() != device {
+                tensor.to_device(&device)
+            } else {
+                tensor
+            };
 
             assert_eq!(
                 grad.device(),
