@@ -138,7 +138,7 @@ pub(crate) struct GraphCleaner<'a> {
 }
 
 impl<'a> GraphCleaner<'a> {
-    fn cleanup_orphaned_entries(&mut self) {
+    pub(crate) fn cleanup_orphaned_entries(&mut self) {
         if let Some(state) = self.guard.as_mut() {
             state.cleanup_untracked();
         }

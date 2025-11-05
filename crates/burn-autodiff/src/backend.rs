@@ -142,6 +142,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
 
         use crate::runtime::NodeCleaner;
         let mut cleaner = crate::runtime::graph::GraphCleaner::init();
+        cleaner.cleanup_orphaned_entries();
         for (_graph_origin, graph) in graphs_to_visit {
             let mut state = graph.state.lock().unwrap();
             let server = &mut state.server;
