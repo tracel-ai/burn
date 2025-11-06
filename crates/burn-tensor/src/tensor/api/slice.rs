@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 
 use crate::Shape;
 use crate::indexing::AsIndex;
+use alloc::string::String;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
 
