@@ -41,10 +41,10 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        const PRIORITY_MAX: u8 = 3;
-        const PRIORITY_HIGH: u8 = 2;
-        const PRIORITY_MEDIUM: u8 = 1;
-        const PRIORITY_MIN: u8 = 0;
+        const PRIORITY_MAX: i8 = 3;
+        const PRIORITY_HIGH: i8 = 2;
+        const PRIORITY_MEDIUM: i8 = 1;
+        const PRIORITY_MIN: i8 = 0;
 
         let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
             if matches!(
@@ -96,7 +96,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         });
 
-        fn double_buffering_priority(key: &FusedMatmulAutotuneKey, max: u8, min: u8) -> u8 {
+        fn double_buffering_priority(key: &FusedMatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key) {
                 max
             } else {
