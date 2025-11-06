@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! This library provides the core abstractions required to run tensor operations with Burn.
 //! `Tensor`s are generic over the backend to allow users to perform operations using different `Backend` implementations.

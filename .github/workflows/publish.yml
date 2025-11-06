@@ -228,7 +228,7 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-cpu:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
     needs:
       - publish-burn-tensor
       - publish-burn-fusion
