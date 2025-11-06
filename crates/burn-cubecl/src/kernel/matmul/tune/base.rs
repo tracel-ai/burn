@@ -344,7 +344,7 @@ fn matmul_double_buffering_tma<R: CubeRuntime, MP: MatmulPrecision, const MMA: b
     }
     launch_matmul::<R, MP>(
         &Strategy::DoubleBuffering {
-            read_strategy: PartialReadingStrategy::Tilewise,
+            read_strategy: PartialReadingStrategy::Tma,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
             tile_kind: tile_kind(MMA),
         },
