@@ -14,7 +14,7 @@ automatically add the missing imports as you add the code snippets to your code.
 Be sure to checkout the git branch corresponding to the version of Burn you are using to follow
 this guide.
 
-The current version of Burn is `0.19` and the corresponding branch to checkout is `release/0.19`.
+The current version of Burn is `0.19.1` and the corresponding branch to checkout is `release/0.19`.
 </div>
 
 The code for this demo can be executed from Burn's base directory using the command:
