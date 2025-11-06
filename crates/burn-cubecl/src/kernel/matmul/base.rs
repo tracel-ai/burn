@@ -57,34 +57,47 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     let client = &lhs.client;
 
     let lhs_quant_handles = lhs.quantized_handles();
+    let out_dtype: DType = out.dtype;
 
-    let lhs_handle = match &lhs_quant_handles {
-        None => MatmulInputHandleRef::new(lhs.as_handle_ref(), lhs.dtype.into()),
-        Some((data, scale)) => MatmulInputHandleRef::quantized(
-            data.as_handle_ref(),
-            scale.as_handle_ref(),
-            &lhs.shape.dims,
-            lhs.scheme(),
-            data.dtype.into(),
-            scale.dtype.into(),
+    let (lhs_dtype, lhs_handle) = match &lhs_quant_handles {
+        None => (
+            lhs.dtype,
+            MatmulInputHandleRef::new(lhs.as_handle_ref(), lhs.dtype.into()),
+        ),
+        Some((data, scale)) => (
+            out_dtype,
+            MatmulInputHandleRef::quantized(
+                data.as_handle_ref(),
+                scale.as_handle_ref(),
+                &lhs.shape.dims,
+                lhs.scheme(),
+                data.dtype.into(),
+                scale.dtype.into(),
+            ),
         ),
     };
 
     let rhs_quant_handles = rhs.quantized_handles();
 
-    let rhs_handle = match &rhs_quant_handles {
-        None => MatmulInputHandleRef::new(rhs.as_handle_ref(), lhs.dtype.into()),
-        Some((data, scale)) => MatmulInputHandleRef::quantized(
-            data.as_handle_ref(),
-            scale.as_handle_ref(),
-            &rhs.shape.dims,
-            rhs.scheme(),
-            data.dtype.into(),
-            scale.dtype.into(),
+    let (rhs_dtype, rhs_handle) = match &rhs_quant_handles {
+        None => (
+            lhs.dtype,
+            MatmulInputHandleRef::new(rhs.as_handle_ref(), lhs.dtype.into()),
+        ),
+        Some((data, scale)) => (
+            out_dtype,
+            MatmulInputHandleRef::quantized(
+                data.as_handle_ref(),
+                scale.as_handle_ref(),
+                &rhs.shape.dims,
+                rhs.scheme(),
+                data.dtype.into(),
+                scale.dtype.into(),
+            ),
         ),
     };
 
-    let dtypes = MatmulElems::from_globals(lhs.dtype.into(), rhs.dtype.into(), out.dtype.into());
+    let dtypes = MatmulElems::from_globals(lhs_dtype.into(), rhs_dtype.into(), out_dtype.into());
     cubecl::matmul::launch_ref::<R>(
         strategy,
         client,
