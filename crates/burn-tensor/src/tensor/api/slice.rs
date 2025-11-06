@@ -531,14 +531,15 @@ impl FromStr for Slice {
         let mut end: Option<isize> = None;
         let mut step: isize = 1;
 
-        if s.is_empty() {
-            return Err(make_error());
-        }
-
         if let Some((head, tail)) = s.split_once(":") {
             step = parse(tail)?;
             s = head;
         }
+
+        if s.is_empty() {
+            return Err(make_error());
+        }
+
         if let Some((start_s, end_s)) = s.split_once("..") {
             if !start_s.is_empty() {
                 start = parse(start_s)?;
@@ -551,9 +552,7 @@ impl FromStr for Slice {
                 }
             }
         } else {
-            if !s.is_empty() {
-                start = parse(s)?;
-            }
+            start = parse(s)?;
             end = Some(start + 1);
         }
 
