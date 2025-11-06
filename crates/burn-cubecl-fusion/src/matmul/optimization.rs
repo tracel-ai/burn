@@ -1,8 +1,8 @@
-use std::any::TypeId;
 use std::sync::Arc;
 
 use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
+use crate::matmul::args::FusedMatmulArgs;
 use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
 use crate::shared::trace::HandleInput;
@@ -15,15 +15,10 @@ use crate::{CubeFusionHandle, matmul::args::MatmulArg};
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use cubecl::matmul::components::AccS;
+use cubecl::matmul::components::MatmulElems;
 use cubecl::matmul::components::tile::io::Filled;
-use cubecl::matmul::components::{
-    self, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS, tile::TileMatmulFamily,
-};
-use cubecl::matmul::components::{
-    AccG,
-    tile::{cmma::CmmaMatmul, mma::MmaMatmul},
-};
+use cubecl::matmul::components::tile::{cmma::CmmaMatmul, mma::MmaMatmul};
+use cubecl::matmul::components::{self, MatmulProblem, MatmulSetupError, tile::TileMatmulFamily};
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -36,14 +31,10 @@ use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
-use cubecl::matmul::{
-    components::{LhsS, MatmulLineSizes, MatmulPrecision},
-    kernels::layered::Algorithm,
-};
+use cubecl::matmul::{components::MatmulLineSizes, kernels::layered::Algorithm};
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use cubecl::{features::TypeUsage, matmul::AcceleratedTileKind};
-use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
@@ -52,7 +43,6 @@ use crate::shared::{
 };
 
 use super::args::FusedMatmulInputLaunch;
-use super::spec::FusedMatmulSpec;
 use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
@@ -414,17 +404,32 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
-        match self.out.precision() {
-            FusePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0]),
-            FusePrecision::Flex32 => {
-                self.matmul_fused::<R, flex32>(client, inputs, outputs, &configs[0])
+        let (lhs, rhs, out) = (
+            self.lhs.precision().into_type(),
+            self.rhs.precision().into_type(),
+            self.out.precision().into_type(),
+        );
+        let acc_type = |dtype: StorageType| {
+            if dtype == half::f16::as_type_native_unchecked()
+                || dtype == half::bf16::as_type_native_unchecked()
+            {
+                return f32::as_type_native_unchecked();
             }
-            FusePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, &configs[0]),
-            FusePrecision::BF16 => {
-                self.matmul_fused::<R, bf16>(client, inputs, outputs, &configs[0])
-            }
-            _ => panic!("Unsupported precision"),
-        }
+
+            dtype
+        };
+        let dtypes = MatmulElems {
+            lhs_global: lhs,
+            rhs_global: rhs,
+            acc_global: out,
+            lhs_stage: lhs,
+            rhs_stage: rhs,
+            acc_stage: acc_type(out),
+            lhs_register: lhs,
+            rhs_register: rhs,
+            acc_register: acc_type(out),
+        };
+        self.matmul_fused::<R>(client, inputs, outputs, &configs[0], dtypes)
     }
 }
 
@@ -444,12 +449,13 @@ macro_rules! with_tile_kind {
 }
 
 impl FusedMatmul {
-    fn matmul_fused<'a, R: Runtime, EG: MatmulPrecision>(
+    fn matmul_fused<'a, R: Runtime>(
         &'a self,
         client: &'a ComputeClient<R::Server>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a FuseBlockConfig,
+        dtypes: MatmulElems,
     ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(self.lhs.data());
         let rhs_shape = inputs.shape(self.rhs.data());
@@ -536,7 +542,6 @@ impl FusedMatmul {
                 tile_matmul,
             } => with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
                 R,
-                EG,
                 SimpleAlgorithm<Accelerated>,
             >(
                 client,
@@ -552,6 +557,7 @@ impl FusedMatmul {
                 problem,
                 line_sizes,
                 &Selection::Inferred(SimpleArgs { multi_rows }),
+                dtypes,
             ) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -561,7 +567,6 @@ impl FusedMatmul {
                 tile_matmul,
             } => with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
                 R,
-                EG,
                 CyclicDoubleBufferingAlgorithm<Accelerated>,
             >(
                 client,
@@ -577,6 +582,7 @@ impl FusedMatmul {
                 problem,
                 line_sizes,
                 &Selection::Inferred(DoubleBufferingArgs { specialized }),
+                dtypes,
             ) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -589,7 +595,6 @@ impl FusedMatmul {
 
                 with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
                     R,
-                    EG,
                     OrderedDoubleBufferingAlgorithm<Accelerated>,
                 >(
                     client,
@@ -609,13 +614,14 @@ impl FusedMatmul {
                         rows_per_plane: Some(2),
                         partition_k: Some(2),
                     }),
+                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 })
             }
             FusedMatmulSelector::SimpleUnit => {
-                match launch_inner_fix_dtype::<R, EG, SimpleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<R, SimpleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -629,13 +635,14 @@ impl FusedMatmul {
                     problem,
                     line_sizes,
                     &Default::default(),
+                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
             FusedMatmulSelector::DoubleUnit => {
-                match launch_inner_fix_dtype::<R, EG, DoubleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<R, DoubleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -649,13 +656,14 @@ impl FusedMatmul {
                     problem,
                     line_sizes,
                     &Default::default(),
+                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
             FusedMatmulSelector::SimpleVecMat => {
-                match launch_inner_fix_dtype::<R, EG, SimpleVecMatAlgorithm>(
+                match launch_inner_fix_dtype::<R, SimpleVecMatAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -669,13 +677,14 @@ impl FusedMatmul {
                     problem,
                     line_sizes,
                     &Default::default(),
+                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
             FusedMatmulSelector::DoubleVecMat => {
-                match launch_inner_fix_dtype::<R, EG, DoubleVecMatAlgorithm>(
+                match launch_inner_fix_dtype::<R, DoubleVecMatAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -689,6 +698,7 @@ impl FusedMatmul {
                     problem,
                     line_sizes,
                     &Default::default(),
+                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -698,13 +708,14 @@ impl FusedMatmul {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
+fn launch_inner_fix_dtype<'a, R: Runtime, A: Algorithm>(
     client: &ComputeClient<R::Server>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
     selection: &Selection<A::SelectionArgs>,
+    mut dtypes: MatmulElems,
 ) -> Result<(), MatmulSetupError> {
     let fix_plane_dim = |plane_dim: u32| {
         // Sometimes the GPU doesn't support plane instructions and doesn't report the
@@ -720,40 +731,17 @@ fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
     if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
         && tf32::supported_uses(client).contains(TypeUsage::Conversion)
     {
-        match (
-            TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
-            TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
-        ) {
-            (true, true) => launch_kernel_virtual::<
-                FusedMatmulSpec<(f32, f32, AccG<MP>, tf32, tf32, AccS<MP>)>,
-                R,
-                A,
-            >(
-                client, input, output, problem, line_sizes, plane_size, selection,
-            ),
-            (true, false) => launch_kernel_virtual::<
-                FusedMatmulSpec<(f32, RhsG<MP>, AccG<MP>, tf32, RhsS<MP>, AccS<MP>)>,
-                R,
-                A,
-            >(
-                client, input, output, problem, line_sizes, plane_size, selection,
-            ),
-            (false, true) => launch_kernel_virtual::<
-                FusedMatmulSpec<(LhsG<MP>, f32, AccG<MP>, LhsS<MP>, tf32, AccS<MP>)>,
-                R,
-                A,
-            >(
-                client, input, output, problem, line_sizes, plane_size, selection,
-            ),
-            (false, false) => launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
-                client, input, output, problem, line_sizes, plane_size, selection,
-            ),
+        if dtypes.lhs_global == f32::as_type_native_unchecked() {
+            dtypes.lhs_stage = tf32::as_type_native_unchecked();
         }
-    } else {
-        launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
-            client, input, output, problem, line_sizes, plane_size, selection,
-        )
+        if dtypes.rhs_global == f32::as_type_native_unchecked() {
+            dtypes.rhs_stage = tf32::as_type_native_unchecked();
+        }
     }
+
+    launch_kernel_virtual::<FusedMatmulArgs, R, A>(
+        client, input, output, problem, line_sizes, plane_size, selection, &dtypes,
+    )
 }
 
 pub(crate) trait MatmulVariantSelection {
