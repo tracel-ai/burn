@@ -147,6 +147,7 @@ impl<'a> GraphCleaner<'a> {
 
 impl<'a> NodeCleaner for GraphCleaner<'a> {
     fn init() -> Self {
+        println!("GraphCleaner::init");
         let guard = STATE.lock();
         Self { guard }
     }
