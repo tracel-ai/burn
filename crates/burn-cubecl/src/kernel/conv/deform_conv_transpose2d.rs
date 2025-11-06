@@ -122,7 +122,13 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
     let columns = swap_dims(columns, 1, 2);
 
-    let grad_weight = matmul::<R, E>(out_grad, columns, None, MatmulStrategy::default())?;
+    let grad_weight = matmul::<R>(
+        out_grad,
+        columns,
+        None,
+        MatmulStrategy::default(),
+        E::dtype().into(),
+    )?;
 
     Ok(reshape(
         grad_weight,
@@ -164,7 +170,13 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     for group in 0..groups {
         let weight = swap_dims(index::<R, E>(weight.clone(), group), 0, 1);
         let out_grad = index::<R, E>(out_grad.clone(), group);
-        let values = matmul::<R, E>(weight, out_grad, None, MatmulStrategy::default())?;
+        let values = matmul::<R>(
+            weight,
+            out_grad,
+            None,
+            MatmulStrategy::default(),
+            E::dtype().into(),
+        )?;
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
         columns = slice_assign::<R, E>(
             columns,

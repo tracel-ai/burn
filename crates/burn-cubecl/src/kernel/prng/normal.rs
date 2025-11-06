@@ -14,7 +14,13 @@ pub fn random_normal<R: CubeRuntime, E: CubeElement + Numeric>(
     let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
     let output_handle = output.as_handle_ref();
 
-    cubecl::random::random_normal(&client, mean, std, output_handle);
+    cubecl::random::random_normal(
+        &client,
+        mean.elem::<f32>(),
+        std.elem::<f32>(),
+        output_handle,
+        E::dtype().into(),
+    );
 
     output
 }

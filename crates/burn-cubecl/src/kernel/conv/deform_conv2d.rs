@@ -297,7 +297,13 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let out = matmul::<R, E>(weight, columns, None, MatmulStrategy::default())?;
+    let out = matmul::<R>(
+        weight,
+        columns,
+        None,
+        MatmulStrategy::default(),
+        E::dtype().into(),
+    )?;
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);

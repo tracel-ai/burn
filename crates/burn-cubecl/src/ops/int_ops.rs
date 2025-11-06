@@ -110,12 +110,8 @@ where
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let dtype = lhs.dtype;
-        execute_with_dtype!(
-            int(dtype),
-            E,
-            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
-        )
+        let dtype = lhs.dtype.into();
+        matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
     fn int_mask_where(

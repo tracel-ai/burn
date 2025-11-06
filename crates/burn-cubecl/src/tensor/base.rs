@@ -31,9 +31,14 @@ pub struct CubeTensor<R: CubeRuntime> {
     pub qparams: Option<QParams>,
 }
 
-impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
+impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
     fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(val.handle, val.shape.to_vec(), val.strides.to_vec())
+        TensorHandle::new(
+            val.handle,
+            val.shape.to_vec(),
+            val.strides.to_vec(),
+            val.dtype.into(),
+        )
     }
 }
 

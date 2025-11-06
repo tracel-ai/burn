@@ -14,7 +14,7 @@ use cubecl::{
     },
     matmul::{
         MatmulInputHandleRef,
-        components::{AccG, LhsG, MatmulPrecision, RhsG, global::args::MatmulArgs},
+        components::{AccG, InputArg, MatmulPrecision, OutputArg},
     },
 };
 
@@ -93,8 +93,8 @@ pub fn conv_gemm_with_algo<R: CubeRuntime, MP: MatmulPrecision, Alg: Algorithm, 
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError>
 where
-    <Alg::Args as MatmulArgs>::Input<LhsG<MP>, RhsG<MP>, AccG<MP>>: ConcreteInputsFactory,
-    <Alg::Args as MatmulArgs>::Output<AccG<MP>>: ConcreteOutputFactory,
+    InputArg<Alg::Args>: ConcreteInputsFactory,
+    OutputArg<Alg::Args>: ConcreteOutputFactory,
     AccG<MP>: CubeElement,
 {
     if options.groups != 1 {
@@ -129,8 +129,8 @@ where
     let bias = bias.as_ref().map(|bias| bias.as_handle_ref());
 
     let client = input.client.clone();
-    let input = MatmulInputHandleRef::new(input.as_handle_ref());
-    let weight = MatmulInputHandleRef::new(weight.as_handle_ref());
+    let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
+    let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());
 
     launch_conv::<R, MP, Alg, N>(
         &client,

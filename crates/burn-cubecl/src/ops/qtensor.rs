@@ -6,10 +6,7 @@ use burn_tensor::{
         QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
     },
 };
-use cubecl::{
-    matmul::components::{AccG, AccS, LhsG, LhsS, RhsG, RhsS},
-    server::{Allocation, AllocationDescriptor, AllocationKind},
-};
+use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
 use cubecl_quant::scheme::QuantStore;
 
 use crate::{
@@ -306,25 +303,23 @@ where
             _ => F::dtype(),
         };
 
-        let (lhs_dtype, lhs) = match lhs {
+        let (_lhs_dtype, lhs) = match lhs {
             TensorPrimitive::Float(lhs) => (lhs.dtype, lhs),
             TensorPrimitive::QFloat(lhs) => (out_dtype, lhs),
         };
-        let (rhs_dtype, rhs) = match rhs {
+        let (_rhs_dtype, rhs) = match rhs {
             TensorPrimitive::Float(rhs) => (rhs.dtype, rhs),
             TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
         };
 
-        let out = execute_with_dtype!(float(lhs_dtype), LP, {
-            execute_with_dtype!(float(rhs_dtype), RP, {
-                execute_with_dtype!(float(out_dtype), OP, {
-                    type MP = (LhsG<LP>, RhsG<RP>, AccG<OP>, LhsS<LP>, RhsS<RP>, AccS<OP>);
-
-                    kernel::matmul::matmul::<R, MP>(lhs, rhs, None, MatmulStrategy::default())
-                        .unwrap()
-                })
-            })
-        });
+        let out = kernel::matmul::matmul::<R>(
+            lhs,
+            rhs,
+            None,
+            MatmulStrategy::default(),
+            out_dtype.into(),
+        )
+        .unwrap();
 
         match propagation {
             QuantPropagation::Propagate => {

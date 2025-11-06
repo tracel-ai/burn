@@ -351,7 +351,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     // efficient for matmul, and allows skipping a contiguous kernel
     let weight = swap_dims(weight, 0, 1); // [K, N]
 
-    let out = matmul::<R, E>(input, weight, None, MatmulStrategy::default())?; // [M, N]
+    let out = matmul::<R>(input, weight, None, MatmulStrategy::default(), E::dtype())?; // [M, N]
 
     // Skip reshape to avoid potential `into_contiguous`. We're only splitting dims so it's safe.
     let mut out = split_dim(out, 0, &split_m); // [N, H, W, C]
@@ -376,8 +376,9 @@ fn reshape_input<R: CubeRuntime, E: CubeElement>(mut input: CubeTensor<R>) -> Cu
     let in_shape = input.shape[1..dim_c].to_vec();
 
     if !is_spatial_contiguous(&input.shape, &input.strides) {
-        let contiguous = into_contiguous_pitched::<R, E>(&input.client, &input.as_handle_ref());
-        input = from_handle(&input.client, &input.device, contiguous);
+        let contiguous =
+            into_contiguous_pitched::<R>(&input.client, &input.as_handle_ref(), E::dtype().into());
+        input = from_handle::<R, E>(&input.client, &input.device, contiguous);
     }
     input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
     input.strides = vec![input.strides[dim_c - 1], input.strides[dim_c]];
@@ -404,7 +405,7 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 fn from_handle<R: CubeRuntime, E: CubeElement>(
     client: &ComputeClient<R::Server>,
     device: &R::Device,
-    handle: TensorHandle<R, E>,
+    handle: TensorHandle<R>,
 ) -> CubeTensor<R> {
     CubeTensor::new(
         client.clone(),
@@ -437,7 +438,13 @@ fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
     let weight = reshape(weight, Shape::new([shape_n, shape_k]));
     let weight = swap_dims(weight, 0, 1); // Col-major [K, N]
 
-    matmul::<R, E>(columns, weight, Some(out.clone()), Default::default())?;
+    matmul::<R>(
+        columns,
+        weight,
+        Some(out.clone()),
+        Default::default(),
+        E::dtype(),
+    )?;
 
     Ok(())
 }

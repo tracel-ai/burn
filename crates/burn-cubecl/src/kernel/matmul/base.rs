@@ -1,9 +1,9 @@
 use super::init_matmul_output;
-use crate::{CubeElement, CubeRuntime, tensor::CubeTensor};
-use burn_tensor::quantization::QTensorPrimitive;
+use crate::{CubeRuntime, tensor::CubeTensor};
+use burn_tensor::{DType, quantization::QTensorPrimitive};
 use cubecl::matmul::{
     MatmulInputHandleRef,
-    components::{AccG, MatmulElems, MatmulPrecision, MatmulSetupError, MatrixPrecision},
+    components::{MatmulElems, MatmulSetupError},
 };
 
 #[cfg(feature = "autotune")]
@@ -35,15 +35,16 @@ pub fn matmul<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
+    out_dtype: DType,
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output::<R>(&lhs, &rhs, lhs.dtype));
+            let out = out.unwrap_or_else(|| init_matmul_output::<R>(&lhs, &rhs, out_dtype));
             launch_matmul::<R>(&Default::default(), lhs, rhs, out.clone())?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => Ok(matmul_autotune::<R>(lhs, rhs, out)),
+        MatmulStrategy::Autotune => Ok(matmul_autotune::<R>(lhs, rhs, out, out_dtype)),
     }
 }
 

@@ -178,11 +178,8 @@ where
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
-        )
+        let dtype = lhs.dtype.into();
+        matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
     fn float_cross(
