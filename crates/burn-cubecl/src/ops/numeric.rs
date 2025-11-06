@@ -10,7 +10,7 @@ use crate::{
     },
     ops::max_line_size,
 };
-use burn_tensor::{ElementConversion, Shape};
+use burn_tensor::{DType, ElementConversion, Shape};
 use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
@@ -113,6 +113,18 @@ pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
     let Allocation { handle, strides } = client.empty_tensor(&shape.dims, size_of::<E>());
 
     CubeTensor::new(client, handle, shape, device, strides, E::dtype())
+}
+
+/// Create a tensor with uninitialized memory
+pub fn empty_device_optimized_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let Allocation { handle, strides } = client.empty_tensor(&shape.dims, dtype.size());
+
+    CubeTensor::new(client, handle, shape, device, strides, dtype)
 }
 
 /// Add two tensors

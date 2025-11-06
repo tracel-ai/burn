@@ -409,26 +409,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
             self.rhs.precision().into_type(),
             self.out.precision().into_type(),
         );
-        let acc_type = |dtype: StorageType| {
-            if dtype == half::f16::as_type_native_unchecked()
-                || dtype == half::bf16::as_type_native_unchecked()
-            {
-                return f32::as_type_native_unchecked();
-            }
-
-            dtype
-        };
-        let dtypes = MatmulElems {
-            lhs_global: lhs,
-            rhs_global: rhs,
-            acc_global: out,
-            lhs_stage: lhs,
-            rhs_stage: rhs,
-            acc_stage: acc_type(out),
-            lhs_register: lhs,
-            rhs_register: rhs,
-            acc_register: acc_type(out),
-        };
+        let dtypes = MatmulElems::from_globals(lhs, rhs, out);
         self.matmul_fused::<R>(client, inputs, outputs, &configs[0], dtypes)
     }
 }
