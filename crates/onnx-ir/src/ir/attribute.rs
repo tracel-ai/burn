@@ -5,9 +5,7 @@
 
 use std::collections::HashMap;
 
-use super::argument::{ArgType, Argument, TensorType, ValueSource};
-use super::tensor_data_ext::TensorDataExt;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::TensorData;
 
 /// The type of an attribute.
 #[derive(Debug, Clone)]
@@ -94,82 +92,6 @@ impl AttributeValue {
             elem
         } else {
             panic!("Expected Tensors, got {self:?}");
-        }
-    }
-}
-
-/// Convert AttributeValue to an Argument
-impl From<AttributeValue> for Argument {
-    fn from(attr: AttributeValue) -> Argument {
-        let name = "".to_string();
-
-        match attr {
-            AttributeValue::Float32(_value) => Argument {
-                ty: ArgType::Scalar(DType::F32),
-                name,
-                value_source: ValueSource::Optional,
-                value_store: None,
-            },
-            AttributeValue::Float32s(values) => Argument {
-                ty: ArgType::Tensor(TensorType {
-                    rank: 1,
-                    dtype: DType::F32,
-                    static_shape: Some(vec![values.len()]),
-                }),
-                name,
-                value_source: ValueSource::Optional,
-                value_store: None,
-            },
-            AttributeValue::Int64(_value) => Argument {
-                ty: ArgType::Scalar(DType::I64),
-                name,
-                value_source: ValueSource::Optional,
-                value_store: None,
-            },
-            AttributeValue::Int64s(values) => Argument {
-                ty: ArgType::Tensor(TensorType {
-                    rank: 1,
-                    dtype: DType::I64,
-                    static_shape: Some(vec![values.len()]),
-                }),
-                name,
-                value_source: ValueSource::Optional,
-                value_store: None,
-            },
-            AttributeValue::String(_value) => {
-                panic!(
-                    "String type not supported in DType - use AttributeValue directly for strings"
-                )
-            }
-            AttributeValue::Strings(_values) => {
-                panic!(
-                    "String type not supported in DType - use AttributeValue directly for strings"
-                )
-            }
-            AttributeValue::Tensor(tensor) => {
-                if tensor.shape.is_empty() {
-                    // Handle scalar tensors by converting them to scalar arguments
-                    Argument {
-                        ty: ArgType::Scalar(tensor.elem_type()),
-                        name,
-                        value_source: ValueSource::Optional,
-                        value_store: None,
-                    }
-                } else {
-                    // Convert tensor to argument
-                    Argument {
-                        ty: ArgType::Tensor(TensorType {
-                            rank: tensor.shape.len(),
-                            dtype: tensor.elem_type(),
-                            static_shape: Some(tensor.shape.to_vec()),
-                        }),
-                        name,
-                        value_source: ValueSource::Optional,
-                        value_store: None,
-                    }
-                }
-            }
-            _ => panic!("Unsupported attribute type"),
         }
     }
 }
