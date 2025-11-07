@@ -67,7 +67,7 @@ where
                 .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
-            kernel::slice::<R, BT>(tensor, &simple_ranges)
+            kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
             kernel::slice_with_steps::<R, BT>(tensor, slices)

@@ -15,10 +15,11 @@ use crate::{CubeFusionHandle, matmul::args::MatmulArg};
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
+use cubecl::matmul::AcceleratedTileKind;
 use cubecl::matmul::components::MatmulElems;
 use cubecl::matmul::components::tile::io::Filled;
 use cubecl::matmul::components::tile::{cmma::CmmaMatmul, mma::MmaMatmul};
-use cubecl::matmul::components::{self, MatmulProblem, MatmulSetupError, tile::TileMatmulFamily};
+use cubecl::matmul::components::{self, MatmulProblem, MatmulSetupError};
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -34,7 +35,6 @@ use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
 use cubecl::matmul::{components::MatmulLineSizes, kernels::layered::Algorithm};
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
-use cubecl::{features::TypeUsage, matmul::AcceleratedTileKind};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
@@ -709,19 +709,15 @@ fn launch_inner_fix_dtype<'a, R: Runtime, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
-        && tf32::supported_uses(client).contains(TypeUsage::Conversion)
-    {
-        if dtypes.lhs_global == f32::as_type_native_unchecked() {
-            dtypes.lhs_stage = tf32::as_type_native_unchecked();
-        }
-        if dtypes.rhs_global == f32::as_type_native_unchecked() {
-            dtypes.rhs_stage = tf32::as_type_native_unchecked();
-        }
-    }
-
     launch_kernel_virtual::<FusedMatmulArgs, R, A>(
-        client, input, output, problem, line_sizes, plane_size, selection, &dtypes,
+        client,
+        input,
+        output,
+        problem,
+        line_sizes,
+        plane_size,
+        selection,
+        &mut dtypes,
     )
 }
 

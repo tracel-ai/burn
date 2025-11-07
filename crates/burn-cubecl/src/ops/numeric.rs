@@ -104,6 +104,17 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     CubeTensor::new_contiguous(client, device, shape, buffer, E::dtype())
 }
 
+pub fn empty_device_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let buffer = client.empty(shape.num_elements() * dtype.size());
+
+    CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
+}
+
 /// Create a tensor with uninitialized memory
 pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
@@ -430,7 +441,7 @@ fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
         &client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
+        input.as_tensor_arg(1),
         linear_view(&output, 1),
         shape_divmod(&input),
         dim as u32,

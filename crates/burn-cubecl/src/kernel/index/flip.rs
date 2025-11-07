@@ -67,8 +67,8 @@ pub(crate) fn flip_on_output<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
+            output.as_tensor_arg(1),
             indices_sequence,
             ndims as u32,
         );

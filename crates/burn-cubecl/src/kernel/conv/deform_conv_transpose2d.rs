@@ -168,8 +168,8 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     let out_grad = reshape(out_grad, out_grad_shape);
 
     for group in 0..groups {
-        let weight = swap_dims(index::<R, E>(weight.clone(), group), 0, 1);
-        let out_grad = index::<R, E>(out_grad.clone(), group);
+        let weight = swap_dims(index::<R>(weight.clone(), group), 0, 1);
+        let out_grad = index::<R>(out_grad.clone(), group);
         let values = matmul::<R>(
             weight,
             out_grad,
@@ -482,10 +482,7 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
         false => zeros_device::<R, f32>(client.clone(), device.clone(), shape),
     };
-    let grad_arg = match supports_fadd && supports_same_type {
-        true => grad_in.as_tensor_arg::<E>(1),
-        false => grad_in.as_tensor_arg::<f32>(1),
-    };
+    let grad_arg = grad_in.as_tensor_arg(1);
 
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
@@ -512,9 +509,9 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
             &offset.client,
             cube_count,
             cube_dim,
-            offset.as_tensor_arg::<E>(1),
-            mask.as_tensor_arg::<E>(1),
-            columns.as_tensor_arg::<E>(1),
+            offset.as_tensor_arg(1),
+            mask.as_tensor_arg(1),
+            columns.as_tensor_arg(1),
             grad_arg,
             DeformConv2dCol2ImgArgsLaunch::new(
                 ScalarArg::new(options.stride[0] as u32),

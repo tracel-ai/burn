@@ -422,11 +422,18 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, line_size: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(&'a self, line_size: u8) -> TensorArg<'a, R> {
+        let size = self.dtype.size();
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
-            TensorArg::from_raw_parts::<E>(handle.handle, handle.strides, handle.shape, line_size)
+            TensorArg::from_raw_parts_and_size(
+                handle.handle,
+                handle.strides,
+                handle.shape,
+                line_size,
+                size,
+            )
         }
     }
 

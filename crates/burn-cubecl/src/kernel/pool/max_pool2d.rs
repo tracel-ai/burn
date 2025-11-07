@@ -136,8 +136,8 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
+        x.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
         (),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
@@ -193,9 +193,9 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
-        indices.as_tensor_arg::<I>(line_size),
+        x.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
+        indices.as_tensor_arg(line_size),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),

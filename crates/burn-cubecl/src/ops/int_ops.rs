@@ -82,11 +82,7 @@ where
                 .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
-            execute_with_dtype!(
-                int(tensor.dtype),
-                I,
-                kernel::slice::<R, I>(tensor, &simple_ranges)
-            )
+            kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
             execute_with_dtype!(

@@ -1,4 +1,7 @@
-use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
+use burn_tensor::{
+    DType,
+    ops::{ConvOptions, conv::calculate_conv_output_sizes},
+};
 use cubecl::{
     convolution::{
         ConvolutionArgs,
@@ -14,14 +17,11 @@ use cubecl::{
     },
     matmul::{
         MatmulInputHandleRef,
-        components::{AccG, InputArg, MatmulPrecision, OutputArg},
+        components::{InputArg, MatmulElems, OutputArg},
     },
 };
 
-use crate::{
-    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_optimized,
-    tensor::CubeTensor,
-};
+use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
 /// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
@@ -30,14 +30,15 @@ use crate::{
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
+pub fn conv_gemm_cyclic<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedConv>, N>(
-        input, weight, bias, options,
+    let out_dtype = input.dtype;
+    conv_gemm_with_algo::<R, SimpleConvAlgorithm<AcceleratedConv>, N>(
+        input, weight, bias, options, out_dtype,
     )
 }
 
@@ -49,14 +50,15 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 #[allow(unused)]
-pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
+pub fn conv_gemm_tma<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<AcceleratedConv>, N>(
-        input, weight, bias, options,
+    let out_dtype = input.dtype;
+    conv_gemm_with_algo::<R, SimpleTmaConvAlgorithm<AcceleratedConv>, N>(
+        input, weight, bias, options, out_dtype,
     )
 }
 
@@ -68,14 +70,15 @@ pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 #[allow(unused)]
-pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize>(
+pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<AcceleratedConv>, N>(
-        input, weight, bias, options,
+    let out_dtype = input.dtype;
+    conv_gemm_with_algo::<R, MultiStageTmaConvAlgorithm<AcceleratedConv>, N>(
+        input, weight, bias, options, out_dtype,
     )
 }
 
@@ -86,16 +89,16 @@ pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv_gemm_with_algo<R: CubeRuntime, MP: MatmulPrecision, Alg: Algorithm, const N: usize>(
+pub fn conv_gemm_with_algo<R: CubeRuntime, Alg: Algorithm, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
+    out_dtype: DType,
 ) -> Result<CubeTensor<R>, ConvSetupError>
 where
     InputArg<Alg::Args>: ConcreteInputsFactory,
     OutputArg<Alg::Args>: ConcreteOutputFactory,
-    AccG<MP>: CubeElement,
 {
     if options.groups != 1 {
         return Err(ConvSetupError::Groups(options.groups));
@@ -120,19 +123,22 @@ where
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);
 
-    let out = empty_device_optimized::<R, AccG<MP>>(
+    let out = empty_device_optimized_dtype::<R>(
         input.client.clone(),
         input.device.clone(),
         out_shape.into(),
+        out_dtype,
     );
 
     let bias = bias.as_ref().map(|bias| bias.as_handle_ref());
 
     let client = input.client.clone();
+    let dtypes =
+        MatmulElems::from_globals(input.dtype.into(), weight.dtype.into(), out_dtype.into());
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());
 
-    launch_conv::<R, MP, Alg, N>(
+    launch_conv::<R, Alg, N>(
         &client,
         &input,
         &weight,
@@ -143,6 +149,7 @@ where
             padding: options.padding,
             dilation: options.dilation,
         },
+        dtypes,
     )?;
 
     Ok(out)

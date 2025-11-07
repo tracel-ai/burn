@@ -26,12 +26,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::conv::conv::<R, E, 1>(x, weight, bias, options, ConvStrategy::default())
-                .unwrap()
-        )
+        kernel::conv::conv::<R, 1>(x, weight, bias, options, ConvStrategy::default()).unwrap()
     }
 
     fn conv2d(
@@ -40,12 +35,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::conv::conv::<R, E, 2>(x, weight, bias, options, ConvStrategy::default())
-                .unwrap()
-        )
+        kernel::conv::conv::<R, 2>(x, weight, bias, options, ConvStrategy::default()).unwrap()
     }
 
     fn deform_conv2d(
@@ -93,11 +83,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::conv::conv::<R, E, 3>(x, weight, bias, options, ConvStrategy::Direct).unwrap()
-        )
+        kernel::conv::conv::<R, 3>(x, weight, bias, options, ConvStrategy::Direct).unwrap()
     }
 
     fn conv_transpose2d(

@@ -70,10 +70,10 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             &lhs.client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg::<F>(1),
-            rhs.as_tensor_arg::<F>(1),
-            bias.as_tensor_arg::<F>(1),
-            output.as_tensor_arg::<F>(1),
+            lhs.as_tensor_arg(1),
+            rhs.as_tensor_arg(1),
+            bias.as_tensor_arg(1),
+            output.as_tensor_arg(1),
         );
 
         // Return the output tensor.

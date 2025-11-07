@@ -97,14 +97,15 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
         ),
     };
 
-    let dtypes = MatmulElems::from_globals(lhs_dtype.into(), rhs_dtype.into(), out_dtype.into());
+    let mut dtypes =
+        MatmulElems::from_globals(lhs_dtype.into(), rhs_dtype.into(), out_dtype.into());
     cubecl::matmul::launch_ref::<R>(
         strategy,
         client,
         &lhs_handle,
         &rhs_handle,
         &out.as_handle_ref(),
-        &dtypes,
+        &mut dtypes,
     )?;
 
     Ok(())

@@ -105,8 +105,8 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
         &x.client,
         cube_count,
         cube_dim,
-        out_grad.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
+        out_grad.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
     );
 
     permute_nhwc_to_nchw(output)
