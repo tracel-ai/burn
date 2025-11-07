@@ -4,25 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__BatchNormalization.html>
 //!
-//! ## Attributes
-//! - `epsilon` (float, default=1e-5): Numerical stability constant
-//! - `momentum` (float, default=0.9): Momentum for running statistics
-//! - `training_mode` (int, default=0): Training mode flag
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor (N x C x ...)
-//! - `scale` (T): Scale tensor (C)
-//! - `B` (T): Bias tensor (C)
-//! - `input_mean` (T): Mean tensor (C)
-//! - `input_var` (T): Variance tensor (C)
-//!
-//! ## Outputs
-//! - `Y` (T): Normalized output tensor
-//! - `mean` (T, optional): Running mean (training mode)
-//! - `var` (T, optional): Running variance (training mode)
-//! - `saved_mean` (T, optional): Saved mean (training mode)
-//! - `saved_var` (T, optional): Saved variance (training mode)
-//!
 //! ## Opset Versions
 //! - **Opset 1-5**: Initial version with spatial attribute
 //! - **Opset 6-8**: Removed spatial attribute, added consumed_inputs

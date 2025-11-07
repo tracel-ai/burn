@@ -4,16 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__PRelu.html>
 //!
-//! ## Attributes
-//! None (slope is provided as an input tensor)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor of any shape
-//! - `slope` (T): Slope tensor for negative values. Must be unidirectional broadcastable to X.
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor with the same shape and type as X
-//!
 //! ## Type Constraints
 //! - `T`: Constrained to numeric tensors (float16, float32, float64, bfloat16, uint8, uint16,
 //!   uint32, uint64, int8, int16, int32, int64)

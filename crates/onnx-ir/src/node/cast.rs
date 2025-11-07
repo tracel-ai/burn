@@ -4,23 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Cast.html>
 //!
-//! ## Attributes
-//! - `to` (required): Target data type specified as an integer from the TensorProto DataType enum.
-//!   Supported types include: bool, float16, float32, float64, int8, int16, int32, int64,
-//!   uint8, uint16, uint32, uint64, string, and various float8 formats.
-//! - `saturate` (optional, since opset 19): Defines conversion behavior when input value is out of
-//!   range of destination type. Only applies for float8 conversions. Default: true.
-//! - `round_mode` (optional, since opset 21): Rounding mode for float8e8m0 conversion.
-//!   Values: "up" (default), "down", "nearest".
-//!
-//! ## Inputs
-//! - `input` (T1): Input tensor to be cast. Supports heterogeneous types including all numeric types,
-//!   bool, and string. Casting from complex types is not supported.
-//!
-//! ## Outputs
-//! - `output` (T2): Output tensor with the same shape as input but with the target data type.
-//!   Supports casting to all numeric types, bool, and string. Casting to complex types is not supported.
-//!
 //! ## Opset Versions
 //! - **Opset 1-5**: Basic cast operation with core numeric types
 //! - **Opset 6-8**: Extended type support for additional numeric types

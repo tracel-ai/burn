@@ -4,28 +4,15 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__TopK.html>
 //!
-//! ## Attributes
-//! - `axis` (int, default=-1): Dimension on which to do the sort
-//! - `largest` (int, default=1): If 1 (default), return k largest elements. If 0, return k smallest elements
-//! - `sorted` (int, default=1): If 1 (default), resulting k elements will be sorted. If 0, order is undefined
-//!
-//! **FIXME**: The implementation only supports `largest=1` and `sorted=1`, rejecting other values.
-//! This is documented in the validation but these limitations should be clearly stated in the module docs.
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor of shape [a_0, a_1, ..., a_{n-1}]
-//! - `K` (tensor(int64)): A 1-D tensor containing a single positive value corresponding to the number of top elements to retrieve
-//!
-//! ## Outputs
-//! - `Values` (T): Tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] containing top K values
-//! - `Indices` (I): Tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] containing indices of top K values (always int64)
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with k as an attribute.
 //! - **Opset 10**: Changed k from attribute to input, enabling dynamic k values. Supported float types only.
 //! - **Opset 11**: Added 'largest' and 'sorted' attributes for controlling output behavior. Added support for integer input types (int8, int16, int32, int64, uint8, uint16, uint32, uint64).
 //!
 //! **Implementation Note**: This implementation requires opset 10+ (k as input). Only largest=1 and sorted=1 are supported; other values are rejected.
+//!
+//! **FIXME**: The implementation only supports `largest=1` and `sorted=1`, rejecting other values.
+//! This is documented in the validation but these limitations should be clearly stated in the module docs.
 //!
 //! ## Type Constraints
 //! - **T** (Opset 10): tensor(float16), tensor(float), tensor(double)

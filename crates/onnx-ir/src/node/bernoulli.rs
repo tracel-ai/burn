@@ -4,22 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Bernoulli.html>
 //!
-//! ## Attributes
-//!
-//! - `dtype` (int64, optional): The data type for the elements of the output tensor.
-//!   If not specified, the data type of the input tensor is used.
-//! - `seed` (float, optional): Optional seed to the random generator.
-//!   If not specified, one will be auto-generated.
-//!
-//! ## Inputs
-//!
-//! - `input` (T1): Input tensor containing probabilities in the range [0, 1].
-//!   Each value p represents the probability of drawing 1 (with probability p) or 0 (with probability 1-p).
-//!
-//! ## Outputs
-//!
-//! - `output` (T2): Output tensor with same shape as input, containing only values 0 or 1.
-//!
 //! ## Opset Versions
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers

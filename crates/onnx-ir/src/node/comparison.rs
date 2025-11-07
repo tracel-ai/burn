@@ -11,20 +11,6 @@
 //! - GreaterOrEqual: <https://onnx.ai/onnx/operators/onnx__GreaterOrEqual.html>
 //! - LessOrEqual: <https://onnx.ai/onnx/operators/onnx__LessOrEqual.html>
 //!
-//! ## Attributes
-//!
-//! None of these operations have attributes.
-//!
-//! ## Inputs
-//!
-//! - **A** (T): First operand tensor
-//! - **B** (T): Second operand tensor
-//!
-//! ## Outputs
-//!
-//! - **C** (T1): Boolean tensor with the result of the element-wise comparison. The output shape
-//!   follows broadcasting rules based on the input shapes.
-//!
 //! ## Opset Versions
 //!
 //! - **Equal**:

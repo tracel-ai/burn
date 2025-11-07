@@ -4,23 +4,16 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Where.html>
 //!
-//! ## Attributes
-//! None
-//!
-//! ## Inputs
-//! - `condition` (B): Boolean condition tensor
-//! - `X` (T): Values when condition is true
-//! - `Y` (T): Values when condition is false
-//!
-//! ## Outputs
-//! - `output` (T): Selected elements
-//!
 //! ## Opset Versions
 //! - **Opset 9**: Initial version with broadcasting support for all three inputs.
-// TODO: Missing type constraint validation - ONNX spec requires X and Y to have same element type (constraint T), but implementation only validates after type conversion in get_elem_type - Should validate types match before broadcasting
-// TODO: Missing test coverage for type mismatch with Shape types - Tests cover Shape type propagation but not error case when X is Shape and Y is non-integer tensor - Need negative test case
-// TODO: Missing test coverage for zero-size tensors - No test validates Where behavior with zero-size condition/X/Y tensors - Should add test case
-// TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
+//!
+//! TODO: Missing type constraint validation - ONNX spec requires X and Y to have same element type (constraint T), but implementation only validates after type conversion in get_elem_type - Should validate types match before broadcasting
+//!
+//! TODO: Missing test coverage for type mismatch with Shape types - Tests cover Shape type propagation but not error case when X is Shape and Y is non-integer tensor - Need negative test case
+//!
+//! TODO: Missing test coverage for zero-size tensors - No test validates Where behavior with zero-size condition/X/Y tensors - Should add test case
+//!
+//! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
 use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{

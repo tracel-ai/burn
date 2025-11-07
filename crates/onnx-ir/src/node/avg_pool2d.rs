@@ -4,21 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__AveragePool.html>
 //!
-//! ## Attributes
-//! - `kernel_shape` (required, ints): Kernel size \[height, width\]
-//! - `strides` (ints, default=\[1, 1\]): Stride \[height, width\]
-//! - `pads` (ints, default=\[0, 0, 0, 0\]): Padding \[top, left, bottom, right\]
-//! - `dilations` (ints, default=\[1, 1\]): Dilation \[height, width\] (opset 10+)
-//! - `auto_pad` (string, default="NOTSET"): Padding mode (only `NOTSET` supported)
-//! - `count_include_pad` (int, default=0): Include padding in average calculation
-//! - `ceil_mode` (int, default=0): Use ceil for output shape (not supported)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor (N x C x H x W)
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor
-//!
 //! ## Opset Versions
 //! - **Opset 7**: Initial AveragePool operator
 //! - **Opset 10**: Added dilations attribute support

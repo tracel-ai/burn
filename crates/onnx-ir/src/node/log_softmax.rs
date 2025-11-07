@@ -4,15 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__LogSoftmax.html>
 //!
-//! ## Attributes
-//! - `axis` (int, default=-1): Axis for log-softmax computation
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor
-//!
-//! ## Outputs
-//! - `output` (T): Output tensor
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with LogSoftmax operation.
 //! - **Opset 11**: Changed default axis from 1 to -1 (last dimension); clarified axis behavior.

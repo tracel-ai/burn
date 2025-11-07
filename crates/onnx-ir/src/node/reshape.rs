@@ -4,28 +4,17 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Reshape.html>
 //!
-//! ## Attributes
-//! - `allowzero` (int64, default=0): By default (allowzero=0), when any value in the 'shape'
-//!   input is 0, the corresponding dimension value is copied from the input tensor. When
-//!   allowzero=1, if any value in the 'shape' input is 0, the dimension will be set explicitly
-//!   to zero (similar to NumPy). Note: If allowzero is set, it is invalid for the shape to
-//!   contain both a zero value and -1.
-//!
-//! **NOTE**: The `allowzero` attribute (opset 14+) IS now validated in infer_types (lines 346-363).
-//! When allowzero=1, the implementation correctly checks that shape cannot contain both 0 and -1.
-//! However, the actual reshape logic respecting allowzero=1 behavior needs verification in codegen.
-//!
-//! ## Inputs
-//! - `data` (T): Input tensor to reshape
-//! - `shape` (tensor(int64)): Target shape specification. Can contain special values:
+//! ## Special Features
+//! - The `shape` input can contain special values:
 //!   - `-1`: At most one dimension can be -1, which will be inferred from the tensor size
 //!     and remaining dimensions
 //!   - `0`: When allowzero=0 (default), copies the corresponding dimension from input tensor.
 //!     When allowzero=1, sets the dimension to zero explicitly
 //!   - Empty shape: Converts tensor to a scalar
 //!
-//! ## Outputs
-//! - `reshaped` (T): Reshaped tensor with the same number of elements as the input
+//! **NOTE**: The `allowzero` attribute (opset 14+) IS now validated in infer_types (lines 346-363).
+//! When allowzero=1, the implementation correctly checks that shape cannot contain both 0 and -1.
+//! However, the actual reshape logic respecting allowzero=1 behavior needs verification in codegen.
 //!
 //! ## Opset Versions
 //! - **Opset 1-4**: Used 'shape' attribute (not supported in this implementation).

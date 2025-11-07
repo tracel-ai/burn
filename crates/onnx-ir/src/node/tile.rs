@@ -4,19 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Tile.html>
 //!
-//! ## Attributes
-//! None
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor of any shape to be tiled
-//! - `repeats` (tensor(int64)): 1D tensor specifying the number of repetitions for each axis.
-//!   Must have the same length as the input's rank. Each element indicates how many times
-//!   to repeat the input along that dimension.
-//!
-//! ## Outputs
-//! - `output` (T): Output tensor with the same type as input. For each dimension i,
-//!   `output_shape[i] = input_shape[i] * repeats[i]`
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Used 'repeats' as an attribute (not supported in this implementation).
 //! - **Opset 6**: Changed repeats from attribute to input, enabling dynamic tiling.

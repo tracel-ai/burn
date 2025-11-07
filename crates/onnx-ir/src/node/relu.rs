@@ -4,15 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Relu.html>
 //!
-//! ## Attributes
-//! None
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor of any shape
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor with the same shape and type as input
-//!
 //! ## Type Constraints
 //! - `T`: Constrained to numeric tensors (float16, float32, float64, bfloat16, int8,
 //!   int16, int32, int64, uint8, uint16, uint32, uint64)

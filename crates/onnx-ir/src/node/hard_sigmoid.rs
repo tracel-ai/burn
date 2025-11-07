@@ -10,16 +10,6 @@
 //! y = max(0, min(1, alpha * x + beta))
 //! ```
 //!
-//! ## Attributes
-//! - `alpha` (float, default=0.2): Slope coefficient
-//! - `beta` (float, default=0.5): Intercept coefficient
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor of any shape
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor with the same shape and type as input
-//!
 //! ## Type Constraints
 //! - `T`: float16, float32, float64, bfloat16
 //!

@@ -4,18 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__MatMulInteger.html>
 //!
-//! ## Attributes
-//! None
-//!
-//! ## Inputs
-//! - `A` (T1): First matrix (int8/uint8)
-//! - `B` (T2): Second matrix (int8/uint8)
-//! - `a_zero_point` (T1, optional): Zero point for A, default 0
-//! - `b_zero_point` (T2, optional): Zero point for B, default 0
-//!
-//! ## Outputs
-//! - `Y` (T3): Output matrix (int32)
-//!
 //! ## Opset Versions
 //! - **Opset 10**: Initial version introducing quantized integer matrix multiplication with zero-point
 //!   support. Outputs int32 results from int8/uint8 inputs.

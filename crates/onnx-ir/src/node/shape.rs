@@ -4,21 +4,15 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Shape.html>
 //!
-//! ## Attributes
-//! - `start` (int, optional, opset 15+): Starting dimension for partial shape extraction.
+//! ## Special Features
+//! - `start` attribute (int, optional, opset 15+): Starting dimension for partial shape extraction.
 //!   If omitted, defaults to 0. Negative values count from the end. Values are clamped to [0, rank].
-//! - `end` (int, optional, opset 15+): Ending dimension (exclusive) for partial shape extraction.
+//! - `end` attribute (int, optional, opset 15+): Ending dimension (exclusive) for partial shape extraction.
 //!   If omitted, defaults to rank. Negative values count from the end. Values are clamped to [0, rank].
 //!
 //! **FIXME**: The spec mentions values should be clamped to [0, rank], but the implementation does
 //! not perform clamping. Negative indices are normalized but out-of-bounds positive values are not
 //! clamped, which could lead to incorrect results or panics.
-//!
-//! ## Inputs
-//! - `data` (T): Input tensor of arbitrary type and rank.
-//!
-//! ## Outputs
-//! - `shape` (T1): 1D int64 tensor containing the shape dimensions (or a slice of them).
 //!
 //! ## Opset Versions
 //! - **Opset 1-14**: Outputs full shape as 1D int64 tensor (no attributes).

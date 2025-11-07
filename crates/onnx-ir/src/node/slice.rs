@@ -4,23 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Slice.html>
 //!
-//! ## Attributes
-//!
-//! None in opset 10+. In earlier opset versions (< 10), `starts`, `ends`, `axes`, and `steps`
-//! were attributes. Starting from opset 10, these became inputs to enable dynamic slicing.
-//!
-//! ## Inputs
-//!
-//! - `data` (T): Input tensor to extract slices from
-//! - `starts` (Tind): 1-D tensor of starting indices of corresponding axis in axes
-//! - `ends` (Tind): 1-D tensor of ending indices (exclusive) of corresponding axis in axes
-//! - `axes` (Tind, optional): 1-D tensor of axes that `starts` and `ends` apply to. Negative value means counting dimensions from the back. If omitted, defaults to [0, ..., ndim-1]
-//! - `steps` (Tind, optional): 1-D tensor of slice step of corresponding axis in axes. Negative value means slicing backward. Cannot be 0. Defaults to 1s
-//!
-//! ## Outputs
-//!
-//! - `output` (T): Sliced tensor with same type as input
-//!
 //! ## Type Constraints
 //!
 //! - T: tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(int8), tensor(int16), tensor(int32), tensor(int64), tensor(bfloat16), tensor(float16), tensor(float), tensor(double), tensor(string), tensor(bool), tensor(complex64), tensor(complex128)

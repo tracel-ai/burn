@@ -4,24 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ArgMax.html>
 //!
-//! ## Attributes
-//!
-//! - `axis` (int64, default=0): The axis along which to compute the arg indices.
-//!   Accepted range is [-r, r-1] where r = rank(data).
-//! - `keepdims` (int64, default=1): Keep the reduced dimension or not. 1 means keep reduced dimension.
-//! - `select_last_index` (int64, default=0): Whether to select the last index or the first index
-//!   if the maximum value appears in multiple indices.
-//!
-//! ## Inputs
-//!
-//! - `data` (T): Input tensor to compute argmax on.
-//!
-//! ## Outputs
-//!
-//! - `reduced` (tensor(int64)): Output tensor of indices with datatype int64. Shape depends on `keepdims`:
-//!   - If keepdims=1: same rank as input, reduced dimension becomes size 1
-//!   - If keepdims=0: rank reduced by 1
-//!
 //! ## Opset Versions
 //!
 //! - **Opset 13**: Added bfloat16 to type constraints

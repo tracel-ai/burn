@@ -4,21 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Squeeze.html>
 //!
-//! ## Attributes
-//!
-//! None in opset 13+. In earlier versions (opset 11 and below), `axes` was an attribute.
-//!
-//! ## Inputs
-//!
-//! - `data` (T): Tensor with at least max(axes) dimensions
-//! - `axes` (tensor(int64), optional): List of integers indicating the dimensions to squeeze.
-//!   Negative values count dimensions from the back. Accepted range is [-r, r-1] where r = rank(data).
-//!   If not provided, all dimensions of size 1 will be removed.
-//!
-//! ## Outputs
-//!
-//! - `squeezed` (T): Reshaped tensor with same data as input, with specified dimensions of size 1 removed
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with optional 'axes' attribute.
 //! - **Opset 11**: Clarified semantics and behavior for negative axis values.

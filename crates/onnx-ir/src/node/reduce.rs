@@ -12,20 +12,6 @@
 //! - ReduceProd: <https://onnx.ai/onnx/operators/onnx__ReduceProd.html>
 //! - ReduceSumSquare: <https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html>
 //!
-//! ## Common Attributes
-//! - `axes` (ints, optional): List of integers indicating the dimensions to reduce. If not specified,
-//!   all dimensions are reduced. For opset >= 18, axes can be provided as an optional input instead.
-//! - `keepdims` (int, default=1): Whether to keep the reduced dimensions (with size 1) in the output.
-//!   If set to 0, the reduced dimensions are removed from the output shape.
-//!
-//! ## Inputs
-//! - `data` (T): Input tensor to be reduced.
-//! - `axes` (optional, int64): Axes along which to reduce (opset >= 18).
-//!
-//! ## Outputs
-//! - `reduced` (T): Reduced output tensor. If all dimensions are reduced and keepdims=0, the output
-//!   will be a scalar.
-//!
 //! ## Opset Versions
 //! - **Opset 1-10**: Earlier versions with different attribute handling
 //! - **Opset 11-12**: Standardized behavior with axes attribute, added noop_with_empty_axes

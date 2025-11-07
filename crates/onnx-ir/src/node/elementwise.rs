@@ -4,13 +4,7 @@
 //!
 //! **ONNX Specs**: Multiple operations with varying opset requirements
 //!
-//! ## Unary Operations
-//!
-//! **Common Pattern:**
-//! - Single input tensor
-//! - Single output tensor with same shape and type
-//! - No attributes (except Round which has an optional mode attribute)
-//! - Output shape identical to input shape
+//! ## Opset Versions
 //!
 //! **Opset 1 Operations:**
 //! - **Not**: Logical NOT
@@ -47,20 +41,10 @@
 //! **Opset 11 Operations:**
 //! - **Round**: Round to nearest integer (supports optional mode attribute)
 //!
-//! **Other Unary Operations:**
+//! **Other Operations:**
 //! - **Sigmoid**: Sigmoid function 1/(1+e^-x) (Opset 6+)
 //! - **Gelu**: Gaussian Error Linear Unit (Opset 20+)
 // TODO: Gelu supports 'approximate' attribute (default="none", also "tanh") per ONNX spec - Not extracted or validated - Should add config extraction
-//!
-//! ## Binary Operations
-//!
-//! **Common Pattern:**
-//! - Two input tensors (supports broadcasting)
-//! - Single output tensor
-//! - No attributes
-//! - Output shape follows standard ONNX broadcasting semantics
-//!
-//! **Supported Operations (varying opset requirements):**
 //! - **Pow**: Element-wise power a^b (Opset 1+)
 //! - **Max**: Element-wise maximum (Opset 1+)
 //! - **Min**: Element-wise minimum (Opset 1+)
@@ -73,11 +57,6 @@
 //!
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
-//!
-//! ## Type Inference
-//!
-//! - **Unary**: Output type and shape identical to input
-//! - **Binary**: Output type matches inputs, shape follows broadcasting rules
 
 use crate::ir::Node;
 use crate::processor::{

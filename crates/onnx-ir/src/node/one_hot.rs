@@ -4,17 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__OneHot.html>
 //!
-//! ## Attributes
-//! - `axis` (int, default=-1): Axis for one-hot encoding
-//!
-//! ## Inputs
-//! - `indices` (T1): Input indices tensor
-//! - `depth` (T2): Number of classes (scalar or rank-1 tensor)
-//! - `values` (T3): \[off_value, on_value\] tensor
-//!
-//! ## Outputs
-//! - `output` (T3): One-hot encoded tensor
-//!
 //! ## Opset Versions
 //! - **Opset 9**: Initial version with indices, depth, and values inputs.
 //! - **Opset 11**: Added support for negative axis values and clarified axis semantics.

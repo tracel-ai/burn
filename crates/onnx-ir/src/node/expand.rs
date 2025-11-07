@@ -4,16 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Expand.html>
 //!
-//! ## Attributes
-//! None
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor
-//! - `shape` (tensor(int64)): Target shape (1-D tensor)
-//!
-//! ## Outputs
-//! - `output` (T): Expanded tensor
-//!
 //! ## Opset Versions
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)

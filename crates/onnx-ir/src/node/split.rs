@@ -4,22 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Split.html>
 //!
-//! ## Attributes
-//! - `axis` (int, default=0): Axis along which to split the input tensor. Negative values count
-//!   from the end (e.g., -1 is the last axis). Accepted range is [-rank, rank-1].
-//! - `num_outputs` (int, optional, opset 18+): Number of outputs to split the tensor into. If
-//!   specified, the tensor is split into equal-sized parts. If the tensor is not evenly divisible,
-//!   the last chunk will be smaller.
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor to split
-//! - `split` (tensor(int64), optional, opset 13+): Lengths of each output along the split axis.
-//!   If not specified, the tensor is split into equal-sized parts.
-//!
-//! ## Outputs
-//! - Multiple outputs: List of tensors resulting from splitting the input. The number of outputs
-//!   is determined by either `num_outputs` attribute or the length of `split` input.
-//!
 //! ## Opset Versions
 //! - **Opset 1-2**: Initial implementation with `split` sizes specified as an attribute.
 //! - **Opset 11**: Refinements to split behavior and type constraints.

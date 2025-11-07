@@ -6,15 +6,6 @@
 //!
 //! **Note**: In the node_conversion phase, MatMul nodes with constant weights may be converted to Linear nodes.
 //!
-//! ## Attributes (None)
-//!
-//! ## Inputs
-//! - `A` (T): N-dimensional matrix A
-//! - `B` (T): N-dimensional matrix B
-//!
-//! ## Outputs
-//! - `Y` (T): Matrix multiply results from A * B
-//!
 //! ## Type Constraints
 //! - T: tensor(float), tensor(double), tensor(float16), tensor(bfloat16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
 //!

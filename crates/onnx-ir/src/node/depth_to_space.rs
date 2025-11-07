@@ -6,18 +6,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__DepthToSpace.html>
 //!
-//! ## Attributes
-//! - `blocksize` (int, required): Blocks of [blocksize, blocksize] are moved from depth to spatial dimensions
-//! - `mode` (string, default="DCR"): Data rearrangement mode
-//!   - "DCR": Depth-Column-Row order rearrangement (default)
-//!   - "CRD": Column-Row-Depth order rearrangement
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor of shape [N, C, H, W] where N is batch, C is channel/depth, H is height, W is width
-//!
-//! ## Outputs
-//! - `output` (T): Output tensor of shape [N, C/(blocksize * blocksize), H * blocksize, W * blocksize]
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with DCR mode only
 //! - **Opset 11**: Added CRD mode support and additional type support

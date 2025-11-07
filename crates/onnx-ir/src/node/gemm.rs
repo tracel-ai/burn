@@ -11,20 +11,6 @@
 //! - Input tensor C is broadcastable to shape (M, N)
 //! - Output tensor Y has shape (M, N)
 //!
-//! ## Attributes
-//! - `alpha` (float, default=1.0): Scalar multiplier for the product of input tensors A * B
-//! - `beta` (float, default=1.0): Scalar multiplier for input tensor C
-//! - `transA` (int, default=0): Whether to transpose A before computation (non-zero = transpose)
-//! - `transB` (int, default=0): Whether to transpose B before computation (non-zero = transpose)
-//!
-//! ## Inputs
-//! - `A` (T): Input tensor A. Shape is (M, K) if transA=0, or (K, M) if transA is non-zero
-//! - `B` (T): Input tensor B. Shape is (K, N) if transB=0, or (N, K) if transB is non-zero
-//! - `C` (T, optional): Optional input tensor C. If not specified, computation uses scalar 0. Shape should be unidirectional broadcastable to (M, N)
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor of shape (M, N)
-//!
 //! ## Type Constraints
 //! - T: tensor(float), tensor(double), tensor(float16), tensor(bfloat16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
 //!

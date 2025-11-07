@@ -4,22 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Conv.html>
 //!
-//! ## Attributes
-//! - `kernel_shape` (optional): Kernel size \[width\]
-//! - `strides` (optional): Stride \[width\], default \[1\]
-//! - `pads` (optional): Padding \[left, right\], default \[0, 0\]
-//! - `dilations` (optional): Dilation \[width\], default \[1\]
-//! - `group` (optional): Number of groups, default 1
-//! - `auto_pad` (optional): Padding mode (only `NOTSET` supported)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor (N x C x L)
-//! - `W` (T): Weight tensor (M x C/group x kW)
-//! - `B` (T, optional): Bias tensor (M)
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)

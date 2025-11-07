@@ -5,24 +5,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Clip.html>
 //!
-//! ## Attributes
-//!
-//! - `min` (float, optional, Opset 6-10 only): Minimum value. Elements below this are clipped to min.
-//! - `max` (float, optional, Opset 6-10 only): Maximum value. Elements above this are clipped to max.
-//!
-//! Note: At least one of `min` or `max` must be specified. If both are provided and min > max,
-//! all values are set to max.
-//!
-//! ## Inputs
-//!
-//! - `input` (T): Input tensor whose elements will be clipped.
-//! - `min` (T, optional, Opset 11+): Minimum value as a scalar tensor. Default: numeric_limits::lowest()
-//! - `max` (T, optional, Opset 11+): Maximum value as a scalar tensor. Default: numeric_limits::max()
-//!
-//! ## Outputs
-//!
-//! - `output` (T): Output tensor with the same shape and type as input, containing clipped values.
-//!
 //! ## Type Constraints
 //!
 //! - T: tensor(float16), tensor(float), tensor(double), tensor(int8), tensor(int16), tensor(int32),

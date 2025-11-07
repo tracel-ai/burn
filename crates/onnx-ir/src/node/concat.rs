@@ -4,17 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Concat.html>
 //!
-//! ## Attributes
-//! - `axis` (int64, required): Axis to concatenate on. Negative values count from the end.
-//!   Accepted range is [-r, r-1] where r = rank(inputs).
-//!
-//! ## Inputs
-//! - Variable number of input tensors (1 to 2147483647)
-//! - All inputs must have the same shape except for the dimension on the concatenation axis
-//!
-//! ## Outputs
-//! - Single concatenated tensor
-//!
 //! ## Opset Versions
 //! - **Opset 1-3**: Initial version
 //! - **Opset 4-10**: Updated type support

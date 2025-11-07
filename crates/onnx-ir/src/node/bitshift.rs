@@ -4,20 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__BitShift.html>
 //!
-//! ## Attributes
-//! - `direction` (string, required): Direction of moving bits. Can be either "RIGHT" (for right shift)
-//!   or "LEFT" (for left shift). When direction is "RIGHT", the operator moves the binary
-//!   representation toward the right side, effectively decreasing the input value. When direction
-//!   is "LEFT", bits move toward the left side, increasing the actual value.
-//!   Note: Implementation provides default "left" despite spec marking as required.
-//!
-//! ## Inputs
-//! - `X` (T, required): Tensor to be shifted
-//! - `Y` (T, required): Tensor specifying the amounts of shifting (number of bits to shift)
-//!
-//! ## Outputs
-//! - `Z` (T): Output tensor with shifted values
-//!
 //! ## Type Constraints
 //! - T in (tensor(uint8), tensor(uint16), tensor(uint32), tensor(uint64))
 //!

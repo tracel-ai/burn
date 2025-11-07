@@ -4,18 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__IsInf.html>
 //!
-//! ## Attributes
-//! - `detect_negative` (int, default=1): Whether to detect negative infinity.
-//!   Set to 1 to map negative infinity to true, or 0 to map it to false.
-//! - `detect_positive` (int, default=1): Whether to detect positive infinity.
-//!   Set to 1 to map positive infinity to true, or 0 to map it to false.
-//!
-//! ## Inputs
-//! - `X` (T1): Input tensor of floating-point type.
-//!
-//! ## Outputs
-//! - `Y` (T2): Output boolean tensor with same shape as input, indicating which elements are infinity.
-//!
 //! ## Type Constraints
 //! - `T1`: Floating-point tensors (float16, float, double, bfloat16, float8 variants)
 //! - `T2`: Boolean tensor

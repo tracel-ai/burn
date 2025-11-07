@@ -4,24 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ConvTranspose.html>
 //!
-//! ## Attributes
-//! - `kernel_shape` (optional): Kernel size \[height, width\]
-//! - `strides` (optional): Stride \[height, width\], default \[1, 1\]
-//! - `pads` (optional): Padding \[top, left, bottom, right\], default \[0, 0, 0, 0\]
-//! - `dilations` (optional): Dilation \[height, width\], default \[1, 1\]
-//! - `group` (optional): Number of groups, default 1
-//! - `output_padding` (optional): Output padding \[height, width\], default \[0, 0\]
-//! - `auto_pad` (optional): Padding mode (only `NOTSET` supported)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor (N x C x H x W)
-//! - `W` (T): Weight tensor (C x M/group x kH x kW)
-//!   Note: Implementation expects weight shape as [out_channels, in_channels, kernel_h, kernel_w]
-//! - `B` (T, optional): Bias tensor (M)
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with basic transposed convolution support
 //! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)

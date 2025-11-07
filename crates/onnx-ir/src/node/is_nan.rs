@@ -4,18 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__IsNaN.html>
 //!
-//! ## Attributes
-//!
-//! None
-//!
-//! ## Inputs
-//!
-//! - `X` (T1): Input tensor of floating-point type
-//!
-//! ## Outputs
-//!
-//! - `Y` (T2): Output boolean tensor with the same shape as input. True where input is NaN, False otherwise.
-//!
 //! ## Type Constraints
 //!
 //! - T1: tensor(float16), tensor(float), tensor(double), tensor(bfloat16), tensor(float8e4m3fn),

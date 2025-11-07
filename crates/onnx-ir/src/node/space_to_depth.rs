@@ -10,15 +10,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__SpaceToDepth.html>
 //!
-//! ## Attributes
-//! - `blocksize` (int, required): Blocks of [blocksize, blocksize] are moved from spatial to depth dimension
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor of shape [N, C, H, W] where N is batch, C is channel/depth, H is height, W is width
-//!
-//! ## Outputs
-//! - `output` (T): Output tensor of shape [N, C * blocksize * blocksize, H/blocksize, W/blocksize]
-//!
 //! ## Opset Versions
 //! - **Opset 1-12**: Initial version with blocksize attribute
 //! - **Opset 13+**: Extended type support (added bfloat16, uint types)

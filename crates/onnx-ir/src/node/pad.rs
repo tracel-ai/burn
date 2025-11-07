@@ -4,18 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Pad.html>
 //!
-//! ## Attributes
-//! - `mode` (string, default="constant"): Padding mode (constant/reflect/edge, only constant supported)
-//!
-//! ## Inputs
-//! - `data` (T): Input tensor
-//! - `pads` (tensor(int64)): Padding amounts \[x1_begin, x2_begin, ..., x1_end, x2_end, ...\]
-//! - `constant_value` (T, optional): Constant fill value, default 0
-//! - `axes` (tensor(int64), optional): Axes to apply pads (not supported)
-//!
-//! ## Outputs
-//! - `output` (T): Padded tensor
-//!
 //! ## Opset Versions
 //! - **Opset 11**: Changed pads from attribute to input for dynamic padding support. Added mode attribute (constant/reflect/edge).
 //! - **Opset 13**: Added optional axes input to specify which axes to pad (not supported in this implementation).

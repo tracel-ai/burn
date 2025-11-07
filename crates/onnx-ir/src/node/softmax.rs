@@ -4,17 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Softmax.html>
 //!
-//! ## Attributes
-//! - `axis` (int, default=-1): The dimension along which Softmax will be performed.
-//!   Negative values mean counting dimensions from the back. Accepted range is [-r, r-1]
-//!   where r = rank(input).
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor of rank >= axis
-//!
-//! ## Outputs
-//! - `output` (T): Output tensor with the same shape as the input tensor
-//!
 //! ## Type Constraints
 //! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
 //!

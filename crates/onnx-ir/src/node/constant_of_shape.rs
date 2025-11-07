@@ -4,18 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ConstantOfShape.html>
 //!
-//! ## Attributes
-//! - `value` (tensor, optional): A one-element tensor specifying the fill value. If not specified,
-//!   defaults to 0.0 as float32.
-//!
-//! ## Inputs
-//! - `input` (T1): 1D tensor of type int64 specifying the output shape. All values must be >= 0.
-//!   If an empty tensor is given, the output will be a scalar.
-//!
-//! ## Outputs
-//! - `output` (T2): Tensor filled with the constant value. The shape is specified by the `input`.
-//!   If the `value` attribute is specified, the datatype of the output is taken from `value`.
-//!
 //! ## Opset Versions
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.

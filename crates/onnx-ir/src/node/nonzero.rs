@@ -4,15 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__NonZero.html>
 //!
-//! ## Attributes
-//! None
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor
-//!
-//! ## Outputs
-//! - `Y` (int64): Indices tensor, shape \[rank(X), num_non_zero\]
-//!
 //! ## Opset Versions
 //! - **Opset 9**: Initial version. Returns 2D tensor with shape [rank(X), num_non_zero].
 //! - **Opset 13**: Added support for bfloat16 input type.

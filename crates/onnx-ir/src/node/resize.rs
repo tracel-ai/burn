@@ -4,22 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Resize.html>
 //!
-//! ## Attributes
-//! - `mode` (string, required): Interpolation mode (nearest/linear/cubic)
-//! - `coordinate_transformation_mode` (string, default="half_pixel"): Coordinate transformation
-//! - `nearest_mode` (string, default="round_prefer_floor"): Nearest neighbor rounding
-//! - `cubic_coeff_a` (float, default=-0.75): Cubic interpolation coefficient
-//! - `antialias` (int, default=0): Use antialiasing when downscaling
-//!
-//! ## Inputs
-//! - `X` (T1): Input tensor
-//! - `roi` (T2, optional): Region of interest
-//! - `scales` (tensor(float), optional): Scale factors (one of scales/sizes required)
-//! - `sizes` (tensor(int64), optional): Target output sizes (one of scales/sizes required)
-//!
-//! ## Outputs
-//! - `Y` (T1): Resized tensor
-//!
 //! ## Opset Versions
 //! - **Opset 10**: Initial version with scales and sizes inputs.
 //! - **Opset 11**: Added coordinate_transformation_mode attribute for more control over interpolation. Added support for linear mode (previously only nearest).

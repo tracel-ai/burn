@@ -4,19 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__GroupNormalization.html>
 //!
-//! ## Attributes
-//! - `epsilon` (float, default=1e-5): Numerical stability constant
-//! - `num_groups` (int, required): Number of groups
-//! - `stash_type` (int, default=1): Intermediate calculation precision (1=float32)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor (N x C x D1 x D2 ... x Dn)
-//! - `scale` (T): Scale tensor (num_channels)
-//! - `bias` (T): Bias tensor (num_channels)
-//!
-//! ## Outputs
-//! - `Y` (T): Normalized output tensor
-//!
 //! ## Opset Versions
 //! - **Opset 18**: Initial version introducing GroupNormalization operator. Includes support for
 //!   the `stash_type` attribute to control intermediate calculation precision.

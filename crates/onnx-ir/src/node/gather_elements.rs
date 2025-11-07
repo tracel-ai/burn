@@ -11,17 +11,6 @@
 //! - `Gather`: Uses array-style indexing to select entire slices. Output rank = indices_rank + data_rank - 1
 //! - `GatherElements`: Uses per-element indexing. Output shape = indices shape, same rank as indices
 //!
-//! ## Attributes
-//! - `axis` (int64, default=0): Axis along which to gather. Negative values count from the end.
-//!   Accepted range is [-r, r-1] where r = rank(data).
-//!
-//! ## Inputs
-//! - `data` (T): Input data tensor of rank r >= 1
-//! - `indices` (Tind): Indices tensor of rank r (same rank as data). Element type must be int32 or int64
-//!
-//! ## Outputs
-//! - `output` (T): Output tensor with same shape as indices and same element type as data
-//!
 //! ## Type Constraints
 //! - T: All tensor types
 //! - Tind: int32, int64

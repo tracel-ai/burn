@@ -4,29 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Constant.html>
 //!
-//! ## Attributes
-//!
-//!  NOTE: Originally value is stored as an attribute but moved to an input.
-//!
-//! - `value` (tensor, optional): The constant tensor value
-//! - `sparse_value` (sparse_tensor, optional, Opset 11+): Sparse tensor value
-//! - `value_float` (float, optional, Opset 13+): Scalar float value
-//! - `value_floats` (list of floats, optional, Opset 13+): List of float values
-//! - `value_int` (int, optional, Opset 13+): Scalar int value
-//! - `value_ints` (list of ints, optional, Opset 13+): List of int values
-//! - `value_string` (string, optional, Opset 13+): Scalar string value
-//! - `value_strings` (list of strings, optional, Opset 13+): List of string values
-//!
-//! Note: Exactly one of the above attributes must be specified.
-//!
-//! ## Inputs
-//!
-//! An input is added as a pseudo-input in implementation
-//!
-//! ## Outputs
-//!
-//! - `output` (T): Output constant tensor of any type
-//!
 //! ## Type Constraints
 //!
 //! - T: Any ONNX type

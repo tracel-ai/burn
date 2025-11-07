@@ -10,19 +10,6 @@
 //! - Mul: <https://onnx.ai/onnx/operators/onnx__Mul.html>
 //! - Div: <https://onnx.ai/onnx/operators/onnx__Div.html>
 //!
-//! ## Attributes
-//!
-//! None - these operators have no attributes.
-//!
-//! ## Inputs
-//!
-//! - `A` (T): First operand, any rank
-//! - `B` (T): Second operand, any rank (must be type-compatible with A)
-//!
-//! ## Outputs
-//!
-//! - `C` (T): Result of element-wise operation (supports multidirectional broadcasting)
-//!
 //! ## Type Constraints
 //!
 //! T: Numeric tensor types (float16, float32, float64, int8, int16, int32, int64, uint8, uint16, uint32, uint64)

@@ -4,18 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Mod.html>
 //!
-//! ## Attributes
-//! - `fmod` (int, default=0): Whether to use fmod (C-style) or integer modulo (Python-style)
-//!   - `0` (default): Integer modulo - sign follows divisor (Python `%` operator)
-//!   - `1`: Floating-point modulo - follows C `fmod` function, sign follows dividend
-//!
-//! ## Inputs
-//! - `A` (T): Dividend tensor
-//! - `B` (T): Divisor tensor
-//!
-//! ## Outputs
-//! - `C` (T): Remainder tensor
-//!
 //! ## Opset Versions
 //! - **Opset 10-12**: Initial implementation with fmod attribute
 //! - **Opset 13+**: Extended type support (added bfloat16)

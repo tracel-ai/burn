@@ -4,15 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Flatten.html>
 //!
-//! ## Attributes
-//! - `axis` (int64, default=1): Dimension to split at (supports negative indexing)
-//!
-//! ## Inputs
-//! - `input` (T): Input tensor
-//!
-//! ## Outputs
-//! - `output` (T): 2D output tensor
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with basic flatten operation.
 //! - **Opset 9**: No functional changes (extended type support).

@@ -4,22 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ArgMin.html>
 //!
-//! ## Attributes
-//!
-//! - `axis` (int, default=0): The axis along which to compute the arg indices. Accepted range is
-//!   [-r, r-1] where r = rank(data).
-//! - `keepdims` (int, default=1): Keep the reduced dimension or not. 1 means keep reduced dimension.
-//! - `select_last_index` (int, default=0): Whether to select the last index or the first index if
-//!   the minimum appears in multiple indices. 0 (default) selects the first index.
-//!
-//! ## Inputs
-//!
-//! - `data` (T): An input tensor.
-//!
-//! ## Outputs
-//!
-//! - `reduced` (tensor(int64)): Reduced output tensor with integer data type.
-//!
 //! ## Opset Versions
 //!
 //! - **Opset 11**: Initial supported version.

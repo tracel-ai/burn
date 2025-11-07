@@ -4,22 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__MaxPool.html>
 //!
-//! ## Attributes
-//! - `kernel_shape` (ints, required): Kernel size
-//! - `strides` (ints, default=1): Stride
-//! - `pads` (ints, default=0): Padding
-//! - `dilations` (ints, default=1): Dilation
-//! - `auto_pad` (string, default="NOTSET"): Padding mode (only `NOTSET` supported)
-//! - `ceil_mode` (int, default=0): Use ceil for output shape (not supported)
-//! - `storage_order` (int, default=0): Memory layout (only row major supported)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor (N x C x L)
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor
-//! - `Indices` (I, optional): Indices tensor
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version with basic max pooling operation.
 //! - **Opset 8**: Added support for `storage_order` attribute.

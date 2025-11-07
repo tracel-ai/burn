@@ -9,18 +9,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__InstanceNormalization.html>
 //!
-//! ## Attributes
-//! - `epsilon` (float, default=1e-5): Small constant for numerical stability to avoid division by zero
-//!
-//! ## Inputs
-//! - `input` (T): Input data tensor with dimensions (N x C x D1 x D2 ... Dn),
-//!   where N is the batch size and C is the number of channels
-//! - `scale` (T): 1-dimensional scale tensor of size C
-//! - `B` (T): 1-dimensional bias tensor of size C
-//!
-//! ## Outputs
-//! - `output` (T): Normalized output tensor with the same shape as input
-//!
 //! ## Type Constraints
 //! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
 //!

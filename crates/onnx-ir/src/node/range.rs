@@ -16,20 +16,6 @@
 //!
 //! Note that `limit` is **exclusive** - the output will not include the limit value itself.
 //!
-//! ## Attributes
-//!
-//! None
-//!
-//! ## Inputs
-//!
-//! - `start` (T): Starting value of the sequence (scalar tensor)
-//! - `limit` (T): Exclusive upper limit of the sequence (scalar tensor)
-//! - `delta` (T): Step size for incrementing the sequence (scalar tensor)
-//!
-//! ## Outputs
-//!
-//! - `output` (T): 1-D tensor containing the generated range of values
-//!
 //! ## Type Constraints
 //!
 //! - T: tensor(double), tensor(float), tensor(int16), tensor(int32), tensor(int64)

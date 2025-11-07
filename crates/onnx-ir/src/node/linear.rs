@@ -10,16 +10,6 @@
 //! - Gemm: <https://onnx.ai/onnx/operators/onnx__Gemm.html>
 //! - MatMul: <https://onnx.ai/onnx/operators/onnx__MatMul.html>
 //!
-//! ## Attributes (None - converted from source operators)
-//!
-//! ## Inputs
-//! - `X` (T): Input tensor
-//! - `W` (T): Weight matrix (transposed during conversion)
-//! - `b` (T, optional): Bias vector
-//!
-//! ## Outputs
-//! - `Y` (T): Output tensor
-//!
 //! ## Missing Test Coverage
 //! - TODO: No test for Linear without bias (2 inputs only) - Optional bias not tested
 //! - TODO: No test validating weight tensor must be 2D - 1D or 3D+ weights should be rejected

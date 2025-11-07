@@ -5,21 +5,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Sum.html>
 //!
-//! ## Attributes
-//!
-//! None - this operator has no attributes.
-//!
-//! ## Inputs
-//!
-//! - Variable number of input tensors: `data_0`, `data_1`, ..., `data_N` (T)
-//!   - Minimum: 1 input
-//!   - Maximum: 2147483647 inputs
-//!   - All inputs must have compatible shapes for broadcasting
-//!
-//! ## Outputs
-//!
-//! - `sum` (T): Element-wise sum of all input tensors (supports multidirectional broadcasting)
-//!
 //! ## Type Constraints
 //!
 //! T: Numeric tensor types (bfloat16, float16, float32, float64)

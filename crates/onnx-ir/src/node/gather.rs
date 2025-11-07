@@ -10,22 +10,6 @@
 //! axis dimension of `data` (by default outer-most one as axis=0) indexed by `indices`, and
 //! concatenates them in an output tensor of rank q + (r - 1).
 //!
-//! ## Attributes
-//!
-//! - `axis` (int64, default=0): Which axis to gather on. Negative value means counting
-//!   dimensions from the back. Accepted range is [-r, r-1] where r = rank(data).
-//!
-//! ## Inputs
-//!
-//! - `data` (T): Tensor of rank r >= 1
-//! - `indices` (Tind): Tensor of int32/int64 indices, of any rank q. All index values are
-//!   expected to be within bounds [-s, s-1] along axis of size s. It is an error if any of
-//!   the index values are out of bounds.
-//!
-//! ## Outputs
-//!
-//! - `output` (T): Tensor of rank q + (r - 1)
-//!
 //! ## Type Constraints
 //!
 //! - T: tensor(bfloat16), tensor(bool), tensor(complex128), tensor(complex64), tensor(double),
