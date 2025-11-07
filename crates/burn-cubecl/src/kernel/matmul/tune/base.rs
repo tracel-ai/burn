@@ -1,7 +1,7 @@
 use burn_tensor::DType;
 use cubecl::{
     matmul::{
-        AcceleratedTileKind, Strategy, SyncPartialReadingStrategy, SyncReadingStrategy,
+        AcceleratedTileKind, PartialReadingStrategy, ReadingStrategy, Strategy,
         components::{AccG, MatmulKind, MatmulPrecision, MatrixPrecision},
         kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
@@ -46,10 +46,11 @@ pub fn matmul_autotune<
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        const PRIORITY_MAX: u8 = 3;
-        const PRIORITY_HIGH: u8 = 2;
-        const PRIORITY_MEDIUM: u8 = 1;
-        const PRIORITY_MIN: u8 = 0;
+        const PRIORITY_MAX: i8 = 3;
+        const PRIORITY_HIGH: i8 = 2;
+        const PRIORITY_MEDIUM: i8 = 1;
+        const PRIORITY_MIN: i8 = 0;
+        const PRIORITY_NEVER: i8 = -1;
 
         let cmma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
             if matches!(
@@ -96,11 +97,19 @@ pub fn matmul_autotune<
             }
         });
 
-        fn double_buffering_priority(key: &MatmulAutotuneKey, max: u8, min: u8) -> u8 {
+        fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
                 max
             } else {
                 min
+            }
+        }
+
+        fn tma_priority(key: &MatmulAutotuneKey) -> i8 {
+            if key.definition.lhs_stride_factor >= 4 && key.definition.rhs_stride_factor >= 4 {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_NEVER
             }
         }
 
@@ -131,8 +140,16 @@ pub fn matmul_autotune<
             }))
             .with(Tunable::new(matmul_simple::<R, MP, false>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple::<R, MP, true>).group(&mma, |_| PRIORITY_MAX))
-            // TODO: Activate tma when stable enough.
-            // .with(Tunable::new(matmul_simple_tma::<R, MP>).group(&cmma, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(matmul_simple_tma::<R, MP, false>)
+                    .group(&cmma, tma_priority)
+                    .group(&odd, tma_priority),
+            )
+            .with(
+                Tunable::new(matmul_simple_tma::<R, MP, true>)
+                    .group(&mma, tma_priority)
+                    .group(&odd, tma_priority),
+            )
             .with(
                 Tunable::new(matmul_simple_multi_rows::<R, MP, false>)
                     .group(&cmma, |_| PRIORITY_MAX),
@@ -177,6 +194,24 @@ pub fn matmul_autotune<
                         double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
                     })
                     .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(matmul_double_buffering_tma::<R, MP, false>)
+                    // TMA is often the best double buffering algorithm when available
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
+                            .min(tma_priority(key))
+                    })
+                    .group(&odd, tma_priority),
+            )
+            .with(
+                Tunable::new(matmul_double_buffering_tma::<R, MP, true>)
+                    // TMA is often the best double buffering algorithm when available
+                    .group(&mma, |key| {
+                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
+                            .min(tma_priority(key))
+                    })
+                    .group(&odd, tma_priority),
             )
     });
 
@@ -231,7 +266,28 @@ fn matmul_simple<R: CubeRuntime, MP: MatmulPrecision, const MMA: bool>(
 ) -> Result<(), String> {
     launch_matmul::<R, MP>(
         &Strategy::Simple {
-            read_strategy: SyncReadingStrategy::Cyclic,
+            read_strategy: ReadingStrategy::Cyclic,
+            selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
+            tile_kind: tile_kind(MMA),
+        },
+        lhs,
+        rhs,
+        out,
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn matmul_simple_tma<R: CubeRuntime, MP: MatmulPrecision, const MMA: bool>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    if lhs.qparams.is_some() || rhs.qparams.is_some() {
+        return Err("TMA can't be used for quantization right now".into());
+    }
+    launch_matmul::<R, MP>(
+        &Strategy::Simple {
+            read_strategy: ReadingStrategy::Tma,
             selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
             tile_kind: tile_kind(MMA),
         },
@@ -249,7 +305,7 @@ fn matmul_simple_multi_rows<R: CubeRuntime, MP: MatmulPrecision, const MMA: bool
 ) -> Result<(), String> {
     launch_matmul::<R, MP>(
         &Strategy::Simple {
-            read_strategy: SyncReadingStrategy::Cyclic,
+            read_strategy: ReadingStrategy::Cyclic,
             selection: Selection::Inferred(SimpleArgs { multi_rows: true }),
             tile_kind: tile_kind(MMA),
         },
@@ -267,7 +323,28 @@ fn matmul_double_buffering<R: CubeRuntime, MP: MatmulPrecision, const MMA: bool>
 ) -> Result<(), String> {
     launch_matmul::<R, MP>(
         &Strategy::DoubleBuffering {
-            read_strategy: SyncPartialReadingStrategy::Tilewise,
+            read_strategy: PartialReadingStrategy::Tilewise,
+            selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
+            tile_kind: tile_kind(MMA),
+        },
+        lhs,
+        rhs,
+        out,
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn matmul_double_buffering_tma<R: CubeRuntime, MP: MatmulPrecision, const MMA: bool>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    if lhs.qparams.is_some() || rhs.qparams.is_some() {
+        return Err("TMA can't be used for quantization right now".into());
+    }
+    launch_matmul::<R, MP>(
+        &Strategy::DoubleBuffering {
+            read_strategy: PartialReadingStrategy::Tma,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
             tile_kind: tile_kind(MMA),
         },
@@ -285,7 +362,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, MP: MatmulPrecision, cons
 ) -> Result<(), String> {
     launch_matmul::<R, MP>(
         &Strategy::DoubleBuffering {
-            read_strategy: SyncPartialReadingStrategy::Tilewise,
+            read_strategy: PartialReadingStrategy::Tilewise,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: true }),
             tile_kind: tile_kind(MMA),
         },
@@ -375,26 +452,6 @@ fn simple_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
     )
     .map_err(|err| format!("{err:?}"))
 }
-
-// TMA Isn't yet stable enough to be activated.
-//
-// fn matmul_simple_tma<R: CubeRuntime, MP: MatmulPrecision>(
-//     lhs: CubeTensor<R>,
-//     rhs: CubeTensor<R>,
-//     out: CubeTensor<R>,
-// ) -> Result<(), String> {
-//     if matches!(lhs.dtype, DType::QFloat(_)) || matches!(rhs.dtype, DType::QFloat(_)) {
-//         return Err("QFloat isn't stable yet with async TMA loading".into());
-//     }
-//
-//     launch_matmul::<R, MP>(
-//         &Strategy::SimpleBarrier(AsyncReadingStrategy::Tma),
-//         lhs,
-//         rhs,
-//         out,
-//     )
-//     .map_err(|err| format!("{err:?}"))
-// }
 
 fn double_vec_mat<R: CubeRuntime, MP: MatmulPrecision>(
     lhs: CubeTensor<R>,
