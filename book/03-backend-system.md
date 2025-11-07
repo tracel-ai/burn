@@ -55,17 +55,42 @@ pub trait Backend:
     *   `type Device: DeviceOps;`: Each backend must define a `Device` type (e.g., `WgpuDevice` for the WGPU backend) that represents a specific computational device (like a specific GPU or a CPU).
     *   `type FloatTensorPrimitive: ...;`: This defines the concrete, backend-specific struct that will be used to represent a floating-point tensor. This is the type that will be stored in the `primitive` field of a `Tensor` handle.
 
-This trait-based design is what allows you to write generic, backend-agnostic code.
+### Static Dispatch and Monomorphization
 
-```rust
-fn my_generic_function<B: Backend>(device: &B::Device) {
-    let tensor1 = Tensor::<B, 2>::ones([2, 3], device);
-    let tensor2 = Tensor::<B, 2>::zeros([3, 4], device);
-    let result = tensor1.matmul(tensor2); // This will call the backend's matmul implementation
-}
+Burn's generic, trait-based approach is what makes it fast. It relies on a process called **monomorphization**. At compile time, the Rust compiler looks at how you've used generic functions and creates a specialized, concrete version of that function for each specific type you've used.
+
+Here is a diagram illustrating this process:
+
 ```
-
-When you call `my_generic_function::<WgpuBackend>(...)`, the compiler generates a version of the function that uses the `wgpu` backend's implementation for `ones`, `zeros`, and `matmul`. If you call it with `my_generic_function::<NdArrayBackend>(...)`, it will use the `ndarray` backend's CPU implementations. This is **static dispatch**, and it's what makes Burn fast—there's no runtime overhead for looking up which function to call.
+Your Generic Code:
++-------------------------------------------+
+| fn matmul<B: Backend>(...) {              |
+|   let t1 = Tensor::<B, 2>::ones(...);     |
+|   let t2 = Tensor::<B, 2>::zeros(...);    |
+|   t1.matmul(t2);                          |
+| }                                         |
+|                                           |
+| matmul::<NdArray<f32>>(...);               |
+| matmul::<Wgpu>(...);                       |
++-------------------------------------------+
+                 |
+                 V (Rust Compiler)
+                 |
++-------------------------------------------+
+|      Monomorphized (Specialized) Code     |
+|                                           |
+| fn matmul_ndarray(...) { // For NdArray   |
+|   // Calls to ndarray's `ones`, `zeros`,  |
+|   // `matmul` implementations are inlined.|
+| }                                         |
+|                                           |
+| fn matmul_wgpu(...) { // For Wgpu          |
+|   // Calls to wgpu's `ones`, `zeros`,     |
+|   // `matmul` implementations are inlined.|
+| }                                         |
++-------------------------------------------+
+```
+This process, known as **static dispatch**, means there is no runtime overhead for figuring out which backend's function to call. The decision is made at compile time, and the resulting machine code is just as fast as if you had written the backend-specific code yourself.
 
 ## Concrete Backends: `wgpu` and `ndarray`
 
@@ -85,8 +110,6 @@ Burn comes with several built-in backends. Let's briefly look at two of the most
     *   When you don't have a supported GPU.
     *   For tasks that are not computationally intensive enough to benefit from a GPU.
     *   In `no_std` environments for embedded devices, where a GPU backend is not an option.
-
-By simply changing the backend type in your code, you can switch between these powerful computation engines. This separation of the high-level API (`Tensor`) from the low-level implementation (`Backend`) is the cornerstone of Burn's architecture.
 
 ---
 

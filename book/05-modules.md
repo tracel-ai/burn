@@ -36,38 +36,54 @@ pub struct Linear<B: Backend> {
     *   This tensor is wrapped in `Param<...>`. The `Param` struct is a special container that marks its contents as a **learnable parameter** of the module. The `#[derive(Module)]` macro looks for fields of this type.
 *   **`pub bias: Option<Param<Tensor<B, 1>>>`**: This defines the optional `bias` parameter, which is a 1D tensor (a vector). It's an `Option` because a linear layer doesn't always need a bias term.
 
-### The Forward Pass
-
-A module is not complete without its `forward` method, which defines the computation to be performed.
-
-```rust
-// crates/burn-nn/src/modules/linear.rs
-
-impl<B: Backend> Linear<B> {
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        linear(
-            input,
-            self.weight.val(),
-            self.bias.as_ref().map(|b| b.val()),
-        )
-    }
-}
-```
-
-*   **`pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D>`**:
-    *   The `forward` function takes an `input` tensor and returns an `output` tensor.
-    *   It's a convention in Burn to name this function `forward`, but it's not strictly required by the `Module` trait itself.
-*   **`self.weight.val()`**: To access the underlying tensor from a `Param`, you call the `.val()` method.
-*   **`linear(...)`**: This function, from `burn::tensor::module::linear`, performs the actual linear transformation (`O = IW + b`). It calls the appropriate backend functions to perform the matrix multiplication and bias addition.
-
-### Ownership and Composition
+## Ownership and Composition
 
 Modules are designed to be composed. You can build a larger module by including other modules as fields.
+
+### Data Flow Diagram for `MyModel`
+
+Here is a diagram illustrating the flow of a tensor through the `MyModel` example below:
+
+```
+Input Tensor [batch_size, d_input]
+      |
+      V
++------------------------------------+
+|        `linear1: Linear<B>`        |
+| (Matmul with weights, add bias)    |
++------------------------------------+
+      |
+      V
+Tensor [batch_size, d_hidden]
+      |
+      V
++------------------------------------+
+|           `relu: ReLU`             |
+| (Apply element-wise activation)    |
++------------------------------------+
+      |
+      V
+Tensor [batch_size, d_hidden]
+      |
+      V
++------------------------------------+
+|        `linear2: Linear<B>`        |
+| (Matmul with weights, add bias)    |
++------------------------------------+
+      |
+      V
+Output Tensor [batch_size, d_output]
+```
+
+### Runnable Example: Composing a Model
+
+This example shows how to define a configuration for a model, initialize it, and run a forward pass.
 
 ```rust
 use burn::prelude::*;
 use burn::nn::{Linear, LinearConfig, ReLU};
 
+// A simple two-layer feed-forward neural network.
 #[derive(Module, Debug)]
 pub struct MyModel<B: Backend> {
     linear1: Linear<B>,
@@ -75,6 +91,8 @@ pub struct MyModel<B: Backend> {
     linear2: Linear<B>,
 }
 
+// Configuration for creating a `MyModel`.
+// Deriving `Config` allows for easy serialization.
 #[derive(Config)]
 pub struct MyModelConfig {
     d_input: usize,
@@ -83,6 +101,7 @@ pub struct MyModelConfig {
 }
 
 impl MyModelConfig {
+    // Initialize a new `MyModel` from the configuration.
     pub fn init<B: Backend>(&self, device: &B::Device) -> MyModel<B> {
         MyModel {
             linear1: LinearConfig::new(self.d_input, self.d_hidden).init(device),
@@ -93,6 +112,7 @@ impl MyModelConfig {
 }
 
 impl<B: Backend> MyModel<B> {
+    // The forward pass, defining the model's computation.
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
         let x = self.linear1.forward(input);
         let x = self.relu.forward(x);
@@ -100,21 +120,27 @@ impl<B: Backend> MyModel<B> {
         x
     }
 }
-```
 
-Here's an ASCII diagram of the ownership:
+// Main function to run the example
+fn run_model_example() {
+    type MyBackend = burn_ndarray::NdArray<f32>;
+    let device = Default::default();
 
-```
-`MyModel<B>` (owns its fields)
-├── linear1: `Linear<B>`
-│   ├── weight: `Param<Tensor<B, 2>>`
-│   └── bias: `Option<Param<Tensor<B, 1>>>`
-├── relu: `ReLU` (no parameters)
-└── linear2: `Linear<B>`
-    ├── weight: `Param<Tensor<B, 2>>`
-    └── bias: `Option<Param<Tensor<B, 1>>>`
-```
+    // Create the model configuration
+    let config = MyModelConfig::new(10, 32, 5);
+    // Initialize the model
+    let model = config.init::<MyBackend>(&device);
 
+    // Create a random input tensor
+    let input = Tensor::<MyBackend, 2>::random([4, 10], Distribution::Default, &device);
+
+    // Perform the forward pass
+    let output = model.forward(input);
+
+    // Print the output shape
+    println!("Output shape: {:?}", output.shape());
+}
+```
 When you call `#[derive(Module)]` on `MyModel`, the macro will **recursively** find all the parameters in `linear1` and `linear2`. This means that when you save or load `MyModel`, you are saving or loading the state of the entire network. This composability is what allows you to build complex models from simple, reusable blocks.
 
 ---

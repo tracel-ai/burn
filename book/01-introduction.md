@@ -25,15 +25,68 @@ The choice of Rust for a deep learning framework might seem unconventional, give
 
 *   **A Single Language for Everything**: With the "two-language problem" (Python for research, C++ for production), there is often a costly and error-prone process of translating models from one to the other. In a Rust-based framework like Burn, the same code can be used for both research and deployment, streamlining the entire workflow.
 
-## Core Philosophy
+### The "Two-Language Problem" vs. Burn's Approach
 
-Burn's design is guided by three core principles:
+Here is a diagram illustrating the traditional deep learning workflow compared to Burn's unified approach:
 
-1.  **Flexibility**: At the heart of Burn is a swappable backend system. Most of the code is generic over a `Backend` trait, which allows you to write your model logic once and run it on different hardware targets (CPU, GPU) by simply changing a type parameter. This is a powerful form of dependency injection that makes Burn incredibly adaptable.
+```
+Traditional Workflow (e.g., Python + C++)
 
-2.  **Efficiency**: Burn is designed for speed. It leverages Rust's performance to implement optimizations that are often only available in static-graph frameworks. Furthermore, it includes features like automatic kernel fusion, which can significantly speed up computations by merging multiple operations into a single GPU kernel.
++-----------------------+      +------------------------+
+|   Researcher writes   |      |   Engineer rewrites    |
+|  model in Python for  | ===> | model in C++/CUDA for  |
+|      flexibility      |      |      performance       |
++-----------------------+      +------------------------+
+       (High friction, slow iteration, error-prone)
 
-3.  **Portability**: With Burn, you can train your model on a powerful cloud GPU and then deploy it to a variety of targets, including web browsers (via WebAssembly) and embedded devices (`no_std` environments), often with no code changes required.
+
+Burn's Workflow (Rust only)
+
++----------------------------------------------------+
+|    Researcher and Engineer use the same Rust code    |
+| for both research and production, ensuring consistency |
+|          and accelerating the dev cycle.             |
++----------------------------------------------------+
+```
+
+## "Hello, Burn": A Complete Example
+
+Let's look at a complete, runnable "hello world" example in Burn. This simple program will create a tensor and print it, demonstrating the basic setup.
+
+First, you'll need to add Burn to your `Cargo.toml`:
+
+```toml
+[dependencies]
+burn = { git = "https://github.com/tracel-ai/burn", rev = "..." }
+# Or, for a specific backend:
+# burn = { version = "...", features = ["ndarray"] }
+```
+
+Now, here is the Rust code:
+
+```rust
+use burn::prelude::*;
+
+// Use the NdArray backend for CPU execution.
+// You could swap this with `burn_wgpu::WgpuBackend` for the GPU.
+type MyBackend = burn_ndarray::NdArray<f32>;
+
+fn main() {
+    // Get the default device for the backend (e.g., CPU).
+    let device = Default::default();
+
+    // Create a 2D tensor from static data.
+    let tensor = Tensor::<MyBackend, 2>::from_data(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        &device
+    );
+
+    // Print the tensor.
+    println!("{}", tensor);
+}
+```
+
+This simple example showcases several core concepts we'll explore in the coming chapters: the `Backend` type alias, the `Device`, and the `Tensor` struct itself.
 
 ## High-Level Architecture
 
@@ -73,6 +126,7 @@ In the upcoming chapters, we will dissect each of these layers, starting from th
 
 ## Exercises
 
-1.  **Explore the Codebase**: Navigate to the `crates/` directory in the Burn repository. Choose one of the backend crates (e.g., `burn-wgpu` or `burn-ndarray`) and briefly look at its `Cargo.toml` file. What are some of its key dependencies?
-2.  **Thought Experiment**: Imagine you are designing a new feature for Burn. Based on the architectural diagram, at which layer would you most likely add a new image data augmentation function (e.g., for randomly flipping images)?
-3.  **Discussion**: What do you think is the biggest advantage of the "single language" approach that Rust offers for deep learning? What might be a potential disadvantage?
+1.  **Run the Example**: Set up a new Rust project, add `burn` as a dependency, and run the "Hello, Burn" example. Try changing the backend to `burn_wgpu::Wgpu` if you have a compatible GPU.
+2.  **Explore the Codebase**: Navigate to the `crates/` directory in the Burn repository. Choose one of the backend crates (e.g., `burn-wgpu` or `burn-ndarray`) and briefly look at its `Cargo.toml` file. What are some of its key dependencies?
+3.  **Thought Experiment**: Imagine you are designing a new feature for Burn. Based on the architectural diagram, at which layer would you most likely add a new image data augmentation function (e.g., for randomly flipping images)?
+4.  **Discussion**: What do you think is the biggest advantage of the "single language" approach that Rust offers for deep learning? What might be a potential disadvantage?
