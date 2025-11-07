@@ -38,16 +38,21 @@ def create_same_constant_multiple_inputs_model():
         raw=True
     )
 
+    # Boolean condition for Where operation
+    bool_condition = helper.make_tensor(
+        name='condition',
+        data_type=TensorProto.BOOL,
+        dims=[2, 3],
+        vals=np.ones((2, 3), dtype=bool).flatten().tolist()
+    )
+
     # Operations where the SAME constant appears in multiple input slots
     nodes = [
-        # Add: input + shared_constant
-        helper.make_node('Add', ['input', 'shared_constant'], ['temp1'], name='add1'),
-
         # Where: Uses the same constant for BOTH true_value and false_value
         # This is the key test: ONE operation with multiple inputs pointing to SAME constant
         helper.make_node(
             'Where',
-            ['temp1', 'shared_constant', 'shared_constant'],  # condition, true_val, false_val
+            ['condition', 'shared_constant', 'shared_constant'],  # condition, true_val, false_val
             ['output'],
             name='where_same_const'
         ),
@@ -59,7 +64,7 @@ def create_same_constant_multiple_inputs_model():
         'same_constant_multiple_inputs_model',
         [input_tensor],
         [output],
-        initializer=[shared_const]
+        initializer=[shared_const, bool_condition]
     )
 
     # Create the model

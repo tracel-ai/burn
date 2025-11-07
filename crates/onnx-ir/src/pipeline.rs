@@ -58,7 +58,7 @@ pub fn build_graph(model: &ModelProto) -> OnnxGraph {
 
     log::debug!(" PHASE 3: Type Inference ");
     let opset_version = extract_opset_version(model);
-    type_inference::infer_types(&state_rc, opset_version);
+    type_inference::infer_types(&state_rc, opset_version).expect("Type inference failed");
 
     log::debug!(" PHASE 4: Post-processing ");
     let (mut nodes, inputs, mut outputs) = post_processing::post_process(&state_rc);

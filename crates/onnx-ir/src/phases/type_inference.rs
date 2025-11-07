@@ -11,16 +11,20 @@ use std::{
 use crate::{
     graph_state::GraphState,
     ir::{ArgType, Node},
-    processor::{ArgPreference, get_processor_registry},
+    processor::{ArgPreference, ProcessError, get_processor_registry},
 };
 
 /// Infer types for all nodes (extracts nodes to avoid borrow conflicts)
-pub(crate) fn infer_types(state_rc: &Rc<RefCell<GraphState>>, opset_version: usize) {
+pub(crate) fn infer_types(
+    state_rc: &Rc<RefCell<GraphState>>,
+    opset_version: usize,
+) -> Result<(), ProcessError> {
     // Extract nodes temporarily to avoid holding mutable borrow during type inference
     // (type inference may call .value() which needs immutable borrows)
     let mut nodes = std::mem::take(&mut state_rc.borrow_mut().processed_nodes);
-    iterative_type_inference_with_preferences(&mut nodes, opset_version);
+    iterative_type_inference_with_preferences(&mut nodes, opset_version)?;
     state_rc.borrow_mut().processed_nodes = nodes;
+    Ok(())
 }
 
 /// Iterative type inference with preference propagation
@@ -28,7 +32,10 @@ pub(crate) fn infer_types(state_rc: &Rc<RefCell<GraphState>>, opset_version: usi
 /// Algorithm: Build preferences → Sync types → Infer → Collect new preferences → Check convergence
 ///
 /// This allows runtime preference collection (e.g., Concat requests Shape after seeing Shape inputs).
-pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opset: usize) {
+pub(super) fn iterative_type_inference_with_preferences(
+    nodes: &mut [Node],
+    opset: usize,
+) -> Result<(), ProcessError> {
     let registry = get_processor_registry();
 
     // Track collected preferences: (producer_output_name, consumer_name, pref_type_str)
@@ -94,7 +101,7 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
 
             // Run type inference on this node
             let processor = registry.get(&nodes[i].node_type);
-            let _ = processor.infer_types(&mut nodes[i], opset, &prefs);
+            processor.infer_types(&mut nodes[i], opset, &prefs)?;
 
             // Immediately sync this node's output types to downstream nodes' inputs
             // This allows downstream nodes to see correct types in the same iteration
@@ -189,7 +196,7 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
         // Continue iterating if either types changed or new preferences were found
         if !types_changed && !new_preferences_found {
             log::debug!("Type inference converged after {} iterations", iteration);
-            return;
+            return Ok(());
         }
     }
 
@@ -197,4 +204,5 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
         "Type inference iteration limit ({}) reached without convergence",
         max_iterations
     );
+    Ok(())
 }
