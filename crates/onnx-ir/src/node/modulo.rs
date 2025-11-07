@@ -29,7 +29,10 @@
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
 use crate::ir::{AttributeValue, Node, NodeConfig};
-use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
+    ProcessError,
+};
 
 use std::any::Any;
 
@@ -61,6 +64,15 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 10,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn input_preferences(
         &self,
         node: &Node,
@@ -102,15 +114,9 @@ impl NodeProcessor for ModuloProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 10)?;
-
-        // Mod requires exactly 2 inputs: A and B
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate input dtypes are numeric - Integer and floating-point types supported - burn/crates/onnx-ir/src/node/modulo.rs:100
         // TODO: Validate both inputs have same dtype - Mixed types should be rejected - burn/crates/onnx-ir/src/node/modulo.rs:100
         // TODO: Add validation that fmod attribute, if present, is either 0 or 1 - Other values are undefined - burn/crates/onnx-ir/src/node/modulo.rs:100

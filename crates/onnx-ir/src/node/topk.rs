@@ -33,7 +33,9 @@
 //! - **I**: tensor(int64) for indices output
 
 use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for TopK k parameter.
@@ -67,6 +69,15 @@ impl NodeConfig for TopKConfig {
 pub struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 10,
+            max_opset: None,
+            inputs: InputSpec::Range(1, 2),
+            outputs: OutputSpec::Exact(2),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift K input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -79,24 +90,9 @@ impl NodeProcessor for TopKProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // TopK implementation supports opset 10+ (k as input)
-        crate::processor::validate_opset(opset, 10)?;
-
-        // Validate input count (1 or 2 inputs)
-        crate::processor::validate_min_inputs(node, 1)?;
-        if node.inputs.len() > 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 2)?;
-
         // TODO: Missing validation that k <= dimension_size along axis.
         // If k is larger than the dimension, this should either be rejected or clamped.
         // ONNX spec behavior for k > dim_size is not well-defined.

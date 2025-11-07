@@ -35,7 +35,9 @@
 //! ## Type Constraints
 //! - T: tensor(float16), tensor(float32), tensor(float64), tensor(int32), tensor(int64)
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::{ArgType, Node, NodeConfig, TensorType};
 use std::any::Any;
 
@@ -64,6 +66,15 @@ impl ReduceConfig {
 pub struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Range(1, 2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -76,15 +87,9 @@ impl NodeProcessor for ReduceProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Opset validation
-        crate::processor::validate_opset(opset, 11)?;
-
-        // Validate input count
-        crate::processor::validate_min_inputs(node, 1)?;
-
         // TODO: Add validation for maximum input count
         // Opset 18+ allows optional axes input (2 inputs total). Opset 11-17 only allows 1 input.
         // Should validate: for opset < 18, max 1 input; for opset >= 18, max 2 inputs.

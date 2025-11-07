@@ -28,7 +28,9 @@
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use std::any::Any;
 
@@ -51,16 +53,21 @@ impl NodeConfig for HardSigmoidConfig {
 pub struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 6,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 6)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate unexpected attributes before config extraction
         // The spec only supports "alpha" and "beta" attributes
         for (key, _value) in node.attrs.iter() {

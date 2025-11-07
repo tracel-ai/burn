@@ -38,7 +38,10 @@
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
 use crate::ir::{ArgType, Argument, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
-use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
+    ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for the Reshape operation.
@@ -265,6 +268,15 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 5,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // If it's a runtime argument (no value), it should remain in the graph
@@ -295,14 +307,9 @@ impl NodeProcessor for ReshapeProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset, input count, and output count
-        crate::processor::validate_opset(opset, 5)?;
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Missing test coverage for allowzero=1 behavior
         // While allowzero attribute is validated (lines 346-363), there's no test that verifies
         // the actual reshape behavior when allowzero=1 and shape contains 0.
@@ -517,9 +524,8 @@ mod tests {
         let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         node.inputs.pop(); // Remove the shape input
         let processor = ReshapeProcessor;
-        let prefs = OutputPreferences::new();
-
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

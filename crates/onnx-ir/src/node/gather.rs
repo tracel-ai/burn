@@ -42,7 +42,10 @@
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
+    ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for the Gather operation.
@@ -64,6 +67,15 @@ impl NodeConfig for GatherConfig {
 pub struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn input_preferences(
         &self,
         node: &Node,
@@ -88,18 +100,9 @@ impl NodeProcessor for GatherProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Spec: Opset 1+ (negative indices support added in opset 11)
-        crate::processor::validate_opset(opset, 1)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 2)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate indices tensor type is int32 or int64 per ONNX spec - Missing type constraint validation
 
         // Extract the input rank for axis normalization
@@ -300,10 +303,9 @@ mod tests {
     fn test_gather_config_missing_index() {
         let mut node = create_test_node(0, 3, false).build();
         node.inputs.pop(); // Remove the indices input
-        let mut node = node;
         let processor = GatherProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

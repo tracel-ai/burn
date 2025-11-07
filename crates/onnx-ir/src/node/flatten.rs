@@ -22,7 +22,9 @@
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for Flatten operations
@@ -45,21 +47,21 @@ impl NodeConfig for FlattenConfig {
 pub struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Spec: Opset 1+ (negative axis support added in opset 11)
-        crate::processor::validate_opset(opset, 1)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -194,10 +196,8 @@ mod tests {
         node.inputs.push(extra_input);
 
         let processor = FlattenProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

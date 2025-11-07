@@ -29,7 +29,9 @@
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for Linear operations
@@ -73,6 +75,15 @@ impl NodeConfig for LinearConfig {
 pub struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input 1) and bias (input 2) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -91,9 +102,6 @@ impl NodeProcessor for LinearProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_min_inputs(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate weight tensor (input 1) is exactly 2D - Higher or lower rank weights are invalid - burn/crates/onnx-ir/src/node/linear.rs:86
         // TODO: Validate all inputs have compatible dtypes - Type mismatch would cause runtime errors - burn/crates/onnx-ir/src/node/linear.rs:86
         // TODO: Validate input rank is compatible for matrix multiplication - At least 2D required - burn/crates/onnx-ir/src/node/linear.rs:86
@@ -208,8 +216,8 @@ mod tests {
         node.inputs.remove(1);
 
         let processor = LinearProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount { .. })

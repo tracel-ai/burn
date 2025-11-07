@@ -23,7 +23,9 @@
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
 use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::proto_conversion::element_type_from_proto;
 
 use std::any::Any;
@@ -49,16 +51,21 @@ impl NodeConfig for EyeLikeConfig {
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 9)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Extract tensor info and validate
         let (input_rank, input_elem_type, input_static_shape) = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {

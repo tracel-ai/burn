@@ -31,7 +31,9 @@
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
 use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for the GatherElements operation.
@@ -63,21 +65,21 @@ pub enum GatherElementsInput {
 pub struct GatherElementsProcessor;
 
 impl NodeProcessor for GatherElementsProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // GatherElements was introduced in opset 11
-        crate::processor::validate_opset(opset, 11)?;
-
-        // GatherElements requires 2 inputs: data and indices
-        crate::processor::validate_input_count(node, 2)?;
-
-        // GatherElements has 1 output
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate indices tensor type is int32 or int64 per ONNX spec - Missing type constraint validation
         // TODO: Validate data and indices have same rank per ONNX spec - Spec requires rank(data) == rank(indices) - Missing rank validation
 

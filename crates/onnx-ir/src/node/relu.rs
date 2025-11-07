@@ -24,21 +24,28 @@
 //! - **Opset 14+**: Added bfloat16 support
 
 use crate::ir::Node;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 pub struct ReluProcessor;
 
 impl NodeProcessor for ReluProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 6,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 6)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Missing test coverage for different data types
         // Tests only use f32. Spec supports float16, float64, bfloat16, and integer types.
         // Add tests: relu_float64, relu_int32, relu_int64

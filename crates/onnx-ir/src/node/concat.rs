@@ -22,7 +22,10 @@
 //! - **Opset 13+**: Current version with extended type support
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
+    ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for Concat operation
@@ -44,6 +47,15 @@ impl NodeConfig for ConcatConfig {
 pub struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 4,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn input_preferences(
         &self,
         node: &Node,
@@ -77,18 +89,9 @@ impl NodeProcessor for ConcatProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 4)?;
-
-        // Validate we have at least one input
-        crate::processor::validate_min_inputs(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // Get reference to config for type inference (not used, but extracted for consistency)
         let _config = node.config::<ConcatConfig>();
 

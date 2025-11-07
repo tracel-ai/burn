@@ -36,7 +36,9 @@
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
 
 use crate::ir::RuntimeInputRef;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::{Node, NodeConfig};
 use std::any::Any;
 
@@ -69,6 +71,15 @@ impl NodeConfig for TileConfig {
 pub struct TileProcessor;
 
 impl NodeProcessor for TileProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 6,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift repeats input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -81,20 +92,11 @@ impl NodeProcessor for TileProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 6)?;
-
-        // Validate input count (at least data input)
-        crate::processor::validate_min_inputs(node, 1)?;
-
         // TODO: Missing validation that repeats input exists (required in opset 6+).
         // Opset 6+ requires repeats as second input but this isn't strictly validated.
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Missing validation that len(repeats) == rank(input).
         // ONNX spec requires repeats length to match input rank but not validated here.

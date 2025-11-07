@@ -27,7 +27,9 @@
 //! - Current implementation validates opset 11+ (see FIXME at line 83)
 //! - According to spec, operator exists since opset 1
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use crate::{
     ArgType, TensorType,
@@ -78,17 +80,21 @@ impl NodeConfig for DepthToSpaceConfig {
 pub struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Spec: Opset 1+ (CRD mode added in opset 11)
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Validate unexpected attributes before config extraction
         for (key, _value) in node.attrs.iter() {
             match key.as_str() {

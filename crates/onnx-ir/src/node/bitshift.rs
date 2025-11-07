@@ -32,7 +32,9 @@
 //! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
 
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use std::any::Any;
 
@@ -73,17 +75,21 @@ impl NodeConfig for BitShiftConfig {
 pub struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 11)?;
-        // BitShift requires exactly 2 inputs: X and Y
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add validation for unexpected attributes
         // FIXME: Spec says 'direction' is required but extract_config provides default "left"
         // Should either validate presence here or update spec documentation

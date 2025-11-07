@@ -35,22 +35,29 @@
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
 use crate::ir::{ArgType, Node, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use core::cmp::max;
 
 pub struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Validate that no unexpected attributes are present
         // The spec states "Attributes (None)" for MatMul
         if let Some((key, _value)) = node.attrs.iter().next() {

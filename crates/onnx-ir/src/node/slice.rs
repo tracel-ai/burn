@@ -35,7 +35,9 @@
 //! - **Opset 13**: Added bfloat16 and additional type support.
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for the Slice operation.
@@ -115,6 +117,15 @@ fn calculate_shape_slice_output_len(
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 10,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn input_preferences(
         &self,
         node: &Node,
@@ -158,18 +169,9 @@ impl NodeProcessor for SliceProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 10)?;
-
-        // Validate input count (at least data, starts, ends)
-        crate::processor::validate_min_inputs(node, 3)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // Get reference to config for type inference
         let config = node.config::<SliceConfig>();
 

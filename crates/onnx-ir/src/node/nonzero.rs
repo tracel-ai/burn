@@ -28,21 +28,28 @@
 //! Location: infer_types method after line 38
 
 use crate::ir::{ArgType, DType, Node, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 9)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Note: Implementation correctly validates inputs/outputs per spec (1 input, 1 output)
 
         match &node.inputs[0].ty {

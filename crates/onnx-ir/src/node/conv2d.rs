@@ -26,7 +26,9 @@
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for Conv2d operations
@@ -85,6 +87,15 @@ impl NodeConfig for Conv2dConfig {
 pub struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Range(2, 3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -100,16 +111,9 @@ impl NodeProcessor for Conv2dProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 1)?;
-
-        // Validate input and output counts
-        crate::processor::validate_min_inputs(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add test for zero or negative stride values - spec requires positive strides
         // TODO: Add test for zero or negative dilation values - spec requires positive dilations
         // TODO: Add test for zero or negative group values - spec requires positive groups

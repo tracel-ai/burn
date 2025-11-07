@@ -27,7 +27,9 @@
 use crate::ir::{Node, NodeConfig};
 
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for Conv3d operations.
@@ -85,6 +87,15 @@ impl NodeConfig for Conv3dConfig {
 pub struct Conv3dProcessor;
 
 impl NodeProcessor for Conv3dProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Range(2, 3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -100,13 +111,9 @@ impl NodeProcessor for Conv3dProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_min_inputs(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Output type is same as input
         crate::processor::same_as_input(node);
 

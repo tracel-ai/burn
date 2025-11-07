@@ -18,7 +18,9 @@
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::{
     DType,
     ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
@@ -47,6 +49,15 @@ impl NodeConfig for ExpandShape {
 pub struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 8,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // Runtime shapes should remain in the graph
@@ -60,18 +71,9 @@ impl NodeProcessor for ExpandProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 8)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 2)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate no unexpected attributes - Expand has no attributes per spec - Missing attribute validation
 
         // Validate shape input type
@@ -258,14 +260,12 @@ mod tests {
     #[test]
     fn test_expand_with_incorrect_inputs() {
         let mut node = create_test_node(2, Some(vec![2, 3, 4]), None).build_with_graph_data(16);
+        // Remove one input to make it invalid
+        node.inputs.pop();
 
         let processor = ExpandProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        // Remove one input AFTER extracting config
-        node.inputs.pop();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

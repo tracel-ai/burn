@@ -99,8 +99,12 @@ pub(super) fn iterative_type_inference_with_preferences(
                 .cloned()
                 .unwrap_or_else(crate::processor::OutputPreferences::new);
 
-            // Run type inference on this node
+            // Validate node against its spec before processing
             let processor = registry.get(&nodes[i].node_type);
+            let spec = processor.spec();
+            crate::processor::validate_node_spec(&nodes[i], opset, &spec)?;
+
+            // Run type inference on this node
             processor.infer_types(&mut nodes[i], opset, &prefs)?;
 
             // Immediately sync this node's output types to downstream nodes' inputs

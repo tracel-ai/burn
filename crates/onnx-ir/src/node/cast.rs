@@ -35,7 +35,9 @@
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 
 use crate::ir::{ArgType, AttributeValue, DType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::proto_conversion::element_type_from_proto;
 use std::any::Any;
 
@@ -66,21 +68,21 @@ impl NodeConfig for CastConfig {
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 1)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add validation for unexpected attributes
         // FIXME: Spec mentions 'saturate' attribute (opset 19+) for float8 conversions - not validated or tested
         // FIXME: Spec mentions 'round_mode' attribute (opset 21+) for float8e8m0 conversion - not validated or tested
@@ -284,10 +286,8 @@ mod tests {
         });
 
         let processor = CastProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

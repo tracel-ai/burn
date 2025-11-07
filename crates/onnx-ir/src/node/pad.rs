@@ -37,7 +37,9 @@
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use crate::ir::{ArgType, AttributeValue, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
 use std::any::Any;
@@ -119,6 +121,15 @@ impl NodeConfig for PadConfig {
 pub struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Range(1, 4),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     // TODO mark axes inputs as Shape if inputs are constant
 
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
@@ -138,11 +149,9 @@ impl NodeProcessor for PadProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 11)?;
-
         // TODO: Add validation for input count (1-4 inputs as per spec)
         // Spec allows 1-4 inputs (data, pads, constant_value optional, axes optional).
         // Currently no explicit validation, though extract_config rejects 4 inputs (axes).
@@ -225,7 +234,6 @@ impl NodeProcessor for PadProcessor {
         }
 
         fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
-            crate::processor::validate_min_inputs(node, 1)?;
             if node.inputs.len() >= 4 {
                 return Err(ProcessError::Custom(
                     "Pad: axes input is not supported".to_string(),
@@ -650,10 +658,9 @@ mod tests {
     fn test_pad_config_no_inputs() {
         let mut node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
         node.inputs = vec![];
-        let node = node;
         let processor = PadProcessor;
-        let _prefs = OutputPreferences::new();
-        let result = processor.extract_config(&node, 16);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount { .. })

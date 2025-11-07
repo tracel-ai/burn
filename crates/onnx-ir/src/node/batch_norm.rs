@@ -31,7 +31,9 @@
 //! - **Opset 15+**: Current version with full training mode support
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for BatchNorm operations
@@ -69,6 +71,15 @@ impl NodeConfig for BatchNormConfig {
 pub struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(5),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input[1]), bias (input[2]), mean (input[3]), and variance (input[4])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -90,18 +101,9 @@ impl NodeProcessor for BatchNormProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 9)?;
-
-        // Validate input count (X, scale, B, mean, var) - exactly 5 inputs required
-        crate::processor::validate_input_count(node, 5)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add validation for unexpected attributes
         // FIXME: Check training_mode attribute - spec mentions it but implementation doesn't validate it
         // According to spec, training mode outputs mean/var/saved_mean/saved_var which are not currently handled

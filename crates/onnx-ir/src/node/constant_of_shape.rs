@@ -23,7 +23,9 @@
 use crate::ir::{
     ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
 };
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for the ConstantOfShape operation.
@@ -57,6 +59,15 @@ impl NodeConfig for ConstantOfShapeConfig {
 pub struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[0]) if it has a static value
         // Runtime shapes should remain in the graph
@@ -70,13 +81,9 @@ impl NodeProcessor for ConstantOfShapeProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 9)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Validate input type
         match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {

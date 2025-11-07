@@ -9,6 +9,59 @@ use std::collections::HashMap;
 // Re-export registry types for backward compatibility
 pub use crate::registry::get_processor_registry;
 
+// ============================================================================
+// Node Specification System
+// ============================================================================
+
+/// Specification for input count validation
+#[derive(Debug, Clone)]
+pub enum InputSpec {
+    /// Exact count required
+    Exact(usize),
+    /// Minimum count required
+    AtLeast(usize),
+    /// Range of valid counts (min, max inclusive)
+    Range(usize, usize),
+    /// Different specs for different opset versions (opset_version, spec)
+    OpsetDependent(Vec<(usize, InputSpec)>),
+}
+
+/// Specification for output count validation
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub enum OutputSpec {
+    /// Exact count required
+    Exact(usize),
+    /// Range of valid counts (min, max inclusive)
+    Range(usize, usize),
+    /// Different specs for different opset versions (opset_version, spec)
+    OpsetDependent(Vec<(usize, OutputSpec)>),
+}
+
+/// Specification for node validation and metadata
+#[derive(Debug, Clone)]
+pub struct NodeSpec {
+    /// Minimum supported opset version
+    pub min_opset: usize,
+    /// Maximum supported opset version (None = no max)
+    pub max_opset: Option<usize>,
+    /// Input count validation
+    pub inputs: InputSpec,
+    /// Output count validation
+    pub outputs: OutputSpec,
+}
+
+impl Default for NodeSpec {
+    fn default() -> Self {
+        Self {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(0),
+            outputs: OutputSpec::Range(0, 2147483647),
+        }
+    }
+}
+
 /// Type preferences for node inputs
 #[derive(Debug, Default, Clone)]
 pub struct InputPreferences {
@@ -106,6 +159,14 @@ pub enum ProcessError {
 
 /// Node-specific processing logic for type inference and configuration extraction
 pub trait NodeProcessor: Send + Sync {
+    /// Return the node specification for validation
+    ///
+    /// This defines the supported opset versions, input/output counts, etc.
+    /// Validation is automatically performed before processing.
+    fn spec(&self) -> NodeSpec {
+        NodeSpec::default()
+    }
+
     /// Declare preferred types for inputs (propagated to producers as `output_preferences`)
     ///
     /// Preferences are requests, not requirements. Producers may honor them (e.g., Constant→Shape).
@@ -174,40 +235,119 @@ pub fn validate_opset(opset: usize, min_version: usize) -> Result<(), ProcessErr
     }
 }
 
-/// Validate exact input count
-pub fn validate_input_count(node: &Node, expected: usize) -> Result<(), ProcessError> {
-    if node.inputs.len() != expected {
-        Err(ProcessError::InvalidInputCount {
-            expected,
-            actual: node.inputs.len(),
-        })
-    } else {
-        Ok(())
+// ============================================================================
+// NodeSpec Validation
+// ============================================================================
+
+/// Validate node against its specification
+pub fn validate_node_spec(node: &Node, opset: usize, spec: &NodeSpec) -> Result<(), ProcessError> {
+    // Validate opset version
+    if opset < spec.min_opset {
+        return Err(ProcessError::UnsupportedOpset {
+            required: spec.min_opset,
+            actual: opset,
+        });
     }
+    if let Some(max) = spec.max_opset
+        && opset > max
+    {
+        return Err(ProcessError::UnsupportedOpset {
+            required: max,
+            actual: opset,
+        });
+    }
+
+    // Validate input count
+    validate_input_spec(node, opset, &spec.inputs)?;
+
+    // Validate output count
+    validate_output_spec(node, opset, &spec.outputs)?;
+
+    Ok(())
 }
 
-/// Validate minimum input count
-pub fn validate_min_inputs(node: &Node, min: usize) -> Result<(), ProcessError> {
-    if node.inputs.len() < min {
-        Err(ProcessError::InvalidInputCount {
-            expected: min,
-            actual: node.inputs.len(),
-        })
-    } else {
-        Ok(())
+/// Validate input count against specification
+fn validate_input_spec(node: &Node, opset: usize, spec: &InputSpec) -> Result<(), ProcessError> {
+    let actual = node.inputs.len();
+
+    match spec {
+        InputSpec::Exact(expected) => {
+            if actual != *expected {
+                return Err(ProcessError::InvalidInputCount {
+                    expected: *expected,
+                    actual,
+                });
+            }
+        }
+        InputSpec::AtLeast(min) => {
+            if actual < *min {
+                return Err(ProcessError::InvalidInputCount {
+                    expected: *min,
+                    actual,
+                });
+            }
+        }
+        InputSpec::Range(min, max) => {
+            if actual < *min || actual > *max {
+                return Err(ProcessError::InvalidInputCount {
+                    expected: *min, // Report minimum as expected
+                    actual,
+                });
+            }
+        }
+        InputSpec::OpsetDependent(specs) => {
+            // Find the applicable spec for this opset (use the highest opset <= current)
+            let applicable_spec = specs
+                .iter()
+                .filter(|(opset_version, _)| *opset_version <= opset)
+                .max_by_key(|(opset_version, _)| opset_version)
+                .map(|(_, spec)| spec);
+
+            if let Some(spec) = applicable_spec {
+                validate_input_spec(node, opset, spec)?;
+            }
+        }
     }
+
+    Ok(())
 }
 
-/// Validate exact output count
-pub fn validate_output_count(node: &Node, expected: usize) -> Result<(), ProcessError> {
-    if node.outputs.len() != expected {
-        Err(ProcessError::InvalidOutputCount {
-            expected,
-            actual: node.outputs.len(),
-        })
-    } else {
-        Ok(())
+/// Validate output count against specification
+fn validate_output_spec(node: &Node, opset: usize, spec: &OutputSpec) -> Result<(), ProcessError> {
+    let actual = node.outputs.len();
+
+    match spec {
+        OutputSpec::Exact(expected) => {
+            if actual != *expected {
+                return Err(ProcessError::InvalidOutputCount {
+                    expected: *expected,
+                    actual,
+                });
+            }
+        }
+        OutputSpec::Range(min, max) => {
+            if actual < *min || actual > *max {
+                return Err(ProcessError::InvalidOutputCount {
+                    expected: *min, // Report minimum as expected
+                    actual,
+                });
+            }
+        }
+        OutputSpec::OpsetDependent(specs) => {
+            // Find the applicable spec for this opset (use the highest opset <= current)
+            let applicable_spec = specs
+                .iter()
+                .filter(|(opset_version, _)| *opset_version <= opset)
+                .max_by_key(|(opset_version, _)| opset_version)
+                .map(|(_, spec)| spec);
+
+            if let Some(spec) = applicable_spec {
+                validate_output_spec(node, opset, spec)?;
+            }
+        }
     }
+
+    Ok(())
 }
 
 /// Copy input type to output (for operations that preserve type)

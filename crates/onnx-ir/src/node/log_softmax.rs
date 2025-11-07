@@ -30,7 +30,9 @@
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use std::any::Any;
 
@@ -54,16 +56,21 @@ impl NodeConfig for LogSoftmaxConfig {
 pub struct LogSoftmaxProcessor;
 
 impl NodeProcessor for LogSoftmaxProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 13,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 13)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate input tensor dtype is floating-point type - Type constraint not enforced - burn/crates/onnx-ir/src/node/log_softmax.rs:54
 
         // TODO: Validate unexpected attributes before config extraction
@@ -176,10 +183,9 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs.push(extra_input);
-        let mut node = node;
         let processor = LogSoftmaxProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

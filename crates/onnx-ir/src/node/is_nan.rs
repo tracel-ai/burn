@@ -35,21 +35,28 @@
 //! - TODO: No test for positive/negative NaN variants - Some platforms distinguish signaling/quiet NaN
 
 use crate::Node;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 pub struct IsNaNProcessor;
 
 impl NodeProcessor for IsNaNProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 9)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate input dtype is floating-point - Type constraint T1: tensor(float16), tensor(float), tensor(double), tensor(bfloat16), tensor(float8*) not enforced - Integer inputs should be rejected - burn/crates/onnx-ir/src/node/is_nan.rs:42
 
         // TODO: Validate that no unexpected attributes are present

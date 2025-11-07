@@ -36,7 +36,9 @@
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
 
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for LayerNorm operations
@@ -86,6 +88,15 @@ impl LayerNormConfig {
 pub struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 17,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -101,19 +112,13 @@ impl NodeProcessor for LayerNormProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        const MIN: usize = 17;
-
-        crate::processor::validate_opset(opset, MIN)?;
         // TODO: Validate input tensor dtype is floating-point type - Type constraint T not enforced - burn/crates/onnx-ir/src/node/layer_norm.rs:101
         // TODO: Validate Scale tensor rank matches normalized dimensions - Spec requires Scale to match normalized shape - burn/crates/onnx-ir/src/node/layer_norm.rs:101
-        // LayerNormalization requires 2-3 inputs: X, Scale, and optionally B (Bias)
-        crate::processor::validate_min_inputs(node, 2)?;
         // FIXME: According to ONNX spec, LayerNormalization can have 1-3 outputs
         // (Y is required, Mean and InvStdDev are optional), but we only validate for 1
-        crate::processor::validate_output_count(node, 1)?;
 
         // Validate axis attribute before extracting config
         let weight_shape = node.inputs[1]

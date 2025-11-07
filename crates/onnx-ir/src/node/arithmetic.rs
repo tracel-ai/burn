@@ -41,8 +41,8 @@
 
 use crate::ir::Node;
 use crate::processor::{
-    InputPreferences, NodeProcessor, OutputPreferences, ProcessError, same_as_input_broadcast,
-    validate_input_count, validate_opset, validate_output_count,
+    InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
+    ProcessError, same_as_input_broadcast,
 };
 
 /// Node processor for basic arithmetic binary operations
@@ -57,6 +57,15 @@ use crate::processor::{
 pub struct ArithmeticBinaryProcessor;
 
 impl NodeProcessor for ArithmeticBinaryProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 7,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn input_preferences(
         &self,
         node: &Node,
@@ -106,18 +115,9 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset version
-        validate_opset(opset, 7)?;
-
-        // Validate input count
-        validate_input_count(node, 2)?;
-
-        // Validate output count
-        validate_output_count(node, 1)?;
-
         // Apply standard broadcasting rules to infer output type
         same_as_input_broadcast(node);
 
@@ -189,15 +189,15 @@ mod tests {
 
     #[test]
     fn test_invalid_opset() {
-        let mut node = NodeBuilder::new(NodeType::Add, "test_add")
+        let node = NodeBuilder::new(NodeType::Add, "test_add")
             .input_tensor_f32("a", 2, None)
             .input_tensor_f32("b", 2, None)
             .output_default("c")
             .build();
 
         let processor = ArithmeticBinaryProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 6, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 6, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::UnsupportedOpset {
@@ -209,14 +209,14 @@ mod tests {
 
     #[test]
     fn test_invalid_input_count() {
-        let mut node = NodeBuilder::new(NodeType::Add, "test_add")
+        let node = NodeBuilder::new(NodeType::Add, "test_add")
             .input_tensor_f32("a", 2, None)
             .output_default("c")
             .build();
 
         let processor = ArithmeticBinaryProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

@@ -40,7 +40,9 @@
 //! - TODO: No test for edge case: kernel larger than input dimension
 //! - TODO: No test validating input is 3D (N x C x L) - Lower/higher rank should be rejected
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::{
     ir::{Node, NodeConfig},
     node::padding::padding_config_1d,
@@ -105,25 +107,26 @@ impl NodeConfig for MaxPool1dConfig {
 pub struct MaxPool1dProcessor;
 
 impl NodeProcessor for MaxPool1dProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Spec: Opset 1+ (dilation support added in opset 11)
-        crate::processor::validate_opset(opset, 1)?;
-
         // TODO: Validate input tensor is 3D (N x C x L) - Lower or higher rank should be rejected - burn/crates/onnx-ir/src/node/max_pool1d.rs:105
         // TODO: Validate input dtype - int8/uint8 support requires opset 12+ - burn/crates/onnx-ir/src/node/max_pool1d.rs:105
 
         // FIXME: Spec mentions optional second output "Indices" but we only validate 1 output.
         // Should validate that output count is 1 or 2, not exactly 1.
-
-        // Validate input/output count
-        crate::processor::validate_min_inputs(node, 1)?;
-
-        crate::processor::validate_output_count(node, 1)?;
 
         // Validate attributes before extracting config
         // TODO: Validate required kernel_shape attribute is present - Missing kernel_shape should cause error - burn/crates/onnx-ir/src/node/max_pool1d.rs:117

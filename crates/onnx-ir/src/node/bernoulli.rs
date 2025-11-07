@@ -25,7 +25,9 @@
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
 
 use crate::ir::{ArgType, DType, Node, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
@@ -33,16 +35,21 @@ use protobuf::Enum;
 pub struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 15,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 15)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add validation for unexpected attributes
         // TODO: Spec mentions 'seed' attribute but it's not validated or used in implementation
 

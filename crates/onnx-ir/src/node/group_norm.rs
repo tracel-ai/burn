@@ -24,7 +24,9 @@
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
 
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for GroupNorm operations
@@ -65,6 +67,15 @@ impl GroupNormConfig {
 pub struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 18,
+            max_opset: None,
+            inputs: InputSpec::Exact(3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -80,16 +91,9 @@ impl NodeProcessor for GroupNormProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        const MIN: usize = 18;
-
-        crate::processor::validate_opset(opset, MIN)?;
-        // GroupNormalization requires exactly 3 inputs: X, scale, and bias
-        crate::processor::validate_input_count(node, 3)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate X tensor rank is at least 3 per ONNX spec (N x C x D1 x ... x Dn) - Missing rank validation
         // TODO: Validate scale and bias tensors have rank 1 and size matches num_channels - Missing shape validation
 

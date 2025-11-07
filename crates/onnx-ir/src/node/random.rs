@@ -24,7 +24,9 @@
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
 use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 use std::any::Any;
@@ -68,15 +70,21 @@ impl NodeConfig for RandomUniformConfig {
 pub struct RandomProcessor;
 
 impl NodeProcessor for RandomProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(0),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate that this node has zero inputs (Random operations don't take inputs)
         // Random operators should have no inputs, but this isn't validated.
         // Should add: validate_input_count(node, 0) or validate_max_inputs(node, 0)

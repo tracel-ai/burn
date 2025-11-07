@@ -27,7 +27,9 @@
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for AvgPool2d operations
@@ -82,21 +84,21 @@ impl NodeConfig for AvgPool2dConfig {
 pub struct AvgPool2dProcessor;
 
 impl NodeProcessor for AvgPool2dProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 11)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate that kernel_shape attribute is present (marked as required in spec)
         // Currently extract_config will panic if kernel_shape is missing or has wrong length
         // TODO: Add test for zero or negative kernel_shape values - spec requires positive values
@@ -334,12 +336,9 @@ mod tests {
             0,
             Some(vec![2, 2]),
         );
-        let mut node = node;
         let processor = AvgPool2dProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 10).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 10, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 10, &spec);
         // Should fail because minimum opset is 11
         assert!(matches!(result, Err(ProcessError::UnsupportedOpset { .. })));
     }

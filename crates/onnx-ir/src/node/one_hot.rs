@@ -30,7 +30,9 @@
 //! Location: infer_types method after validate_input_count
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for OneHot depth.
@@ -94,6 +96,15 @@ pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
 pub struct OneHotProcessor;
 
 impl NodeProcessor for OneHotProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift depth (input 1) and values (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -109,14 +120,9 @@ impl NodeProcessor for OneHotProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 9)?;
-
-        // OneHot requires exactly 3 inputs: indices, depth, and values
-        crate::processor::validate_input_count(node, 3)?;
-
         // TODO: Validate that depth input is scalar or rank-1 tensor with single element as per spec
         // Current implementation extracts depth[0] in extract_config but doesn't validate shape.
         // Should add validation: depth must be scalar (rank 0) or rank-1 tensor with shape [1].

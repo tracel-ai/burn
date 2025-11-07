@@ -33,31 +33,31 @@
 
 use crate::ir::Node;
 use crate::processor::{
-    NodeProcessor, OutputPreferences, ProcessError, same_as_input_broadcast, validate_min_inputs,
-    validate_opset, validate_output_count,
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+    same_as_input_broadcast,
 };
 
 /// Node processor for Sum operation
 pub struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 8,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        validate_opset(opset, 8)?;
-
-        // Validate we have at least one input
-        validate_min_inputs(node, 1)?;
-
         // TODO: Missing validation of input count upper bound - ONNX spec allows up to 2^31-1 inputs.
         // While this is huge, there should be some practical limit or at least documentation.
-
-        // Validate output count
-        validate_output_count(node, 1)?;
 
         // TODO: Missing validation that all inputs have compatible dtypes.
         // ONNX spec requires all inputs to have the same data type, but this isn't validated.

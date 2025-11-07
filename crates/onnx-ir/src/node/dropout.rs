@@ -29,7 +29,9 @@
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
 use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for dropout ratio.
@@ -60,6 +62,18 @@ impl NodeConfig for DropoutConfig {
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::OpsetDependent(vec![
+                (1, InputSpec::Exact(1)),     // Opset 1-11: data only
+                (12, InputSpec::Range(1, 3)), // Opset 12+: data, ratio (optional), training_mode (optional)
+            ]),
+            outputs: OutputSpec::Range(1, 2), // 1 or 2 outputs (mask is optional)
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // For opset 12+, ratio is an input (input[1])
         // Only lift it if it's a static constant (has a value)
@@ -78,20 +92,9 @@ impl NodeProcessor for DropoutProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Spec: Opset 1+ (ratio/training_mode moved to inputs in opset 12)
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_min_inputs(node, 1)?;
-
-        // Dropout can have 1 or 2 outputs (second output is optional mask)
-        if node.outputs.is_empty() || node.outputs.len() > 2 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
         // TODO: Validate input count based on opset version - Opset 1-11 has 1 input, Opset 12+ can have up to 3 inputs (data, ratio, training_mode) - Missing opset-specific validation
 
         // First output: same type as input

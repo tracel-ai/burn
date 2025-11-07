@@ -33,7 +33,9 @@
 
 use crate::ir::{Node, NodeConfig};
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for ConvTranspose2d operations.
@@ -96,6 +98,15 @@ impl NodeConfig for ConvTranspose2dConfig {
 pub struct Convtranspose2dProcessor;
 
 impl NodeProcessor for Convtranspose2dProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Range(2, 3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -111,13 +122,9 @@ impl NodeProcessor for Convtranspose2dProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_min_inputs(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
             match key.as_str() {

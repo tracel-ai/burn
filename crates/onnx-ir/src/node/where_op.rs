@@ -24,8 +24,8 @@
 
 use crate::ir::{ArgType, DType, Node, TensorType};
 use crate::processor::{
-    NodeProcessor, OutputPreferences, ProcessError, compute_broadcast_rank,
-    compute_broadcast_static_shape,
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+    compute_broadcast_rank, compute_broadcast_static_shape,
 };
 
 /// Get element type from ArgType, handling Shape types specially
@@ -59,16 +59,21 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 pub struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 9,
+            max_opset: None,
+            inputs: InputSpec::Exact(3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 9)?;
-        crate::processor::validate_input_count(node, 3)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         let condition = &node.inputs[0].ty;
         let x = &node.inputs[1].ty;
         let y = &node.inputs[2].ty;

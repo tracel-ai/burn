@@ -59,7 +59,9 @@
 //! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
 
 use crate::ir::{ArgType, DType, Node, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub fn elementwise_comparison_outputs(node: &mut Node) {
@@ -97,13 +99,22 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
 pub struct ComparisonProcessor;
 
 impl NodeProcessor for ComparisonProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 7,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset based on operation type
+        // Validate opset based on operation type (individual validation for specific ops)
         let min_opset = match node.node_type {
             crate::ir::NodeType::Equal => 7,
             crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 7,
@@ -114,9 +125,12 @@ impl NodeProcessor for ComparisonProcessor {
             ),
         };
 
-        crate::processor::validate_opset(opset, min_opset)?;
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
+        if opset < min_opset {
+            return Err(ProcessError::UnsupportedOpset {
+                required: min_opset,
+                actual: opset,
+            });
+        }
 
         // TODO: Add validation for unexpected attributes - comparison ops should have no attributes
         // TODO: Add test for NaN comparison behavior - spec doesn't clearly specify Equal(NaN, NaN) result

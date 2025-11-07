@@ -30,7 +30,9 @@
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use std::any::Any;
 use std::str::FromStr;
@@ -207,6 +209,15 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
 pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Range(1, 4),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift roi input (input[1]) if present and constant
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -229,21 +240,12 @@ impl NodeProcessor for ResizeProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Resize implementation supports opset 11+ (for coordinate transformation modes)
-        crate::processor::validate_opset(opset, 11)?;
-
-        // Validate input count
-        crate::processor::validate_min_inputs(node, 1)?;
-
         // TODO: Add maximum input count validation
         // Spec allows 1-4 inputs (X, roi, scales, sizes). Should validate max 4 inputs.
         // Location: After validate_min_inputs
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Missing validation for scales and sizes both provided
         // Spec states: "Either 'scales' or 'sizes' MUST be provided, MUST NOT provide both."

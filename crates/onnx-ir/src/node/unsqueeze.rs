@@ -37,7 +37,9 @@
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Axes specification for the Unsqueeze operation.
@@ -62,6 +64,15 @@ impl NodeConfig for UnsqueezeConfig {
 pub struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 13,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // In opset 13+, axes is a required input
@@ -76,19 +87,9 @@ impl NodeProcessor for UnsqueezeProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        // TODO: Opset validation incorrectly rejects opset < 13 - Implementation should support opset 1+ with axes as attribute for opset < 13, but validate_opset requires opset 13+ - Should validate based on whether axes is attribute or input
-        crate::processor::validate_opset(opset, 13)?;
-
-        // Validate we have at least one input
-        crate::processor::validate_min_inputs(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // Get reference to config for type inference
         let config = node.config::<UnsqueezeConfig>();
 

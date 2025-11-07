@@ -26,7 +26,9 @@
 //! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for Softmax operations
@@ -49,16 +51,21 @@ impl NodeConfig for SoftmaxConfig {
 pub struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 13,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 13)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // FIXME: The spec requires the input rank to be >= 1 for the axis attribute to be valid.
         // The implementation should validate that the tensor rank is at least 1.
         // Edge case: what happens with a scalar (rank-0) input? Should be rejected.
@@ -160,12 +167,9 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs.push(extra_input);
-        let mut node = node;
         let processor = SoftmaxProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

@@ -33,7 +33,9 @@
 //! ## Opset Versions
 //! - **Opset 14**: Initial version introducing triangular matrix extraction with optional diagonal offset.
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use crate::{ArgType, Node, NodeConfig, TensorDataExt};
 
@@ -67,6 +69,15 @@ impl NodeConfig for TriluConfig {
 pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 14,
+            max_opset: None,
+            inputs: InputSpec::Range(1, 2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift diagonal input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
@@ -82,24 +93,9 @@ impl NodeProcessor for TriluProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Trilu implementation supports opset 14+
-        crate::processor::validate_opset(opset, 14)?;
-
-        // Validate input count (1 or 2 inputs)
-        crate::processor::validate_min_inputs(node, 1)?;
-        if node.inputs.len() > 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Missing validation that input tensor is at least rank 2.
         // ONNX spec requires last two dimensions to form a matrix, so rank must be >= 2.
         let input_rank = match &node.inputs[0].ty {

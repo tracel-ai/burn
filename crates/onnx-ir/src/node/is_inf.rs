@@ -24,7 +24,9 @@
 //! - **Opset 10-19**: Initial version with detect_negative and detect_positive attributes
 //! - **Opset 20+**: Extended type support (added float8 variants)
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use crate::{Node, NodeConfig};
 use std::any::Any;
@@ -56,16 +58,21 @@ impl NodeConfig for IsInfConfig {
 pub struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 10,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 10)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // Validate unexpected attributes before config extraction
         for (key, _value) in node.attrs.iter() {
             match key.as_str() {

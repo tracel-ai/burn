@@ -29,8 +29,7 @@
 
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{
-    NodeProcessor, OutputPreferences, ProcessError, validate_input_count, validate_opset,
-    validate_output_count,
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use std::any::Any;
 
@@ -54,21 +53,21 @@ impl NodeConfig for ShapeConfig {
 pub struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        validate_opset(opset, 1)?;
-
-        // Validate input count
-        validate_input_count(node, 1)?;
-
-        // Validate output count
-        validate_output_count(node, 1)?;
-
         // Determine output dimension based on input type
         let dim = match &node.inputs[0].ty {
             ArgType::Tensor(_) => {
@@ -265,11 +264,8 @@ mod tests {
         });
 
         let processor = ShapeProcessor;
-        let prefs = OutputPreferences::new();
-
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

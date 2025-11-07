@@ -39,7 +39,9 @@
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for the Range operation.
@@ -72,6 +74,15 @@ pub enum RangeInput {
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Only lift inputs that have static values
         // Runtime inputs (no value) should remain in the graph
@@ -93,18 +104,9 @@ impl NodeProcessor for RangeProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Opset validation
-        crate::processor::validate_opset(opset, 11)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 3)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate that all three inputs have the same dtype (type T constraint)
         // ONNX spec requires start, limit, delta to all have the same type T.
         // Current implementation infers output dtype from start (inputs[0]) but doesn't
@@ -228,9 +230,8 @@ mod tests {
         let mut node = create_test_node();
         node.inputs.pop();
         let processor = RangeProcessor;
-        let prefs = OutputPreferences::new();
-
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

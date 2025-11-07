@@ -29,7 +29,9 @@
 //!   explicitly providing split sizes.
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for Split sizes.
@@ -65,6 +67,15 @@ impl NodeConfig for SplitConfig {
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Range(1, 2147483647),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift split input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -77,15 +88,9 @@ impl NodeProcessor for SplitProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Split implementation supports opset 11+
-        crate::processor::validate_opset(opset, 11)?;
-
-        // Validate we have at least one input
-        crate::processor::validate_min_inputs(node, 1)?;
-
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor,

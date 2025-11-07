@@ -36,11 +36,22 @@
 //! - This allows the slope to be embedded in the generated code
 
 use crate::ir::Node;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 pub struct PReluProcessor;
 
 impl NodeProcessor for PReluProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 6,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift the slope input (input[1]) to static
         if node.inputs.len() > 1 {
@@ -52,13 +63,9 @@ impl NodeProcessor for PReluProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 6)?;
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate broadcasting compatibility between X and slope inputs
         // Spec requires slope to be "unidirectional broadcastable" to X, but implementation
         // doesn't validate this constraint. Invalid broadcast shapes will fail at runtime.
@@ -160,14 +167,14 @@ mod tests {
 
     #[test]
     fn test_prelu_requires_two_inputs() {
-        let mut node = NodeBuilder::new(NodeType::PRelu, "test_prelu")
+        let node = NodeBuilder::new(NodeType::PRelu, "test_prelu")
             .input_tensor_f32("X", 2, Some(vec![10, 20]))
             .output_tensor_f32("Y", 0, None)
             .build();
 
         let processor = PReluProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount { .. })

@@ -28,7 +28,9 @@
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
+};
 use std::any::Any;
 
 /// Configuration for Transpose operations
@@ -51,21 +53,21 @@ impl NodeConfig for TransposeConfig {
 pub struct TransposeProcessor;
 
 impl NodeProcessor for TransposeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 1)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // Get reference to config for type inference
         let config = node.config::<TransposeConfig>();
 
@@ -190,12 +192,9 @@ mod tests {
             value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
-        let mut node = node;
         let processor = TransposeProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {

@@ -26,7 +26,9 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
 
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use std::any::Any;
@@ -58,6 +60,15 @@ impl NodeConfig for SqueezeConfig {
 pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 13,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
@@ -73,18 +84,9 @@ impl NodeProcessor for SqueezeProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 13)?;
-
-        // Validate we have at least one input
-        crate::processor::validate_min_inputs(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // Get reference to config for type inference
         let config = node.config::<SqueezeConfig>();
         let axes = config.axes.clone();

@@ -34,7 +34,9 @@
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 /// Configuration for InstanceNorm operations
@@ -69,6 +71,15 @@ impl NodeConfig for InstanceNormConfig {
 pub struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 6,
+            max_opset: None,
+            inputs: InputSpec::Exact(3),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -84,18 +95,12 @@ impl NodeProcessor for InstanceNormProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        const MIN: usize = 6;
-
-        crate::processor::validate_opset(opset, MIN)?;
         // TODO: Validate input tensor dtype is floating-point type - Type constraint T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16) not enforced - burn/crates/onnx-ir/src/node/instance_norm.rs:88
         // TODO: Validate that scale and bias tensors are 1D and have size C matching the channel dimension of input - Shape mismatch could cause runtime errors - burn/crates/onnx-ir/src/node/instance_norm.rs:88
         // TODO: Validate that input tensor is at least 3D (N x C x D1 ...) - Spec requires minimum rank of 3 - burn/crates/onnx-ir/src/node/instance_norm.rs:88
-        // InstanceNormalization requires exactly 3 inputs: input, scale, and B
-        crate::processor::validate_input_count(node, 3)?;
-        crate::processor::validate_output_count(node, 1)?;
 
         // Validate attributes before extracting config
         for (key, _value) in node.attrs.iter() {

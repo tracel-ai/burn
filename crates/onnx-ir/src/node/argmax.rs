@@ -29,7 +29,9 @@
 //! - **Opset 11**: Changed `axis` range to support negative indices [-r, r-1]
 
 use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 use std::any::Any;
 
@@ -55,16 +57,21 @@ impl NodeConfig for ArgMaxConfig {
 pub struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 11)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add validation for unexpected attributes (similar to attention.rs)
         // Currently only validates select_last_index and keepdims values but doesn't check for unknown attributes
 
@@ -237,9 +244,8 @@ mod tests {
         });
 
         let processor = ArgMaxProcessor;
-
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount { .. })

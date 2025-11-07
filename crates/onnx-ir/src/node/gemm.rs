@@ -46,7 +46,9 @@
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use core::cmp::max;
 use std::any::Any;
 
@@ -71,16 +73,21 @@ impl NodeConfig for GemmConfig {
 pub struct GemmProcessor;
 
 impl NodeProcessor for GemmProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::processor::validate_opset(opset, 11)?;
-        crate::processor::validate_min_inputs(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate A and B tensor ranks are exactly 2 per ONNX spec - GEMM is defined for 2D matrices only - Missing rank validation
         // TODO: Validate C tensor is broadcastable to output shape (M, N) per spec - Missing broadcasting validation
         // TODO: Validate compatible dimensions for matrix multiplication - After transpositions, need K dimension to match - Missing dimension validation

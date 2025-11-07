@@ -81,7 +81,8 @@
 
 use crate::ir::Node;
 use crate::processor::{
-    NodeProcessor, OutputPreferences, ProcessError, same_as_input, same_as_input_broadcast,
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
+    same_as_input_broadcast,
 };
 
 /// Node processor for element-wise binary operations with broadcasting
@@ -102,6 +103,15 @@ use crate::processor::{
 pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(2),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
@@ -113,8 +123,6 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         // TODO: BitwiseAnd/BitwiseOr/BitwiseXor require opset 18+ per ONNX spec - Missing opset validation - Should validate minimum opset version
         // TODO: Validate no unexpected attributes for binary operations - Per spec, these ops have no attributes - Missing attribute validation
         // TODO: Max and Min support variadic inputs (2+ inputs) per ONNX spec, not just 2 - Missing support for multiple inputs - Should use validate_min_inputs instead
-        crate::processor::validate_input_count(node, 2)?;
-        crate::processor::validate_output_count(node, 1)?;
 
         same_as_input_broadcast(node);
         Ok(())
@@ -126,6 +134,18 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 pub struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
+    fn spec(&self) -> NodeSpec {
+        // Determine opset based on operation type
+        let min_opset = 1;
+
+        NodeSpec {
+            min_opset,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
@@ -175,8 +195,6 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         };
 
         crate::processor::validate_opset(opset, min_opset)?;
-        crate::processor::validate_input_count(node, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
 
         // TODO: Spec mentions Round has optional 'mode' attribute - not validated or extracted
         // TODO: Validate no unexpected attributes for unary operations except Round - Most unary ops have no attributes - Missing attribute validation

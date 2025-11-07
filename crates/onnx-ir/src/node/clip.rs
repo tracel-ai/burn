@@ -36,7 +36,9 @@
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
 use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for clip parameters.
@@ -68,6 +70,15 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 6,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
@@ -85,18 +96,9 @@ impl NodeProcessor for ClipProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 6)?;
-
-        // Validate input count (at least 1 input, up to 3 for opset 11+)
-        crate::processor::validate_min_inputs(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add validation for unexpected attributes
         // TODO: Validate behavior when min > max - spec says "all values are set to max" but not tested
         // TODO: Add test for integer type clipping (int8, int16, int32, int64, uint8-64) - opset 12+

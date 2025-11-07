@@ -27,7 +27,9 @@
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::padding_config_1d;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use std::any::Any;
 
 use super::padding::PaddingConfig1d;
@@ -84,21 +86,21 @@ impl NodeConfig for AvgPool1dConfig {
 pub struct AvgPool1dProcessor;
 
 impl NodeProcessor for AvgPool1dProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        crate::processor::validate_opset(opset, 11)?;
-
-        // Validate input count
-        crate::processor::validate_input_count(node, 1)?;
-
-        // Validate output count
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Validate that kernel_shape attribute is present (marked as required in spec)
         // Currently extract_config will panic if kernel_shape is missing
         // TODO: Add test coverage for kernel_shape with wrong length (e.g., [3, 3] for 1D pool)
@@ -322,12 +324,9 @@ mod tests {
     fn test_avg_pool1d_dilation_opset_validation() {
         // Test that opset < 11 is rejected entirely (due to count_include_pad requirement)
         let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 0, Some(vec![2]));
-        let mut node = node;
         let processor = AvgPool1dProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 10).unwrap();
-        node.config = config;
-        let result = processor.infer_types(&mut node, 10, &prefs);
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 10, &spec);
         // Should fail because minimum opset is 11
         assert!(matches!(result, Err(ProcessError::UnsupportedOpset { .. })));
     }

@@ -39,21 +39,28 @@
 //! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
 use crate::ir::{ArgType, Node, TensorDataExt, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
 pub struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(0),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Spec: Opset 1+ (sparse_value added in opset 11, value_* attributes added in opset 13)
-        crate::processor::validate_opset(opset, 1)?;
-        crate::processor::validate_output_count(node, 1)?;
-
         // TODO: Add test for empty tensor constant - edge case that may fail
 
         // Validate that the Constant node has an input
