@@ -85,11 +85,7 @@ impl TensorDataExt for burn_tensor::TensorData {
     fn to_i64_vec(&self) -> Result<Vec<i64>, burn_tensor::DataError> {
         use burn_tensor::DType;
         match self.dtype {
-            DType::I64 => self.to_vec::<i64>(),
-            DType::I32 => {
-                let vec_i32 = self.to_vec::<i32>()?;
-                Ok(vec_i32.into_iter().map(|v| v as i64).collect())
-            }
+            DType::I64 | DType::I32 => self.clone().convert::<i64>().to_vec(),
             other => Err(burn_tensor::DataError::TypeMismatch(format!(
                 "Cannot convert {:?} to Vec<i64>",
                 other
@@ -100,35 +96,14 @@ impl TensorDataExt for burn_tensor::TensorData {
     fn to_f32_vec(&self) -> Result<Vec<f32>, burn_tensor::DataError> {
         use burn_tensor::DType;
         match self.dtype {
-            DType::F32 => self.to_vec::<f32>(),
-            DType::F64 => {
-                let vec = self.to_vec::<f64>()?;
-                Ok(vec.into_iter().map(|v| v as f32).collect())
-            }
-            DType::F16 => {
-                let vec = self.to_vec::<half::f16>()?;
-                Ok(vec.into_iter().map(f32::from).collect())
-            }
-            DType::I64 => {
-                let vec = self.to_vec::<i64>()?;
-                Ok(vec.into_iter().map(|v| v as f32).collect())
-            }
-            DType::I32 => {
-                let vec = self.to_vec::<i32>()?;
-                Ok(vec.into_iter().map(|v| v as f32).collect())
-            }
-            DType::I8 => {
-                let vec = self.to_vec::<i8>()?;
-                Ok(vec.into_iter().map(|v| v as f32).collect())
-            }
-            DType::U8 => {
-                let vec = self.to_vec::<u8>()?;
-                Ok(vec.into_iter().map(|v| v as f32).collect())
-            }
-            DType::U16 => {
-                let vec = self.to_vec::<u16>()?;
-                Ok(vec.into_iter().map(|v| v as f32).collect())
-            }
+            DType::F32
+            | DType::F64
+            | DType::F16
+            | DType::I64
+            | DType::I32
+            | DType::I8
+            | DType::U8
+            | DType::U16 => self.clone().convert::<f32>().to_vec(),
             other => Err(burn_tensor::DataError::TypeMismatch(format!(
                 "Cannot convert {:?} to Vec<f32>",
                 other
