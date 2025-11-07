@@ -2,7 +2,7 @@ use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 
 #[derive(Debug, Clone, new)]
 pub struct OneHotNode {
@@ -10,7 +10,6 @@ pub struct OneHotNode {
     pub output: TensorType,
     pub num_classes: usize,
     pub values: [f32; 2],
-    pub values_type: TensorType,
     pub axis: i64,
 }
 
@@ -85,14 +84,8 @@ impl OnnxIntoNode for OneHotNode {
             }
         };
 
-        // Derive values_type from output to preserve the correct output element type
-        // Even though onnx-ir stores values as [f32; 2], the output type is determined
-        // by the ONNX model's output element type (e.g., Int64 -> Int)
-        let mut values_type = output.clone();
-        values_type.name = format_ident!("{}_values", output.name);
-
         let axis = config.axis;
-        Self::new(input, output, num_classes, values, values_type, axis)
+        Self::new(input, output, num_classes, values, axis)
     }
 }
 
@@ -116,7 +109,6 @@ mod tests {
             TensorType::new_float("tensor2", 2),
             3,
             [0., 1.],
-            TensorType::new_float("tensor3", 1),
             -1,
         ));
 
