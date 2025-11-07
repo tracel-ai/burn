@@ -140,8 +140,7 @@ fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<Graph
             node.inputs.push(crate::ir::Argument {
                 name: String::new(),
                 ty: ty.clone(),
-                data_id: Some(data_id),
-                value_source: crate::ir::ValueSource::Static,
+                value_source: crate::ir::ValueSource::Static(data_id),
                 value_store: Some(state_rc.clone()),
             });
 
@@ -312,16 +311,18 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
     );
 
     // Get the data_id - either directly from Static input, or lookup from Constant input
-    let data_id = if let Some(id) = node.inputs[1].data_id {
-        // Static input with embedded data_id
-        id
-    } else if node.inputs[1].is_constant() {
-        // Constant input - lookup the constant node to get data_id
-        graph_data
-            .get_constant_data_id_by_output(&node.inputs[1].name)
-            .expect("Constant input must have data_id in constant node")
-    } else {
-        panic!("Weight input must be either Static or Constant");
+    let data_id = match &node.inputs[1].value_source {
+        crate::ir::ValueSource::Static(id) => {
+            // Static input with embedded data_id
+            *id
+        }
+        crate::ir::ValueSource::Constant => {
+            // Constant input - lookup the constant node to get data_id
+            graph_data
+                .get_constant_data_id_by_output(&node.inputs[1].name)
+                .expect("Constant input must have data_id in constant node")
+        }
+        _ => panic!("Weight input must be either Static or Constant"),
     };
 
     let tensor_data = graph_data
@@ -360,7 +361,8 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
     }
 
     // Embed the data_id in the input for downstream use (lift_constants may not have run yet)
-    node.inputs[1].data_id = Some(data_id);
+    node.inputs[1].value_source = crate::ir::ValueSource::Static(data_id);
+    node.inputs[1].name.clear(); // Static values are accessed by ID, not name
 }
 
 fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {

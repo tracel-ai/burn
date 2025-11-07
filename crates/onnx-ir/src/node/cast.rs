@@ -279,7 +279,6 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
-            data_id: None,
             value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });

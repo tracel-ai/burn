@@ -131,7 +131,6 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                 Argument {
                     name,
                     ty: ArgType::Scalar(td.elem_type()),
-                    data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
                     value_store: None,
                 }
@@ -143,7 +142,6 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                         rank: td.shape.len(),
                         static_shape: Some(td.shape.to_vec()),
                     }),
-                    data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
                     value_store: None,
                 }
@@ -199,7 +197,6 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                 let arg = Argument {
                     name,
                     ty: ArgType::Scalar(td.elem_type()),
-                    data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
                     value_store: None,
                 };
@@ -240,7 +237,6 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                         rank: shape_usize.len(),
                         static_shape: Some(shape_usize),
                     }),
-                    data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
                     value_store: None,
                 };
@@ -531,7 +527,6 @@ impl TryFrom<ValueInfoProto> for Argument {
         Ok(Argument {
             ty,
             name,
-            data_id: None,
             value_source: crate::ir::ValueSource::Dynamic, // Graph inputs/outputs are runtime values
             value_store: None,
         })

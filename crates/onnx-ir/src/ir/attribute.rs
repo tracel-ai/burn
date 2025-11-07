@@ -107,7 +107,6 @@ impl From<AttributeValue> for Argument {
             AttributeValue::Float32(_value) => Argument {
                 ty: ArgType::Scalar(DType::F32),
                 name,
-                data_id: None,
                 value_source: ValueSource::Optional,
                 value_store: None,
             },
@@ -118,14 +117,12 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
-                data_id: None,
                 value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::Int64(_value) => Argument {
                 ty: ArgType::Scalar(DType::I64),
                 name,
-                data_id: None,
                 value_source: ValueSource::Optional,
                 value_store: None,
             },
@@ -136,7 +133,6 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
-                data_id: None,
                 value_source: ValueSource::Optional,
                 value_store: None,
             },
@@ -156,7 +152,6 @@ impl From<AttributeValue> for Argument {
                     Argument {
                         ty: ArgType::Scalar(tensor.elem_type()),
                         name,
-                        data_id: None,
                         value_source: ValueSource::Optional,
                         value_store: None,
                     }
@@ -169,7 +164,6 @@ impl From<AttributeValue> for Argument {
                             static_shape: Some(tensor.shape.to_vec()),
                         }),
                         name,
-                        data_id: None,
                         value_source: ValueSource::Optional,
                         value_store: None,
                     }

@@ -146,7 +146,9 @@ mod tests {
         graph_data.register_test_constant("test_value".to_string(), tensor_data);
 
         // Get the data_id from the registered constant
-        let data_id = graph_data.get_constant_data_id("test_value");
+        let data_id = graph_data
+            .get_constant_data_id("test_value")
+            .expect("Test constant should have data_id");
 
         // Create type based on shape
         let ty = if shape.is_empty() {
@@ -171,8 +173,7 @@ mod tests {
         node.inputs.push(Argument {
             name: String::new(),
             ty: ty.clone(),
-            data_id,
-            value_source: crate::ir::ValueSource::Static,
+            value_source: crate::ir::ValueSource::Static(data_id),
             value_store: Some(graph_data_rc.clone()),
         });
 

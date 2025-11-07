@@ -41,7 +41,6 @@ impl NodeBuilder {
         self.inputs.push(Argument {
             name: name.to_string(),
             ty,
-            data_id: None,
             value_source,
             value_store: None,
         });
@@ -189,7 +188,6 @@ impl NodeBuilder {
                 rank,
                 static_shape: None,
             }),
-            data_id: None,
             value_source: crate::ir::ValueSource::Constant,
             value_store: None,
         };
@@ -228,7 +226,6 @@ impl NodeBuilder {
                 rank: 0,
                 static_shape: None,
             }),
-            data_id: None,
             value_source,
             value_store: None,
         };
@@ -258,7 +255,6 @@ impl NodeBuilder {
                 rank: 0,
                 static_shape: None,
             }),
-            data_id: None,
             value_source,
             value_store: None,
         };
@@ -294,7 +290,6 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty,
-            data_id: None,
             value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
@@ -477,7 +472,6 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty: ArgType::default(),
-            data_id: None,
             value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
@@ -532,18 +526,12 @@ impl NodeBuilder {
         }
 
         // Build the node first
-        let mut node = self.build();
-
-        // Update input arguments to have data_id from registered constants
-        for arg in &mut node.inputs {
-            if let Some(data_id) = graph_data.get_constant_data_id(&arg.name) {
-                arg.data_id = Some(data_id);
-            }
-        }
+        let node = self.build();
 
         // Wrap GraphState in Rc<RefCell<>> and attach to all arguments
         let graph_data_rc = Rc::new(RefCell::new(graph_data));
 
+        let mut node = node;
         for arg in &mut node.inputs {
             arg.value_store = Some(graph_data_rc.clone());
         }

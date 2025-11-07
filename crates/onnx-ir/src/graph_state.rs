@@ -202,7 +202,10 @@ impl GraphState {
                     && node.outputs.iter().any(|o| o.name == output_name)
             })
             .and_then(|node| node.inputs.first())
-            .and_then(|input| input.data_id)
+            .and_then(|input| match input.value_source {
+                crate::ir::ValueSource::Static(data_id) => Some(data_id),
+                _ => None,
+            })
     }
 
     /// Alias for get_constant_data_id_by_output (for test utilities)
@@ -225,14 +228,12 @@ fn create_constant_node(
         inputs: vec![Argument {
             name: String::new(),
             ty: ty.clone(),
-            data_id: Some(data_id),
-            value_source: crate::ir::ValueSource::Static,
+            value_source: crate::ir::ValueSource::Static(data_id),
             value_store: None,
         }],
         outputs: vec![Argument {
             name: output_name,
             ty,
-            data_id: None,
             value_source: crate::ir::ValueSource::Constant,
             value_store: None,
         }],

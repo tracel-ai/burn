@@ -237,10 +237,7 @@ impl OnnxIntoNode for ConstantNode {
         let tensor_data = if let Some(data) = input.value() {
             data
         } else {
-            panic!(
-                "Constant node '{}' input missing tensor data: data_id={:?}",
-                node.name, input.data_id
-            );
+            panic!("Constant node '{}' input missing tensor data", node.name);
         };
 
         // Helper to map elem type to ConstantValue (single scalar)

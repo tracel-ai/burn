@@ -32,7 +32,6 @@ fn rewire_argument(
     if let Some(new_name) = rewire_map.get(&arg.name) {
         if let Some(source_arg) = output_arg_map.get(new_name) {
             arg.name = new_name.clone();
-            arg.data_id = source_arg.data_id;
             arg.value_store = source_arg.value_store.clone();
             arg.ty = source_arg.ty.clone();
             arg.value_source = source_arg.value_source;
@@ -223,7 +222,6 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
-                data_id: None,
                 value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
@@ -234,7 +232,6 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
-                data_id: None,
                 value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
@@ -255,7 +252,6 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
-                    data_id: None,
                     value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
@@ -266,7 +262,6 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
-                    data_id: None,
                     value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
@@ -278,7 +273,6 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
-                data_id: None,
                 value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
@@ -333,7 +327,6 @@ mod tests {
                 rank: 2,
                 static_shape: None,
             }),
-            data_id: None,
             value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         }];

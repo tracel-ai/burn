@@ -558,20 +558,31 @@ fn test_same_constant_in_multiple_inputs() {
     use onnx_ir::ir::ValueSource;
 
     println!("\nValue source check:");
+
+    // Extract data_id from ValueSource if it's Static
+    let true_val_data_id = match true_val.value_source {
+        ValueSource::Static(id) => Some(id),
+        _ => None,
+    };
+    let false_val_data_id = match false_val.value_source {
+        ValueSource::Static(id) => Some(id),
+        _ => None,
+    };
+
     println!(
         "  true_val:  source={:?}, data_id={:?}",
-        true_val.value_source, true_val.data_id
+        true_val.value_source, true_val_data_id
     );
     println!(
         "  false_val: source={:?}, data_id={:?}",
-        false_val.value_source, false_val.data_id
+        false_val.value_source, false_val_data_id
     );
 
     // Check 1: Both should reference constants (not runtime Dynamic values)
     assert!(
         matches!(
             true_val.value_source,
-            ValueSource::Constant | ValueSource::Static
+            ValueSource::Constant | ValueSource::Static(_)
         ),
         "true_val should be Constant or Static, got: {:?}",
         true_val.value_source
@@ -579,14 +590,14 @@ fn test_same_constant_in_multiple_inputs() {
     assert!(
         matches!(
             false_val.value_source,
-            ValueSource::Constant | ValueSource::Static
+            ValueSource::Constant | ValueSource::Static(_)
         ),
         "false_val should be Constant or Static, got: {:?}",
         false_val.value_source
     );
 
     // Check 2: If both have data_ids, they should be THE SAME
-    match (true_val.data_id, false_val.data_id) {
+    match (true_val_data_id, false_val_data_id) {
         (Some(id1), Some(id2)) => {
             if id1 == id2 {
                 println!(
@@ -625,7 +636,7 @@ fn test_same_constant_in_multiple_inputs() {
         _ => {
             println!(
                 "\n  ? One has data_id, one doesn't: {:?} vs {:?}",
-                true_val.data_id, false_val.data_id
+                true_val_data_id, false_val_data_id
             );
         }
     }
@@ -793,37 +804,40 @@ fn test_static_constant_value_source_invariant() {
     // Check all node inputs to verify the invariant
     for node in &graph.nodes {
         for (i, input) in node.inputs.iter().enumerate() {
-            let has_data = input.data_id.is_some();
+            // Extract data_id from ValueSource::Static variant
+            let has_data = matches!(input.value_source, ValueSource::Static(_));
             let is_constant_source = matches!(input.value_source, ValueSource::Constant);
-            let is_static_source = matches!(input.value_source, ValueSource::Static);
+            let is_static_source = matches!(input.value_source, ValueSource::Static(_));
 
             println!(
                 "Node '{}' input[{}]: source={:?}, has_data_id={}",
                 node.name, i, input.value_source, has_data
             );
 
-            // INVARIANT CHECK: If it has data_id, it should be Static or Constant, not both
-            if has_data {
-                if is_constant_source {
-                    // Constant with data_id means: points to constant node output AND has the data
-                    println!("  ✓ Constant with data_id (reference + embedded data)");
-                } else if is_static_source {
-                    // Static with data_id means: embedded data only
-                    println!("  ✓ Static with data_id (embedded data only)");
-                } else {
-                    // This shouldn't happen
-                    panic!(
-                        "BUG: Input has data_id but is neither Static nor Constant: {:?}",
-                        input.value_source
-                    );
+            // INVARIANT CHECK: Should be either Static (with embedded data_id) OR Constant, never both
+            match input.value_source {
+                ValueSource::Static(_) => {
+                    // Static with embedded data_id
+                    println!("  ✓ Static with embedded data_id");
                 }
-
-                // CRITICAL: Cannot be BOTH Static AND Constant simultaneously
-                assert!(
-                    !(is_static_source && is_constant_source),
-                    "INVARIANT VIOLATION: Input cannot be both Static AND Constant!"
-                );
+                ValueSource::Constant => {
+                    // Constant: points to constant node output
+                    println!("  ✓ Constant (references constant node output)");
+                }
+                ValueSource::Dynamic => {
+                    println!("  ✓ Dynamic (runtime value)");
+                }
+                ValueSource::Optional => {
+                    println!("  ✓ Optional (not provided)");
+                }
             }
+
+            // CRITICAL: Cannot be BOTH Static AND Constant simultaneously
+            // With the new design, Static contains data_id, so they are mutually exclusive by design
+            assert!(
+                !(is_static_source && is_constant_source),
+                "INVARIANT VIOLATION: Input cannot be both Static AND Constant!"
+            );
         }
     }
 

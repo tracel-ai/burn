@@ -19,13 +19,13 @@ pub type TensorId = usize;
 /// Describes where an argument's value comes from
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueSource {
-    /// Static constant value embedded in the argument (name="" + data_id=Some)
-    Static,
-    /// Points to a constant node output (name="constant1_out1" + data_id=None)
+    /// Static constant value embedded in the argument (name="" with embedded data)
+    Static(TensorId),
+    /// Points to a constant node output (name="constant1_out1")
     Constant,
-    /// Points to a runtime node output (name="conv1_out1" + data_id=None)
+    /// Points to a runtime node output (name="conv1_out1")
     Dynamic,
-    /// Optional/not provided (name="" + data_id=None)
+    /// Optional/not provided (name="")
     Optional,
 }
 
@@ -38,12 +38,8 @@ pub struct Argument {
     /// The type of the argument.
     pub ty: ArgType,
 
-    /// Unique ID referencing tensor data in central store
-    /// Some = this argument has constant/static data available
-    /// None = runtime data only
-    pub data_id: Option<TensorId>,
-
     /// Describes where this argument's value comes from
+    /// For Static values, contains the tensor data ID directly
     pub value_source: ValueSource,
 
     /// Reference to the value store for lazy constant lookup and type expectations
@@ -55,7 +51,6 @@ impl fmt::Debug for Argument {
         f.debug_struct("Argument")
             .field("name", &self.name)
             .field("ty", &self.ty)
-            .field("data_id", &self.data_id)
             .field("value_source", &self.value_source)
             .finish()
     }
@@ -65,7 +60,7 @@ impl Argument {
     /// Copy everything except the name from the other argument
     pub fn copy_value(&mut self, other_arg: &Argument) {
         self.ty = other_arg.ty.clone();
-        self.data_id = other_arg.data_id;
+        self.value_source = other_arg.value_source;
     }
 }
 
@@ -161,7 +156,6 @@ impl Argument {
         Self {
             name,
             ty: ArgType::default(),
-            data_id: None,
             value_source,
             value_store: None,
         }
@@ -171,24 +165,22 @@ impl Argument {
     pub fn value(&self) -> Option<TensorData> {
         let store = self.value_store.as_ref()?;
 
-        // If this argument has a direct data_id (Static or Dynamic with data), use it
-        if let Some(data_id) = self.data_id {
-            return store.borrow().get_tensor_data(data_id).cloned();
+        match &self.value_source {
+            // Static: data is embedded directly
+            ValueSource::Static(data_id) => store.borrow().get_tensor_data(*data_id).cloned(),
+            // Constant: look up the constant node by output name
+            ValueSource::Constant => {
+                let data_id = store.borrow().get_constant_data_id_by_output(&self.name)?;
+                store.borrow().get_tensor_data(data_id).cloned()
+            }
+            // Dynamic/Optional: no constant data
+            ValueSource::Dynamic | ValueSource::Optional => None,
         }
-
-        // If this is a Constant argument (points to constant node by output name),
-        // look up the constant node and get the data from its input
-        if self.is_constant() {
-            let data_id = store.borrow().get_constant_data_id_by_output(&self.name)?;
-            return store.borrow().get_tensor_data(data_id).cloned();
-        }
-
-        None
     }
 
     /// Check if this is a static constant (embedded value)
     pub fn is_static(&self) -> bool {
-        self.value_source == ValueSource::Static
+        matches!(self.value_source, ValueSource::Static(_))
     }
 
     /// Check if this argument points to a constant node output
@@ -241,11 +233,10 @@ impl Argument {
                 })?
         };
 
-        // Embed the data_id, clear the name, and mark as Static
+        // Embed the data_id in ValueSource::Static, clear the name
         // The name is cleared because Static values are accessed via data_id, not by name
-        self.data_id = Some(data_id);
+        self.value_source = ValueSource::Static(data_id);
         self.name.clear();
-        self.value_source = ValueSource::Static;
 
         Ok(())
     }
