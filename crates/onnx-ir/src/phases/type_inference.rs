@@ -34,7 +34,7 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
     // Track collected preferences: (producer_output_name, consumer_name, pref_type_str)
     let mut collected_preferences: HashSet<(String, String, String)> = HashSet::new();
 
-    let max_iterations = 100; // Safety limit to prevent infinite loops
+    let max_iterations = 10; // Safety limit to prevent infinite loops
 
     for iteration in 1..=max_iterations {
         // Step 1: Build OutputPreferences map from collected preferences
