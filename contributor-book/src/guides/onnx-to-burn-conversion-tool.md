@@ -356,13 +356,6 @@ pipeline:
 - Removes unreferenced constant nodes
 - Constructs the final `OnnxGraph` with inputs, outputs, and nodes
 
-This pipeline ensures that:
-
-- Type information flows correctly through the graph
-- Constants are accessible where needed
-- The graph is optimized (no unnecessary Identity nodes)
-- Only referenced nodes are included in the final output
-
 ### NodeProcessor Trait
 
 The `NodeProcessor` trait is the core abstraction for handling ONNX operations in onnx-ir,
@@ -402,59 +395,6 @@ Key design principles:
 - **Opset awareness**: Methods receive opset version for version-specific behavior
 - **Type preferences**: Nodes can request specific types from their inputs (e.g., requesting Shape
   type for dynamic operations)
-
-### ONNX-IR Modules
-
-The `onnx-ir` crate is organized into several key modules:
-
-- **`pipeline.rs`**: High-level orchestration of the 5-phase conversion pipeline (`parse_onnx()` and
-  `build_graph()` entry points)
-
-- **`phases/`**: Individual pipeline phase implementations:
-  - `initialization.rs` - Phase 1: Create GraphState and process initializers
-  - `node_conversion.rs` - Phase 2: Convert ONNX nodes to IR nodes
-  - `type_inference.rs` - Phase 3: Iterative type inference with preference propagation
-  - `post_processing.rs` - Phase 4: Constant lifting and Identity elimination
-  - `finalization.rs` - Phase 5: Cleanup and final graph construction
-
-- **`node/`**: Directory containing individual node processor implementations (e.g., `squeeze.rs`,
-  `conv2d.rs`)
-
-- **`registry.rs`**: Central registry mapping node types to processors
-  (`with_standard_processors()`)
-
-- **`processor.rs`**: `NodeProcessor` trait definition and helper utilities
-
-- **`graph_state.rs`**: Mutable state during conversion (nodes, value mappings, tensor store)
-
-- **`ir.rs`**: Core IR data structures (`Node`, `Argument`, `NodeType`, `ArgType`, etc.)
-
-- **`tensor_store.rs`**: Storage for constant tensor data using `burn_tensor::TensorData` directly
-  (no indirection), enabling future mmap support and better type handling
-
-- **`proto_conversion.rs`**: Conversion utilities from ONNX protobuf to IR structures
-
-### Burn-Import Modules
-
-The `burn-import` crate is organized into several key modules:
-
-- **`onnx/model_gen.rs`**: Public API (`ModelGen`) for converting ONNX models to Burn code
-
-### Core Modules
-
-- **`burn/node_registry.rs`**: Master registry containing all ONNX node mappings. This is a
-  declarative macro that auto-generates the `Node` enum, conversion functions, and dispatch logic.
-
-- **`burn/node_codegen.rs`**: Contains the `NodeCodegen` and `OnnxIntoNode` traits that all nodes
-  must implement. Also includes code generation utilities.
-
-- **`burn/node/`**: Directory containing individual node implementations. Each file implements a
-  specific ONNX operation.
-
-- **`burn/graph.rs`**: Burn graph representation and code generation.
-
-- **`burn/ty.rs`**: Type system for tensors, scalars, and shapes, including conversions from ONNX
-  types.
 
 ## Testing
 
