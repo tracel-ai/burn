@@ -26,7 +26,10 @@ pub enum OnnxIrError {
     InvalidFormat { path: Option<String>, error: String },
 
     /// ONNX opset version is not supported
-    UnsupportedOpset { found: i64, minimum_required: i64 },
+    UnsupportedOpset {
+        found: usize,
+        minimum_required: usize,
+    },
 
     /// Model graph nodes are not topologically sorted (ONNX spec violation)
     InvalidGraphStructure { reason: String },
@@ -130,7 +133,7 @@ pub fn parse_onnx(onnx_path: &Path) -> Result<OnnxGraph, OnnxIrError> {
             .opset_import
             .iter()
             .find(|opset| opset.domain.is_empty())
-            .map(|opset| opset.version)
+            .map(|opset| opset.version as usize)
             .unwrap_or(0);
 
         return Err(OnnxIrError::UnsupportedOpset {

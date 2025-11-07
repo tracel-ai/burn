@@ -193,7 +193,7 @@ pub(crate) fn post_process(
             // Constant lifting is a best-effort optimization after identity elimination.
             // Not all arguments can be lifted (e.g., already Static, Dynamic), so we log
             // errors but don't fail the pipeline.
-            if let Err(e) = processor.lift_constants(node, MIN_OPSET_VERSION as usize) {
+            if let Err(e) = processor.lift_constants(node, MIN_OPSET_VERSION) {
                 log::debug!(
                     "Could not lift constants for node '{}' (type: {:?}): {:?}",
                     node.name,

@@ -15,7 +15,7 @@ use burn_tensor::DType;
 use protobuf::Enum;
 
 /// Minimum required ONNX opset version
-pub const MIN_OPSET_VERSION: i64 = 16;
+pub const MIN_OPSET_VERSION: usize = 16;
 
 /// Error type for parsing ONNX model
 #[derive(Debug)]

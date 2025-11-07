@@ -3,10 +3,10 @@
 use crate::protos::OperatorSetIdProto;
 
 /// Check whether the provided operator set version is supported
-pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool {
+pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: usize) -> bool {
     match opset.domain.as_str() {
         // Standard ONNX operators
-        "" => opset.version >= min_version,
+        "" => opset.version >= min_version as i64,
         // ONNX ML operators - commonly used for traditional ML operators
         "ai.onnx.ml" => opset.version >= 1, // ML operators are generally stable from version 1
         // Add support for other domains as needed
@@ -20,7 +20,7 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
 }
 
 /// Verify that all operator sets in a model are supported
-pub fn verify_opsets(opsets: &[OperatorSetIdProto], min_version: i64) -> bool {
+pub fn verify_opsets(opsets: &[OperatorSetIdProto], min_version: usize) -> bool {
     for opset in opsets {
         if !check_opset_version(opset, min_version) {
             return false;
