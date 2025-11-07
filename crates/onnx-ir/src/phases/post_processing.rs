@@ -190,7 +190,17 @@ pub(crate) fn post_process(
 
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
-            let _ = processor.lift_constants(node, MIN_OPSET_VERSION as usize);
+            // Constant lifting is a best-effort optimization after identity elimination.
+            // Not all arguments can be lifted (e.g., already Static, Dynamic), so we log
+            // errors but don't fail the pipeline.
+            if let Err(e) = processor.lift_constants(node, MIN_OPSET_VERSION as usize) {
+                log::debug!(
+                    "Could not lift constants for node '{}' (type: {:?}): {:?}",
+                    node.name,
+                    node.node_type,
+                    e
+                );
+            }
         }
     }
 
