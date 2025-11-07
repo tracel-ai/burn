@@ -295,63 +295,26 @@ impl TryFrom<TensorProto> for TensorData {
                 ))),
             }
         } else {
-            // Calculate expected number of elements from shape
-            let expected_elems: usize = shape.iter().product();
-
             match elem {
-                DType::F32 if !tensor.float_data.is_empty() => {
-                    Ok(TensorData::new(tensor.float_data, shape))
-                }
-                DType::F32 if expected_elems == 0 => {
-                    // Empty tensor with zero elements
-                    Ok(TensorData::new(Vec::<f32>::new(), shape))
-                }
-                DType::F64 if !tensor.double_data.is_empty() => {
-                    Ok(TensorData::new(tensor.double_data, shape))
-                }
-                DType::F64 if expected_elems == 0 => Ok(TensorData::new(Vec::<f64>::new(), shape)),
-                DType::I32 if !tensor.int32_data.is_empty() => {
-                    Ok(TensorData::new(tensor.int32_data, shape))
-                }
-                DType::I32 if expected_elems == 0 => Ok(TensorData::new(Vec::<i32>::new(), shape)),
-                DType::I64 if !tensor.int64_data.is_empty() => {
-                    Ok(TensorData::new(tensor.int64_data, shape))
-                }
-                DType::I64 if expected_elems == 0 => Ok(TensorData::new(Vec::<i64>::new(), shape)),
-                DType::Bool if !tensor.int32_data.is_empty() => {
+                DType::F32 => Ok(TensorData::new(tensor.float_data, shape)),
+                DType::F64 => Ok(TensorData::new(tensor.double_data, shape)),
+                DType::I32 => Ok(TensorData::new(tensor.int32_data, shape)),
+                DType::I64 => Ok(TensorData::new(tensor.int64_data, shape)),
+                DType::Bool => {
                     let data: Vec<bool> = tensor.int32_data.into_iter().map(|x| x != 0).collect();
                     Ok(TensorData::new(data, shape))
                 }
-                DType::Bool if expected_elems == 0 => {
-                    Ok(TensorData::new(Vec::<bool>::new(), shape))
-                }
                 DType::U8 => {
                     // accept weird exporters that stuff zp as int32_data
-                    if !tensor.int32_data.is_empty() {
-                        let data: Vec<u8> =
-                            tensor.int32_data.into_iter().map(|x| x as u8).collect();
-                        Ok(TensorData::new(data, shape))
-                    } else if expected_elems == 0 {
-                        Ok(TensorData::new(Vec::<u8>::new(), shape))
-                    } else {
-                        Err(ParseError::VariantNotFound("no data for UINT8".into()))
-                    }
+                    let data: Vec<u8> = tensor.int32_data.into_iter().map(|x| x as u8).collect();
+                    Ok(TensorData::new(data, shape))
                 }
                 DType::I8 => {
-                    if !tensor.int32_data.is_empty() {
-                        let data: Vec<i8> =
-                            tensor.int32_data.into_iter().map(|x| x as i8).collect();
-                        Ok(TensorData::new(data, shape))
-                    } else if expected_elems == 0 {
-                        Ok(TensorData::new(Vec::<i8>::new(), shape))
-                    } else {
-                        Err(ParseError::VariantNotFound("no data for INT8".into()))
-                    }
+                    let data: Vec<i8> = tensor.int32_data.into_iter().map(|x| x as i8).collect();
+                    Ok(TensorData::new(data, shape))
                 }
-                DType::F16 if expected_elems == 0 => {
-                    Ok(TensorData::new(Vec::<half::f16>::new(), shape))
-                }
-                DType::U16 if expected_elems == 0 => Ok(TensorData::new(Vec::<u16>::new(), shape)),
+                DType::F16 => Ok(TensorData::new(Vec::<half::f16>::new(), shape)),
+                DType::U16 => Ok(TensorData::new(Vec::<u16>::new(), shape)),
                 _ => Err(ParseError::VariantNotFound(format!(
                     "empty/unsupported payload for {:?}",
                     elem
