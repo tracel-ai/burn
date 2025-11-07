@@ -29,11 +29,6 @@ pub trait TensorDataExt {
     /// Useful for extracting indices, shapes, or other integer arrays that need to be i64.
     fn to_i64_vec(&self) -> Result<Vec<i64>, burn_tensor::DataError>;
 
-    /// Convert to `Vec<usize>`, handling Int32 and Int64 types
-    ///
-    /// Useful for extracting shape or dimension values.
-    fn to_usize_vec(&self) -> Result<Vec<usize>, burn_tensor::DataError>;
-
     /// Convert to `Vec<f32>`, handling all numeric types with automatic conversion
     ///
     /// Useful for extracting numeric arrays that need to be f32.
@@ -97,24 +92,6 @@ impl TensorDataExt for burn_tensor::TensorData {
             }
             other => Err(burn_tensor::DataError::TypeMismatch(format!(
                 "Cannot convert {:?} to Vec<i64>",
-                other
-            ))),
-        }
-    }
-
-    fn to_usize_vec(&self) -> Result<Vec<usize>, burn_tensor::DataError> {
-        use burn_tensor::DType;
-        match self.dtype {
-            DType::I64 => {
-                let vec_i64 = self.to_vec::<i64>()?;
-                Ok(vec_i64.into_iter().map(|v| v as usize).collect())
-            }
-            DType::I32 => {
-                let vec_i32 = self.to_vec::<i32>()?;
-                Ok(vec_i32.into_iter().map(|v| v as usize).collect())
-            }
-            other => Err(burn_tensor::DataError::TypeMismatch(format!(
-                "Cannot convert {:?} to Vec<usize>",
                 other
             ))),
         }
