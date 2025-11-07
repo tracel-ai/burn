@@ -182,7 +182,7 @@ mod tests {
             return;
         }
 
-        let graph = parse_onnx(path);
+        let graph = parse_onnx(path).expect("Failed to parse ONNX file");
 
         // Print all nodes
         println!("\n=== All nodes ===");

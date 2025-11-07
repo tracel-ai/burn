@@ -14,4 +14,4 @@ mod tensor_store;
 mod util;
 
 pub use ir::*;
-pub use pipeline::parse_onnx;
+pub use pipeline::{OnnxIrError, parse_onnx};

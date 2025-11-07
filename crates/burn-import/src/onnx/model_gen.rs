@@ -418,7 +418,8 @@ impl ModelGen {
         log::debug!("Development mode: {:?}", self.development);
         log::debug!("Output file: {out_file:?}");
 
-        let graph = parse_onnx(input.as_ref());
+        let graph = parse_onnx(input.as_ref())
+            .unwrap_or_else(|e| panic!("Failed to parse ONNX file '{}': {}", input.display(), e));
 
         if self.development {
             self.write_debug_file(&out_file, "onnx.txt", &graph);
