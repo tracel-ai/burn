@@ -7,46 +7,23 @@ tensor operations.
 
 ## Architecture
 
-The ONNX-IR crate is designed with the following components:
+ONNX-IR converts ONNX protobuf models into a clean intermediate representation through a 5-phase
+pipeline:
 
-### Core Modules
+1. **Initialization**: Process initializers and create graph state
+2. **Node Conversion**: Convert ONNX nodes to IR with node remapping
+3. **Type Inference**: Infer output types with preference propagation
+4. **Post-processing**: Optimize graph (eliminate Identity nodes, lift constants)
+5. **Finalization**: Remove unused nodes and build final `OnnxGraph`
 
-- **IR Types** (`ir/`): Modular intermediate representation with clean separation of concerns:
-  - `node_type.rs`: Enum of 200+ supported ONNX operators
-  - `node.rs`: Node structure, NodeConfig trait, and RuntimeInputRef
-  - `argument.rs`: Argument types (inputs/outputs), ArgType, TensorType, ValueSource
-  - `attribute.rs`: AttributeValue enum and ONNX attribute handling
-  - `tensor_data_ext.rs`: Extension trait for burn_tensor::TensorData with ONNX-specific helpers
-  - `graph.rs`: OnnxGraph - the final IR representation
-  - `mod.rs`: Public API re-exports for backwards compatibility
+The resulting IR provides:
 
-- **Conversion Infrastructure**:
-  - **Pipeline** (`pipeline.rs`): Main entry point and orchestrator that coordinates the 5-phase
-    conversion process
-  - **Protocol Conversion** (`proto_conversion.rs`): Converts ONNX protobuf structures to IR
-    equivalents
-  - **Graph State** (`graph_state.rs`): Manages mutable state during conversion including node
-    storage, name mappings, and tensor data
-  - **Tensor Store** (`tensor_store.rs`): Centralized storage for tensor data with ID-based access
+- Typed nodes with validated inputs/outputs
+- Pre-extracted configuration for code generation
+- Static tensor data for constant folding
+- Support for 100+ ONNX operators
 
-- **Processing**:
-  - **Processor** (`processor.rs`): Defines the `NodeProcessor` trait with type inference and
-    constant lifting capabilities
-  - **Registry** (`registry.rs`): Centralized registry mapping node types to their processors -
-    **add new node types here**
-  - **Node Implementations** (`node/`): Contains operation-specific processor implementations
-
-### Conversion Phases
-
-The conversion pipeline (`phases/`) consists of five sequential phases:
-
-1. **Initialization** (`initialization.rs`): Creates graph state and processes initializers into
-   Constant nodes
-2. **Node Conversion** (`node_conversion.rs`): Converts ONNX nodes to IR, performs node remapping,
-   and coalesces chains
-3. **Type Inference** (`type_inference.rs`): Iteratively infers types with preference propagation
-4. **Post-processing** (`post_processing.rs`): Eliminates Identity nodes and lifts constants
-5. **Finalization** (`finalization.rs`): Removes unused constants and builds the final graph
+For detailed module documentation, see the inline docs in each module.
 
 ## Usage
 
