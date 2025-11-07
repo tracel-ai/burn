@@ -42,7 +42,7 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
 }
 
 pub fn create_conv_input<R: CubeRuntime, const N: usize>(
-    key: &CubeAutotuneKey,
+    _key: &CubeAutotuneKey,
     input: &CubeTensor<R>,
     weights: &CubeTensor<R>,
     bias: &Option<CubeTensor<R>>,

@@ -93,17 +93,16 @@ pub fn ones_device<R: CubeRuntime, E: CubeElement>(
     full_device::<R, E>(client, shape, device, 1.elem())
 }
 
-/// Create a tensor with uninitialized memory
+/// Creates a tensor with uninitialized memory
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
-
-    CubeTensor::new_contiguous(client, device, shape, buffer, E::dtype())
+    empty_device_dtype::<R>(client, device, shape, E::dtype())
 }
 
+/// Creates a tensor with uninitialized memory with the specific dtype.
 pub fn empty_device_dtype<R: CubeRuntime>(
     client: ComputeClient<R::Server>,
     device: R::Device,
