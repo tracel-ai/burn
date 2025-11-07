@@ -124,8 +124,10 @@ impl OnnxIntoNode for LinearNode {
         let output = TensorType::from(node.outputs.first().unwrap());
         let config = node.config::<onnx_ir::node::linear::LinearConfig>();
 
-        // Helper function to extract and serialize data - hardcoded to f32
+        // Helper function to extract and serialize data - converts to the appropriate dtype
         fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
+            use onnx_ir::ir::DType;
+
             if node.inputs.is_empty() {
                 return None;
             }
@@ -135,10 +137,38 @@ impl OnnxIntoNode for LinearNode {
             let ty = input.ty.clone();
 
             match ty {
-                ArgType::Tensor(_) | ArgType::Shape(_) | ArgType::Scalar(_) => {
-                    // For Tensor, Shape, and Scalar types, extract the underlying tensor data
-                    // onnx-ir now uses burn_tensor::TensorData directly
-                    Some(value.clone().convert::<f32>())
+                ArgType::Tensor(tensor) => {
+                    // Convert to the tensor's actual dtype
+                    match tensor.dtype {
+                        DType::F64 => Some(value.clone().convert::<f64>()),
+                        DType::F32 => Some(value.clone().convert::<f32>()),
+                        DType::F16 => Some(value.clone().convert::<half::f16>()),
+                        DType::BF16 => Some(value.clone().convert::<half::bf16>()),
+                        DType::I64 => Some(value.clone().convert::<i64>()),
+                        DType::I32 => Some(value.clone().convert::<i32>()),
+                        DType::I16 => Some(value.clone().convert::<i16>()),
+                        DType::I8 => Some(value.clone().convert::<i8>()),
+                        DType::U64 => Some(value.clone().convert::<u64>()),
+                        DType::U32 => Some(value.clone().convert::<u32>()),
+                        DType::U16 => Some(value.clone().convert::<u16>()),
+                        DType::U8 => Some(value.clone().convert::<u8>()),
+                        DType::Bool => Some(value.clone().convert::<bool>()),
+                        _ => None, // Unsupported types (QFloat, Flex32)
+                    }
+                }
+                ArgType::Scalar(dtype) => {
+                    // For scalars, convert based on the scalar's dtype
+                    match dtype {
+                        DType::F64 => Some(value.clone().convert::<f64>()),
+                        DType::F32 => Some(value.clone().convert::<f32>()),
+                        DType::I64 => Some(value.clone().convert::<i64>()),
+                        DType::I32 => Some(value.clone().convert::<i32>()),
+                        _ => None,
+                    }
+                }
+                ArgType::Shape(_) => {
+                    // Shapes are typically i64
+                    Some(value.clone().convert::<i64>())
                 }
             }
         }
