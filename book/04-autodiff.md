@@ -46,38 +46,45 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 *   **`type IntTensorPrimitive = B::IntTensorPrimitive;`**:
     *   For integer and boolean tensors, the primitive type is simply passed through from the inner backend `B`. This is because you typically don't need to compute gradients for integer or boolean operations, so there's no need to track them in the computation graph.
 
-### How it Works: The Decorator Pattern
+### The Computation Graph
 
-The `Autodiff` struct is a classic example of the **Decorator Pattern**. It "decorates" an existing backend with new functionality.
+When you use an `Autodiff` backend, every operation on a tensor that requires a gradient is recorded as a node in a **computation graph**. This graph represents the mathematical relationships between the tensors.
 
-Here is an ASCII diagram of the ownership and composition:
+Here is a diagram illustrating the graph created by the code example below:
 
 ```
-        Your Code uses a generic `Backend`
-                       |
-                       V
-+---------------------------------------------+
-|               `Autodiff<Wgpu>`              |  <- Implements `Backend`
-| (Your code interacts with this)             |
-|                                             |
-| FloatTensorPrimitive = `AutodiffTensor<B>`  | ----> +------------------------+
-+---------------------------------------------+       |   `AutodiffTensor<B>`  |
-                                                      | primitive: WgpuTensor  |
-                                                      | node: GraphNode        |
-                                                      +------------------------+
-                                                                  |
-                                                                  V
-+---------------------------------------------+      +-------------------------+
-|                    `Wgpu`                     | <--- | Tracks the computation  |
-| (The inner backend that does the actual      |      | graph for backprop.     |
-|  heavy lifting for tensor operations)       |      +-------------------------+
-+---------------------------------------------+
++-----------+      +-----------+
+| Tensor `x`|      | Tensor `y`|  (Leaf nodes, require_grad=true)
+| [2.0, 5.0]|      | [7.0, 1.0]|
++-----------+      +-----------+
+      |                  |
+      `-------. .--------'
+              | |
+              V V
+        +-----------+
+        | Operation |      (Intermediate node)
+        |    `*`    |
+        +-----------+
+              |
+              V
+        +-----------+
+        | Tensor `z`|
+        | [14.0, 5.0]|
+        +-----------+
+              |
+              V
+        +-----------+
+        | Operation |
+        |   `sum`   |
+        +-----------+
+              |
+              V
+       +--------------+
+       | `final_tensor` |    (Root of the graph)
+       |     19.0     |
+       +--------------+
 ```
-
-1.  **Wrapping**: You change your backend type from `Wgpu` to `Autodiff<Wgpu>`.
-2.  **Type Change**: Now, when you create a float tensor, its primitive type is `AutodiffTensor<Wgpu>`. This special tensor holds not only the actual tensor data (the `Wgpu` primitive) but also information about its position in the computation graph (`GraphNode`).
-3.  **Operation Overloads**: The `FloatTensorOps` implementation for `Autodiff<Wgpu>` is overloaded. When you call an operation like `matmul`, it first performs the actual matrix multiplication by calling the inner backend's (`Wgpu`'s) `matmul` implementation. Then, it records this operation in the computation graph.
-4.  **Backpropagation**: When you call `.backward()` on a tensor, the `AutodiffBackend` trait's implementation is used. It traverses the computation graph that was built up during the forward pass, applying the chain rule at each step to compute the gradients.
+When you call `.backward()` on `final_tensor`, Burn traverses this graph backward from the root, applying the chain rule at each operation node to compute the gradient of `final_tensor` with respect to each leaf node (`x` and `y`).
 
 ### Code Example: A Manual Backward Pass
 
@@ -130,3 +137,4 @@ This design is incredibly powerful because it completely decouples the logic of 
     a.  Manually calculate the partial derivative of `f` with respect to `x` and the partial derivative of `f` with respect to `y`.
     b.  Write a Burn program similar to the example above to compute these gradients automatically for `x = 3.0` and `y = 4.0`. Do your manual calculations match Burn's output?
 3.  **No Grad**: What happens if you remove the `.require_grad()` call from the `x` tensor in the main code example? What is the value of `x.grad(&grads)`? Why is this behavior useful?
+4.  **Chain Rule**: Implement the function `z = sin(x * y)` in Burn. Calculate the gradient of `z` with respect to `x` and `y` at `x=2.0, y=3.0`. Manually verify the result using the chain rule. (Hint: `dz/dx = cos(x*y)*y`).

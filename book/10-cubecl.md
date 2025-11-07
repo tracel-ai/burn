@@ -63,52 +63,43 @@ pub fn my_kernel<E: CubeElement>(lhs: &Tensor<E>, rhs: &Tensor<E>, output: &mut 
 ```
 The `#[cube(launch)]` attribute is used to mark the main entry point of a kernel that will be launched from the host. The DSL provides special global variables like `ABSOLUTE_POS_X` to know which part of the tensor the current GPU thread should work on.
 
-### 2. Intermediate Representation (IR)
+### 2. Intermediate Representation (IR) and Code Generation
 
-When a `CubeTensor` operation is called, CubeCL doesn't execute it immediately. Instead, it converts the operation and the `#[cube]` kernel into an **Intermediate Representation (IR)**. This IR is a hardware-agnostic representation of the computation to be performed.
-
-### 3. JIT Compilation
-
-The CubeCL runtime takes this IR and, at runtime, compiles it into the specific shader language of the target `CubeRuntime`.
-
-*   If the runtime is `wgpu`, it generates **WGSL**.
-*   If the runtime is `cuda`, it generates **CUDA C++**.
-
-This JIT-compiled kernel is then cached. The next time the same operation (with the same tensor shapes and types) is needed, the cached, pre-compiled kernel is used directly, avoiding the compilation overhead.
-
-### An ASCII Diagram of the CubeCL Workflow
+Here is a more detailed diagram of the full CubeCL pipeline:
 
 ```
-+------------------------------------------------------+
-|            Your High-Level Burn Operation            |
-|              e.g., `tensor_a + tensor_b`             |
-+------------------------------------------------------+
-                         |
-                         V
-+------------------------------------------------------+
-|        CubeCL captures the operation as an IR        |
-|  (Intermediate Representation: a hardware-agnostic   |
-|               description of the math)               |
-+------------------------------------------------------+
-                         |
-                         V
-+------------------------------------------------------+
-|      The `CubeRuntime` (e.g., Wgpu, Cuda) JIT-       |
-|          compiles the IR into a shader/kernel        |
-+------------------------------------------------------+
-          /                       \
-         /                         \
-        V                           V
-+-----------------+         +-----------------+
-|   WGSL Shader   |         |   CUDA Kernel   |
-|  (for WGPU)     |         |  (for NVIDIA)   |
-+-----------------+         +-----------------+
-        |                           |
-        V                           V
-+-----------------+         +-----------------+
-|  Execute on GPU |         |  Execute on GPU |
-+-----------------+         +-----------------+
++--------------------------------+
+|      Your Rust Code with       |
+|       `#[cube]` macro          |
++--------------------------------+
+                 |
+  (Rust Compiler + `cube` macro)
+                 |
+                 V
++--------------------------------+
+|  CubeCL Intermediate           |
+|  Representation (IR)           |
+| (A hardware-agnostic graph     |
+|  of the computation)           |
++--------------------------------+
+                 |
+   (At Runtime, by the JIT Compiler)
+                 |
+                 V
++--------------------------------+
+|       Target-Specific IR       |
+| (e.g., WGSL IR, CUDA PTX IR)   |
++--------------------------------+
+                 |
+ (By the shader/GPU driver compiler)
+                 |
+                 V
++--------------------------------+
+|    Final GPU Machine Code      |
+|  (Executed on the hardware)    |
++--------------------------------+
 ```
+This multi-stage compilation process allows for optimizations at both the CubeCL level (e.g., fusing multiple `#[cube]` functions together) and at the final driver level. The compiled kernels are cached, so the overhead of JIT compilation is only paid the first time a kernel with a specific configuration is run.
 
 ## Why is CubeCL Important?
 

@@ -18,93 +18,62 @@ pub struct TextGenerationModel<B: Backend> {
     // ... other fields
 }
 ```
+This chapter will focus on the inference process. For a deeper dive into the `TransformerEncoder` itself, see Chapter 9.
 
-The key components are:
+## The Inference Process: Autoregressive Generation
 
-*   **`embedding_token`**: An `Embedding` layer that converts input tokens (represented as integers) into dense vectors.
-*   **`embedding_pos`**: An `Embedding` layer that provides positional information, so the model knows the order of the tokens.
-*   **`transformer`**: A `TransformerEncoder`, which is the core of the model. It uses self-attention to process the sequence of token embeddings and build a contextual understanding.
-*   **`output`**: A `Linear` layer that takes the output of the transformer and projects it back to the size of the vocabulary, producing a probability distribution over the next possible tokens.
+The inference process for a generative model is **autoregressive**, meaning we generate one token at a time, feed it back into the model, and then generate the next one.
 
-## The Inference Process: A Step-by-Step Guide
+### Optimizing Inference with a KV Cache
 
-While the example code focuses on the `forward_training` method, the inference process for a generative model is slightly different. It's an **autoregressive** process, meaning we generate one token at a time, feed it back into the model, and then generate the next one.
+A naive implementation of autoregressive inference would re-process the entire sequence of tokens at every step. This is very inefficient. A crucial optimization is the **Key-Value (KV) Cache**.
 
-Here's how an inference loop would work:
+Inside the self-attention mechanism, the "Key" and "Value" vectors are computed for each token. In a generative context, these Key and Value vectors for past tokens do not change. The KV cache stores these vectors so they don't have to be recomputed at every step. At each new step, we only need to compute the K and V vectors for the *newest* token and append them to the cache.
 
-1.  **Initialization**: Start with a "prompt," which is a sequence of initial tokens (e.g., the beginning of a sentence).
-2.  **Tokenization**: Convert the prompt text into a sequence of integer token IDs using a tokenizer.
-3.  **Model Forward Pass**:
-    a.  Pass the current sequence of tokens through the model's `forward` method. This involves getting the token and positional embeddings, passing them through the transformer, and finally through the output `Linear` layer.
-    b.  The output of the model will be a tensor of shape `[batch_size, seq_length, vocab_size]`, where the last vector in the sequence (`output.select(1, seq_length - 1)`) represents the logits (raw probabilities) for the *next* token.
-4.  **Sampling**: We need to choose the next token from this probability distribution. There are several ways to do this, a process called **sampling**:
-    *   **Greedy Sampling**: Simply choose the token with the highest probability (the `argmax` of the logits). This is simple but can lead to repetitive text.
-    *   **Top-k Sampling**: Randomly sample from the `k` most likely next tokens. This adds some randomness and can produce more interesting text.
-    *   **Nucleus Sampling (Top-p)**: Randomly sample from the smallest set of tokens whose cumulative probability is greater than some threshold `p`.
-5.  **Append and Repeat**: Append the chosen token ID to your sequence of tokens.
-6.  **Loop**: Repeat steps 3-5 until a special "end of sequence" token is generated or you reach a maximum desired length.
-7.  **Detokenization**: Convert the final sequence of token IDs back into human-readable text.
-
-### An ASCII Diagram of the Inference Loop
-
+#### KV Cache Diagram
 ```
-+-------------------------------------------------+
-|               Start with a Prompt               |
-| e.g., "The quick brown fox"                     |
-+-------------------------------------------------+
-                 | (Tokenize)
-                 V
-+-------------------------------------------------+
-|      Initial Token Sequence: [12, 4, 33, 19]    |
-+-------------------------------------------------+
-                 |
-  .------------> | (1. Forward Pass through Model)
-  |              V
-  | +-------------------------------------------+
-  | |      Model predicts logits for next token |
-  | +-------------------------------------------+
-  |              | (2. Sample from logits)
-  |              V
-  | +-------------------------------------------+
-  | |     Choose next token, e.g., token 8      |
-  | +-------------------------------------------+
-  |              | (3. Append to sequence)
-  |              V
-  | +-------------------------------------------+
-  | |   New Sequence: [12, 4, 33, 19, 8]        |
-  | +-------------------------------------------+
-  |              | (Loop until stop condition)
-  `--------------'
-                 |
-                 V
-+-------------------------------------------------+
-|      Final Tokens: [12, 4, 33, 19, 8, ...]      |
-+-------------------------------------------------+
-                 | (Detokenize)
-                 V
-+-------------------------------------------------+
-|        Generated Text: "The quick brown fox jumps..." |
-+-------------------------------------------------+
+Step 1 (Prompt): "The cat" -> tokens [5, 8]
+  - Input: [5, 8]
+  - Compute K, V for token 5 -> Store in Cache: K_cache=[K5], V_cache=[V5]
+  - Compute K, V for token 8 -> Store in Cache: K_cache=[K5, K8], V_cache=[V5, V8]
+  - Predict next token: "sat" (token 12)
+
+Step 2: "The cat sat" -> tokens [5, 8, 12]
+  - Input: [12] (only the new token)
+  - K_cache, V_cache are provided to the model.
+  - Compute K, V for token 12 -> Store in Cache: K_cache=[K5, K8, K12], V_cache=[V5, V8, V12]
+  - Predict next token: "on" (token 20)
+
+... and so on.
 ```
+This makes inference much faster as the input sequence grows. Burn's transformer implementation includes a `forward_autoregressive_inference` method that utilizes such a cache.
 
-### Code Example: Implementing the Inference Loop
+## Runnable Example: A Complete Inference Pipeline
 
-Let's translate the diagram into a concrete Rust function. This function will take a model, a tokenizer, a prompt, and generate a sequence of new tokens.
+This example shows a complete, runnable inference pipeline, including a `top-k` sampling strategy.
 
 ```rust
 use burn::prelude::*;
 use burn::tensor::random::Distribution;
 use burn::tensor::{Data, Element, Int};
+use burn::nn::transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput};
+use burn::nn::{Embedding, EmbeddingConfig, Linear, LinearConfig};
+use burn::nn::attention::generate_autoregressive_mask;
 
-// A simplified TextGenerationModel for demonstration
+// Simplified model for demonstration
 #[derive(Module, Debug)]
 pub struct TextGenerationModel<B: Backend> {
-    // ... fields as defined before
+    transformer: TransformerEncoder<B>,
+    embedding_token: Embedding<B>,
+    embedding_pos: Embedding<B>,
+    output: Linear<B>,
 }
+// Assume config and init are defined...
 
 impl<B: Backend> TextGenerationModel<B> {
-    // A simplified forward pass for inference
     pub fn forward_inference(&self, tokens: Tensor<B, 2, Int>) -> Tensor<B, 3> {
+        // This is a simplified forward pass for clarity.
+        // A real implementation would use the KV cache via `forward_autoregressive_inference`.
         let [batch_size, seq_length] = tokens.dims();
         let device = &self.devices()[0];
 
@@ -114,7 +83,7 @@ impl<B: Backend> TextGenerationModel<B> {
 
         let token_emb = self.embedding_token.forward(tokens);
         let pos_emb = self.embedding_pos.forward(positions);
-        let embedding = (token_emb + pos_emb) / 2;
+        let embedding = token_emb + pos_emb;
 
         let mask = generate_autoregressive_mask::<B>(batch_size, seq_length, device);
         let input = TransformerEncoderInput::new(embedding).mask_attn(mask);
@@ -124,62 +93,72 @@ impl<B: Backend> TextGenerationModel<B> {
     }
 }
 
-// Sampling function (Greedy)
-fn sample_greedy<B: Backend>(logits: Tensor<B, 1>) -> u32 {
-    let next_token = logits.argmax(0).into_scalar();
-    // Assuming the element type can be converted to u32
-    next_token.elem::<i64>() as u32
+// Sampling function (Top-k)
+fn sample_top_k<B: Backend>(logits: Tensor<B, 1>, k: usize, temperature: f32) -> u32 {
+    let [vocab_size] = logits.dims();
+    let logits = logits / temperature;
+
+    // Get the top k logits and their indices
+    let (top_k_logits, top_k_indices) = logits.clone().sort_with_indices(0, false);
+    let top_k_logits = top_k_logits.slice([0..k]);
+    let top_k_indices = top_k_indices.slice([0..k]);
+
+    // Apply softmax to the top k logits to get probabilities
+    let probs = top_k_logits.exp() / top_k_logits.exp().sum();
+
+    // Sample from the top k probabilities
+    let sampled_index_in_top_k = probs.multinomial(1).into_scalar().elem::<i64>() as usize;
+
+    // Get the original token index
+    let next_token_index = top_k_indices.slice([sampled_index_in_top_k..sampled_index_in_top_k + 1]);
+    next_token_index.into_scalar().elem::<i64>() as u32
 }
 
 pub fn generate<B: Backend>(
     model: &TextGenerationModel<B>,
-    tokenizer: &MyTokenizer, // Assuming a tokenizer struct
+    // In a real app, tokenizer would be more complex
+    tokenizer_vocab: &Vec<String>,
     prompt: &str,
     max_length: usize,
 ) -> String {
     let device = &model.devices()[0];
-    let mut tokens = tokenizer.encode(prompt);
+    // Dummy tokenization
+    let mut tokens: Vec<u32> = prompt.split_whitespace().map(|s| tokenizer_vocab.iter().position(|v| v == s).unwrap() as u32).collect();
 
     for _ in 0..max_length {
         let token_tensor = Tensor::<B, 2, Int>::from_data(
-            Data::new(tokens.clone(), Shape::new([1, tokens.len()])),
+            Data::new(tokens.iter().map(|&t| t as i64).collect(), Shape::new([1, tokens.len()])),
             device,
         );
 
-        // Get the logits for the very last token in the sequence
         let logits = model.forward_inference(token_tensor);
         let [_, seq_length, vocab_size] = logits.dims();
-        let logits_last = logits.slice([0..1, (seq_length - 1)..seq_length]);
-        let logits_last = logits_last.reshape([vocab_size]);
+        let logits_last = logits.slice([0..1, (seq_length - 1)..seq_length]).reshape([vocab_size]);
 
-        // Sample the next token
-        let next_token = sample_greedy(logits_last);
+        let next_token = sample_top_k(logits_last, 5, 0.8);
 
-        // Stop if an end-of-sequence token is generated
-        if next_token == tokenizer.eos_token_id() {
+        if next_token as usize >= tokenizer_vocab.len() || tokenizer_vocab[next_token as usize] == "<eos>" {
             break;
         }
-
         tokens.push(next_token);
     }
 
-    tokenizer.decode(&tokens)
+    // Dummy detokenization
+    tokens.iter().map(|&t| tokenizer_vocab[t as usize].clone()).collect::<Vec<String>>().join(" ")
 }
-
 ```
-This example shows the fundamental logic. In a real application, you would implement more sophisticated sampling strategies (like top-k or nucleus sampling) and handle batching for efficiency. However, the core autoregressive loop remains the same, making it a powerful and versatile technique for text generation.
 
 ---
 
 ## Exercises
 
-1.  **Implement Top-k Sampling**:
-    a.  Write a new sampling function called `sample_top_k<B: Backend>(logits: Tensor<B, 1>, k: usize) -> u32`.
-    b.  Inside the function, you will need to:
-        i.  Find the top `k` highest logit values and their corresponding indices. (Hint: `Tensor::sort_with_indices` will be useful here).
-        ii. "Mask" out all other logits, setting them to a very low value (like `f32::NEG_INFINITY`).
-        iii. Apply a softmax function to the masked logits to turn them into probabilities.
-        iv. Sample from this new probability distribution. (Hint: `Tensor::random_choice` can be used for this).
-    c.  Replace the `sample_greedy` call in the `generate` function with your new `sample_top_k` function.
+1.  **Implement Top-p (Nucleus) Sampling**:
+    a.  Write a new sampling function `sample_top_p`.
+    b.  This will be more complex. You'll need to:
+        i.  Sort the logits in descending order.
+        ii.  Calculate the cumulative sum of their probabilities (after softmax).
+        iii. Find the indices of the logits that are part of the "nucleus" (their cumulative probability is <= `p`).
+        iv. Mask out all other logits, re-normalize the probabilities, and sample.
 2.  **Add a Temperature Parameter**: Modify your `sample_top_k` function to include a `temperature` parameter (a `f32`). Before applying the softmax, divide the logits by the temperature. What effect does a temperature > 1.0 have? What about a temperature < 1.0?
 3.  **Thought Experiment**: The current inference code re-processes the entire sequence of tokens in every step. This is inefficient. How could you use the "Key-Value (KV) Cache" of a transformer to make this process much faster? (Hint: You would only need to process the *newest* token at each step).
+4.  **Batch Generation**: The current `generate` function works on a single prompt (`batch_size = 1`). How would you modify it to handle a batch of multiple prompts simultaneously? What challenges would you face, especially given that different prompts in the batch might finish generating at different times?

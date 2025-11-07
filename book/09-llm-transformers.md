@@ -20,24 +20,6 @@ pub struct TransformerEncoder<B: Backend> {
 
 The `TransformerEncoder` itself is a `Module` that contains a `Vec` of `TransformerEncoderLayer`s. The `#[derive(Module)]` macro ensures that all the parameters within this `Vec` of layers are correctly registered, tracked, and serialized.
 
-The `forward` pass of the `TransformerEncoder` is simple: it just iterates through the layers and applies each one in sequence.
-
-```rust
-// crates/burn-nn/src/modules/transformer/encoder.rs
-
-impl<B: Backend> TransformerEncoder<B> {
-    pub fn forward(&self, input: TransformerEncoderInput<B>) -> Tensor<B, 3> {
-        let mut x = input.tensor;
-
-        for layer in self.layers.iter() {
-            x = layer.forward(x, input.mask_pad.clone(), input.mask_attn.clone());
-        }
-
-        x
-    }
-}
-```
-
 ## The `TransformerEncoderLayer`: The Core Building Block
 
 Each `TransformerEncoderLayer` performs the core logic of the transformer. It is, itself, a `Module` composed of smaller, specialized modules.
@@ -56,65 +38,54 @@ pub struct TransformerEncoderLayer<B: Backend> {
 }
 ```
 
-### Deeper Dive into the Sub-Modules
+### Deeper Dive: The Multi-Head Attention Module
 
-*   **`mha: MultiHeadAttention<B>`**: This is the **multi-head self-attention** module. It's the key innovation of the Transformer. For each token in the sequence, it computes three vectors: a **Query**, a **Key**, and a **Value**. It then calculates a score for how much the current token's Query "matches" the Keys of all other tokens in the sequence. These scores are used to create a weighted sum of all the Value vectors, producing an output that is a blend of information from the entire sequence. "Multi-head" means that this process is done multiple times in parallel with different sets of learned weights, and the results are concatenated. This allows the model to focus on different aspects of the sequence simultaneously.
+The key innovation of the Transformer is the `MultiHeadAttention` module.
 
-*   **`pwff: PositionWiseFeedForward<B>`**: This is a **position-wise feed-forward network**. It's a small, two-layer neural network (typically `Linear -> ReLU -> Linear`) that is applied independently to each position in the sequence after the attention step. It can be thought of as a "processing" step that adds more capacity to the model.
-
-*   **`norm_1: LayerNorm<B>`** and **`norm_2: LayerNorm<B>`**: These are **layer normalization** modules. They are used to stabilize the training of deep networks by normalizing the outputs of the sub-layers, ensuring that the values don't become too large or too small.
-
-### The Data Flow Within a Layer
-
-The `forward` pass of a `TransformerEncoderLayer` defines the flow of data through these sub-modules. The process involves two main "residual" blocks.
-
-#### Block 1: Multi-Head Attention
-
-1.  **Normalization (Optional)**: If `norm_first` is true, the input is first passed through `norm_2`.
-2.  **Self-Attention**: The (potentially normalized) input is passed to the `MultiHeadAttention` module (`mha`).
-3.  **Dropout**: Dropout is applied to the output of the attention module.
-4.  **Residual Connection**: The output of the dropout layer is added back to the *original* input of the block. This is the "residual connection" or "skip connection," a crucial technique for training deep networks.
-
-#### Block 2: Feed-Forward Network
-
-1.  **Normalization**: The output of the first block is passed through `norm_1`.
-2.  **Feed-Forward**: The normalized output is passed through the `PositionWiseFeedForward` network (`pwff`).
-3.  **Dropout**: Dropout is applied.
-4.  **Residual Connection**: The output of the dropout layer is added back to the input of this block.
-5.  **Final Normalization (Optional)**: If `norm_first` is false, a final normalization step is applied with `norm_2`.
-
-### An ASCII Diagram of a `TransformerEncoderLayer`
-
+#### Multi-Head Attention Data Flow Diagram
 ```
-          Input
-            |
-.-----------'-----------.
-|                       |
-| (Optional Norm)       |
-|                       |
-|  Multi-Head Attention |
-|                       |
-|       Dropout         |
-|                       |
-`-----------(+)---------'  <- Residual Connection 1
-            |
-            |
-.-----------'-----------.
-|                       |
-|     Layer Norm        |
-|                       |
-| Position-Wise FFN     |
-|                       |
-|       Dropout         |
-|                       |
-`-----------(+)---------'  <- Residual Connection 2
-            |
-            |
-    (Optional Norm)
-            |
-            V
-          Output
+Input (e.g., [batch, seq_len, d_model])
+   |
+   +------------------+------------------+
+   |                  |                  |
+   V                  V                  V
++---------+      +---------+      +---------+
+| Linear (Q)|      | Linear (K)|      | Linear (V)|
++---------+      +---------+      +---------+
+   | (Query)          | (Key)            | (Value)
+   |                  |                  |
+   | Split into Heads | Split into Heads | Split into Heads
+   |                  |                  |
+   `-------. .--------'                  |
+           | |                           |
+           V V                           |
+  +--------------------+                 |
+  | Scaled Dot-Product |                 |
+  |      Attention     |                 |
+  | (Matmul, Scale,    |                 |
+  |  Mask, Softmax)    |                 |
+  +--------------------+                 |
+           |                             |
+           `--------------. .------------'
+                          | |
+                          V V
+                   +---------------+
+                   |   Matmul (Z)  |
+                   +---------------+
+                          |
+                          V
+                 Concatenate Heads
+                          |
+                          V
+                   +-------------+
+                   | Linear (Out)|
+                   +-------------+
+                          |
+                          V
+                        Output
 ```
+This diagram shows how the input is projected into Queries, Keys, and Values, then split across multiple "heads." Each head performs a scaled dot-product attention operation independently. The results from all heads are then concatenated and passed through a final linear layer. This allows the model to jointly attend to information from different representation subspaces at different positions.
+
 ### Code Example: Configuration and Masking
 
 Building and using a `TransformerEncoder` involves two key steps: configuring it correctly and providing the necessary attention masks.
@@ -154,29 +125,40 @@ Burn provides a helper function to generate this mask:
 ```rust
 use burn::nn::attention::generate_autoregressive_mask;
 use burn::prelude::*;
-
-fn create_causal_mask<B: Backend>(batch_size: usize, seq_length: usize, device: &B::Device) -> Tensor<B, 3, Bool> {
-    generate_autoregressive_mask(batch_size, seq_length, device)
-}
-```
-
-When you call the `forward` method, you pass these masks to the `TransformerEncoderInput`.
-
-```rust
 use burn::nn::transformer::TransformerEncoderInput;
-use burn::prelude::*;
 
-fn run_forward_pass<B: Backend>(
-    transformer: &TransformerEncoder<B>,
-    input_tensor: Tensor<B, 3>,
-    pad_mask: Tensor<B, 2, Bool>, // Shape: [batch_size, seq_length]
-    attn_mask: Tensor<B, 3, Bool>, // Shape: [batch_size, seq_length, seq_length]
-) -> Tensor<B, 3> {
+fn run_forward_pass_with_masks<B: Backend>() {
+    let device = Default::default();
+    let batch_size = 2;
+    let seq_length = 5;
+    let d_model = 16;
+    let pad_token_id = 0;
+
+    // Create a dummy transformer
+    let transformer = TransformerEncoderConfig::new(d_model, 64, 4, 2).init::<B>(&device);
+
+    // Create a dummy input tensor
+    let input_tensor = Tensor::<B, 3>::random([batch_size, seq_length, d_model], Distribution::Default, &device);
+
+    // 1. Create a Padding Mask
+    // Let's say the second sequence in the batch is shorter
+    let token_ids = Tensor::<B, 2, Int>::from_data(
+        [[1, 2, 3, 4, 5], [1, 2, 3, pad_token_id, pad_token_id]],
+        &device
+    );
+    // The mask should be `true` for valid tokens and `false` for padding.
+    let pad_mask = token_ids.not_equal_elem(pad_token_id);
+
+    // 2. Create an Autoregressive (Causal) Mask
+    let causal_mask = generate_autoregressive_mask(batch_size, seq_length, &device);
+
+    // Run the forward pass with the masks
     let input = TransformerEncoderInput::new(input_tensor)
         .mask_pad(pad_mask)
-        .mask_attn(attn_mask);
+        .mask_attn(causal_mask);
 
-    transformer.forward(input)
+    let output = transformer.forward(input);
+    println!("Output shape: {:?}", output.shape());
 }
 ```
 

@@ -12,6 +12,24 @@ In a typical neural network, a linear layer is often followed by an activation f
 
 On a GPU, this would normally require launching three separate kernels. Each launch has overhead, which can add up. The goal of this example is to fuse these three distinct operations into a **single GPU kernel**, which will be more efficient.
 
+### Kernel Fusion Diagram
+```
+Without Fusion:
++------------+   +----------+   +--------+
+| Matmul     |   | Add Bias |   | ReLU   |
+| Kernel     |-->| Kernel   |-->| Kernel |
++------------+   +----------+   +--------+
+(3 separate GPU kernel launches, 2 intermediate memory writes/reads)
+
+With Fusion:
++--------------------------+
+| Fused MatmulAddRelu      |
+| Kernel                   |
++--------------------------+
+(1 GPU kernel launch, 0 intermediate memory writes/reads)
+```
+As the diagram shows, fusion reduces the number of kernel launches and, just as importantly, avoids writing the intermediate results of the `matmul` and `add` operations to global GPU memory and then reading them back. This reduction in memory traffic is often a significant source of performance improvement.
+
 ## The Fused Kernel: `fused_matmul_add_relu`
 
 The custom kernel is defined in `examples/custom-cubecl-kernel/src/kernel.rs`.
@@ -21,7 +39,6 @@ The custom kernel is defined in `examples/custom-cubecl-kernel/src/kernel.rs`.
 
 use cubecl::{cube, prelude::*};
 
-/// Declare a custom kernel that gets compiled to `wgpu`/`CUDA`
 #[cube(launch)]
 pub fn fused_matmul_add_relu_kernel<F: Float>(
     lhs: &Tensor<F>,
@@ -29,7 +46,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
 ) {
-    // ... kernel logic ...
+    // ... index calculation logic ...
 
     let mut sum = F::new(0.0);
     for k in 0..dim_k {
@@ -37,42 +54,83 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
         sum += lhs[lhs_index] * rhs[rhs_index];
     }
 
-    // ...
-
     // Bias addition and ReLU activation are fused here
     output[index] = F::max(sum + bias[index], F::new(0.0));
 }
 ```
 
-### Line-by-Line Analysis:
-
-*   **`#[cube(launch)]`**: This is the CubeCL macro that marks this function as a GPU kernel. The `launch` argument indicates that this is a "launch kernel," the main entry point for a GPU computation.
-*   **`pub fn fused_matmul_add_relu_kernel<F: Float>(...)`**:
-    *   The function is generic over `F: Float`, meaning it can work with different floating-point types (like `f32`, `f16`, etc.).
-    *   It takes the left-hand side (`lhs`) and right-hand side (`rhs`) tensors for the matrix multiplication, a `bias` tensor, and a mutable `output` tensor to write the results to.
-*   **Kernel Logic**:
-    *   The first part of the kernel calculates the correct indices for each GPU thread to work on its part of the matrix multiplication.
-    *   The `for` loop performs the core dot-product computation for a single element of the output matrix and stores the result in `sum`.
-*   **The Fusion**:
-    *   **`output[index] = F::max(sum + bias[index], F::new(0.0));`**: This single line is where the magic happens.
-        *   `sum + bias[index]`: The bias is added to the result of the matrix multiplication.
-        *   `F::max(..., F::new(0.0))`: The result is then passed through a `max` function with 0.0, which is the mathematical equivalent of the ReLU activation function (`max(0, x)`).
-
-This single kernel performs all three operations without the need for intermediate tensors or separate kernel launches.
-
 ## Integrating the Kernel into Burn
 
-Once the kernel is defined, it needs to be integrated into Burn's operation system. This involves creating forward and backward passes.
+Once the kernel is defined, it needs to be integrated into Burn's operation system.
 
-*   **Forward Pass (`forward.rs`)**: A new `_fused_matmul_add_relu` function is defined. This function is the high-level entry point that Burn's `Tensor` API will call. Inside this function, a `JitAutotuneOperationSet` is used. This is a powerful feature of CubeCL that can benchmark different versions of a kernel (e.g., with different tile sizes or launch parameters) at runtime and automatically select the fastest one for the current hardware. The selected kernel is then launched using `client.execute`.
+### Forward Pass (`forward.rs`)
 
-*   **Backward Pass (`backward.rs`)**: To make this operation trainable within Burn's `Autodiff` system, a custom backward pass must be defined. This is a more advanced topic that requires a good understanding of the chain rule and matrix calculus. The backward pass for this fused operation involves defining separate kernels for computing the gradients with respect to the `lhs`, `rhs`, and `bias` inputs. These backward kernels are then registered with the autodiff graph.
+A new `_fused_matmul_add_relu` function is defined. This is the high-level entry point that Burn's `Tensor` API will call.
+
+```rust
+// examples/custom-cubecl-kernel/src/forward.rs
+
+// ... (imports and trait definitions)
+
+/// Fused matmul, add, relu operation
+pub fn _fused_matmul_add_relu<R: CubeRuntime, F: FloatElement, I: IntElement, const D: usize>(
+    lhs: CubeTensor<R, F, D>,
+    rhs: CubeTensor<R, F, D>,
+    bias: CubeTensor<R, F, D>,
+) -> CubeTensor<R, F, D> {
+    // ... (shape calculations and output tensor creation)
+
+    let kernel = JitAutotuneOperationSet::new(
+        vec![
+            // Multiple kernel implementations can be provided here for autotuning.
+            // CubeCL will benchmark them and pick the fastest one.
+            Box::new(JitOperation::new(FusedMatmulAddReluAutotuneKey::new(
+                "fused_matmul_add_relu".to_string(),
+            ))),
+        ],
+    );
+
+    let stream = lhs.client.stream();
+    stream.execute(Box::new(kernel), &[&lhs, &rhs, &bias, &output]);
+
+    output
+}
+```
+This function uses a `JitAutotuneOperationSet`. This is a powerful feature of CubeCL that can benchmark different versions of a kernel at runtime and automatically select the fastest one for the current hardware. The selected kernel is then launched using `stream.execute`.
+
+### Backward Pass (`backward.rs`)
+
+To make this operation trainable, a custom backward pass is defined. This involves defining separate kernels for computing the gradients with respect to the `lhs`, `rhs`, and `bias` inputs.
+
+```rust
+// examples/custom-cubecl-kernel/src/backward.rs
+
+// Defines the backward step for our fused operation
+impl<B: AutodiffBackend> FusedMatmulAddRelu<B>
+where
+    // ... (trait bounds)
+{
+    fn backward(self, grads: &mut Gradients) {
+        // ... (kernels for lhs_grad, rhs_grad, and bias_grad are defined here)
+
+        // Register the backward operations in the autodiff graph
+        let mut lhs_grad_node = UnaryGrad::new(self.output, self.lhs, grads);
+        let mut rhs_grad_node = UnaryGrad::new(self.output.clone(), self.rhs, grads);
+        let mut bias_grad_node = UnaryGrad::new(self.output.clone(), self.bias, grads);
+
+        lhs_grad_node.register_closure(move |out_grad| _lhs_grad(out_grad, ...));
+        rhs_grad_node.register_closure(move |out_grad| _rhs_grad(out_grad, ...));
+        bias_grad_node.register_closure(move |out_grad| _bias_grad(out_grad, ...));
+    }
+}
+```
+This is a simplified view, but it shows the core concept: for each input to the forward pass that requires a gradient, you must provide a function that computes that gradient. These functions are then registered with the autodiff graph.
 
 ## Why This Matters
 
 This example perfectly illustrates the power of CubeCL:
 
-*   **Performance**: Fusing these operations reduces kernel launch overhead and memory traffic (no need to write intermediate results back to global memory), resulting in a significant speedup.
+*   **Performance**: Fusing these operations reduces kernel launch overhead and memory traffic, resulting in a significant speedup.
 *   **Abstraction**: The kernel is written in a high-level, Rust-like language. The same kernel code can be compiled by CubeCL to run on different GPU backends (like `wgpu` and `cuda`) without any changes.
 *   **Extensibility**: If you have a specific, performance-critical operation in your model that isn't a standard primitive in Burn, you can use CubeCL to write your own custom, high-performance kernel for it.
 
