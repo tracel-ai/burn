@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use crate::Shape;
 use crate::indexing::AsIndex;
 use alloc::string::{String, ToString};
+use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
 
@@ -516,6 +517,29 @@ pub struct SliceParseError {
     pub value: String,
 }
 
+impl Display for Slice {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        if self.step == 1
+            && let Some(end) = self.end
+            && self.start == end - 1
+        {
+            f.write_fmt(format_args!("{}", self.start))
+        } else {
+            if self.start != 0 {
+                f.write_fmt(format_args!("{}", self.start))?;
+            }
+            f.write_str("..")?;
+            if let Some(end) = self.end {
+                f.write_fmt(format_args!("{}", end))?;
+            }
+            if self.step != 1 {
+                f.write_fmt(format_args!(";{}", self.step))?;
+            }
+            Ok(())
+        }
+    }
+}
+
 impl FromStr for Slice {
     type Err = SliceParseError;
 
@@ -531,7 +555,7 @@ impl FromStr for Slice {
         let mut end: Option<isize> = None;
         let mut step: isize = 1;
 
-        if let Some((head, tail)) = s.split_once(":") {
+        if let Some((head, tail)) = s.split_once(";") {
             step = parse(tail)?;
             s = head;
         }
@@ -565,6 +589,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_slice_to_str() {
+        assert_eq!(Slice::new(0, None, 1).to_string(), "..");
+
+        assert_eq!(Slice::new(0, Some(1), 1).to_string(), "0");
+
+        assert_eq!(Slice::new(0, Some(10), 1).to_string(), "..10");
+        assert_eq!(Slice::new(1, Some(10), 1).to_string(), "1..10");
+
+        assert_eq!(Slice::new(-3, Some(10), -2).to_string(), "-3..10;-2");
+    }
+
+    #[test]
     fn test_slice_from_str() {
         assert_eq!("1".parse::<Slice>(), Ok(Slice::new(1, Some(2), 1)));
         assert_eq!("..".parse::<Slice>(), Ok(Slice::new(0, None, 1)));
@@ -572,9 +608,9 @@ mod tests {
         assert_eq!("..=3".parse::<Slice>(), Ok(Slice::new(0, Some(4), 1)));
 
         assert_eq!("-12..3".parse::<Slice>(), Ok(Slice::new(-12, Some(3), 1)));
-        assert_eq!("..:-1".parse::<Slice>(), Ok(Slice::new(0, None, -1)));
+        assert_eq!("..;-1".parse::<Slice>(), Ok(Slice::new(0, None, -1)));
 
-        assert_eq!("..=3:-2".parse::<Slice>(), Ok(Slice::new(0, Some(4), -2)));
+        assert_eq!("..=3;-2".parse::<Slice>(), Ok(Slice::new(0, Some(4), -2)));
 
         fn expect_err(val: &str) {
             assert_eq!(
