@@ -312,14 +312,8 @@ where
             TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
         };
 
-        let out = kernel::matmul::matmul::<R>(
-            lhs,
-            rhs,
-            None,
-            MatmulStrategy::default(),
-            out_dtype.into(),
-        )
-        .unwrap();
+        let out = kernel::matmul::matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), out_dtype)
+            .unwrap();
 
         match propagation {
             QuantPropagation::Propagate => {

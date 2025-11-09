@@ -106,7 +106,7 @@ where
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let dtype = lhs.dtype.into();
+        let dtype = lhs.dtype;
         matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 

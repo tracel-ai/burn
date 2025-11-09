@@ -127,7 +127,7 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
         columns,
         None,
         MatmulStrategy::default(),
-        E::dtype().into(),
+        E::dtype(),
     )?;
 
     Ok(reshape(
@@ -175,7 +175,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
             out_grad,
             None,
             MatmulStrategy::default(),
-            E::dtype().into(),
+            E::dtype(),
         )?;
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
         columns = slice_assign::<R, E>(

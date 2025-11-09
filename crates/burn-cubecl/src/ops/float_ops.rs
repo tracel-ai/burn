@@ -178,7 +178,7 @@ where
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        let dtype = lhs.dtype.into();
+        let dtype = lhs.dtype;
         matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
