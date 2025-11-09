@@ -397,8 +397,7 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
         let update = self.zeropower_via_newtonschulz(grad);
 
         // Step 3: Adjust learning rate based on parameter shape
-        let shape_dims: [_; D] = tensor.shape().dims();
-        let adjusted_lr = self.adjust_lr(lr, &shape_dims);
+        let adjusted_lr = self.adjust_lr(lr, &tensor.shape());
 
         // Step 4: Apply weight decay (using ORIGINAL lr, not adjusted)
         // Muon applies weight decay AFTER orthogonalization
