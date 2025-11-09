@@ -301,12 +301,6 @@ impl<B: Backend> Muon<B> {
     /// - Original: https://github.com/KellerJordan/Muon/blob/master/muon.py
     /// - PyTorch: https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py
     fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<B, D>) -> Tensor<B, D> {
-        assert!(
-            D == 2,
-            "Newton-Schulz iteration requires 2D tensors, got {}D",
-            D
-        );
-
         let shape = g.shape();
         let dims: Vec<usize> = shape.dims::<D>().into();
         let dim_m2 = dims[D - 2];
@@ -382,6 +376,9 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
     /// different learning rates:
     /// - Weight decay uses the original `lr`
     /// - Parameter update uses the shape-adjusted `lr`
+    /// 
+    /// # Panics
+    /// This function will panic if the input tensors are not 2D.
     fn step<const D: usize>(
         &self,
         lr: LearningRate,
@@ -389,6 +386,12 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+        assert!(
+            D == 2,
+            "Newton-Schulz iteration requires 2D tensors, got {}D",
+            D
+        );
+
         // Step 1: Apply momentum
         let state_momentum = state.map(|s| s.momentum);
         let (grad, new_momentum_state) = self.momentum.transform(grad, state_momentum);
