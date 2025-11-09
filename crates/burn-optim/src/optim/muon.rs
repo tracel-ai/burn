@@ -320,9 +320,9 @@ impl<B: Backend> Muon<B> {
             .sum()
             .sqrt()
             .clamp_min(self.epsilon)
-            .into_scalar();
+            .unsqueeze();
 
-        x = x.div_scalar(norm);
+        x = x.div(norm);
 
         // Step 3: Newton-Schulz iteration
         // This is the quintic iteration with coefficients (a, b, c)
