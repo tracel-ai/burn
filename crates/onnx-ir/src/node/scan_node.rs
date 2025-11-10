@@ -4,29 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Scan.html>
 //!
-//! ## Attributes
-//! - `body` (graph): The graph to execute for each element
-//! - `num_scan_inputs` (int): Number of scan inputs (sequences to iterate over)
-//! - `scan_input_directions` (list of ints, optional): 0=forward, 1=reverse for each scan input
-//! - `scan_output_directions` (list of ints, optional): 0=forward, 1=reverse for each scan output
-//! - `scan_input_axes` (list of ints, optional): Axis to scan along for each input (default: 0)
-//!
-//! ## Inputs
-//! - `initial_state_variables` (variadic, V): Initial values of state variables
-//! - `scan_input_sequences` (variadic, V): Input sequences to scan over
-//!
-//! ## Outputs
-//! - `final_state_variables` (variadic, V): Final values of state variables
-//! - `scan_output_sequences` (variadic, V): Sequences of scan outputs accumulated across iterations
-//!
-//! ## Body Graph Inputs
-//! - `state_variables` (variadic, V): Current values of state variables
-//! - `scan_inputs` (variadic, V): Current elements from scan input sequences
-//!
-//! ## Body Graph Outputs
-//! - `state_variables_out` (variadic, V): Updated values of state variables
-//! - `scan_outputs` (variadic, V): Scan outputs for this iteration
-//!
 //! ## Opset Versions
 //! - **Opset 8**: Initial version
 //! - **Opset 9**: Added scan_input_axes

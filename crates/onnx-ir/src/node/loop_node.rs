@@ -4,27 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Loop.html>
 //!
-//! ## Attributes
-//! - `body` (graph): The graph to execute in each iteration
-//!
-//! ## Inputs
-//! - `M` (optional, I): Maximum trip count (int64 scalar, can be empty for infinite loop with condition)
-//! - `cond` (optional, B): Initial condition (bool scalar, empty means true)
-//! - `v_initial` (variadic, V): Initial values of loop-carried dependencies
-//!
-//! ## Outputs
-//! - `v_final_and_scan_outputs` (variadic, V): Final values of loop-carried dependencies and scan outputs
-//!
-//! ## Loop Body Inputs
-//! - `iter_num` (I): Current iteration number (starts at 0)
-//! - `cond_in` (B): Condition from previous iteration (or initial condition for iteration 0)
-//! - `v_in` (variadic, V): Current values of loop-carried dependencies
-//!
-//! ## Loop Body Outputs
-//! - `cond_out` (B): Condition for next iteration
-//! - `v_out` (variadic, V): Updated values of loop-carried dependencies
-//! - `scan_outputs` (variadic, V): Optional scan outputs accumulated across iterations
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version
 //! - **Opset 11**: Adds support for sequence types

@@ -4,17 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__If.html>
 //!
-//! ## Attributes
-//! - `then_branch` (graph): Graph to execute if condition is true
-//! - `else_branch` (graph): Graph to execute if condition is false
-//!
-//! ## Inputs
-//! - `cond` (B): Scalar boolean condition
-//! - Additional inputs: Any inputs referenced by the subgraphs (implicit)
-//!
-//! ## Outputs
-//! - Outputs from the executed branch (number and types match between branches)
-//!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version
 //! - **Opset 11**: Adds support for sequence types
