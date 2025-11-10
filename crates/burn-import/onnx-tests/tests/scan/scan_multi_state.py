@@ -4,10 +4,10 @@ Generate ONNX model with Scan operator that has multiple state variables.
 Tests LSTM-like pattern with 2 state variables (hidden state + cell state).
 """
 
-import onnx
-from onnx import helper, TensorProto, numpy_helper
-from onnx.reference import ReferenceEvaluator
 import numpy as np
+import onnx
+from onnx import TensorProto, helper
+from onnx.reference import ReferenceEvaluator
 
 
 def build_model():
@@ -25,48 +25,40 @@ def build_model():
 
     # Note: Need to reference the correct variable names - they come from the body graph inputs
     add_hidden = helper.make_node(
-        'Add',
-        inputs=['hidden_state', 'input_elem'],
-        outputs=['hidden_out']
+        "Add", inputs=["hidden_state", "input_elem"], outputs=["hidden_out"]
     )
 
     add_cell = helper.make_node(
-        'Add',
-        inputs=['cell_state', 'input_elem'],
-        outputs=['cell_out']
+        "Add", inputs=["cell_state", "input_elem"], outputs=["cell_out"]
     )
 
     # Output is just the hidden state
-    identity = helper.make_node(
-        'Identity',
-        inputs=['hidden_out'],
-        outputs=['scan_out']
-    )
+    identity = helper.make_node("Identity", inputs=["hidden_out"], outputs=["scan_out"])
 
     body_graph = helper.make_graph(
         nodes=[add_hidden, add_cell, identity],
-        name='scan_body',
+        name="scan_body",
         inputs=[
             # State variables come first
-            helper.make_tensor_value_info('hidden_state', TensorProto.FLOAT, [2, 3]),
-            helper.make_tensor_value_info('cell_state', TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("hidden_state", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("cell_state", TensorProto.FLOAT, [2, 3]),
             # Then scan inputs
-            helper.make_tensor_value_info('input_elem', TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("input_elem", TensorProto.FLOAT, [2, 3]),
         ],
         outputs=[
             # Updated state variables (same order as inputs)
-            helper.make_tensor_value_info('hidden_out', TensorProto.FLOAT, [2, 3]),
-            helper.make_tensor_value_info('cell_out', TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("hidden_out", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("cell_out", TensorProto.FLOAT, [2, 3]),
             # Scan outputs
-            helper.make_tensor_value_info('scan_out', TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [2, 3]),
         ],
     )
 
     # Create Scan node with 2 state variables
     scan_node = helper.make_node(
-        'Scan',
-        inputs=['initial_hidden', 'initial_cell', 'input_sequence'],
-        outputs=['final_hidden', 'final_cell', 'output_sequence'],
+        "Scan",
+        inputs=["initial_hidden", "initial_cell", "input_sequence"],
+        outputs=["final_hidden", "final_cell", "output_sequence"],
         num_scan_inputs=1,  # Only input_sequence is scan input
         body=body_graph,
     )
@@ -74,24 +66,28 @@ def build_model():
     # Main graph
     graph = helper.make_graph(
         nodes=[scan_node],
-        name='scan_multi_state_model',
+        name="scan_multi_state_model",
         inputs=[
-            helper.make_tensor_value_info('initial_hidden', TensorProto.FLOAT, [2, 3]),
-            helper.make_tensor_value_info('initial_cell', TensorProto.FLOAT, [2, 3]),
-            helper.make_tensor_value_info('input_sequence', TensorProto.FLOAT, [4, 2, 3]),
+            helper.make_tensor_value_info("initial_hidden", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("initial_cell", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info(
+                "input_sequence", TensorProto.FLOAT, [4, 2, 3]
+            ),
         ],
         outputs=[
-            helper.make_tensor_value_info('final_hidden', TensorProto.FLOAT, [2, 3]),
-            helper.make_tensor_value_info('final_cell', TensorProto.FLOAT, [2, 3]),
-            helper.make_tensor_value_info('output_sequence', TensorProto.FLOAT, [4, 2, 3]),
+            helper.make_tensor_value_info("final_hidden", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("final_cell", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info(
+                "output_sequence", TensorProto.FLOAT, [4, 2, 3]
+            ),
         ],
     )
 
     # Create model
     model = helper.make_model(
         graph,
-        producer_name='burn-import-test',
-        opset_imports=[helper.make_opsetid("", 16)]
+        producer_name="burn-import-test",
+        opset_imports=[helper.make_opsetid("", 16)],
     )
 
     # Check model
@@ -114,19 +110,22 @@ def generate_test_data(model):
     sess = ReferenceEvaluator(model)
 
     # Run the model
-    outputs = sess.run(None, {
-        'initial_hidden': initial_hidden,
-        'initial_cell': initial_cell,
-        'input_sequence': input_sequence,
-    })
+    outputs = sess.run(
+        None,
+        {
+            "initial_hidden": initial_hidden,
+            "initial_cell": initial_cell,
+            "input_sequence": input_sequence,
+        },
+    )
 
     return {
-        'initial_hidden': initial_hidden,
-        'initial_cell': initial_cell,
-        'input_sequence': input_sequence,
-        'final_hidden': outputs[0],
-        'final_cell': outputs[1],
-        'output_sequence': outputs[2],
+        "initial_hidden": initial_hidden,
+        "initial_cell": initial_cell,
+        "input_sequence": input_sequence,
+        "final_hidden": outputs[0],
+        "final_cell": outputs[1],
+        "output_sequence": outputs[2],
     }
 
 
@@ -137,16 +136,16 @@ def main():
     model = build_model()
 
     # Save model
-    onnx.save(model, 'scan_multi_state.onnx')
+    onnx.save(model, "scan_multi_state.onnx")
     print("✓ Saved scan_multi_state.onnx")
 
     # Generate test data using ONNX reference implementation
     test_data = generate_test_data(model)
 
     # Print test data for copying into Rust tests
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Test data for scan_multi_state (2 state variables):")
-    print("="*80)
+    print("=" * 80)
 
     print(f"\ninitial_hidden shape: {test_data['initial_hidden'].shape}")
     print(f"initial_hidden data: {test_data['initial_hidden'].flatten().tolist()}")
@@ -166,19 +165,21 @@ def main():
     print(f"\noutput_sequence shape: {test_data['output_sequence'].shape}")
     print(f"output_sequence data: {test_data['output_sequence'].flatten().tolist()}")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
 
     # Verify the logic manually
     print("\nManual verification:")
     print("Update rule: hidden_out = hidden + input, cell_out = cell + input")
 
-    hidden = test_data['initial_hidden'].copy()
-    cell = test_data['initial_cell'].copy()
+    hidden = test_data["initial_hidden"].copy()
+    cell = test_data["initial_cell"].copy()
 
     for i in range(4):
-        hidden = hidden + test_data['input_sequence'][i]
-        cell = cell + test_data['input_sequence'][i]
-        print(f"After timestep {i}: hidden sum = {hidden.sum():.4f}, cell sum = {cell.sum():.4f}")
+        hidden = hidden + test_data["input_sequence"][i]
+        cell = cell + test_data["input_sequence"][i]
+        print(
+            f"After timestep {i}: hidden sum = {hidden.sum():.4f}, cell sum = {cell.sum():.4f}"
+        )
 
     print(f"\nExpected final_hidden sum: {hidden.sum():.4f}")
     print(f"Actual final_hidden sum: {test_data['final_hidden'].sum():.4f}")
@@ -189,5 +190,5 @@ def main():
     print(f"Matches: {np.allclose(cell, test_data['final_cell'])}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -7,10 +7,9 @@ Outer loop: Iterates M_outer times, accumulating a sum
 Inner loop: For each outer iteration, runs M_inner times, adding a constant
 """
 
-import onnx
-from onnx import helper, TensorProto, numpy_helper
-from onnx.reference import ReferenceEvaluator
 import numpy as np
+import onnx
+from onnx import TensorProto, helper, numpy_helper
 
 
 def build_model():
@@ -24,33 +23,29 @@ def build_model():
 
     # Inner loop body nodes
     inner_add = helper.make_node(
-        'Add',
-        inputs=['sum_inner', 'inner_const'],
-        outputs=['sum_inner_out']
+        "Add", inputs=["sum_inner", "inner_const"], outputs=["sum_inner_out"]
     )
 
     inner_identity_cond = helper.make_node(
-        'Identity',
-        inputs=['cond_inner'],
-        outputs=['cond_inner_out']
+        "Identity", inputs=["cond_inner"], outputs=["cond_inner_out"]
     )
 
     # Create inner loop body graph
     inner_body_graph = helper.make_graph(
         nodes=[inner_add, inner_identity_cond],
-        name='inner_loop_body',
+        name="inner_loop_body",
         inputs=[
-            helper.make_tensor_value_info('iter_inner', TensorProto.INT64, []),
-            helper.make_tensor_value_info('cond_inner', TensorProto.BOOL, []),
-            helper.make_tensor_value_info('sum_inner', TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("iter_inner", TensorProto.INT64, []),
+            helper.make_tensor_value_info("cond_inner", TensorProto.BOOL, []),
+            helper.make_tensor_value_info("sum_inner", TensorProto.FLOAT, [1]),
         ],
         outputs=[
-            helper.make_tensor_value_info('cond_inner_out', TensorProto.BOOL, []),
-            helper.make_tensor_value_info('sum_inner_out', TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("cond_inner_out", TensorProto.BOOL, []),
+            helper.make_tensor_value_info("sum_inner_out", TensorProto.FLOAT, [1]),
         ],
         initializer=[
-            numpy_helper.from_array(inner_const, name='inner_const'),
-        ]
+            numpy_helper.from_array(inner_const, name="inner_const"),
+        ],
     )
 
     # Outer loop body contains the inner loop
@@ -62,86 +57,82 @@ def build_model():
 
     # Inner loop node in outer body
     inner_loop = helper.make_node(
-        'Loop',
-        inputs=['m_inner_val', 'cond_outer', 'sum_outer'],  # max_iterations, initial_cond, loop_var
-        outputs=['sum_after_inner'],
-        body=inner_body_graph
+        "Loop",
+        inputs=[
+            "m_inner_val",
+            "cond_outer",
+            "sum_outer",
+        ],  # max_iterations, initial_cond, loop_var
+        outputs=["sum_after_inner"],
+        body=inner_body_graph,
     )
 
     # Add outer_const to result of inner loop
     outer_add = helper.make_node(
-        'Add',
-        inputs=['sum_after_inner', 'outer_const'],
-        outputs=['sum_outer_out']
+        "Add", inputs=["sum_after_inner", "outer_const"], outputs=["sum_outer_out"]
     )
 
     outer_identity_cond = helper.make_node(
-        'Identity',
-        inputs=['cond_outer'],
-        outputs=['cond_outer_out']
+        "Identity", inputs=["cond_outer"], outputs=["cond_outer_out"]
     )
 
     # Pass m_inner_val through unchanged
     outer_identity_m_inner = helper.make_node(
-        'Identity',
-        inputs=['m_inner_val'],
-        outputs=['m_inner_val_out']
+        "Identity", inputs=["m_inner_val"], outputs=["m_inner_val_out"]
     )
 
     # Create outer loop body graph
     outer_body_graph = helper.make_graph(
         nodes=[inner_loop, outer_add, outer_identity_cond, outer_identity_m_inner],
-        name='outer_loop_body',
+        name="outer_loop_body",
         inputs=[
-            helper.make_tensor_value_info('iter_outer', TensorProto.INT64, []),
-            helper.make_tensor_value_info('cond_outer', TensorProto.BOOL, []),
-            helper.make_tensor_value_info('sum_outer', TensorProto.FLOAT, [1]),
-            helper.make_tensor_value_info('m_inner_val', TensorProto.INT64, []),
+            helper.make_tensor_value_info("iter_outer", TensorProto.INT64, []),
+            helper.make_tensor_value_info("cond_outer", TensorProto.BOOL, []),
+            helper.make_tensor_value_info("sum_outer", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("m_inner_val", TensorProto.INT64, []),
         ],
         outputs=[
-            helper.make_tensor_value_info('cond_outer_out', TensorProto.BOOL, []),
-            helper.make_tensor_value_info('sum_outer_out', TensorProto.FLOAT, [1]),
-            helper.make_tensor_value_info('m_inner_val_out', TensorProto.INT64, []),
+            helper.make_tensor_value_info("cond_outer_out", TensorProto.BOOL, []),
+            helper.make_tensor_value_info("sum_outer_out", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("m_inner_val_out", TensorProto.INT64, []),
         ],
         initializer=[
-            numpy_helper.from_array(outer_const, name='outer_const'),
-        ]
+            numpy_helper.from_array(outer_const, name="outer_const"),
+        ],
     )
 
     # Main graph with outer loop
     # M_inner is passed as a loop-carried dependency (doesn't change)
     outer_loop = helper.make_node(
-        'Loop',
-        inputs=['M_outer', 'cond_init', 'sum_init', 'M_inner'],
-        outputs=['sum_final', 'm_inner_final']
+        "Loop",
+        inputs=["M_outer", "cond_init", "sum_init", "M_inner"],
+        outputs=["sum_final", "m_inner_final"],
     )
 
     # Set the body attribute
-    outer_loop.attribute.append(
-        helper.make_attribute('body', outer_body_graph)
-    )
+    outer_loop.attribute.append(helper.make_attribute("body", outer_body_graph))
 
     # Create main graph
     graph = helper.make_graph(
         nodes=[outer_loop],
-        name='nested_loop_model',
+        name="nested_loop_model",
         inputs=[
-            helper.make_tensor_value_info('M_outer', TensorProto.INT64, []),
-            helper.make_tensor_value_info('M_inner', TensorProto.INT64, []),
-            helper.make_tensor_value_info('cond_init', TensorProto.BOOL, []),
-            helper.make_tensor_value_info('sum_init', TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("M_outer", TensorProto.INT64, []),
+            helper.make_tensor_value_info("M_inner", TensorProto.INT64, []),
+            helper.make_tensor_value_info("cond_init", TensorProto.BOOL, []),
+            helper.make_tensor_value_info("sum_init", TensorProto.FLOAT, [1]),
         ],
         outputs=[
-            helper.make_tensor_value_info('sum_final', TensorProto.FLOAT, [1]),
-            helper.make_tensor_value_info('m_inner_final', TensorProto.INT64, []),
+            helper.make_tensor_value_info("sum_final", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("m_inner_final", TensorProto.INT64, []),
         ],
     )
 
     # Create model
     model = helper.make_model(
         graph,
-        producer_name='burn-import-test',
-        opset_imports=[helper.make_opsetid("", 16)]
+        producer_name="burn-import-test",
+        opset_imports=[helper.make_opsetid("", 16)],
     )
 
     # Check model
@@ -187,12 +178,15 @@ def generate_test_data(model):
         from onnx.reference import ReferenceEvaluator
 
         sess = ReferenceEvaluator(model)
-        outputs = sess.run(None, {
-            "M_outer": M_outer,
-            "M_inner": M_inner,
-            "cond_init": cond_init,
-            "sum_init": sum_init
-        })
+        outputs = sess.run(
+            None,
+            {
+                "M_outer": M_outer,
+                "M_inner": M_inner,
+                "cond_init": cond_init,
+                "sum_init": sum_init,
+            },
+        )
 
         print("ONNX Model Output (using ReferenceEvaluator):")
         print(f"  sum_final: {outputs[0]}")
@@ -235,12 +229,15 @@ def generate_test_data(model):
         from onnx.reference import ReferenceEvaluator
 
         sess = ReferenceEvaluator(model)
-        outputs = sess.run(None, {
-            "M_outer": M_outer,
-            "M_inner": M_inner,
-            "cond_init": cond_init,
-            "sum_init": sum_init
-        })
+        outputs = sess.run(
+            None,
+            {
+                "M_outer": M_outer,
+                "M_inner": M_inner,
+                "cond_init": cond_init,
+                "sum_init": sum_init,
+            },
+        )
 
         print("ONNX Model Output (using ReferenceEvaluator):")
         print(f"  sum_final: {outputs[0]}")
@@ -266,11 +263,11 @@ def generate_test_data(model):
     print("=" * 80)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     model = build_model()
 
     # Save model
-    onnx.save(model, 'loop_nested.onnx')
+    onnx.save(model, "loop_nested.onnx")
     print("✓ Saved loop_nested.onnx")
     print()
 
