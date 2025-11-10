@@ -28,7 +28,7 @@ jobs:
       # dev dependencies
       - publish-burn-wgpu
       - publish-burn-cuda
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-vision
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -44,7 +44,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-wgpu
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-router
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -57,7 +57,7 @@ jobs:
       - publish-burn-common
       - publish-burn-tensor
       - publish-burn-router
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-remote
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -65,7 +65,7 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-derive:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-derive
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -75,7 +75,7 @@ jobs:
   publish-burn-dataset:
     needs:
       - publish-burn-common
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-dataset
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -85,7 +85,7 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-common:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-common
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -93,7 +93,7 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-tensor-testgen:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-tensor-testgen
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -104,7 +104,7 @@ jobs:
     needs:
       - publish-burn-tensor-testgen
       - publish-burn-common
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-tensor
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -115,7 +115,7 @@ jobs:
   publish-burn-ir:
     needs:
       - publish-burn-tensor
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-ir
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -127,7 +127,7 @@ jobs:
       - publish-burn-ir
       - publish-burn-tensor
       - publish-burn-common
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-fusion
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -140,7 +140,7 @@ jobs:
       - publish-burn-common
       - publish-burn-fusion
       - publish-burn-tensor
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-cubecl-fusion
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -155,7 +155,7 @@ jobs:
       - publish-burn-cubecl-fusion
       - publish-burn-tensor
       - publish-burn-ndarray
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-cubecl
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -167,7 +167,7 @@ jobs:
       - publish-burn-tensor
       - publish-burn-tensor-testgen
       - publish-burn-common
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-autodiff
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -178,7 +178,7 @@ jobs:
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-tch
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -191,7 +191,7 @@ jobs:
       - publish-burn-tensor
       - publish-burn-autodiff
       - publish-burn-common
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-ndarray
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -205,7 +205,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-common
       - publish-burn-cubecl
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-wgpu
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -213,7 +213,7 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-cpu:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     needs:
       - publish-burn-tensor
       - publish-burn-fusion
@@ -231,7 +231,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-common
       - publish-burn-cubecl
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-cuda
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -245,7 +245,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-common
       - publish-burn-cubecl
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-rocm
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -257,7 +257,7 @@ jobs:
       - publish-burn-tensor
       - publish-burn-autodiff
       - publish-burn-tch
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-candle
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -273,7 +273,7 @@ jobs:
       - publish-burn-wgpu
       - publish-burn-ndarray
       - publish-burn-cuda
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-collective
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -284,7 +284,7 @@ jobs:
     needs:
       - publish-burn-common
       - publish-burn-tensor
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-communication
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -306,7 +306,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-candle
       - publish-burn-remote
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-core
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -323,7 +323,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-candle
       - publish-burn-remote
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-nn
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -342,7 +342,7 @@ jobs:
       - publish-burn-candle
       - publish-burn-remote
       - publish-burn-nn
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-optim
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -355,7 +355,7 @@ jobs:
       - publish-burn-optim
       - publish-burn-collective
       - publish-burn-ndarray
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-train
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -371,7 +371,7 @@ jobs:
       - publish-burn-store
       - publish-burn-train
       - publish-burn-cpu
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -382,7 +382,7 @@ jobs:
     needs:
       - publish-burn
       - publish-burn-store
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-import
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -390,7 +390,7 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-onnx-ir:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: onnx-ir
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
@@ -402,7 +402,7 @@ jobs:
       - publish-burn-core
       - publish-burn-nn
       - publish-burn-tensor
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v5
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-store
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
