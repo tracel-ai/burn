@@ -4948,7 +4948,7 @@ checksum = "4a0b3262dc837d2513fe2ef31ff8461352ef932dcca31ba0c0abe33547cf6b9b"
 
 [[package]]
 name = "modern-lstm"
-version = "0.4.1-rc.1"
+version = "0.4.0"
 dependencies = [
  "burn",
  "planus",
@@ -9166,7 +9166,7 @@ checksum = "a751b3277700db47d3e574514de2eced5e54dc8a5436a3bf7a0b248b2cee16f3"
 
 [[package]]
 name = "wgan"
-version = "0.4.1-rc.1"
+version = "0.4.0"
 dependencies = [
  "burn",
  "image",
