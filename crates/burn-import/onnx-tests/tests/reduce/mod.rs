@@ -544,17 +544,4 @@ mod tests {
         let expected4 = TensorData::from([[[false], [true], [true]]]);
         output4.to_data().assert_eq(&expected4, true);
     }
-
-    // TODO: Add validation tests for unsupported boolean operations
-    // The following reduce operations are not well-defined for boolean tensors and should
-    // either be validated/rejected or properly documented:
-    // - ReduceSum: Should booleans be counted as 0/1? Need to verify ONNX spec.
-    // - ReduceMean: Same as ReduceSum - averaging booleans is ambiguous.
-    // - ReduceProd: Equivalent to AND, but may be confusing.
-    // - ReduceL1, ReduceL2: Not mathematically meaningful for booleans.
-    // - ReduceLogSum, ReduceLogSumExp: log(boolean) is undefined.
-    // - ReduceSumSquare: Square of boolean is same as boolean, may work but unclear.
-    //
-    // For now, these operations will likely fail during code generation or produce
-    // unexpected results. Future work should add proper validation in the processor.
 }
