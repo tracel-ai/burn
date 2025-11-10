@@ -148,8 +148,8 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
             &grad.client,
             cube_count,
             cube_dim,
-            grad.as_tensor_arg::<E>(line_size),
-            output.as_tensor_arg::<E>(line_size),
+            grad.as_tensor_arg(line_size),
+            output.as_tensor_arg(line_size),
             PoolBackwardArgsLaunch::new(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),

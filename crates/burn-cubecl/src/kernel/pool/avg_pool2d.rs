@@ -103,8 +103,8 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
+        x.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
         (),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),

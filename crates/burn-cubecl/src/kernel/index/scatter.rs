@@ -109,9 +109,9 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
             &indices.client.clone(),
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            indices.as_tensor_arg::<I>(1),
-            value.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
+            indices.as_tensor_arg(1),
+            value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     }

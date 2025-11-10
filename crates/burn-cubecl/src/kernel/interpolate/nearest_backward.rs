@@ -88,8 +88,8 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime, E: FloatElemen
             &out_grad.client,
             cube_count,
             cube_dim,
-            out_grad.as_tensor_arg::<E>(line_size),
-            output.as_tensor_arg::<E>(line_size),
+            out_grad.as_tensor_arg(line_size),
+            output.as_tensor_arg(line_size),
             out_shape,
             out_layout,
         )

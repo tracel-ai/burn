@@ -5,7 +5,7 @@ use burn_tensor::{
 use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 use crate::{
-    CubeElement, CubeRuntime,
+    CubeRuntime,
     element::MatmulElement,
     kernel::{
         conv::batches_per_run,
@@ -80,10 +80,10 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
         let input_shape_run = Shape::new([batches_per_run, input_channels, input_h, input_w]);
 
         for run in 0..runs {
-            let input = index::<R, E>(input.clone(), run);
+            let input = index::<R>(input.clone(), run);
             let input = reshape(input, input_shape_run.clone());
             let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-            let image_slice = index::<R, E>(image.clone(), run);
+            let image_slice = index::<R>(image.clone(), run);
             let image_slice = reshape(image_slice, im_shape);
             execute::<R, E>(
                 input,
@@ -115,16 +115,13 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
     }
 }
 
-pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
-    tensor: CubeTensor<R>,
-    i: usize,
-) -> CubeTensor<R> {
+pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
     for dim in tensor.shape[1..].iter() {
         indices.push(0..*dim);
     }
-    let mut tensor = slice::<R, E>(tensor, &indices);
+    let mut tensor = slice::<R>(tensor, &indices);
     tensor.shape.remove(0);
     tensor.strides.remove(0);
     tensor
@@ -149,7 +146,7 @@ fn execute<R: CubeRuntime, E: MatmulElement>(
     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
     let input = reshape(input, input_shape);
 
-    let columns = matmul::<R, E>(weight, input, None, MatmulStrategy::default())?;
+    let columns = matmul::<R>(weight, input, None, MatmulStrategy::default(), E::dtype())?;
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
     col2im::<R, E>(
@@ -170,6 +167,7 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
     out_w: usize,
     options: ConvTransposeOptions<2>,
 ) {
+    let dtype = columns.dtype;
     let [_, col_size_1] = columns.shape.dims();
 
     let columns = into_contiguous(columns);
@@ -189,13 +187,13 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        col2im_kernel::launch_unchecked::<E, R>(
+        col2im_kernel::launch_unchecked::<R>(
             &columns.client,
             cube_count,
             cube_dim,
-            columns.as_tensor_arg::<E>(vectorization),
-            bias.as_tensor_arg::<E>(vectorization),
-            out.as_tensor_arg::<E>(vectorization),
+            columns.as_tensor_arg(vectorization),
+            bias.as_tensor_arg(vectorization),
+            out.as_tensor_arg(vectorization),
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),
@@ -210,6 +208,7 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
                 ScalarArg::new(col_size_1 as u32),
             ),
             has_bias,
+            dtype.into(),
         )
     };
 }
@@ -239,6 +238,7 @@ fn col2im_kernel<E: Numeric>(
     image: &mut Tensor<E>,
     args: &Col2ImArgs,
     #[comptime] has_bias: bool,
+    #[define(E)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= image.len() {
         terminate!();

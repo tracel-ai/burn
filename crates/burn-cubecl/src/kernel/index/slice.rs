@@ -2,7 +2,7 @@ use crate::{
     CubeRuntime,
     element::CubeElement,
     kernel::utils::{linear_view, shape_divmod},
-    ops::numeric::empty_device,
+    ops::numeric::{empty_device, empty_device_dtype},
     tensor::CubeTensor,
 };
 use burn_tensor::Slice;
@@ -14,10 +14,7 @@ use cubecl::{
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
-pub fn slice<R: CubeRuntime, E: CubeElement>(
-    tensor: CubeTensor<R>,
-    indices: &[Range<usize>],
-) -> CubeTensor<R> {
+pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) -> CubeTensor<R> {
     let mut dims = tensor.shape.clone();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;
@@ -28,8 +25,8 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
         dims[i] = indices[i].end - indices[i].start;
     }
 
-    let offset_start = offset_start * E::cube_type().size() as u64;
-    let offset_end = offset_end * E::cube_type().size() as u64;
+    let offset_start = offset_start * tensor.dtype.size() as u64;
+    let offset_end = offset_end * tensor.dtype.size() as u64;
 
     let memory_offset_alignment = tensor.client.properties().memory.alignment;
 
@@ -48,17 +45,23 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
             tensor.dtype,
         )
     } else {
-        let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), dims);
-        slice_on_output::<R, E>(tensor, output, indices)
+        let output = empty_device_dtype::<R>(
+            tensor.client.clone(),
+            tensor.device.clone(),
+            dims,
+            tensor.dtype,
+        );
+        slice_on_output::<R>(tensor, output, indices)
     }
 }
 
 #[cube(launch_unchecked)]
-fn slice_kernel<E: CubePrimitive>(
+fn slice_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod>,
     indices: Sequence<u32>,
+    #[define(E)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -86,7 +89,7 @@ fn slice_kernel<E: CubePrimitive>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn slice_on_output<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     output: CubeTensor<R>,
     indices: &[Range<usize>],
@@ -103,14 +106,15 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        slice_kernel::launch_unchecked::<E, R>(
+        slice_kernel::launch_unchecked::<R>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&output),
             indices_sequence,
+            tensor.dtype.into(),
         )
     };
 
@@ -179,7 +183,7 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             .enumerate()
             .map(|(i, slice)| slice.to_range(tensor.shape[i]))
             .collect();
-        return slice::<R, E>(tensor, &simple_ranges);
+        return slice::<R>(tensor, &simple_ranges);
     }
 
     // Calculate output shape
@@ -220,7 +224,7 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&output),
             starts,

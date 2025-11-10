@@ -43,8 +43,8 @@ pub(crate) fn repeat_dim<R: CubeRuntime, E: CubeElement>(
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            input.as_tensor_arg(1),
+            output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     };
