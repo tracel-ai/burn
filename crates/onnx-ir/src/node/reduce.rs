@@ -1,9 +1,46 @@
-use crate::{ArgType, Node, TensorType};
+//! # Reduce Operations (ReduceSum, ReduceMean, ReduceMax, ReduceMin, ReduceProd, ReduceSumSquare)
+//!
+//! Reduction operations that compute aggregates along specified axes of a tensor. These operations
+//! reduce the input tensor by applying an aggregation function (sum, mean, max, min, product, or
+//! sum of squares) along the specified axes.
+//!
+//! **ONNX Specs**:
+//! - ReduceSum: <https://onnx.ai/onnx/operators/onnx__ReduceSum.html>
+//! - ReduceMean: <https://onnx.ai/onnx/operators/onnx__ReduceMean.html>
+//! - ReduceMax: <https://onnx.ai/onnx/operators/onnx__ReduceMax.html>
+//! - ReduceMin: <https://onnx.ai/onnx/operators/onnx__ReduceMin.html>
+//! - ReduceProd: <https://onnx.ai/onnx/operators/onnx__ReduceProd.html>
+//! - ReduceSumSquare: <https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html>
+//!
+//! ## Opset Versions
+//! - **Opset 1-10**: Earlier versions with different attribute handling
+//! - **Opset 11-12**: Standardized behavior with axes attribute, added noop_with_empty_axes
+//! - **Opset 13-17**: Extended type support (bfloat16, uint/int types)
+//! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
+//!
+//! ## Type Constraints
+//! - T: tensor(float16), tensor(float32), tensor(float64), tensor(int32), tensor(int64)
+
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
+use crate::{ArgType, Node, NodeConfig, TensorType};
+use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
+}
+
+impl NodeConfig for ReduceConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl ReduceConfig {
@@ -12,152 +49,177 @@ impl ReduceConfig {
     }
 }
 
-/// Create a Reduce config from the attributes of the node
-pub fn reduce_config(node: &Node) -> ReduceConfig {
-    let mut axes = Vec::new();
-    let mut keepdims = 1;
+pub struct ReduceProcessor;
 
-    let tensor = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("{}: Only tensor input is valid", node.node_type),
-    };
-
-    // Extract the attributes
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axes" => axes = value.clone().into_i64s(),
-            "keepdims" => keepdims = value.clone().into_i64(),
-            _ => {}
+impl NodeProcessor for ReduceProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Range(1, 2),
+            outputs: OutputSpec::Exact(1),
         }
     }
 
-    // Process axes from additional input (if available)
-    if let Some(value) = node
-        .inputs
-        .get(1)
-        .and_then(|argument| argument.value.as_ref())
-    {
-        axes = value.clone().data.into_i64s();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+        // Lift axes input (input[1]) if present
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
+        }
+
+        Ok(())
     }
 
-    let mut dims: Vec<usize> = axes
-        .into_iter()
-        .map(|mut dim| {
-            if dim < 0 {
-                // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-                dim += tensor.rank as i64;
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        _opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // TODO: Add validation for maximum input count
+        // Opset 18+ allows optional axes input (2 inputs total). Opset 11-17 only allows 1 input.
+        // Should validate: for opset < 18, max 1 input; for opset >= 18, max 2 inputs.
+        // Location: After validate_min_inputs
+
+        // TODO: Validate output count
+        // Spec requires exactly 1 output. Should add: validate_output_count(node, 1)
+        // Location: After input count validation
+
+        // TODO: Missing validation for noop_with_empty_axes attribute (opset 13+)
+        // Opset 13 added noop_with_empty_axes attribute (default=0). When set to 1 and axes is empty,
+        // the operation is a no-op (returns input unchanged). This attribute is not validated or extracted.
+        // Should extract and handle in config. Add test: reduce_noop_with_empty_axes
+        // Location: extract_config method
+
+        // TODO: Missing test coverage for axes as input tensor (opset 18+)
+        // Opset 18 moved axes from attribute to optional input. Tests use attribute form only.
+        // Add tests: reduce_sum_axes_input, reduce_mean_axes_runtime
+
+        // TODO: Missing test coverage for out-of-range axes values
+        // What happens with axes=[10] on a 3D tensor? Should fail with clear error.
+        // Add test: reduce_invalid_axis
+
+        // TODO: Missing test coverage for duplicate axes
+        // Spec doesn't explicitly forbid duplicate axes (e.g., axes=[1,1]). Behavior unclear.
+        // Add test: reduce_duplicate_axes
+
+        // TODO: Missing test coverage for ReduceSumSquare
+        // Tests cover ReduceSum, ReduceMean, ReduceMax, ReduceMin, ReduceProd, but not ReduceSumSquare
+        // which is mentioned in spec. Verify if ReduceSumSquare is implemented.
+        // Add test: reduce_sum_square (if supported)
+
+        // Validate input type and extract tensor info
+        let (tensor_rank, tensor_elem_type, tensor_static_shape) = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => (tensor.rank, tensor.dtype, tensor.static_shape.clone()),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
             }
-            dim as usize
-        })
-        .collect();
-
-    // Sort the dimensions to ensure consistent order
-    dims.sort();
-
-    ReduceConfig::new(dims, keepdims == 1)
-}
-
-/// Update output rank for Reduce based on config.
-pub fn reduce_update_outputs(node: &mut Node) {
-    log::debug!("{} rank inference for node {}", node.node_type, node.name);
-
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("{}: Only tensor input is valid", node.node_type),
-    };
-    log::debug!(
-        "{} input rank for {}: {}",
-        node.node_type,
-        node.name,
-        tensor.rank
-    );
-
-    let config = reduce_config(node);
-
-    log::debug!(
-        "{} config for {}: keepdims={}, dims={:?}",
-        node.node_type,
-        node.name,
-        config.keepdims,
-        config.dims
-    );
-    log::debug!(
-        "{} static_shape for {}: {:?}",
-        node.node_type,
-        node.name,
-        tensor.static_shape
-    );
-
-    // Determine if the output should be a scalar
-    let should_be_scalar =
-        !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor.rank);
-
-    if should_be_scalar {
-        // Output is a scalar
-        log::debug!("{} output is scalar for node {}", node.node_type, node.name);
-        node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
-    } else {
-        // Output is a tensor
-        let output_rank = if config.keepdims {
-            tensor.rank
-        } else {
-            tensor.rank - config.dims.len()
         };
 
-        // Infer static shape based if given
-        let output_shape = tensor.static_shape.clone().and_then(|mut shape| {
-            log::debug!(
-                "{} processing static_shape for {}: shape.len()={}, dims={:?}",
-                node.node_type,
-                node.name,
-                shape.len(),
-                config.dims
-            );
+        // Get config values before using them
+        let dims = node.config::<ReduceConfig>().dims.clone();
+        let keepdims = if node.config::<ReduceConfig>().keepdims {
+            1
+        } else {
+            0
+        };
 
-            // Only process static shape if it's complete (matches tensor rank)
-            if shape.len() != tensor.rank {
-                log::debug!(
-                    "{} skipping static_shape for {}: shape.len()={} != rank={}",
-                    node.node_type,
-                    node.name,
-                    shape.len(),
-                    tensor.rank
-                );
-                return None;
-            }
+        // Determine if the output should be a scalar
+        let should_be_scalar = keepdims == 0 && (dims.is_empty() || dims.len() == tensor_rank);
 
-            if config.keepdims {
-                for dim in config.dims {
-                    log::debug!(
-                        "{} setting shape[{}] = 1 for {} (shape.len()={})",
-                        node.node_type,
-                        dim,
-                        node.name,
-                        shape.len()
-                    );
-                    shape[dim] = 1;
-                }
-                Some(shape)
+        if should_be_scalar {
+            // Output is a scalar
+            node.outputs[0].ty = ArgType::Scalar(tensor_elem_type);
+        } else {
+            // Output is a tensor
+            let output_rank = if keepdims == 1 {
+                tensor_rank
             } else {
-                for dim in config.dims.iter().rev() {
-                    shape.remove(*dim);
+                tensor_rank - dims.len()
+            };
+
+            // Infer static shape based if given
+            let output_shape = tensor_static_shape.and_then(|mut shape| {
+                // Only process static shape if it's complete (matches tensor rank)
+                if shape.len() != tensor_rank {
+                    return None;
                 }
-                Some(shape)
+
+                if keepdims == 1 {
+                    for dim in &dims {
+                        shape[*dim] = 1;
+                    }
+                    Some(shape)
+                } else {
+                    for dim in dims.iter().rev() {
+                        shape.remove(*dim);
+                    }
+                    Some(shape)
+                }
+            });
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                dtype: tensor_elem_type,
+                rank: output_rank,
+                static_shape: output_shape,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Validate input type and extract tensor info
+        let tensor_rank = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
             }
-        });
+        };
 
-        log::debug!(
-            "{} output rank for {}: {}",
-            node.node_type,
-            node.name,
-            output_rank
-        );
+        // Extract axes and keepdims attributes
+        let mut axes = Vec::new();
+        let mut keepdims = 1;
 
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: output_rank,
-            static_shape: output_shape,
-        });
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axes" => axes = value.clone().into_i64s(),
+                "keepdims" => keepdims = value.clone().into_i64(),
+                _ => {}
+            }
+        }
+
+        // Process axes from additional input (if available)
+        if let Some(value) = node.inputs.get(1).and_then(|argument| argument.value()) {
+            axes = value.to_vec::<i64>().unwrap();
+        }
+
+        let mut dims: Vec<usize> = axes
+            .into_iter()
+            .map(|mut dim| {
+                if dim < 0 {
+                    // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
+                    dim += tensor_rank as i64;
+                }
+                dim as usize
+            })
+            .collect();
+
+        // Sort the dimensions to ensure consistent order
+        dims.sort();
+
+        let config = ReduceConfig::new(dims, keepdims == 1);
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -187,7 +249,15 @@ mod tests {
     #[test]
     fn test_reduce_config_basic() {
         let node = create_test_node(Some(vec![1]), Some(1));
-        let config = reduce_config(&node);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, true);
@@ -196,7 +266,15 @@ mod tests {
     #[test]
     fn test_reduce_config_negative_axis() {
         let node = create_test_node(Some(vec![-2]), Some(1));
-        let config = reduce_config(&node);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
@@ -205,16 +283,32 @@ mod tests {
     #[test]
     fn test_reduce_config_no_axes() {
         let node = create_test_node(None, Some(1));
-        let config = reduce_config(&node);
+        let mut node = node;
 
-        assert_eq!(config.dims, []);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ReduceConfig>();
+
+        assert_eq!(config.dims, Vec::<usize>::new());
         assert_eq!(config.keepdims, true);
     }
 
     #[test]
     fn test_reduce_config_multiple_axes() {
         let node = create_test_node(Some(vec![0, 1]), Some(1));
-        let config = reduce_config(&node);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [0, 1]);
         assert_eq!(config.keepdims, true);
@@ -223,7 +317,15 @@ mod tests {
     #[test]
     fn test_reduce_config_no_keepdims() {
         let node = create_test_node(Some(vec![1]), Some(0));
-        let config = reduce_config(&node);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, false);
@@ -233,7 +335,11 @@ mod tests {
     fn test_reduce_update_outputs_scalar_no_axes_no_keepdims() {
         // Test that reduce with no axes and keepdims=false produces a scalar output
         let mut node = create_test_node(None, Some(0));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(_) => {
@@ -252,7 +358,11 @@ mod tests {
     fn test_reduce_update_outputs_scalar_all_dims_no_keepdims() {
         // Test that reduce with all dimensions and keepdims=false produces a scalar output
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(_) => {
@@ -271,7 +381,11 @@ mod tests {
     fn test_reduce_update_outputs_tensor_partial_dims_no_keepdims() {
         // Test that reduce with partial dimensions and keepdims=false produces a tensor output
         let mut node = create_test_node(Some(vec![1]), Some(0));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -291,7 +405,11 @@ mod tests {
     fn test_reduce_update_outputs_tensor_with_keepdims() {
         // Test that reduce with keepdims=true always produces a tensor output
         let mut node = create_test_node(None, Some(1));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -319,7 +437,11 @@ mod tests {
             .build();
 
         // This should not panic
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -345,7 +467,11 @@ mod tests {
             .build();
 
         // This should not panic
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -370,7 +496,11 @@ mod tests {
             .attr_int("keepdims", 1)
             .build();
 
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

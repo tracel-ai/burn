@@ -1,14 +1,20 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 use proc_macro2::TokenStream;
 use quote::quote;
+
+/// Shape parameter for ConstantOfShape (codegen side)
+#[derive(Debug, Clone)]
+pub enum ConstantOfShapeShapeParam {
+    Static(Vec<i64>),
+    Runtime(Type),
+}
 
 /// Node for ConstantOfShape operation.
 #[derive(Debug, Clone)]
 pub struct ConstantOfShapeNode {
-    pub shape: ConstantOfShapeShape,
+    pub shape: ConstantOfShapeShapeParam,
     pub output: Type,
     pub value: ConstantValue,
 }
@@ -28,7 +34,7 @@ pub enum ConstantValue {
 }
 
 impl ConstantOfShapeNode {
-    pub fn new(shape: ConstantOfShapeShape, output: Type, value: ConstantValue) -> Self {
+    pub fn new(shape: ConstantOfShapeShapeParam, output: Type, value: ConstantValue) -> Self {
         // Verify output type
         assert!(
             matches!(output, Type::Tensor(_) | Type::Scalar(_) | Type::Shape(_)),
@@ -95,8 +101,8 @@ impl From<bool> for ConstantValue {
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
     fn input_types(&self) -> Vec<Type> {
         match &self.shape {
-            ConstantOfShapeShape::Static(_) => vec![],
-            ConstantOfShapeShape::Runtime(arg) => vec![Type::from(arg)],
+            ConstantOfShapeShapeParam::Static(_) => vec![],
+            ConstantOfShapeShapeParam::Runtime(t) => vec![t.clone()],
         }
     }
 
@@ -110,7 +116,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
         // Generate shape expression based on Static or Runtime
         let shape_expr = match &self.shape {
-            ConstantOfShapeShape::Static(static_shape) => {
+            ConstantOfShapeShapeParam::Static(static_shape) => {
                 // We have static shape values - embed them directly in the code
                 let shape_values = static_shape.iter().map(|v| {
                     let val = *v as usize;
@@ -118,10 +124,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
                 });
                 quote! { [#(#shape_values),*] }
             }
-            ConstantOfShapeShape::Runtime(arg) => {
+            ConstantOfShapeShapeParam::Runtime(t) => {
                 // Runtime shape input
-                let input = Type::from(arg);
-                let input_name = input.name();
+                let input_name = t.name();
                 quote! { #input_name }
             }
         };
@@ -185,24 +190,45 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
 impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::Data;
+        use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
+
         // Get the shape configuration from onnx-ir
-        let shape = onnx_ir::node::constant_of_shape::constant_of_shape_config(&node);
+        let config = node.config::<onnx_ir::node::constant_of_shape::ConstantOfShapeConfig>();
+
+        // Convert from onnx-ir enum to codegen enum
+        let shape = match &config.shape {
+            ConstantOfShapeShape::Static(values) => {
+                ConstantOfShapeShapeParam::Static(values.clone())
+            }
+            ConstantOfShapeShape::Runtime(runtime_ref) => {
+                let arg = &node.inputs[runtime_ref.input_index];
+                ConstantOfShapeShapeParam::Runtime(Type::from(arg))
+            }
+        };
 
         let output = Type::from(node.outputs.first().unwrap());
 
         // The value of the output elements. Should be a one-element tensor.
         // If not specified, it defaults to a tensor of value 0 and datatype float32
-        let value = node
-            .attrs
-            .get("value")
-            .map(|val| val.clone().into_tensor().data)
-            .map(|val_data| match val_data {
-                Data::Float32s(vals) => ConstantValue::from_vec(vals),
-                Data::Float64s(vals) => ConstantValue::from_vec(vals),
-                Data::Int32s(vals) => ConstantValue::from_vec(vals),
-                Data::Int64s(vals) => ConstantValue::from_vec(vals),
-                Data::Bools(vals) => ConstantValue::from_vec(vals),
+        let value = config
+            .value
+            .as_ref()
+            .map(|tensor_data| match tensor_data.dtype {
+                onnx_ir::ir::DType::F32 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<f32>().unwrap())
+                }
+                onnx_ir::ir::DType::F64 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<f64>().unwrap())
+                }
+                onnx_ir::ir::DType::I32 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<i32>().unwrap())
+                }
+                onnx_ir::ir::DType::I64 => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<i64>().unwrap())
+                }
+                onnx_ir::ir::DType::Bool => {
+                    ConstantValue::from_vec(tensor_data.to_vec::<bool>().unwrap())
+                }
                 ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
@@ -237,23 +263,22 @@ mod tests {
 
     #[test]
     fn test_codegen_nodes() {
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
+        use crate::burn::ShapeType;
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(4),
-                value: None,
-                passed: false,
-            }),
+            ConstantOfShapeShapeParam::Runtime(Type::Shape(ShapeType::new("shape1", 4))),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
             ConstantValue::Float32(1.25f32),
         ));
 
-        graph.register_input_output(vec!["shape1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -285,24 +310,22 @@ mod tests {
 
     #[test]
     fn test_codegen_scalar_output() {
-        use crate::burn::ScalarType;
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
+        use crate::burn::{ScalarType, ShapeType};
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(0),
-                value: None,
-                passed: false,
-            }),
+            ConstantOfShapeShapeParam::Runtime(Type::Shape(ShapeType::new("shape1", 0))),
             Type::Scalar(ScalarType::new("scalar1", crate::burn::ScalarKind::Float32)),
             ConstantValue::Float32(42.0f32),
         ));
 
-        graph.register_input_output(vec!["shape1".to_string()], vec!["scalar1".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["scalar1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -335,18 +358,11 @@ mod tests {
     #[test]
     fn test_codegen_shape_output() {
         use crate::burn::ShapeType;
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape_input".to_string(),
-                ty: ArgType::Shape(1),
-                value: None,
-                passed: false,
-            }),
+            ConstantOfShapeShapeParam::Runtime(Type::Shape(ShapeType::new("shape_input", 1))),
             Type::Shape(ShapeType::new("shape_output", 1)),
             ConstantValue::Int64(10i64),
         ));
@@ -354,6 +370,8 @@ mod tests {
         graph.register_input_output(
             vec!["shape_input".to_string()],
             vec!["shape_output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -391,12 +409,12 @@ mod tests {
 
         // Test with static shape values
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Static(vec![2, 3, 4]),
+            ConstantOfShapeShapeParam::Static(vec![2, 3, 4]),
             Type::Tensor(TensorType::new_float("tensor1", 3)),
             ConstantValue::Float32(0.5f32),
         ));
 
-        graph.register_input_output(vec![], vec!["tensor1".to_string()]);
+        graph.register_input_output(vec![], vec!["tensor1".to_string()], &[], &[]);
 
         let expected = quote! {
             use burn::prelude::*;

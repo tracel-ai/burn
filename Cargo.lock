@@ -5476,6 +5476,7 @@ dependencies = [
 name = "onnx-ir"
 version = "0.20.0"
 dependencies = [
+ "burn-tensor",
  "bytemuck",
  "derive-new",
  "half",

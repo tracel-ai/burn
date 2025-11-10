@@ -1,4 +1,21 @@
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+//! # ArgMin
+//!
+//! Computes the indices of the minimum elements along a specified axis.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__ArgMin.html>
+//!
+//! ## Opset Versions
+//!
+//! - **Opset 11**: Initial supported version.
+//! - **Opset 12**: Added `select_last_index` attribute.
+//! - **Opset 13**: No significant changes (added bfloat16 type support).
+
+use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
+
+use std::any::Any;
 
 /// Configuration for ArgMin operations
 #[derive(Debug, Clone, new)]
@@ -9,102 +26,135 @@ pub struct ArgMinConfig {
     pub keepdims: bool,
 }
 
-/// Create argmin config from the attributes of the node
-pub fn argmin_config(node: &Node) -> ArgMinConfig {
-    let mut axis: i64 = 0;
-    let mut keepdims = true; // default value per ONNX spec
-
-    // check if the node has only one input
-    if node.inputs.len() != 1 {
-        panic!(
-            "ArgMin: multiple inputs are not supported (got {:?})",
-            node.inputs.len()
-        );
+impl NodeConfig for ArgMinConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    // extract the shape of the input tensor
-    let tensor = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
-    // extract the attributes
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            "select_last_index" => {
-                if value.clone().into_i64() != 0 {
-                    panic!(
-                        "select_last_index=1 is not supported for argmin in burn (got {value:?})"
-                    );
-                }
-            }
-            "keepdims" => {
-                // keepdims=0 and keepdims=1 are both supported
-                let keepdims_val = value.clone().into_i64();
-                if keepdims_val != 0 && keepdims_val != 1 {
-                    panic!(
-                        "Only keepdims=0 or keepdims=1 is supported for argmin in burn (got {value:?})",
-                    );
-                }
-                keepdims = keepdims_val != 0;
-            }
-            _ => {}
+pub struct ArgMinProcessor;
+
+impl NodeProcessor for ArgMinProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 11,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
         }
     }
 
-    // if axis is negative, it is counted from the end
-    if axis < 0 {
-        axis += tensor.rank as i64;
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        _opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // TODO: Add validation for unexpected attributes (similar to attention.rs)
+        // Currently only validates select_last_index and keepdims values but doesn't check for unknown attributes
+
+        // Validate select_last_index before config extraction
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "select_last_index" && value.clone().into_i64() != 0 {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "select_last_index".to_string(),
+                    reason: "select_last_index=1 is not supported for argmin in burn".to_string(),
+                });
+            }
+        }
+
+        // Validate keepdims value
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "keepdims" {
+                let keepdims_val = value.clone().into_i64();
+                if keepdims_val != 0 && keepdims_val != 1 {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: "keepdims".to_string(),
+                        reason: "Only keepdims=0 or keepdims=1 is supported for argmin in burn"
+                            .to_string(),
+                    });
+                }
+            }
+        }
+
+        // Extract the input tensor type
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        // Get config values before mutating node
+        let keepdims = node.config::<ArgMinConfig>().keepdims;
+
+        // For burn compatibility, argmin always outputs a tensor
+        // When keepdims=false, we still output a tensor but with adjusted rank
+        if keepdims {
+            // keepdims=true: output rank same as input rank (dimension becomes 1)
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                dtype: DType::I64,
+                rank: tensor.rank,
+                static_shape: None,
+            });
+        } else if tensor.rank == 1 {
+            // keepdims=false on 1D tensor: output is scalar
+            node.outputs[0].ty = ArgType::Scalar(DType::I64);
+        } else {
+            // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                dtype: DType::I64,
+                rank: tensor.rank - 1,
+                static_shape: None,
+            });
+        }
+
+        Ok(())
     }
 
-    ArgMinConfig::new(axis as usize, keepdims)
-}
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
 
-/// Update output rank for ArgMin based on keepdims parameter.
-pub fn argmin_update_outputs(node: &mut Node) {
-    log::debug!("ArgMin rank inference for node {}", node.name);
+        let mut axis: i64 = 0;
+        let mut keepdims = true;
 
-    if node.inputs.len() != 1 {
-        panic!("ArgMin: multiple inputs are not supported");
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                "keepdims" => {
+                    let keepdims_val = value.clone().into_i64();
+                    keepdims = keepdims_val != 0;
+                }
+                _ => {}
+            }
+        }
+
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        let config = ArgMinConfig::new(axis as usize, keepdims);
+        Ok(Some(Box::new(config)))
     }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    log::debug!("ArgMin input rank for {}: {}", node.name, tensor.rank);
-
-    // Get config to determine output rank
-    let config = argmin_config(node);
-
-    // For burn compatibility, argmin always outputs a tensor
-    // When keepdims=false, we still output a tensor but with adjusted rank
-    if config.keepdims {
-        // keepdims=true: output rank same as input rank (dimension becomes 1)
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
-            rank: tensor.rank,
-            static_shape: None,
-        });
-    } else if tensor.rank == 1 {
-        // keepdims=false on 1D tensor: output is scalar
-        node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
-    } else {
-        // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
-            rank: tensor.rank - 1,
-            static_shape: None,
-        });
-    }
-
-    log::debug!(
-        "ArgMin output for {} (keepdims={}): {:?}",
-        node.name,
-        config.keepdims,
-        node.outputs[0].ty
-    );
 }
 
 #[cfg(test)]
@@ -112,7 +162,7 @@ mod tests {
     #![allow(clippy::bool_assert_comparison)]
 
     use super::*;
-    use crate::ir::{Argument, ElementType, NodeType};
+    use crate::ir::{Argument, DType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> Node {
@@ -127,62 +177,128 @@ mod tests {
 
     #[test]
     fn test_argmin_config_basic() {
-        let node = create_test_node(0, 0, 1);
-        let config = argmin_config(&node);
+        let mut node = create_test_node(0, 0, 1);
+
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ArgMinConfig>();
         assert_eq!(config.axis, 0);
         assert_eq!(config.keepdims, true);
     }
 
     #[test]
     fn test_argmin_config_negative_axis() {
-        let node = create_test_node(-2, 0, 1);
-        let config = argmin_config(&node);
+        let mut node = create_test_node(-2, 0, 1);
+
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        let config = node.config::<ArgMinConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
     }
 
     #[test]
-    #[should_panic(expected = "ArgMin: multiple inputs are not supported")]
     fn test_argmin_config_multiple_inputs() {
         let mut node = create_test_node(0, 0, 1);
         node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank: 1,
                 static_shape: None,
             }),
-            value: None,
-            passed: true,
+            value_source: crate::ir::ValueSource::Dynamic,
+            value_store: None,
         });
-        let _ = argmin_config(&node);
+
+        let processor = ArgMinProcessor;
+        let spec = processor.spec();
+        let result = crate::processor::validate_node_spec(&node, 16, &spec);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount { .. })
+        ));
     }
 
     #[test]
     fn test_argmin_config_keepdims_supported() {
-        let node_keepdims_0 = create_test_node(0, 0, 0);
-        let config_0 = argmin_config(&node_keepdims_0);
+        let mut node_keepdims_0 = create_test_node(0, 0, 0);
+
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node_keepdims_0, 16).unwrap();
+        node_keepdims_0.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor
+            .infer_types(&mut node_keepdims_0, 16, &prefs)
+            .unwrap();
+
+        let config_0 = node_keepdims_0.config::<ArgMinConfig>();
         assert_eq!(config_0.axis, 0);
         assert_eq!(config_0.keepdims, false);
 
-        let node_keepdims_1 = create_test_node(0, 0, 1);
-        let config_1 = argmin_config(&node_keepdims_1);
+        let mut node_keepdims_1 = create_test_node(0, 0, 1);
+
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node_keepdims_1, 16).unwrap();
+        node_keepdims_1.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor
+            .infer_types(&mut node_keepdims_1, 16, &prefs)
+            .unwrap();
+
+        let config_1 = node_keepdims_1.config::<ArgMinConfig>();
         assert_eq!(config_1.axis, 0);
         assert_eq!(config_1.keepdims, true);
     }
 
     #[test]
-    #[should_panic(expected = "Only keepdims=0 or keepdims=1 is supported for argmin in burn")]
     fn test_argmin_config_keepdims_invalid() {
-        let node = create_test_node(0, 0, 2); // Invalid keepdims value
-        let _ = argmin_config(&node);
+        let mut node = create_test_node(0, 0, 2); // Invalid keepdims value
+
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "select_last_index=1 is not supported for argmin in burn")]
     fn test_argmin_config_select_last_index_invalid() {
-        let node = create_test_node(0, 1, 1); // Invalid select_last_index value
-        let _ = argmin_config(&node);
+        let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
+
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
@@ -192,16 +308,23 @@ mod tests {
             .attr_int("axis", 1)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 2, None) // 2D input
-            .output_tensor_i64("output", 2, None) // Will be updated by argmin_update_outputs
+            .output_tensor_i64("output", 2, None) // Will be updated by processor
             .build();
 
-        argmin_update_outputs(&mut node);
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output tensor with rank 1 (2 - 1 = 1, max(1, 1) = 1)
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 1);
-                assert_eq!(tensor.elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(tensor.dtype, crate::ir::DType::I64);
             }
             other => panic!("Expected tensor output, got {:?}", other),
         }
@@ -214,16 +337,23 @@ mod tests {
             .attr_int("axis", 0)
             .attr_int("keepdims", 1)
             .input_tensor_f32("data", 3, None) // 3D input
-            .output_tensor_i64("output", 3, None) // Will be updated by argmin_update_outputs
+            .output_tensor_i64("output", 3, None) // Will be updated by processor
             .build();
 
-        argmin_update_outputs(&mut node);
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output tensor with same rank as input (3)
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 3);
-                assert_eq!(tensor.elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(tensor.dtype, crate::ir::DType::I64);
             }
             other => panic!("Expected tensor output, got {:?}", other),
         }
@@ -236,15 +366,22 @@ mod tests {
             .attr_int("axis", 0)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 1, None) // 1D input
-            .output_tensor_i64("output", 1, None) // Will be updated by argmin_update_outputs
+            .output_tensor_i64("output", 1, None) // Will be updated by processor
             .build();
 
-        argmin_update_outputs(&mut node);
+        let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output scalar (rank 0)
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, crate::ir::ElementType::Int64);
+                assert_eq!(*elem_type, crate::ir::DType::I64);
             }
             other => panic!("Expected scalar output, got {:?}", other),
         }

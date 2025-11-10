@@ -49,7 +49,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DropoutNode {
 
     fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
-        let prob = self.config.prob.to_tokens();
+        let prob = match &self.config.prob {
+            onnx_ir::node::dropout::DropoutInput::Static(val) => val.to_tokens(),
+            onnx_ir::node::dropout::DropoutInput::Runtime(_) => {
+                panic!("Runtime input is not implemented for Dropout")
+            }
+        };
         let tokens = quote! {
             let #name = DropoutConfig::new(#prob).init();
         };
@@ -85,8 +90,8 @@ impl OnnxIntoNode for DropoutNode {
         let name = &node.name;
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::dropout::dropout_config(&node);
-        Self::new(name, input, output, config)
+        let config = node.config::<onnx_ir::node::dropout::DropoutConfig>();
+        Self::new(name, input, output, config.clone())
     }
 }
 
@@ -104,10 +109,17 @@ mod tests {
             "dropout",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            DropoutConfig::new(0.5),
+            DropoutConfig {
+                prob: onnx_ir::node::dropout::DropoutInput::Static(0.5),
+            },
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

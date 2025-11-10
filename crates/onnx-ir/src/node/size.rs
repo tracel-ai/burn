@@ -1,17 +1,40 @@
-use crate::ir::{ArgType, ElementType, Node};
+//! # Size
+//!
+//! Returns the total number of elements in the input tensor as a scalar int64 value.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Size.html>
+//!
+//! ## Opset Versions
+//! - **Since version 23**: Current version
+//! - **Since version 1**: Initial implementation
 
-/// Update output type for Size (always scalar).
-pub fn size_update_outputs(node: &mut Node) {
-    log::debug!("Size rank inference for node {}", node.name);
+use crate::ir::{ArgType, DType, Node};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 
-    assert_eq!(
-        node.inputs.len(),
-        1,
-        "Size: expected 1 input, found {}",
-        node.inputs.len()
-    );
+pub struct SizeProcessor;
 
-    node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+impl NodeProcessor for SizeProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        _opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        node.outputs[0].ty = ArgType::Scalar(DType::I64);
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -28,13 +51,23 @@ mod tests {
         builder.build()
     }
 
+    // TODO: Missing test for zero-size tensors - what is the size of a tensor with shape [0, 5, 3]?
+    // Should be 0 (0 * 5 * 3 = 0) but this edge case is not tested.
+
+    // TODO: Missing test for scalar (rank-0) tensors - what is the size of a scalar?
+    // Should be 1 according to ONNX spec but not validated.
+
+    // TODO: Missing test for very large tensors - size can overflow i64 for extremely large tensors.
+    // Need to verify behavior when product of dimensions exceeds i64::MAX.
+
     #[test]
     fn test_size_update_outputs() {
         let mut node = create_test_node(4);
-        size_update_outputs(&mut node);
-        assert!(matches!(
-            &node.outputs[0].ty,
-            ArgType::Scalar(ElementType::Int64)
-        ));
+
+        let processor = SizeProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        assert!(matches!(&node.outputs[0].ty, ArgType::Scalar(DType::I64)));
     }
 }
