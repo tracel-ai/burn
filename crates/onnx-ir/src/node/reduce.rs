@@ -20,6 +20,7 @@
 //!
 //! ## Type Constraints
 //! - T: tensor(float16), tensor(float32), tensor(float64), tensor(int32), tensor(int64)
+//! - For ReduceMin/ReduceMax: Also supports tensor(bool) where Min=AND, Max=OR
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,

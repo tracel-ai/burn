@@ -101,7 +101,7 @@ functionality.
 | Linear                           | ✅             | ✅           |
 | [Log][87]                        | ✅             | ✅           |
 | [LogSoftmax][88]                 | ✅             | ✅           |
-| [Loop][89]                       | ❌             | ❌           |
+| [Loop][89]                       | ✅             | ✅           |
 | [LpNormalization][90]            | ❌             | ❌           |
 | [LpPool][91]                     | ❌             | ❌           |
 | [LRN][92]                        | ❌             | ❌           |
@@ -159,7 +159,7 @@ functionality.
 | [RNN][145]                       | ❌             | ✅           |
 | [RoiAlign][146]                  | ❌             | ❌           |
 | [Round][147]                     | ✅             | ✅           |
-| [Scan][148]                      | ❌             | ❌           |
+| [Scan][148]                      | ✅             | ✅           |
 | [Scatter][149]                   | ❌             | ✅           |
 | [ScatterElements][150]           | ❌             | ❌           |
 | [ScatterND][151]                 | ❌             | ❌           |

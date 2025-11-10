@@ -40,7 +40,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NegNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("core::ops::Neg");
+        // Burn's Tensor has an inherent neg() method, but scalar types need the Neg trait
+        if matches!(self.input, Type::Scalar(_)) {
+            imports.register("core::ops::Neg");
+        }
     }
 }
 
@@ -79,7 +82,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use core::ops::Neg;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

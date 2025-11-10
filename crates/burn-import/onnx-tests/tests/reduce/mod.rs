@@ -1,7 +1,9 @@
 use crate::include_models;
 include_models!(
     reduce_max,
+    reduce_max_bool,
     reduce_min,
+    reduce_min_bool,
     reduce_mean,
     reduce_mean_partial_shape,
     reduce_prod,
@@ -460,4 +462,99 @@ mod tests {
             .to_data()
             .assert_approx_eq::<FT>(&expected, burn::tensor::Tolerance::default());
     }
+
+    #[test]
+    fn reduce_min_bool() {
+        // Test ReduceMin on boolean tensors (equivalent to logical AND)
+        let device = Default::default();
+        let model: reduce_min_bool::Model<TestBackend> = reduce_min_bool::Model::new(&device);
+
+        // Input: [2, 3, 4] boolean tensor
+        let input = Tensor::<TestBackend, 3, burn::tensor::Bool>::from_bool(
+            TensorData::from([
+                [
+                    [true, true, false, true],    // All True except one
+                    [true, true, true, true],     // All True
+                    [false, false, false, false], // All False
+                ],
+                [
+                    [true, false, true, false], // Mixed
+                    [true, true, true, false],  // Mostly True
+                    [false, true, false, true], // Mixed
+                ],
+            ]),
+            &device,
+        );
+
+        let (output1, output2, output3, output4) = model.forward(input);
+
+        // Output 1: Reduce all -> scalar (AND of all = False)
+        assert_eq!(output1, false);
+
+        // Output 2: Reduce all with keepdims -> [1, 1, 1]
+        let expected2 = TensorData::from([[[false]]]);
+        output2.to_data().assert_eq(&expected2, true);
+
+        // Output 3: Reduce axis 2 -> [2, 3] (AND along last dimension)
+        let expected3 = TensorData::from([[false, true, false], [false, false, false]]);
+        output3.to_data().assert_eq(&expected3, true);
+
+        // Output 4: Reduce axes [0, 2] with keepdims -> [1, 3, 1]
+        let expected4 = TensorData::from([[[false], [false], [false]]]);
+        output4.to_data().assert_eq(&expected4, true);
+    }
+
+    #[test]
+    fn reduce_max_bool() {
+        // Test ReduceMax on boolean tensors (equivalent to logical OR)
+        let device = Default::default();
+        let model: reduce_max_bool::Model<TestBackend> = reduce_max_bool::Model::new(&device);
+
+        // Input: [2, 3, 4] boolean tensor
+        let input = Tensor::<TestBackend, 3, burn::tensor::Bool>::from_bool(
+            TensorData::from([
+                [
+                    [false, false, false, false], // All False
+                    [true, true, true, true],     // All True
+                    [false, true, false, true],   // Mixed
+                ],
+                [
+                    [false, false, false, false], // All False
+                    [false, true, false, false],  // Mostly False
+                    [true, false, true, false],   // Mixed
+                ],
+            ]),
+            &device,
+        );
+
+        let (output1, output2, output3, output4) = model.forward(input);
+
+        // Output 1: Reduce all -> scalar (OR of all = True)
+        assert_eq!(output1, true);
+
+        // Output 2: Reduce all with keepdims -> [1, 1, 1]
+        let expected2 = TensorData::from([[[true]]]);
+        output2.to_data().assert_eq(&expected2, true);
+
+        // Output 3: Reduce axis 2 -> [2, 3] (OR along last dimension)
+        let expected3 = TensorData::from([[false, true, true], [false, true, true]]);
+        output3.to_data().assert_eq(&expected3, true);
+
+        // Output 4: Reduce axes [0, 2] with keepdims -> [1, 3, 1]
+        let expected4 = TensorData::from([[[false], [true], [true]]]);
+        output4.to_data().assert_eq(&expected4, true);
+    }
+
+    // TODO: Add validation tests for unsupported boolean operations
+    // The following reduce operations are not well-defined for boolean tensors and should
+    // either be validated/rejected or properly documented:
+    // - ReduceSum: Should booleans be counted as 0/1? Need to verify ONNX spec.
+    // - ReduceMean: Same as ReduceSum - averaging booleans is ambiguous.
+    // - ReduceProd: Equivalent to AND, but may be confusing.
+    // - ReduceL1, ReduceL2: Not mathematically meaningful for booleans.
+    // - ReduceLogSum, ReduceLogSumExp: log(boolean) is undefined.
+    // - ReduceSumSquare: Square of boolean is same as boolean, may work but unclear.
+    //
+    // For now, these operations will likely fail during code generation or produce
+    // unexpected results. Future work should add proper validation in the processor.
 }
