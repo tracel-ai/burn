@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0"
+version = "0.20.0-pre.1"
 
 [workspace.lints.clippy]
 
