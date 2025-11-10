@@ -111,7 +111,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         }
 
-        TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
+        let mut set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
             .with(Tunable::new(naive::<R>).group(&unit, |key| {
                 if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
                     || matches!(key.analysis.kind, MatmulKind::InnerProduct)
@@ -121,91 +121,93 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     PRIORITY_MIN
                 }
             }))
-            .with(Tunable::new(simple_unit_min::<R>).group(&unit, |key| {
-                if matches!(key.analysis.kind, MatmulKind::General)
-                    && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
-                {
-                    PRIORITY_MAX
-                } else {
-                    PRIORITY_HIGH
-                }
-            }))
-            .with(Tunable::new(simple_unit_max::<R>).group(&unit, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(|lhs, rhs, out| {
+                    simple_unit::<R>(lhs, rhs, out, TileSizeSelection::MinTileSize)
+                })
+                .group(&unit, |key| {
+                    if matches!(key.analysis.kind, MatmulKind::General)
+                        && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
+                    {
+                        PRIORITY_MAX
+                    } else {
+                        PRIORITY_HIGH
+                    }
+                }),
+            )
+            .with(
+                Tunable::new(|lhs, rhs, out| {
+                    simple_unit::<R>(lhs, rhs, out, TileSizeSelection::MaxTileSize)
+                })
+                .group(&unit, |_| PRIORITY_MAX),
+            )
             .with(Tunable::new(simple_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(double_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(double_unit::<R>).group(&unit, |key| {
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
-            }))
-            .with(Tunable::new(matmul_simple::<R, false>).group(&cmma, |_| PRIORITY_MAX))
-            .with(Tunable::new(matmul_simple::<R, true>).group(&mma, |_| PRIORITY_MAX))
-            .with(
-                Tunable::new(matmul_simple_tma::<R, false>)
-                    .group(&cmma, tma_priority)
+            }));
+
+        for (tile_kind, tile_kind_group) in [
+            (AcceleratedTileKind::Mma, mma),
+            (AcceleratedTileKind::Cmma, cmma),
+        ] {
+            set = set
+                .with(
+                    Tunable::new(move |lhs, rhs, out| matmul_simple(lhs, rhs, out, tile_kind))
+                        .group(&tile_kind_group, |_| PRIORITY_MAX),
+                )
+                .with(
+                    Tunable::new(move |lhs, rhs, out| {
+                        matmul_simple_tma::<R>(lhs, rhs, out, tile_kind)
+                    })
+                    .group(&tile_kind_group, tma_priority)
                     .group(&odd, tma_priority),
-            )
-            .with(
-                Tunable::new(matmul_simple_tma::<R, true>)
-                    .group(&mma, tma_priority)
-                    .group(&odd, tma_priority),
-            )
-            .with(Tunable::new(matmul_simple_multi_rows::<R, false>).group(&cmma, |_| PRIORITY_MAX))
-            .with(Tunable::new(matmul_simple_multi_rows::<R, true>).group(&mma, |_| PRIORITY_MAX))
-            .with(
-                // Ordered should be tried most of the time.
-                Tunable::new(matmul_ordered_double_buffering::<R, false>)
-                    .group(&cmma, |_| PRIORITY_MAX),
-            )
-            .with(
-                // Ordered should be tried most of the time.
-                Tunable::new(matmul_ordered_double_buffering::<R, true>)
-                    .group(&mma, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(matmul_double_buffering_specialized::<R, false>)
-                    .group(&cmma, |key| {
+                )
+                .with(
+                    Tunable::new(move |lhs, rhs, out| {
+                        matmul_simple_multi_rows::<R>(lhs, rhs, out, tile_kind)
+                    })
+                    .group(&tile_kind_group, |_| PRIORITY_MAX),
+                )
+                .with(
+                    // Ordered should be tried most of the time.
+                    Tunable::new(move |lhs, rhs, out| {
+                        matmul_ordered_double_buffering::<R>(lhs, rhs, out, tile_kind)
+                    })
+                    .group(&tile_kind_group, |_| PRIORITY_MAX),
+                )
+                .with(
+                    Tunable::new(move |lhs, rhs, out| {
+                        matmul_double_buffering_specialized::<R>(lhs, rhs, out, tile_kind)
+                    })
+                    .group(&tile_kind_group, |key| {
                         double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
                     })
                     .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(matmul_double_buffering_specialized::<R, true>)
-                    .group(&mma, |key| {
+                )
+                .with(
+                    Tunable::new(move |lhs, rhs, out| {
+                        matmul_double_buffering::<R>(lhs, rhs, out, tile_kind)
+                    })
+                    .group(&tile_kind_group, |key| {
                         double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
                     })
                     .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(matmul_double_buffering::<R, false>)
-                    .group(&cmma, |key| {
-                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                )
+                .with(
+                    Tunable::new(move |lhs, rhs, out| {
+                        matmul_double_buffering_tma::<R>(lhs, rhs, out, tile_kind)
                     })
-                    .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(matmul_double_buffering::<R, true>)
-                    .group(&mma, |key| {
-                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                    })
-                    .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(matmul_double_buffering_tma::<R, false>)
                     // TMA is often the best double buffering algorithm when available
-                    .group(&cmma, |key| {
+                    .group(&tile_kind_group, |key| {
                         double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
                             .min(tma_priority(key))
                     })
                     .group(&odd, tma_priority),
-            )
-            .with(
-                Tunable::new(matmul_double_buffering_tma::<R, true>)
-                    // TMA is often the best double buffering algorithm when available
-                    .group(&mma, |key| {
-                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
-                            .min(tma_priority(key))
-                    })
-                    .group(&odd, tma_priority),
-            )
+                )
+        }
+
+        set
     });
 
     TUNER.execute(
@@ -244,24 +246,17 @@ fn create_key<R: CubeRuntime>(
     )
 }
 
-fn tile_kind(mma: bool) -> AcceleratedTileKind {
-    if mma {
-        AcceleratedTileKind::Mma
-    } else {
-        AcceleratedTileKind::Cmma
-    }
-}
-
-fn matmul_simple<R: CubeRuntime, const MMA: bool>(
+fn matmul_simple<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     launch_matmul::<R>(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Cyclic,
             selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -270,10 +265,11 @@ fn matmul_simple<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_simple_tma<R: CubeRuntime, const MMA: bool>(
+fn matmul_simple_tma<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     if lhs.qparams.is_some() || rhs.qparams.is_some() {
         return Err("TMA can't be used for quantization right now".into());
@@ -282,7 +278,7 @@ fn matmul_simple_tma<R: CubeRuntime, const MMA: bool>(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Tma,
             selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -291,16 +287,17 @@ fn matmul_simple_tma<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_simple_multi_rows<R: CubeRuntime, const MMA: bool>(
+fn matmul_simple_multi_rows<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     launch_matmul::<R>(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Cyclic,
             selection: Selection::Inferred(SimpleArgs { multi_rows: true }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -309,16 +306,17 @@ fn matmul_simple_multi_rows<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering<R: CubeRuntime, const MMA: bool>(
+fn matmul_double_buffering<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     launch_matmul::<R>(
         &Strategy::DoubleBuffering {
             read_strategy: PartialReadingStrategy::Tilewise,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -327,10 +325,11 @@ fn matmul_double_buffering<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering_tma<R: CubeRuntime, const MMA: bool>(
+fn matmul_double_buffering_tma<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     if lhs.qparams.is_some() || rhs.qparams.is_some() {
         return Err("TMA can't be used for quantization right now".into());
@@ -339,7 +338,7 @@ fn matmul_double_buffering_tma<R: CubeRuntime, const MMA: bool>(
         &Strategy::DoubleBuffering {
             read_strategy: PartialReadingStrategy::Tma,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -348,16 +347,17 @@ fn matmul_double_buffering_tma<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering_specialized<R: CubeRuntime, const MMA: bool>(
+fn matmul_double_buffering_specialized<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     launch_matmul::<R>(
         &Strategy::DoubleBuffering {
             read_strategy: PartialReadingStrategy::Tilewise,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: true }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -366,10 +366,11 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_ordered_double_buffering<R: CubeRuntime, const MMA: bool>(
+fn matmul_ordered_double_buffering<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_kind: AcceleratedTileKind,
 ) -> Result<(), String> {
     let row_count = match lhs.dtype {
         DType::F16 | DType::BF16 => 8,
@@ -382,7 +383,7 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, const MMA: bool>(
                 row_count: Some(row_count),
                 rows_per_plane: Some(2),
             }),
-            tile_kind: tile_kind(MMA),
+            tile_kind,
         },
         lhs,
         rhs,
@@ -391,31 +392,14 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, const MMA: bool>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_unit_min<R: CubeRuntime>(
+fn simple_unit<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
+    tile_size: TileSizeSelection,
 ) -> Result<(), String> {
     launch_matmul::<R>(
-        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
-            tile_size: TileSizeSelection::MinTileSize,
-        })),
-        lhs,
-        rhs,
-        out,
-    )
-    .map_err(|err| format!("{err:?}"))
-}
-
-fn simple_unit_max<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    out: CubeTensor<R>,
-) -> Result<(), String> {
-    launch_matmul::<R>(
-        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
-            tile_size: TileSizeSelection::MaxTileSize,
-        })),
+        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs { tile_size })),
         lhs,
         rhs,
         out,
