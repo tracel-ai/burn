@@ -82,7 +82,7 @@ fn convert_nodes_impl(
                 let registry = crate::graph_state::NameRegistry::new();
                 // Initialize counters from the current graph's already-named nodes
                 // IMPORTANT: Increment by 1 to account for the current node which will be
-                // renamed later (at line 109) using the local counter
+                // renamed later using the local counter
                 for (node_type, count) in &node_name_counter {
                     registry.set_initial_counter(node_type, count + 1);
                 }
