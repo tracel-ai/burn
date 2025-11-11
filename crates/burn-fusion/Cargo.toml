@@ -21,9 +21,9 @@ doc = ["default"]
 memory-checks = ["std"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.20.0" }
-burn-common = { path = "../burn-common", version = "0.20.0" }
-burn-ir = { path = "../burn-ir", version = "0.20.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1" }
+burn-common = { path = "../burn-common", version = "0.20.0-pre.1" }
+burn-ir = { path = "../burn-ir", version = "0.20.0-pre.1" }
 
 hashbrown = { workspace = true }
 derive-new = { workspace = true }
