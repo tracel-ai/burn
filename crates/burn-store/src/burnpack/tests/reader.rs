@@ -455,11 +455,11 @@ fn test_reader_data_offsets_validation() {
 #[test]
 fn test_reader_out_of_bounds_error() {
     use crate::burnpack::reader::StorageBackend;
-    use alloc::rc::Rc;
+    use alloc::sync::Arc;
 
     // Create a small data buffer
     let data = Bytes::from_bytes_vec(vec![1, 2, 3, 4, 5]);
-    let backend = StorageBackend::Memory(Rc::new(data));
+    let backend = StorageBackend::Memory(Arc::new(data));
 
     // Try to read beyond the available data
     let mut buffer = vec![0u8; 10];
@@ -474,10 +474,10 @@ fn test_reader_out_of_bounds_error() {
 #[test]
 fn test_reader_offset_overflow_error() {
     use crate::burnpack::reader::StorageBackend;
-    use alloc::rc::Rc;
+    use alloc::sync::Arc;
 
     let data = Bytes::from_bytes_vec(vec![1, 2, 3, 4, 5]);
-    let backend = StorageBackend::Memory(Rc::new(data));
+    let backend = StorageBackend::Memory(Arc::new(data));
 
     // Try to read with an offset that would overflow
     let mut buffer = vec![0u8; 10];
@@ -596,7 +596,7 @@ fn test_reader_corrupted_offsets_returns_error() {
     {
         use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
         use alloc::collections::BTreeMap;
-        use alloc::rc::Rc;
+        use alloc::sync::Arc;
         use burn_tensor::DType;
 
         // On 64-bit platforms, test offset overflow during addition
@@ -617,7 +617,7 @@ fn test_reader_corrupted_offsets_returns_error() {
         };
 
         let data = Bytes::from_bytes_vec(vec![0u8; 1000]);
-        let backend = crate::burnpack::reader::StorageBackend::Memory(Rc::new(data));
+        let backend = crate::burnpack::reader::StorageBackend::Memory(Arc::new(data));
 
         // Use a data_offset that will overflow when added to the tensor offset
         let reader = BurnpackReader {
@@ -639,7 +639,7 @@ fn test_reader_corrupted_offsets_returns_error() {
 fn test_reader_inverted_offsets_returns_error() {
     use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
     use alloc::collections::BTreeMap;
-    use alloc::rc::Rc;
+    use alloc::sync::Arc;
     use burn_tensor::DType;
 
     // Create metadata with end offset < start offset (corrupted)
@@ -660,7 +660,7 @@ fn test_reader_inverted_offsets_returns_error() {
     };
 
     let data = Bytes::from_bytes_vec(vec![0u8; 1000]);
-    let backend = crate::burnpack::reader::StorageBackend::Memory(Rc::new(data));
+    let backend = crate::burnpack::reader::StorageBackend::Memory(Arc::new(data));
 
     let reader = BurnpackReader {
         metadata,

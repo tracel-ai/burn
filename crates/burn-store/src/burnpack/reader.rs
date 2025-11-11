@@ -8,31 +8,33 @@ use crate::TensorSnapshot;
 use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::ToString;
+use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::{Bytes, TensorData};
 
 #[cfg(feature = "std")]
-use std::cell::RefCell;
-#[cfg(feature = "std")]
 use std::fs::File;
 #[cfg(feature = "std")]
 use std::io::{Read, Seek};
 #[cfg(feature = "std")]
 use std::path::Path;
+#[cfg(feature = "std")]
+use std::sync::Mutex;
 
 /// Storage backend for BurnpackReader
+#[derive(Clone)]
 pub(crate) enum StorageBackend {
     /// Memory-based storage
-    Memory(Rc<Bytes>),
+    Memory(Arc<Bytes>),
     /// Memory-mapped file storage (efficient for large files)
     #[cfg(all(feature = "std", feature = "memmap"))]
-    Mmap(Rc<memmap2::Mmap>),
+    Mmap(Arc<memmap2::Mmap>),
     /// File-based storage with buffered reading
     #[cfg(feature = "std")]
     #[allow(dead_code)]
-    FileBuffered { file: Rc<RefCell<File>> },
+    FileBuffered { file: Arc<Mutex<File>> },
 }
 
 impl StorageBackend {
@@ -107,7 +109,7 @@ impl StorageBackend {
             StorageBackend::FileBuffered { file } => {
                 use std::io::SeekFrom;
 
-                let mut file = file.borrow_mut();
+                let mut file = file.lock().unwrap();
                 file.seek(SeekFrom::Start(offset as u64)).map_err(|e| {
                     BurnpackError::IoError(format!("Failed to seek in file: {}", e))
                 })?;
@@ -238,7 +240,7 @@ impl BurnpackReader {
 
         Ok(Self {
             metadata,
-            storage: StorageBackend::Memory(Rc::new(bytes)),
+            storage: StorageBackend::Memory(Arc::new(bytes)),
             data_offset: metadata_end,
         })
     }
@@ -356,7 +358,7 @@ impl BurnpackReader {
 
         Ok(Self {
             metadata,
-            storage: StorageBackend::Mmap(Rc::new(mmap)),
+            storage: StorageBackend::Mmap(Arc::new(mmap)),
             data_offset: metadata_end,
         })
     }
@@ -486,7 +488,7 @@ impl BurnpackReader {
         Ok(Self {
             metadata,
             storage: StorageBackend::FileBuffered {
-                file: Rc::new(RefCell::new(file)),
+                file: Arc::new(Mutex::new(file)),
             },
             data_offset: metadata_end,
         })
