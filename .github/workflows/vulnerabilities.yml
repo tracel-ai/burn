@@ -34,7 +34,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v6
 
     - name: Install cargo-careful
       env:
@@ -62,7 +62,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v6
 
     - name: Run AddressSanitizer
       env:
@@ -85,7 +85,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v6
 
     - name: Run ThreadSanitizer
       env:
@@ -108,7 +108,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v6
 
     - name: Run MemorySanitizer
       env:
@@ -131,7 +131,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v6
 
     - name: Run SafeStack
       env:
