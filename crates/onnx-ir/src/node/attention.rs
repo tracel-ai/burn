@@ -145,31 +145,6 @@ impl NodeProcessor for AttentionProcessor {
         // TODO: Add test for negative scale values - spec doesn't specify if scale can be negative
         // TODO: Add test for very large qk_matmul_output dimensions - potential memory issues not validated
 
-        // Validate unexpected attributes and qk_matmul_output_mode before config extraction
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "is_causal" | "kv_num_heads" | "q_num_heads" | "scale" | "softcap"
-                | "softmax_precision" => {}
-                "qk_matmul_output_mode" => match value.clone().into_i64() {
-                    0..=3 => {}
-                    v => {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "qk_matmul_output_mode".to_string(),
-                            reason: format!(
-                                "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
-                            ),
-                        });
-                    }
-                },
-                _ => {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: key.clone(),
-                        reason: format!("Unexpected attribute for Attention: {key}"),
-                    });
-                }
-            }
-        }
-
         // Get reference to config for validation
         let config = node.config::<AttentionConfig>();
 
@@ -236,24 +211,41 @@ impl NodeProcessor for AttentionProcessor {
         let mut softcap = 0.0;
         let mut softmax_precision = None;
 
+        // Extract and validate attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "is_causal" => is_causal = value.clone().into_i64() != 0,
                 "kv_num_heads" => kv_num_heads = Some(value.clone().into_i64() as usize),
                 "q_num_heads" => q_num_heads = Some(value.clone().into_i64() as usize),
                 "qk_matmul_output_mode" => {
-                    qk_matmul_output_mode = match value.clone().into_i64() {
+                    let mode_value = value.clone().into_i64();
+                    // Validate qk_matmul_output_mode range
+                    if !(0..=3).contains(&mode_value) {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "qk_matmul_output_mode".to_string(),
+                            reason: format!(
+                                "Unexpected value for attribute qk_matmul_output_mode for Attention: {mode_value}"
+                            ),
+                        });
+                    }
+                    qk_matmul_output_mode = match mode_value {
                         0 => AttentionQkMatmulOutputMode::Matmul,
                         1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
                         2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
                         3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
-                        _ => AttentionQkMatmulOutputMode::Matmul, // Use default for unknown values
+                        _ => unreachable!(), // Already validated above
                     }
                 }
                 "scale" => scale = Some(value.clone().into_f32() as f64),
                 "softcap" => softcap = value.clone().into_f32() as f64,
                 "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
-                _ => {}
+                _ => {
+                    // Validate that no unknown attributes are present
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Attention: {key}"),
+                    });
+                }
             }
         }
 

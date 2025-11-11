@@ -54,33 +54,6 @@ impl NodeProcessor for ArgMaxProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // TODO: Add validation for unexpected attributes (similar to attention.rs)
-        // Currently only validates select_last_index and keepdims values but doesn't check for unknown attributes
-
-        // Validate select_last_index before config extraction
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "select_last_index" && value.clone().into_i64() != 0 {
-                return Err(ProcessError::InvalidAttribute {
-                    name: "select_last_index".to_string(),
-                    reason: "select_last_index=1 is not supported for argmax in burn".to_string(),
-                });
-            }
-        }
-
-        // Validate keepdims value
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "keepdims" {
-                let keepdims_val = value.clone().into_i64();
-                if keepdims_val != 0 && keepdims_val != 1 {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: "keepdims".to_string(),
-                        reason: "Only keepdims=0 or keepdims=1 is supported for argmax in burn"
-                            .to_string(),
-                    });
-                }
-            }
-        }
-
         // Extract the input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
@@ -137,14 +110,37 @@ impl NodeProcessor for ArgMaxProcessor {
         let mut axis: i64 = 0;
         let mut keepdims = true;
 
+        // Extract and validate attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "axis" => axis = value.clone().into_i64(),
                 "keepdims" => {
                     let keepdims_val = value.clone().into_i64();
+
+                    // Validate keepdims value
+                    if keepdims_val != 0 && keepdims_val != 1 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "keepdims".to_string(),
+                            reason: "Only keepdims=0 or keepdims=1 is supported for argmax in burn"
+                                .to_string(),
+                        });
+                    }
+
                     keepdims = keepdims_val != 0;
                 }
-                _ => {}
+                "select_last_index" => {
+                    // Validate select_last_index
+                    if value.clone().into_i64() != 0 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "select_last_index".to_string(),
+                            reason: "select_last_index=1 is not supported for argmax in burn"
+                                .to_string(),
+                        });
+                    }
+                }
+                _ => {
+                    // Unknown attributes are ignored (could add warning here)
+                }
             }
         }
 
@@ -273,23 +269,23 @@ mod tests {
 
     #[test]
     fn test_argmax_config_keepdims_invalid() {
-        let mut node = create_test_node(0, 0, 2); // Invalid keepdims value
+        let node = create_test_node(0, 0, 2); // Invalid keepdims value
 
         let processor = ArgMaxProcessor;
 
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        // Validation should fail during config extraction
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
     fn test_argmax_config_select_last_index_invalid() {
-        let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
+        let node = create_test_node(0, 1, 1); // Invalid select_last_index value
 
         let processor = ArgMaxProcessor;
 
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        // Validation should fail during config extraction
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
