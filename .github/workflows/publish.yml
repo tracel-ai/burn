@@ -79,8 +79,6 @@ jobs:
     with:
       crate: burn-dataset
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
-    needs:
-      - publish-burn-common
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
@@ -213,11 +211,11 @@ jobs:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-cpu:
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     needs:
       - publish-burn-tensor
       - publish-burn-fusion
       - publish-burn-cubecl
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
     with:
       crate: burn-cpu
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
