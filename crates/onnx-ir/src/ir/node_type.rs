@@ -8,6 +8,8 @@ use strum::{Display, EnumString};
 /// Supported ONNX operators (plus Burn-specific extensions for dimensional mapping)
 ///
 /// See: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
+///
+/// TODO: Derive NodeTypes from NodeEnum using a macro
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
 pub enum NodeType {
     Abs,
