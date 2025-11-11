@@ -8,6 +8,8 @@ pub mod argument;
 pub mod attribute;
 pub mod graph;
 pub mod node;
+pub mod node_builder;
+pub mod node_enum;
 pub mod node_type;
 pub mod tensor_data_ext;
 
@@ -25,6 +27,12 @@ pub use graph::OnnxGraph;
 
 // Re-exports from node module
 pub use node::{Node, NodeConfig, RuntimeInputRef};
+
+// Re-exports from node_builder module
+pub use node_builder::NodeBuilder;
+
+// Re-exports from node_enum module
+pub use node_enum::NodeEnum;
 
 // Re-exports from node_type module
 pub use node_type::NodeType;
