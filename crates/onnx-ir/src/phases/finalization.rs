@@ -10,12 +10,12 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{Argument, Node, NodeType, OnnxGraph},
+    ir::{Argument, NodeBuilder, NodeType, OnnxGraph},
 };
 
 /// Finalize the graph by removing unused constants and building OnnxGraph
 pub(crate) fn finalize(
-    nodes: &mut Vec<Node>,
+    nodes: &mut Vec<NodeBuilder>,
     inputs: Vec<Argument>,
     outputs: &mut Vec<Argument>,
     state_rc: Rc<RefCell<GraphState>>,
@@ -31,7 +31,7 @@ pub(crate) fn finalize(
 }
 
 /// Remove constant nodes that have zero runtime references
-fn remove_unreferenced_constants(nodes: &mut Vec<Node>, outputs: &[Argument]) {
+fn remove_unreferenced_constants(nodes: &mut Vec<NodeBuilder>, outputs: &[Argument]) {
     // Build map of constant output names to node indices
     let mut constant_output_to_idx: HashMap<String, usize> = HashMap::new();
     for (idx, node) in nodes.iter().enumerate() {

@@ -26,7 +26,7 @@
 //! - **Shape arithmetic**: When operating on Shape types with constants, prefers constants as Shape
 //! - **Scalar arithmetic**: When operating on Scalar types with constants, prefers constants as Scalar
 
-use crate::ir::Node;
+use crate::ir::NodeBuilder;
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError, same_as_input_broadcast,
@@ -55,7 +55,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -101,7 +101,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -116,11 +116,11 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     fn test_arithmetic_add() {
-        let node = NodeBuilder::new(NodeType::Add, "test_add")
+        let node = TestNodeBuilder::new(NodeType::Add, "test_add")
             .input_tensor_f32("a", 2, None)
             .input_tensor_f32("b", 2, None)
             .output_default("c")
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_arithmetic_sub() {
-        let node = NodeBuilder::new(NodeType::Sub, "test_sub")
+        let node = TestNodeBuilder::new(NodeType::Sub, "test_sub")
             .input_tensor_f32("a", 3, None)
             .input_tensor_f32("b", 3, None)
             .output_default("c")
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_arithmetic_mul() {
-        let node = NodeBuilder::new(NodeType::Mul, "test_mul")
+        let node = TestNodeBuilder::new(NodeType::Mul, "test_mul")
             .input_tensor_f32("a", 4, None)
             .input_tensor_f32("b", 4, None)
             .output_default("c")
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_arithmetic_div() {
-        let node = NodeBuilder::new(NodeType::Div, "test_div")
+        let node = TestNodeBuilder::new(NodeType::Div, "test_div")
             .input_tensor_f32("a", 2, None)
             .input_tensor_f32("b", 2, None)
             .output_default("c")
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_invalid_opset() {
-        let node = NodeBuilder::new(NodeType::Add, "test_add")
+        let node = TestNodeBuilder::new(NodeType::Add, "test_add")
             .input_tensor_f32("a", 2, None)
             .input_tensor_f32("b", 2, None)
             .output_default("c")
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_invalid_input_count() {
-        let node = NodeBuilder::new(NodeType::Add, "test_add")
+        let node = TestNodeBuilder::new(NodeType::Add, "test_add")
             .input_tensor_f32("a", 2, None)
             .output_default("c")
             .build();

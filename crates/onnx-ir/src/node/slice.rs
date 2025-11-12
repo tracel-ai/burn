@@ -17,7 +17,7 @@
 //! - **Opset 11**: Added optional `steps` input for strided slicing.
 //! - **Opset 13**: Added bfloat16 and additional type support.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -111,7 +111,7 @@ impl NodeProcessor for SliceProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<crate::processor::InputPreferences>, ProcessError> {
         use crate::processor::{ArgPreference, InputPreferences};
@@ -125,7 +125,7 @@ impl NodeProcessor for SliceProcessor {
         Ok(Some(prefs))
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift starts input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -151,7 +151,7 @@ impl NodeProcessor for SliceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -213,11 +213,14 @@ impl NodeProcessor for SliceProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract config - helper function to get slice inputs
-        fn get_slice_input(node: &Node, index: usize) -> Result<Option<SliceInput>, ProcessError> {
+        fn get_slice_input(
+            node: &NodeBuilder,
+            index: usize,
+        ) -> Result<Option<SliceInput>, ProcessError> {
             let input = match node.inputs.get(index) {
                 Some(i) => i,
                 None => return Ok(None),
@@ -311,12 +314,16 @@ impl NodeProcessor for SliceProcessor {
 #[cfg(test)]
 mod tests {
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     use super::*;
 
-    fn create_test_node(starts: Vec<i64>, ends: Vec<i64>, axes: Option<Vec<i64>>) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Slice, "test_slice")
+    fn create_test_node(
+        starts: Vec<i64>,
+        ends: Vec<i64>,
+        axes: Option<Vec<i64>>,
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Slice, "test_slice")
             .input_tensor_f32("data", 3, None)
             .output_default("output");
 
@@ -331,8 +338,8 @@ mod tests {
         builder
     }
 
-    fn create_shape_input_node(start: i64, end: i64) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Slice, "test_slice_shape")
+    fn create_shape_input_node(start: i64, end: i64) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Slice, "test_slice_shape")
             .input_shape("data", 5)
             .input_tensor_i64_data("starts", vec![start], vec![1])
             .input_tensor_i64_data("ends", vec![end], vec![1])
@@ -340,8 +347,8 @@ mod tests {
             .output_default("output")
     }
 
-    fn create_runtime_slice_node() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Slice, "test_runtime_slice")
+    fn create_runtime_slice_node() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Slice, "test_runtime_slice")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("starts", 0, None) // No static value - runtime input
             .input_tensor_i64("ends", 0, None) // No static value - runtime input
@@ -350,8 +357,8 @@ mod tests {
             .output_default("output")
     }
 
-    fn create_mixed_slice_node_runtime_start() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Slice, "test_mixed_slice")
+    fn create_mixed_slice_node_runtime_start() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Slice, "test_mixed_slice")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("starts", 0, None) // Runtime input
             .input_tensor_i64_data("ends", vec![3], vec![1]) // Static input
@@ -360,8 +367,8 @@ mod tests {
             .output_default("output")
     }
 
-    fn create_mixed_slice_node_runtime_end() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Slice, "test_mixed_slice")
+    fn create_mixed_slice_node_runtime_end() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Slice, "test_mixed_slice")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("starts", vec![1], vec![1]) // Static input
             .input_tensor_i64("ends", 0, None) // Runtime input
@@ -591,7 +598,7 @@ mod tests {
     #[test]
     fn test_slice_config_with_steps() {
         // Create a node with steps input
-        let builder = NodeBuilder::new(NodeType::Slice, "test_slice_with_steps")
+        let builder = TestNodeBuilder::new(NodeType::Slice, "test_slice_with_steps")
             .input_tensor_f32("data", 3, None)
             .input_tensor_i64_data("starts", vec![0, 0], vec![2])
             .input_tensor_i64_data("ends", vec![10, 10], vec![2])
@@ -629,7 +636,7 @@ mod tests {
     #[test]
     fn test_slice_config_zero_step() {
         // Create a node with zero step value (should return error)
-        let builder = NodeBuilder::new(NodeType::Slice, "test_zero_step")
+        let builder = TestNodeBuilder::new(NodeType::Slice, "test_zero_step")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("starts", vec![0], vec![1])
             .input_tensor_i64_data("ends", vec![10], vec![1])
@@ -649,7 +656,7 @@ mod tests {
     #[test]
     fn test_slice_config_negative_steps() {
         // Create a node with negative step values
-        let builder = NodeBuilder::new(NodeType::Slice, "test_negative_steps")
+        let builder = TestNodeBuilder::new(NodeType::Slice, "test_negative_steps")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("starts", vec![0, 2], vec![2])
             .input_tensor_i64_data("ends", vec![10, 8], vec![2])

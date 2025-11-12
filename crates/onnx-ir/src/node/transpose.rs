@@ -16,7 +16,7 @@
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
-use crate::ir::{ArgType, Node, NodeConfig};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -53,7 +53,7 @@ impl NodeProcessor for TransposeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -94,7 +94,7 @@ impl NodeProcessor for TransposeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the shape of the input tensor
@@ -127,10 +127,10 @@ impl NodeProcessor for TransposeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Transpose, "test_transpose")
+    fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Transpose, "test_transpose")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("transposed", rank, None);
 

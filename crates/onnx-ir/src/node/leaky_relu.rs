@@ -21,7 +21,7 @@
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 //! - TODO: No test for zero-size tensors - Empty tensor handling
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -59,7 +59,7 @@ impl NodeProcessor for LeakyReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -87,7 +87,7 @@ impl NodeProcessor for LeakyReluProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract alpha attribute
@@ -108,10 +108,10 @@ impl NodeProcessor for LeakyReluProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(alpha: f32) -> Node {
-        NodeBuilder::new(NodeType::LeakyRelu, "test_leaky_relu")
+    fn create_test_node(alpha: f32) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::LeakyRelu, "test_leaky_relu")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None)
             .attr_float("alpha", alpha)

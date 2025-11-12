@@ -9,7 +9,7 @@
 //! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
+use crate::{ArgType, Argument, NodeBuilder, NodeConfig, TensorType};
 use std::any::Any;
 
 #[derive(Debug, Clone)]
@@ -82,7 +82,7 @@ pub struct AttentionProcessor;
 impl NodeProcessor for AttentionProcessor {
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -196,7 +196,7 @@ impl NodeProcessor for AttentionProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let _q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
@@ -266,7 +266,7 @@ impl NodeProcessor for AttentionProcessor {
 #[allow(clippy::too_many_arguments)]
 mod tests {
     use super::*;
-    use crate::{DType, NodeType, node::test_utils::NodeBuilder};
+    use crate::{DType, NodeType, node::test_utils::TestNodeBuilder};
     use rstest::rstest;
 
     fn create_test_node(
@@ -287,8 +287,8 @@ mod tests {
         scale: Option<f32>,
         softcap: Option<f32>,
         softmax_precision: Option<i64>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Attention, "test_attention");
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Attention, "test_attention");
 
         if let Some(rank) = q {
             builder = builder.input_tensor_f32("q", rank, None);
@@ -361,7 +361,7 @@ mod tests {
         scale: Option<f32>,
         softcap: Option<f32>,
         softmax_precision: Option<i64>,
-    ) -> Node {
+    ) -> NodeBuilder {
         create_test_node(
             Some(4),
             Some(4),

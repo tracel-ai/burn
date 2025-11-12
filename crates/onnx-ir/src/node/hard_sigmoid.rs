@@ -17,7 +17,7 @@
 //! - **Opset 1-5**: Earlier versions with different default values
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -54,7 +54,7 @@ impl NodeProcessor for HardSigmoidProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -80,7 +80,7 @@ impl NodeProcessor for HardSigmoidProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract alpha and beta attributes
@@ -104,10 +104,10 @@ impl NodeProcessor for HardSigmoidProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(alpha: f32, beta: f32) -> Node {
-        NodeBuilder::new(NodeType::HardSigmoid, "test_hard_sigmoid")
+    fn create_test_node(alpha: f32, beta: f32) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::HardSigmoid, "test_hard_sigmoid")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None)
             .attr_float("alpha", alpha)

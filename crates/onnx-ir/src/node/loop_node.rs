@@ -12,7 +12,7 @@
 
 use std::any::Any;
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -68,7 +68,7 @@ pub struct LoopProcessor;
 impl NodeProcessor for LoopProcessor {
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -244,7 +244,7 @@ impl NodeProcessor for LoopProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract body graph from attributes
@@ -264,7 +264,7 @@ mod tests {
     use super::*;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, NodeType, OnnxGraph, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_body(_num_loop_vars: usize) -> OnnxGraph {
@@ -329,7 +329,7 @@ mod tests {
             AttributeValue::Graph(create_test_body(1)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::Loop, "test_loop")
+        let mut node = TestNodeBuilder::new(NodeType::Loop, "test_loop")
             .input_scalar("M", DType::I64)
             .input_scalar("cond", DType::Bool)
             .input_tensor_f32("v_initial", 2, None)
@@ -357,7 +357,7 @@ mod tests {
             AttributeValue::Graph(create_test_body(1)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::Loop, "test_loop")
+        let mut node = TestNodeBuilder::new(NodeType::Loop, "test_loop")
             .input_tensor_f32("M", 1, None) // Should be scalar, not tensor
             .input_scalar("cond", DType::Bool)
             .input_tensor_f32("v_initial", 2, None)

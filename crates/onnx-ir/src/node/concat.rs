@@ -10,7 +10,7 @@
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -47,7 +47,7 @@ impl NodeProcessor for ConcatProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -77,7 +77,7 @@ impl NodeProcessor for ConcatProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -204,7 +204,7 @@ impl NodeProcessor for ConcatProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the axis attribute (required per ONNX spec)
@@ -253,10 +253,10 @@ impl NodeProcessor for ConcatProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Concat, "test_concat")
+    fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensors_f32::<Vec<usize>>("data", num_inputs, input_rank, None)
             .output_tensor_f32("output", input_rank, None)
             .attr_int("axis", axis)
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_concat_config_shape_input() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_concat_config_missing_axis() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensor_f32("data1", 3, None)
             .input_tensor_f32("data2", 3, None)
             .output_tensor_f32("output", 3, None)
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_concat_config_axis_out_of_bounds() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensor_f32("data1", 3, None)
             .input_tensor_f32("data2", 3, None)
             .output_tensor_f32("output", 3, None)
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_concat_update_outputs_shape() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .input_shape("shape3", 1)
@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_concat_config_shape_negative_axis() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_concat_config_shape_invalid_axis() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_concat_mixed_inputs() {
-        let mut node = NodeBuilder::new(NodeType::Concat, "test_concat_mixed")
+        let mut node = TestNodeBuilder::new(NodeType::Concat, "test_concat_mixed")
             .input_shape("shape1", 2)
             .input_tensor_f32("tensor1", 3, None)
             .output_shape("output", 0)

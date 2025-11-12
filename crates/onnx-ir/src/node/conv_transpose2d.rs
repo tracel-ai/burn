@@ -13,7 +13,7 @@
 //!   (see FIXME at line 188 regarding ONNX spec clarification)
 //! - Padding order: See FIXME at line 163 regarding padding order verification
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{NodeBuilder, NodeConfig};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -89,7 +89,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -103,7 +103,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -137,7 +137,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut kernel_shape = Vec::new();
@@ -228,7 +228,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[allow(clippy::too_many_arguments)]
     fn create_test_node(
@@ -240,7 +240,7 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         // Create weight tensor data
         let weight_shape = vec![2, 4, 2, 2]; // [out_channels, in_channels, k_h, k_w]
         let weight_data = vec![0.0; 32]; // 2*4*2*2 = 32
@@ -248,7 +248,7 @@ mod tests {
         let has_kernel_shape = !kernel_shape.is_empty();
 
         // Start building the node with input and weight
-        let mut builder = NodeBuilder::new(NodeType::ConvTranspose2d, "test_convtranspose2d")
+        let mut builder = TestNodeBuilder::new(NodeType::ConvTranspose2d, "test_convtranspose2d")
             .input_tensor_f32("data", 4, None)
             .input_tensor_f32_data("weight", weight_data, weight_shape)
             .output_tensor_f32("output", 4, None);

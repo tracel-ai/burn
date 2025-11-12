@@ -10,7 +10,7 @@
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -50,7 +50,7 @@ impl NodeProcessor for ArgMinProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -94,7 +94,7 @@ impl NodeProcessor for ArgMinProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let tensor = match &node.inputs[0].ty {
@@ -159,10 +159,10 @@ mod tests {
 
     use super::*;
     use crate::ir::{Argument, DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> Node {
-        NodeBuilder::new(NodeType::ArgMin, "test_argmin")
+    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::ArgMin, "test_argmin")
             .input_tensor_f32("data", 3, None)
             .output_tensor_i64("output", 3, None)
             .attr_int("axis", axis)
@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn test_argmin_update_outputs_keepdims_0() {
         // Test argmin with keepdims=0 - output rank should be reduced but minimum 1 for burn
-        let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_0")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_0")
             .attr_int("axis", 1)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 2, None) // 2D input
@@ -321,7 +321,7 @@ mod tests {
     #[test]
     fn test_argmin_update_outputs_keepdims_1() {
         // Test argmin with keepdims=1 - output rank should be same as input
-        let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_1")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_1")
             .attr_int("axis", 0)
             .attr_int("keepdims", 1)
             .input_tensor_f32("data", 3, None) // 3D input
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn test_argmin_update_outputs_keepdims_0_scalar() {
         // Test argmin with keepdims=0 on 1D tensor - should output scalar
-        let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_1d_keepdims_0")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMin, "test_argmin_1d_keepdims_0")
             .attr_int("axis", 0)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 1, None) // 1D input

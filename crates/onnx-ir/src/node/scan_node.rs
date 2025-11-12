@@ -12,7 +12,7 @@
 
 use std::any::Any;
 
-use crate::ir::{ArgType, Node, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
@@ -42,7 +42,7 @@ pub struct ScanProcessor;
 impl NodeProcessor for ScanProcessor {
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -146,7 +146,7 @@ impl NodeProcessor for ScanProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract body graph from attributes
@@ -206,7 +206,7 @@ mod tests {
     use super::*;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, DType, NodeType, OnnxGraph, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_body(num_state_vars: usize, num_scan_inputs: usize) -> OnnxGraph {
         let mut body_inputs = Vec::new();
@@ -279,7 +279,7 @@ mod tests {
         let num_scan_inputs = 1;
         let body = create_test_body(num_state_vars, num_scan_inputs);
 
-        let mut node = NodeBuilder::new(NodeType::Scan, "test_scan")
+        let mut node = TestNodeBuilder::new(NodeType::Scan, "test_scan")
             .input_tensor_f32("initial_state", 2, Some(vec![2, 3]))
             .input_tensor_f32("scan_input_seq", 3, Some(vec![4, 2, 3]))
             .build();

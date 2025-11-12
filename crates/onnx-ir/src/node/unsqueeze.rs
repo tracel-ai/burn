@@ -28,7 +28,7 @@
 //! This module includes an important optimization for Int scalar to Shape conversion, which is the
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -65,7 +65,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // In opset 13+, axes is a required input
         // In opset <13, axes is an attribute
@@ -78,7 +78,7 @@ impl NodeProcessor for UnsqueezeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -96,7 +96,7 @@ impl NodeProcessor for UnsqueezeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Check if axes attribute exists (only valid in opset <13)
@@ -174,7 +174,11 @@ impl NodeProcessor for UnsqueezeProcessor {
 }
 
 impl UnsqueezeProcessor {
-    fn infer_with_axes(&self, node: &mut Node, axes: Option<Vec<i64>>) -> Result<(), ProcessError> {
+    fn infer_with_axes(
+        &self,
+        node: &mut NodeBuilder,
+        axes: Option<Vec<i64>>,
+    ) -> Result<(), ProcessError> {
         let input_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
             ArgType::Scalar(_) => 0,
@@ -248,7 +252,7 @@ impl UnsqueezeProcessor {
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     // Implement custom equality for UnsqueezeConfig to make testing easier
     impl PartialEq<UnsqueezeConfig> for UnsqueezeConfig {
@@ -261,8 +265,8 @@ mod tests {
         }
     }
 
-    fn create_test_node_with_attr(input_rank: usize, axes: Vec<i64>) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
+    fn create_test_node_with_attr(input_rank: usize, axes: Vec<i64>) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", 0, None) // Will be updated
             .attr_ints("axes", axes)
@@ -272,9 +276,9 @@ mod tests {
         input_rank: usize,
         axes: Vec<i64>,
         with_value: bool,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         let axes_len = axes.len();
-        let mut builder = NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
+        let mut builder = TestNodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", 0, None); // Will be updated
 

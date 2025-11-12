@@ -23,7 +23,7 @@
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -81,7 +81,7 @@ impl NodeProcessor for RandomProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -153,7 +153,7 @@ impl NodeProcessor for RandomProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
         let shape = node
@@ -207,11 +207,11 @@ impl NodeProcessor for RandomProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: i32, shape: Vec<i64>) -> Node {
-        NodeBuilder::new(NodeType::RandomNormal, "test_random")
+    fn create_test_node(dtype: i32, shape: Vec<i64>) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::RandomNormal, "test_random")
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
             .attr_int("dtype", dtype as i64)
             .attr_ints("shape", shape)

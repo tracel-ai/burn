@@ -26,7 +26,7 @@ use crate::ir::RuntimeInputRef;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{Node, NodeConfig};
+use crate::{NodeBuilder, NodeConfig};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for tile repeats.
@@ -67,7 +67,7 @@ impl NodeProcessor for TileProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift repeats input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -78,7 +78,7 @@ impl NodeProcessor for TileProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -99,11 +99,11 @@ impl NodeProcessor for TileProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract repeats config
-        fn get_repeats(node: &Node) -> TileInput {
+        fn get_repeats(node: &NodeBuilder) -> TileInput {
             if let Some(input) = node.inputs.get(1) {
                 match input.value() {
                     None => {
@@ -132,11 +132,11 @@ impl NodeProcessor for TileProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
-    fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Tile, "test_tile")
+    fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Tile, "test_tile")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", input_rank, None); // Same rank as input initially
 
@@ -283,7 +283,7 @@ mod tests {
 
         // Add repeats input with no value
         node.inputs.push(
-            NodeBuilder::new(NodeType::Identity, "temp")
+            TestNodeBuilder::new(NodeType::Identity, "temp")
                 .input_tensor_i64("repeats", 1, Some(vec![3]))
                 .build()
                 .inputs

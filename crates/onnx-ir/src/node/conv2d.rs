@@ -8,7 +8,7 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -80,7 +80,7 @@ impl NodeProcessor for Conv2dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -94,7 +94,7 @@ impl NodeProcessor for Conv2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -216,7 +216,7 @@ impl NodeProcessor for Conv2dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut kernel_shape = Vec::new();
@@ -282,7 +282,7 @@ impl NodeProcessor for Conv2dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -292,7 +292,7 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         // Weight tensor data - not important for the test
         // [output_channels, input_channels/groups, k_h, k_w]
         let weight_shape = vec![4, 2, 2, 2];
@@ -300,7 +300,7 @@ mod tests {
 
         let has_kernel_shape = !kernel_shape.is_empty();
 
-        let mut builder = NodeBuilder::new(NodeType::Conv2d, "test_conv2d")
+        let mut builder = TestNodeBuilder::new(NodeType::Conv2d, "test_conv2d")
             .input_tensor_f32("data", 4, None)
             .input_tensor_f32_data("weight", weight_data.clone(), weight_shape)
             .output_tensor_f32("output", 4, None)

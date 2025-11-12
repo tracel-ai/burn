@@ -14,7 +14,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
-use crate::ir::{ArgType, Node, NodeConfig};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -51,7 +51,7 @@ impl NodeProcessor for SoftmaxProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -70,7 +70,7 @@ impl NodeProcessor for SoftmaxProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the shape of the input tensor
@@ -109,10 +109,10 @@ impl NodeProcessor for SoftmaxProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::Softmax, "test_softmax")
+    fn create_test_node(axis: i64, input_rank: usize) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::Softmax, "test_softmax")
             .input_tensor_f32("data", input_rank, None)
             .output_tensor_f32("output", input_rank, None)
             .attr_int("axis", axis)
@@ -149,7 +149,7 @@ mod tests {
     fn test_softmax_config_multiple_inputs() {
         let mut node = create_test_node(1, 3);
         // Add an extra input
-        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+        let extra_input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("extra", 1, None)
             .build()
             .inputs

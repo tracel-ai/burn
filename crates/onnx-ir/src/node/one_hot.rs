@@ -18,7 +18,7 @@
 //! Should reject non-integer types like float for indices/depth inputs.
 //! Location: infer_types method after validate_input_count
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -60,7 +60,7 @@ impl NodeConfig for OneHotConfig {
 }
 
 /// Update output rank for OneHot (input rank + 1).
-pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
+pub fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> {
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => {
@@ -94,7 +94,7 @@ impl NodeProcessor for OneHotProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift depth (input 1) and values (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -108,7 +108,7 @@ impl NodeProcessor for OneHotProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -145,7 +145,7 @@ impl NodeProcessor for OneHotProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let depth = match node.inputs[1].value() {
@@ -200,10 +200,10 @@ impl NodeProcessor for OneHotProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(depth: i64, values: Vec<f32>, axis: Option<i64>) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+    fn create_test_node(depth: i64, values: Vec<f32>, axis: Option<i64>) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", Some(depth))
             .input_tensor_f32_data("values", values.clone(), vec![2]) // always [off_value, on_value]
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_one_hot_config_runtime_depth() {
         // Create node without registering depth constant in GraphData (runtime)
-        let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+        let node = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", None) // No depth value (runtime)
             .input_tensor_f32_data("values", vec![0.0, 1.0], vec![2])
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn test_one_hot_config_runtime_values() {
         // Create node without registering values constant in GraphData (runtime)
-        let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+        let node = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", Some(5))
             .input_tensor_f32("values", 1, None) // No values data (runtime)
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_one_hot_config_both_runtime() {
         // Both depth and values are runtime
-        let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+        let node = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", None) // Runtime
             .input_tensor_f32("values", 1, None) // Runtime

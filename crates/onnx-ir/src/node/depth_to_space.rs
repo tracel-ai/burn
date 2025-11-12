@@ -21,7 +21,7 @@ use crate::processor::{
 
 use crate::{
     ArgType, TensorType,
-    ir::{Node, NodeConfig},
+    ir::{NodeBuilder, NodeConfig},
 };
 use std::any::Any;
 
@@ -79,7 +79,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -158,7 +158,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut block_size: Option<usize> = None;
@@ -193,7 +193,7 @@ mod tests {
     use super::*;
     use crate::DType;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
     fn create_test_node(
@@ -201,8 +201,8 @@ mod tests {
         static_shape: Option<Vec<usize>>,
         block_size: i64,
         mode: Option<&str>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::DepthToSpace, "test_depth_to_space")
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::DepthToSpace, "test_depth_to_space")
             .input_tensor_f32("input", rank, static_shape)
             .output_tensor_f32("output", rank, None) // Same rank as input
             .attr_int("blocksize", block_size);

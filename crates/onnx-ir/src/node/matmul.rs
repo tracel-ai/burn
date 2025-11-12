@@ -25,7 +25,7 @@
 //! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::{ArgType, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -45,7 +45,7 @@ impl NodeProcessor for MatMulProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -119,10 +119,10 @@ impl NodeProcessor for MatMulProcessor {
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(a_rank: usize, b_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::MatMul, "test_matmul")
+    fn create_test_node(a_rank: usize, b_rank: usize) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::MatMul, "test_matmul")
             .input_tensor_f32("A", a_rank, None)
             .input_tensor_f32("B", b_rank, None)
             .output_tensor_f32("C", 0, None) // Rank will be updated

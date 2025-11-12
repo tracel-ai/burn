@@ -11,7 +11,7 @@
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -61,7 +61,7 @@ impl NodeProcessor for BatchNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input[1]), bias (input[2]), mean (input[3]), and variance (input[4])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -81,7 +81,7 @@ impl NodeProcessor for BatchNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -117,7 +117,7 @@ impl NodeProcessor for BatchNormProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let weight_tensor = node.inputs[1].value().ok_or_else(|| {
@@ -147,13 +147,13 @@ impl NodeProcessor for BatchNormProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> NodeBuilder {
+    fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> TestNodeBuilder {
         let ones = vec![1.0; num_features];
         let zeros = vec![0.0; num_features];
 
-        NodeBuilder::new(NodeType::BatchNormalization, "test_batchnorm")
+        TestNodeBuilder::new(NodeType::BatchNormalization, "test_batchnorm")
             .input_tensor_f32("X", 4, None) // NCHW format
             .input_tensor_f32_data("scale", ones.clone(), vec![num_features])
             .input_tensor_f32_data("bias", zeros.clone(), vec![num_features])

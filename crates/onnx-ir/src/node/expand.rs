@@ -13,7 +13,7 @@ use crate::processor::{
 };
 use crate::{
     DType,
-    ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
+    ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
 };
 use std::any::Any;
 
@@ -48,7 +48,7 @@ impl NodeProcessor for ExpandProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // Runtime shapes should remain in the graph
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -60,7 +60,7 @@ impl NodeProcessor for ExpandProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -157,7 +157,7 @@ impl NodeProcessor for ExpandProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract config
@@ -183,14 +183,14 @@ impl NodeProcessor for ExpandProcessor {
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         input_rank: usize,
         shape_value: Option<Vec<i64>>,
         shape_type: Option<ArgType>,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Expand, "test_expand")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", 0, None); // Rank 0 will be updated
 
@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn test_expand_config_with_invalid_value_type() {
         // Create a node with shape input that has Float32 type instead of Int64
-        let node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", 2, None)
             .input_tensor_f32_data("shape", vec![2.0, 3.0, 4.0], vec![3]) // Wrong type - Float32 instead of Int64
             .output_tensor_f32("output", 0, None)
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn test_expand_update_outputs_with_shape_input_static_value() {
         // Test Expand with shape input that has static values
-        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", 2, None)
             .input_tensor_i64_data("shape", vec![5, 10, 15], vec![3]) // Static shape values
             .output_tensor_f32("output", 0, None)
@@ -442,7 +442,7 @@ mod tests {
 
         // Test Float32 -> Float32
         {
-            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_f32("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_f32("output", 0, None)
@@ -476,7 +476,7 @@ mod tests {
 
         // Test Int64 -> Int64
         {
-            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_i64("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_i64("output", 0, None)
@@ -510,7 +510,7 @@ mod tests {
 
         // Test Bool -> Bool
         {
-            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_bool("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_bool("output", 0, None)
@@ -547,7 +547,7 @@ mod tests {
     fn test_expand_with_mismatched_output_type() {
         // Test that Expand corrects output type even when initially set incorrectly
         // This simulates the case where ONNX might have wrong type info
-        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_i64("input", 2, None) // Input is Int64
             .input_tensor_i64_data("shape", vec![2, 3], vec![2])
             .output_tensor_f32("output", 0, None) // Output incorrectly set to Float32

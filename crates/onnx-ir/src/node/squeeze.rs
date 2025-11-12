@@ -15,7 +15,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for squeeze axes.
@@ -54,7 +54,7 @@ impl NodeProcessor for SqueezeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
@@ -68,7 +68,7 @@ impl NodeProcessor for SqueezeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -154,10 +154,10 @@ impl NodeProcessor for SqueezeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
+        fn get_squeeze_axes(node: &NodeBuilder) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input
             if node.inputs.len() < 2 {
                 return None; // No axes input means squeeze all dims with size 1
@@ -189,9 +189,9 @@ impl NodeProcessor for SqueezeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> NodeBuilder {
+    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> TestNodeBuilder {
         let output_rank = if let Some(ref axes_vec) = axes {
             rank - axes_vec.len()
         } else {
@@ -200,7 +200,7 @@ mod tests {
             rank
         };
 
-        let mut builder = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+        let mut builder = TestNodeBuilder::new(NodeType::Squeeze, "test_squeeze")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("squeezed", output_rank, None);
 
@@ -212,8 +212,8 @@ mod tests {
         builder
     }
 
-    fn create_runtime_squeeze_node() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
+    fn create_runtime_squeeze_node() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
             .input_tensor_f32("data", 4, Some(vec![2, 3, 4, 5])) // Need some shape
             .input_tensor_i64("axes", 0, None) // Runtime input - no static value
             .output_tensor_f32("squeezed", 2, None)
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_squeeze_config_no_axes_input() {
         // Test with no axes input - need static shape with dims of size 1
-        let node = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+        let node = TestNodeBuilder::new(NodeType::Squeeze, "test_squeeze")
             .input_tensor_f32("data", 4, Some(vec![2, 1, 3, 1])) // Has two dims of size 1
             .output_tensor_f32("squeezed", 2, None) // Will squeeze to rank 2
             .build();

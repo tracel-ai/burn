@@ -17,7 +17,7 @@
 //! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
 //! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -72,7 +72,7 @@ impl NodeProcessor for BitShiftProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -88,7 +88,7 @@ impl NodeProcessor for BitShiftProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract direction attribute
@@ -114,11 +114,11 @@ impl NodeProcessor for BitShiftProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     fn test_bitshift_config_with_direction_left() {
-        let node = NodeBuilder::new(NodeType::BitShift, "test_bitshift")
+        let node = TestNodeBuilder::new(NodeType::BitShift, "test_bitshift")
             .input_tensor_i32("X", 2, None)
             .input_tensor_i32("Y", 2, None)
             .output_tensor_i32("Z", 2, None)
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_bitshift_config_with_direction_right() {
-        let node = NodeBuilder::new(NodeType::BitShift, "test_bitshift")
+        let node = TestNodeBuilder::new(NodeType::BitShift, "test_bitshift")
             .input_tensor_i32("X", 2, None)
             .input_tensor_i32("Y", 2, None)
             .output_tensor_i32("Z", 2, None)
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_bitshift_config_default_direction() {
-        let node = NodeBuilder::new(NodeType::BitShift, "test_bitshift")
+        let node = TestNodeBuilder::new(NodeType::BitShift, "test_bitshift")
             .input_tensor_i32("X", 2, None)
             .input_tensor_i32("Y", 2, None)
             .output_tensor_i32("Z", 2, None)

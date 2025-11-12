@@ -25,7 +25,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -62,7 +62,7 @@ impl NodeProcessor for GatherProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -83,7 +83,7 @@ impl NodeProcessor for GatherProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -186,7 +186,7 @@ impl NodeProcessor for GatherProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the input rank for axis normalization
@@ -226,11 +226,12 @@ impl NodeProcessor for GatherProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize, is_shape: bool) -> NodeBuilder {
+    fn create_test_node(axis: i64, input_rank: usize, is_shape: bool) -> TestNodeBuilder {
         // Start building the node with the appropriate input type
-        let mut builder = NodeBuilder::new(NodeType::Gather, "test_gather").attr_int("axis", axis);
+        let mut builder =
+            TestNodeBuilder::new(NodeType::Gather, "test_gather").attr_int("axis", axis);
 
         if is_shape {
             builder = builder.add_input("data", ArgType::Shape(input_rank));
@@ -302,7 +303,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_scalar_result() {
         // Test gather with scalar indices on 1D tensor -> scalar output
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_scalar_gather")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_scalar_gather")
             .attr_int("axis", 0)
             .input_tensor_f32("data", 1, None)
             .add_input("indices", ArgType::Scalar(crate::ir::DType::I64))
@@ -327,7 +328,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_tensor_result() {
         // Test gather with 1D indices on 2D tensor -> 2D tensor output
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_tensor_gather")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_tensor_gather")
             .attr_int("axis", 0)
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("indices", 1, None)
@@ -354,7 +355,7 @@ mod tests {
     fn test_gather_update_outputs_shape_indices() {
         // Test gather with Shape indices - this was the bug that caused the original issue
         // Gathering from a shape tensor using shape indices should work correctly
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_indices")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_gather_shape_indices")
             .attr_int("axis", 0)
             .input_shape("data", 3) // Shape input (represents shape of a 3D tensor)
             .add_input("indices", ArgType::Shape(1)) // Shape(1) indices - this was causing the panic
@@ -380,7 +381,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_shape_scalar_indices() {
         // Test gather with scalar indices on shape input -> scalar output
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_scalar")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_gather_shape_scalar")
             .attr_int("axis", 0)
             .input_shape("data", 2) // Shape input (represents shape of a 2D tensor)
             .add_input("indices", ArgType::Scalar(crate::ir::DType::I64)) // Scalar indices
@@ -406,7 +407,7 @@ mod tests {
     fn test_gather_update_outputs_shape_with_shape_indices_rank_2() {
         // Test gather from Shape with Shape(2) indices -> Shape(2) output
         // This tests our fix where Shape indices preserve their rank in the output
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_2")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_2")
             .attr_int("axis", 0)
             .input_shape("data", 4) // Shape input (represents shape of a 4D tensor)
             .add_input("indices", ArgType::Shape(2)) // Shape(2) indices
@@ -431,7 +432,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_shape_with_shape_indices_rank_3() {
         // Test gather from Shape with Shape(3) indices -> Shape(3) output
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_3")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_3")
             .attr_int("axis", 0)
             .input_shape("data", 5) // Shape input (represents shape of a 5D tensor)
             .add_input("indices", ArgType::Shape(3)) // Shape(3) indices
@@ -456,7 +457,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_shape_with_tensor_indices() {
         // Test gather from Shape with Tensor indices -> Shape output with computed rank
-        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_tensor")
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_gather_shape_tensor")
             .attr_int("axis", 0)
             .input_shape("data", 4) // Shape input
             .input_tensor_i64("indices", 1, None) // 1D tensor indices

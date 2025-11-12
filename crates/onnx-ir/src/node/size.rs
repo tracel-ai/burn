@@ -8,7 +8,7 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use crate::ir::{ArgType, DType, Node};
+use crate::ir::{ArgType, DType, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -27,7 +27,7 @@ impl NodeProcessor for SizeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -41,10 +41,10 @@ impl NodeProcessor for SizeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(rank: usize) -> Node {
-        let builder = NodeBuilder::new(NodeType::Size, "test_size")
+    fn create_test_node(rank: usize) -> NodeBuilder {
+        let builder = TestNodeBuilder::new(NodeType::Size, "test_size")
             .input_tensor_f32("data", rank, None)
             .output_scalar_i64("size");
 

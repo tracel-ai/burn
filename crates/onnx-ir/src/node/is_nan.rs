@@ -22,7 +22,7 @@
 //! - TODO: No test for higher-rank tensors (3D, 4D) - Only 2D tensor tested
 //! - TODO: No test for positive/negative NaN variants - Some platforms distinguish signaling/quiet NaN
 
-use crate::Node;
+use crate::NodeBuilder;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -41,7 +41,7 @@ impl NodeProcessor for IsNaNProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -67,11 +67,11 @@ impl NodeProcessor for IsNaNProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     fn test_is_nan_basic() {
-        let mut node = NodeBuilder::new(NodeType::IsNaN, "test_is_nan")
+        let mut node = TestNodeBuilder::new(NodeType::IsNaN, "test_is_nan")
             .input_tensor_f32("data", 4, None)
             .output_tensor_bool("output", 4, None)
             .build();
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_is_nan_scalar() {
-        let mut node = NodeBuilder::new(NodeType::IsNaN, "test_is_nan")
+        let mut node = TestNodeBuilder::new(NodeType::IsNaN, "test_is_nan")
             .add_input("data", ArgType::Scalar(DType::F32))
             .add_output("output", ArgType::Scalar(DType::Bool))
             .build();

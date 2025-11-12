@@ -17,7 +17,7 @@
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 
-use crate::ir::{ArgType, AttributeValue, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, AttributeValue, DType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -62,7 +62,7 @@ impl NodeProcessor for CastProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -124,7 +124,7 @@ impl NodeProcessor for CastProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the target element type from attributes
@@ -154,11 +154,11 @@ impl NodeProcessor for CastProcessor {
 mod tests {
     use super::*;
     use crate::ir::{Argument, NodeType, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
     use protobuf::Enum;
-    fn create_test_node(input_rank: usize, to_type: i64) -> Node {
-        NodeBuilder::new(NodeType::Cast, "test_cast")
+    fn create_test_node(input_rank: usize, to_type: i64) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", input_rank, None) // Element type will be overwritten
             .attr_int("to", to_type)
@@ -166,8 +166,8 @@ mod tests {
     }
 
     // Additional test function to demonstrate scalar inputs
-    fn create_scalar_test_node(to_type: i64) -> Node {
-        NodeBuilder::new(NodeType::Cast, "test_cast")
+    fn create_scalar_test_node(to_type: i64) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_scalar_f32("X")
             .output_scalar_f32("Y") // Element type will be overwritten
             .attr_int("to", to_type)
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_cast_shape_to_float32() {
-        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+        let mut node = TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_shape("shape_input", 3)
             .output_shape("output", 3) // Will be overwritten
             .attr_int("to", DataType::FLOAT.value() as i64)
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_cast_shape_to_int64_remains_shape() {
-        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+        let mut node = TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_shape("shape_input", 4)
             .output_shape("output", 4) // Will be preserved
             .attr_int("to", DataType::INT64.value() as i64)
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_cast_shape_to_bool() {
-        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+        let mut node = TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_shape("shape_input", 3)
             .output_shape("output", 3) // Will be overwritten
             .attr_int("to", DataType::BOOL.value() as i64)

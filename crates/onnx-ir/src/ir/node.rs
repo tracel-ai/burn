@@ -37,7 +37,7 @@ pub trait NodeConfig {
 }
 
 /// Nodes produced by the ONNX parser
-pub struct Node {
+pub struct NodeBuilder {
     /// The type of the node.
     /// This should be a valid ONNX operator.
     pub node_type: NodeType,
@@ -58,7 +58,25 @@ pub struct Node {
     pub(crate) config: Option<Box<dyn NodeConfig>>,
 }
 
-impl Node {
+impl NodeBuilder {
+    /// Create a new NodeBuilder
+    pub fn new(
+        node_type: NodeType,
+        name: String,
+        inputs: Vec<Argument>,
+        outputs: Vec<Argument>,
+        attrs: Attributes,
+    ) -> Self {
+        Self {
+            node_type,
+            name,
+            inputs,
+            outputs,
+            attrs,
+            config: None,
+        }
+    }
+
     /// Get a reference to the node's attributes
     pub fn attrs(&self) -> &Attributes {
         &self.attrs
@@ -101,7 +119,7 @@ impl Node {
 }
 
 // Custom Clone implementation since Box<dyn NodeConfig> doesn't auto-derive Clone
-impl Clone for Node {
+impl Clone for NodeBuilder {
     fn clone(&self) -> Self {
         Self {
             node_type: self.node_type.clone(),
@@ -115,7 +133,7 @@ impl Clone for Node {
 }
 
 // Custom Debug implementation since Box<dyn NodeConfig> doesn't auto-derive Debug
-impl fmt::Debug for Node {
+impl fmt::Debug for NodeBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Node")
             .field("node_type", &self.node_type)

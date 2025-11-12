@@ -15,7 +15,7 @@
 //! - Available since opset version 1
 //! - Current version: 22
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -71,7 +71,7 @@ impl NodeProcessor for RandomLikeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -115,7 +115,7 @@ impl NodeProcessor for RandomLikeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
         let config: Box<dyn NodeConfig> = match node.node_type {
@@ -161,11 +161,15 @@ impl NodeProcessor for RandomLikeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: i32, input_rank: usize, static_shape: Option<Vec<usize>>) -> Node {
-        NodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
+    fn create_test_node(
+        dtype: i32,
+        input_rank: usize,
+        static_shape: Option<Vec<usize>>,
+    ) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
             .input_tensor_f32("input", input_rank, static_shape)
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
             .attr_int("dtype", dtype as i64)

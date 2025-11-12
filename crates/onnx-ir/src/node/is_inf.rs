@@ -16,7 +16,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{Node, NodeConfig};
+use crate::{NodeBuilder, NodeConfig};
 use std::any::Any;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,7 +57,7 @@ impl NodeProcessor for IsInfProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -82,7 +82,7 @@ impl NodeProcessor for IsInfProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract detect_negative and detect_positive attributes
@@ -106,10 +106,10 @@ impl NodeProcessor for IsInfProcessor {
 mod tests {
     use super::*;
     use crate::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(detect_negative: Option<i64>, detect_positive: Option<i64>) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::IsInf, "test_is_inf")
+    fn create_test_node(detect_negative: Option<i64>, detect_positive: Option<i64>) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::IsInf, "test_is_inf")
             .input_tensor_f32("data", 4, None)
             .output_tensor_bool("output", 4, None);
 

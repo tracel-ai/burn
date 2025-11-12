@@ -15,7 +15,7 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -61,7 +61,7 @@ impl NodeProcessor for DropoutProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // For opset 12+, ratio is an input (input[1])
         // Only lift it if it's a static constant (has a value)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -78,7 +78,7 @@ impl NodeProcessor for DropoutProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -104,7 +104,7 @@ impl NodeProcessor for DropoutProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // TODO: Validate 'seed' attribute mentioned in spec (opset 12+) - currently not handled
@@ -154,17 +154,17 @@ impl NodeProcessor for DropoutProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node_with_attr(ratio: f32) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+    fn create_test_node_with_attr(ratio: f32) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)
             .attr_float("ratio", ratio)
     }
 
-    fn create_test_node_with_input(ratio: f32) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+    fn create_test_node_with_input(ratio: f32) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .input_scalar_tensor_f32("ratio", Some(ratio))
             .output_tensor_f32("output", 3, None)
@@ -196,8 +196,8 @@ mod tests {
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.5) < 1e-6));
     }
 
-    fn create_test_node_with_runtime_input() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+    fn create_test_node_with_runtime_input() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .input_tensor_f32("ratio", 0, None) // Runtime input - no static value
             .output_tensor_f32("output", 3, None)

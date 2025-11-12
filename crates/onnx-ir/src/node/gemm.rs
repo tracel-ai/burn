@@ -31,7 +31,7 @@
 //!
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -70,7 +70,7 @@ impl NodeProcessor for GemmProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -123,7 +123,7 @@ impl NodeProcessor for GemmProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut alpha: f32 = 1.0;
@@ -160,15 +160,15 @@ impl NodeProcessor for GemmProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         alpha: Option<f32>,
         beta: Option<f32>,
         trans_a: Option<i64>,
         trans_b: Option<i64>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Gemm, "test_gemm")
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Gemm, "test_gemm")
             .input_tensor_f32("A", 2, None)
             .input_tensor_f32("B", 2, None)
             .input_tensor_f32("C", 2, None)

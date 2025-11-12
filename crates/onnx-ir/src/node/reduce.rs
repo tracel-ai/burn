@@ -22,7 +22,7 @@
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{ArgType, Node, NodeConfig, TensorType};
+use crate::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use std::any::Any;
 
 #[derive(Debug, Clone)]
@@ -59,7 +59,7 @@ impl NodeProcessor for ReduceProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -70,7 +70,7 @@ impl NodeProcessor for ReduceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -171,7 +171,7 @@ impl NodeProcessor for ReduceProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Validate input type and extract tensor info
@@ -227,10 +227,10 @@ mod tests {
 
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::ReduceMax, "test_reduce_max")
+    fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::ReduceMax, "test_reduce_max")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("reduced", 3, None);
 
@@ -427,7 +427,7 @@ mod tests {
     fn test_reduce_update_outputs_partial_static_shape_keepdims() {
         // Regression test for partial static_shape with keepdims=true
         // This was causing "index out of bounds" panic before the fix
-        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+        let mut node = TestNodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
             .input_tensor_f32("data", 3, Some(vec![768])) // Rank 3 but only last dim known
             .output_tensor_f32("reduced", 3, None)
             .attr_ints("axes", vec![2]) // Reduce on dimension 2
@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn test_reduce_update_outputs_partial_static_shape_no_keepdims() {
         // Regression test for partial static_shape without keepdims
-        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+        let mut node = TestNodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
             .input_tensor_f32("data", 3, Some(vec![768])) // Rank 3 but only last dim known
             .output_tensor_f32("reduced", 3, None)
             .attr_ints("axes", vec![1]) // Reduce on dimension 1
@@ -487,7 +487,7 @@ mod tests {
     #[test]
     fn test_reduce_update_outputs_complete_static_shape_keepdims() {
         // Test that complete static_shape is properly updated with keepdims=true
-        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+        let mut node = TestNodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
             .input_tensor_f32("data", 3, Some(vec![2, 4, 768])) // Complete shape
             .output_tensor_f32("reduced", 3, None)
             .attr_ints("axes", vec![2]) // Reduce on dimension 2

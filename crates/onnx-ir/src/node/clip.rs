@@ -17,7 +17,7 @@
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -61,7 +61,7 @@ impl NodeProcessor for ClipProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values
@@ -77,7 +77,7 @@ impl NodeProcessor for ClipProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -95,10 +95,14 @@ impl NodeProcessor for ClipProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        fn get_clip_input(node: &Node, index: usize, _param_name: &str) -> Option<ClipInput> {
+        fn get_clip_input(
+            node: &NodeBuilder,
+            index: usize,
+            _param_name: &str,
+        ) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
 
             // In ONNX, optional inputs are represented by empty strings
@@ -172,10 +176,10 @@ impl NodeProcessor for ClipProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+    fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None);
 
@@ -190,13 +194,13 @@ mod tests {
         builder.build()
     }
 
-    fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> NodeBuilder {
+    fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> TestNodeBuilder {
         // In ONNX Clip Opset 11+, inputs are positional:
         // Input 0: input
         // Input 1: min (optional)
         // Input 2: max (optional)
         // We need to maintain the correct positions even if values are None
-        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        let builder = TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", min)
             .input_scalar_tensor_f32("max", max)
@@ -313,8 +317,8 @@ mod tests {
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
 
-    fn create_test_node_with_runtime_inputs() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Clip, "test_clip")
+    fn create_test_node_with_runtime_inputs() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_tensor_f32("min", 0, None) // Runtime input - no static value
             .input_tensor_f32("max", 0, None) // Runtime input - no static value
@@ -343,7 +347,7 @@ mod tests {
     #[test]
     fn test_clip_config_mixed_static_runtime() {
         // Static min, runtime max
-        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        let builder = TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", Some(-1.0)) // Static
             .input_tensor_f32("max", 0, None) // Runtime

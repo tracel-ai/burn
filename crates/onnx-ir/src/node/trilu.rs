@@ -22,7 +22,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{ArgType, Node, NodeConfig, TensorDataExt};
+use crate::{ArgType, NodeBuilder, NodeConfig, TensorDataExt};
 
 use std::any::Any;
 
@@ -63,7 +63,7 @@ impl NodeProcessor for TriluProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift diagonal input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
@@ -77,7 +77,7 @@ impl NodeProcessor for TriluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -103,7 +103,7 @@ impl NodeProcessor for TriluProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut upper = true;
@@ -149,7 +149,7 @@ impl NodeProcessor for TriluProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     #[ignore] // Manual test
@@ -201,8 +201,8 @@ mod tests {
     }
 
     /// Helper function to create test nodes for Trilu tests
-    fn create_test_node(upper_attr: Option<i64>, diagonal_input: Option<i64>) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Trilu, "test_trilu")
+    fn create_test_node(upper_attr: Option<i64>, diagonal_input: Option<i64>) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Trilu, "test_trilu")
             .input_tensor_f32("X", 2, None) // Typically a matrix
             .output_tensor_f32("Y", 2, None);
 

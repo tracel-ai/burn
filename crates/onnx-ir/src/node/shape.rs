@@ -21,7 +21,7 @@
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
-use crate::ir::{ArgType, Node, NodeConfig};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -58,7 +58,7 @@ impl NodeProcessor for ShapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -89,7 +89,7 @@ impl NodeProcessor for ShapeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the rank/dimension count from the input
@@ -142,10 +142,10 @@ impl NodeProcessor for ShapeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Shape, "test_shape")
+    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Shape, "test_shape")
             .input_tensor_f32("data", rank, None)
             .output_tensor_i64("shape", 1, None);
 
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn test_shape_output_type() {
         // Shape operation always outputs Shape type
-        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape")
+        let mut node = TestNodeBuilder::new(NodeType::Shape, "test_shape")
             .input_tensor_f32("data", 3, None)
             .output_tensor_i64("shape", 1, None)
             .build();

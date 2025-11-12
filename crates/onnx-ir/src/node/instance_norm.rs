@@ -21,7 +21,7 @@
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -68,7 +68,7 @@ impl NodeProcessor for InstanceNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -82,7 +82,7 @@ impl NodeProcessor for InstanceNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -111,7 +111,7 @@ impl NodeProcessor for InstanceNormProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let weight_shape = node.inputs[1]
@@ -141,13 +141,13 @@ impl NodeProcessor for InstanceNormProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(epsilon: f32, num_features: usize) -> NodeBuilder {
+    fn create_test_node(epsilon: f32, num_features: usize) -> TestNodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
-        NodeBuilder::new(NodeType::InstanceNormalization, "test_instancenorm")
+        TestNodeBuilder::new(NodeType::InstanceNormalization, "test_instancenorm")
             .input_tensor_f32("X", 3, None)
             .input_tensor_f32_data("scale", weight_data, vec![num_features])
             .input_tensor_f32_data("bias", bias_data, vec![num_features])

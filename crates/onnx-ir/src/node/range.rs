@@ -24,7 +24,7 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -69,7 +69,7 @@ impl NodeProcessor for RangeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Only lift inputs that have static values
         // Runtime inputs (no value) should remain in the graph
         if !node.inputs.is_empty() && node.inputs[0].is_constant() {
@@ -89,7 +89,7 @@ impl NodeProcessor for RangeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -138,12 +138,12 @@ impl NodeProcessor for RangeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Helper function to extract range input
         fn get_range_input(
-            node: &Node,
+            node: &NodeBuilder,
             index: usize,
             param_name: &str,
         ) -> Result<RangeInput, ProcessError> {
@@ -184,10 +184,10 @@ mod tests {
     use super::*;
     use crate::DType;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node() -> Node {
-        NodeBuilder::new(NodeType::Range, "test_range")
+    fn create_test_node() -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::Range, "test_range")
             .input_scalar_i64("start")
             .input_scalar_i64("limit")
             .input_scalar_i64("delta")

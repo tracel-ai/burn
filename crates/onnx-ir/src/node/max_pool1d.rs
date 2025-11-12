@@ -28,7 +28,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::{
-    ir::{Node, NodeConfig},
+    ir::{NodeBuilder, NodeConfig},
     node::padding::padding_config_1d,
 };
 use std::any::Any;
@@ -102,7 +102,7 @@ impl NodeProcessor for MaxPool1dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -165,7 +165,7 @@ impl NodeProcessor for MaxPool1dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut kernel_shape = Vec::new();
@@ -202,7 +202,7 @@ impl NodeProcessor for MaxPool1dProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ir::NodeType, node::padding::PaddingConfig1d, node::test_utils::NodeBuilder};
+    use crate::{ir::NodeType, node::padding::PaddingConfig1d, node::test_utils::TestNodeBuilder};
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -211,8 +211,8 @@ mod tests {
         dilation: Vec<i64>,
         ceil_mode: i64,
         auto_pad: Option<&str>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::MaxPool1d, "test_maxpool1d")
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::MaxPool1d, "test_maxpool1d")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)
             .attr_ints("kernel_shape", kernel_shape)

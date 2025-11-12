@@ -7,7 +7,7 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -47,7 +47,7 @@ impl NodeProcessor for EyeLikeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -86,7 +86,7 @@ impl NodeProcessor for EyeLikeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut dtype = None;
@@ -126,13 +126,13 @@ impl NodeProcessor for EyeLikeProcessor {
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
     use protobuf::Enum;
 
     #[test]
     fn test_eye_like_update_output() {
-        let mut node = NodeBuilder::new(NodeType::EyeLike, "test_eye_like")
+        let mut node = TestNodeBuilder::new(NodeType::EyeLike, "test_eye_like")
             .input_tensor_f32("input", 2, Some(vec![3, 3]))
             .output_tensor_f32("output", 2, None) // rank will be updated
             .build();
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_eye_like_config_default() {
-        let node = NodeBuilder::new(NodeType::EyeLike, "test_eye_like")
+        let node = TestNodeBuilder::new(NodeType::EyeLike, "test_eye_like")
             .input_tensor_f32("input", 2, Some(vec![4, 4]))
             .output_tensor_f32("output", 2, None)
             .build();
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_eye_like_config_with_attributes() {
-        let node = NodeBuilder::new(NodeType::EyeLike, "test_eye_like")
+        let node = TestNodeBuilder::new(NodeType::EyeLike, "test_eye_like")
             .input_tensor_f32("input", 2, Some(vec![4, 4]))
             .output_tensor_f32("output", 2, None)
             .attr_int("k", -1)
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_eye_like_update_output_with_dtype() {
-        let mut node = NodeBuilder::new(NodeType::EyeLike, "test_eye_like")
+        let mut node = TestNodeBuilder::new(NodeType::EyeLike, "test_eye_like")
             .input_tensor_f32("input", 2, Some(vec![3, 3]))
             .output_tensor_f32("output", 2, None)
             .attr_int("dtype", DataType::INT32.value() as i64)

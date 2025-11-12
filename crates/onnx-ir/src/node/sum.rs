@@ -16,7 +16,7 @@
 //! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
 //! - **Opset 13**: Extended type support including bfloat16
 
-use crate::ir::Node;
+use crate::ir::NodeBuilder;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     same_as_input_broadcast,
@@ -37,7 +37,7 @@ impl NodeProcessor for SumProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -65,7 +65,7 @@ mod tests {
     fn test_sum_processor_two_inputs() {
         let processor = SumProcessor;
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Sum,
             name: "test_sum".to_string(),
             inputs: vec![
@@ -113,7 +113,7 @@ mod tests {
     fn test_sum_processor_multiple_inputs() {
         let processor = SumProcessor;
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Sum,
             name: "test_sum".to_string(),
             inputs: vec![

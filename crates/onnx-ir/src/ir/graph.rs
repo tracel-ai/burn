@@ -4,13 +4,13 @@
 //! ONNX computational graph with nodes, inputs, and outputs.
 
 use super::argument::Argument;
-use super::node::Node;
+use super::node::NodeBuilder;
 
 /// ONNX graph representation
 #[derive(Debug, Clone)]
 pub struct OnnxGraph {
     /// The nodes of the graph.
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<NodeBuilder>,
 
     /// The inputs of the graph.
     pub inputs: Vec<Argument>,

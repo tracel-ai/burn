@@ -14,7 +14,7 @@
 //! - **Opset 13**: Expanded type support
 //! - **Opset 14+**: Added bfloat16 support
 
-use crate::ir::Node;
+use crate::ir::NodeBuilder;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -33,7 +33,7 @@ impl NodeProcessor for ReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -74,11 +74,11 @@ impl NodeProcessor for ReluProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use burn_tensor::DType;
 
-    fn create_test_node() -> Node {
-        NodeBuilder::new(NodeType::Relu, "test_relu")
+    fn create_test_node() -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::Relu, "test_relu")
             .input_tensor_f32("X", 4, Some(vec![1, 3, 224, 224]))
             .output_tensor_f32("Y", 0, None) // Rank will be inferred
             .build()
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_relu_shape_preservation() {
-        let mut node = NodeBuilder::new(NodeType::Relu, "test_relu")
+        let mut node = TestNodeBuilder::new(NodeType::Relu, "test_relu")
             .input_tensor_f32("X", 2, Some(vec![10, 20]))
             .output_tensor_f32("Y", 0, None)
             .build();

@@ -10,7 +10,7 @@
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -80,7 +80,7 @@ impl NodeProcessor for AvgPool2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -155,7 +155,7 @@ impl NodeProcessor for AvgPool2dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut kernel_shape = Vec::new();
@@ -193,7 +193,7 @@ impl NodeProcessor for AvgPool2dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -202,8 +202,8 @@ mod tests {
         count_include_pad: i64,
         ceil_mode: i64,
         dilations: Option<Vec<i64>>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::AveragePool2d, "test_avgpool2d")
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::AveragePool2d, "test_avgpool2d")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 4, None)
             .attr_ints("kernel_shape", kernel_shape)

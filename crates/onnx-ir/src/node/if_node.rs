@@ -12,7 +12,7 @@
 
 use std::any::Any;
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -49,7 +49,7 @@ impl NodeProcessor for IfProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -124,7 +124,7 @@ impl NodeProcessor for IfProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract then_branch and else_branch from attributes
@@ -154,7 +154,7 @@ mod tests {
     use super::*;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, NodeType, OnnxGraph, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_branch(output_rank: usize, dtype: DType) -> OnnxGraph {
@@ -187,7 +187,7 @@ mod tests {
             AttributeValue::Graph(create_test_branch(2, DType::F32)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::If, "test_if")
+        let mut node = TestNodeBuilder::new(NodeType::If, "test_if")
             .input_scalar("cond", DType::Bool)
             .build();
         node.attrs = attrs;
@@ -223,7 +223,7 @@ mod tests {
             AttributeValue::Graph(create_test_branch(2, DType::F32)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::If, "test_if")
+        let mut node = TestNodeBuilder::new(NodeType::If, "test_if")
             .input_tensor_f32("cond", 1, None) // Tensor instead of scalar
             .build();
         node.attrs = attrs;
@@ -265,7 +265,7 @@ mod tests {
             AttributeValue::Graph(else_branch),
         );
 
-        let mut node = NodeBuilder::new(NodeType::If, "test_if")
+        let mut node = TestNodeBuilder::new(NodeType::If, "test_if")
             .input_scalar("cond", DType::Bool)
             .build();
         node.attrs = attrs;

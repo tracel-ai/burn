@@ -58,7 +58,7 @@
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
 
-use crate::ir::Node;
+use crate::ir::NodeBuilder;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     same_as_input_broadcast,
@@ -93,7 +93,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -127,7 +127,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -193,7 +193,7 @@ mod tests {
         let processor = ElementwiseBinaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Max,
             name: "test_max".to_string(),
             inputs: vec![
@@ -241,7 +241,7 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Neg,
             name: "test_neg".to_string(),
             inputs: vec![Argument {
@@ -281,7 +281,7 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Round,
             name: "test_round".to_string(),
             inputs: vec![Argument {

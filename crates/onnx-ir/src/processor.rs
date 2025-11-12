@@ -3,7 +3,7 @@
 //! This module defines the `NodeProcessor` trait with support for type preferences
 //! and proper error handling.
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{NodeBuilder, NodeConfig};
 use std::collections::HashMap;
 
 // Re-export registry types for backward compatibility
@@ -172,21 +172,21 @@ pub trait NodeProcessor: Send + Sync {
     /// Preferences are requests, not requirements. Producers may honor them (e.g., Constant→Shape).
     fn input_preferences(
         &self,
-        _node: &Node,
+        _node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         Ok(None)
     }
 
     /// Convert constant inputs to static values (embedded in config, unreferenced constants removed later)
-    fn lift_constants(&self, _node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, _node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         Ok(())
     }
 
     /// Infer output types given preferences from consumers
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError>;
@@ -194,7 +194,7 @@ pub trait NodeProcessor: Send + Sync {
     /// Extract config for codegen
     fn extract_config(
         &self,
-        _node: &Node,
+        _node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         Ok(None)
@@ -209,7 +209,7 @@ pub(crate) struct DefaultProcessor;
 impl NodeProcessor for DefaultProcessor {
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -240,7 +240,11 @@ pub fn validate_opset(opset: usize, min_version: usize) -> Result<(), ProcessErr
 // ============================================================================
 
 /// Validate node against its specification
-pub fn validate_node_spec(node: &Node, opset: usize, spec: &NodeSpec) -> Result<(), ProcessError> {
+pub fn validate_node_spec(
+    node: &NodeBuilder,
+    opset: usize,
+    spec: &NodeSpec,
+) -> Result<(), ProcessError> {
     // Validate opset version
     if opset < spec.min_opset {
         return Err(ProcessError::UnsupportedOpset {
@@ -267,7 +271,11 @@ pub fn validate_node_spec(node: &Node, opset: usize, spec: &NodeSpec) -> Result<
 }
 
 /// Validate input count against specification
-fn validate_input_spec(node: &Node, opset: usize, spec: &InputSpec) -> Result<(), ProcessError> {
+fn validate_input_spec(
+    node: &NodeBuilder,
+    opset: usize,
+    spec: &InputSpec,
+) -> Result<(), ProcessError> {
     let actual = node.inputs.len();
 
     match spec {
@@ -313,7 +321,11 @@ fn validate_input_spec(node: &Node, opset: usize, spec: &InputSpec) -> Result<()
 }
 
 /// Validate output count against specification
-fn validate_output_spec(node: &Node, opset: usize, spec: &OutputSpec) -> Result<(), ProcessError> {
+fn validate_output_spec(
+    node: &NodeBuilder,
+    opset: usize,
+    spec: &OutputSpec,
+) -> Result<(), ProcessError> {
     let actual = node.outputs.len();
 
     match spec {
@@ -351,7 +363,7 @@ fn validate_output_spec(node: &Node, opset: usize, spec: &OutputSpec) -> Result<
 }
 
 /// Copy input type to output (for operations that preserve type)
-pub fn same_as_input(node: &mut Node) {
+pub fn same_as_input(node: &mut NodeBuilder) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
 }
 
@@ -407,7 +419,7 @@ pub fn compute_broadcast_static_shape(inputs: &[crate::ir::Argument]) -> Option<
 }
 
 /// Update output type for broadcasting operations to max input rank
-pub fn same_as_input_broadcast(node: &mut Node) {
+pub fn same_as_input_broadcast(node: &mut NodeBuilder) {
     use crate::ir::ArgType;
 
     let has_tensor_input = node
@@ -461,7 +473,7 @@ pub fn same_as_input_broadcast(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, Node, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeBuilder, NodeType, TensorType};
     use crate::registry::ProcessorRegistry;
 
     struct TestProcessor;
@@ -469,7 +481,7 @@ mod tests {
     impl NodeProcessor for TestProcessor {
         fn infer_types(
             &self,
-            node: &mut Node,
+            node: &mut NodeBuilder,
             _opset: usize,
             _output_preferences: &OutputPreferences,
         ) -> Result<(), ProcessError> {
@@ -485,7 +497,7 @@ mod tests {
     fn test_infer_outputs() {
         let processor = TestProcessor;
         let prefs = OutputPreferences::new();
-        let mut node = Node {
+        let mut node = NodeBuilder {
             node_type: NodeType::Add,
             name: "test_node".to_string(),
             inputs: vec![Argument {
@@ -535,7 +547,7 @@ mod tests {
     fn test_default_processor() {
         let processor = DefaultProcessor;
         let prefs = OutputPreferences::new();
-        let mut node = Node {
+        let mut node = NodeBuilder {
             node_type: NodeType::Relu,
             name: "test_relu".to_string(),
             inputs: vec![Argument {

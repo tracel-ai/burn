@@ -29,7 +29,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, AttributeValue, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{ArgType, AttributeValue, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for pad values.
@@ -120,7 +120,7 @@ impl NodeProcessor for PadProcessor {
 
     // TODO mark axes inputs as Shape if inputs are constant
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift pads input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -136,7 +136,7 @@ impl NodeProcessor for PadProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -187,11 +187,11 @@ impl NodeProcessor for PadProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Helper function to get mode
-        fn get_mode(node: &Node) -> Result<PadMode, ProcessError> {
+        fn get_mode(node: &NodeBuilder) -> Result<PadMode, ProcessError> {
             use std::str::FromStr;
 
             // Check for mode attribute (default is "constant")
@@ -221,7 +221,7 @@ impl NodeProcessor for PadProcessor {
             Ok(PadMode::default())
         }
 
-        fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
+        fn get_pads(node: &NodeBuilder) -> Result<PadInput, ProcessError> {
             if node.inputs.len() >= 4 {
                 return Err(ProcessError::Custom(
                     "Pad: axes input is not supported".to_string(),
@@ -349,7 +349,7 @@ impl NodeProcessor for PadProcessor {
             Ok(vec![left, right, top, bottom])
         }
 
-        fn get_constant_value(node: &Node) -> Result<ConstantValueInput, ProcessError> {
+        fn get_constant_value(node: &NodeBuilder) -> Result<ConstantValueInput, ProcessError> {
             // Check for value attribute first (takes precedence)
             if node.attrs.contains_key("value") {
                 let constant_value = node.attrs.get("value").map(|value| match value {
@@ -409,7 +409,7 @@ impl NodeProcessor for PadProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         pad_attrs: Option<Vec<i64>>,
@@ -418,8 +418,8 @@ mod tests {
         constant_value_input: Option<f32>,
         mode: Option<&str>,
         rank: usize,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("output", rank, None);
 
@@ -549,8 +549,8 @@ mod tests {
         );
     }
 
-    fn create_test_node_with_runtime_inputs() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Pad, "test_pad")
+    fn create_test_node_with_runtime_inputs() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("pads", 1, None) // Runtime input - no static value
             .input_tensor_f32("constant_value", 0, None) // Runtime input - no static value
@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn test_pad_config_mixed_static_runtime_pads() {
         // Static pads, runtime constant_value
-        let builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+        let builder = TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("pads", vec![0, 0, 1, 1], vec![4]) // Static
             .input_tensor_f32("constant_value", 0, None) // Runtime
@@ -602,7 +602,7 @@ mod tests {
     #[test]
     fn test_pad_config_mixed_runtime_static_constant() {
         // Runtime pads, static constant_value
-        let builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+        let builder = TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("pads", 1, None) // Runtime
             .input_scalar_tensor_f32("constant_value", Some(2.5)) // Static

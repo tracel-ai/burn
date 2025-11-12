@@ -12,7 +12,7 @@
 //! The spec allows 2-4 inputs (optional zero-point tensors), but implementation only validates minimum
 //! of 2 inputs (see FIXME at line 44).
 
-use crate::ir::{ArgType, DType, Node, TensorType};
+use crate::ir::{ArgType, DType, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
@@ -22,7 +22,7 @@ pub struct MatMulIntegerProcessor;
 impl NodeProcessor for MatMulIntegerProcessor {
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -81,7 +81,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
 
     fn extract_config(
         &self,
-        _node: &Node,
+        _node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
         // MatMulInteger has no config
@@ -93,10 +93,10 @@ impl NodeProcessor for MatMulIntegerProcessor {
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(a_rank: usize, b_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::MatMulInteger, "test_matmulinteger")
+    fn create_test_node(a_rank: usize, b_rank: usize) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::MatMulInteger, "test_matmulinteger")
             .input_tensor_i32("A", a_rank, None)
             .input_tensor_i32("B", b_rank, None)
             .output_tensor_i32("Y", 0, None) // rank will be updated

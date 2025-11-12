@@ -25,7 +25,7 @@
 //! - The slope input is lifted to static during constant lifting phase
 //! - This allows the slope to be embedded in the generated code
 
-use crate::ir::Node;
+use crate::ir::NodeBuilder;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -42,7 +42,7 @@ impl NodeProcessor for PReluProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift the slope input (input[1]) to static
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;
@@ -52,7 +52,7 @@ impl NodeProcessor for PReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -93,11 +93,11 @@ impl NodeProcessor for PReluProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use burn_tensor::DType;
 
-    fn create_test_node() -> Node {
-        NodeBuilder::new(NodeType::PRelu, "test_prelu")
+    fn create_test_node() -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
             .input_tensor_f32("X", 4, Some(vec![1, 3, 224, 224]))
             .input_tensor_f32("slope", 4, Some(vec![1, 3, 1, 1])) // Per-channel slope
             .output_tensor_f32("Y", 0, None) // Rank will be inferred
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_prelu_scalar_slope() {
-        let mut node = NodeBuilder::new(NodeType::PRelu, "test_prelu")
+        let mut node = TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
             .input_tensor_f32("X", 2, Some(vec![10, 20]))
             .input_tensor_f32("slope", 1, Some(vec![1])) // Scalar slope
             .output_tensor_f32("Y", 0, None)
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_prelu_requires_two_inputs() {
-        let node = NodeBuilder::new(NodeType::PRelu, "test_prelu")
+        let node = TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
             .input_tensor_f32("X", 2, Some(vec![10, 20]))
             .output_tensor_f32("Y", 0, None)
             .build();

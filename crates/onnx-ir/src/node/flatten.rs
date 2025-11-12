@@ -12,7 +12,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -49,7 +49,7 @@ impl NodeProcessor for FlattenProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -83,7 +83,7 @@ impl NodeProcessor for FlattenProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the shape of the input tensor
@@ -131,10 +131,10 @@ impl NodeProcessor for FlattenProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Flatten, "test_flatten")
+    fn create_test_node(axis: i64) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Flatten, "test_flatten")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 2, None)
             .attr_int("axis", axis)
@@ -158,7 +158,7 @@ mod tests {
     fn test_flatten_config_with_low_rank() {
         let mut node = create_test_node(1).build();
         // Replace the input with one that has lower rank
-        let input = NodeBuilder::new(NodeType::Identity, "temp")
+        let input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("x", 1, None)
             .build()
             .inputs
@@ -178,7 +178,7 @@ mod tests {
     fn test_flatten_config_with_multiple_inputs() {
         let mut node = create_test_node(1).build();
         // Add an extra input
-        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+        let extra_input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("extra", 1, None)
             .build()
             .inputs

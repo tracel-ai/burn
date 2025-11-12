@@ -13,7 +13,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -94,7 +94,7 @@ pub enum ResizeSizes {
 }
 
 /// Extract scales input as either static or runtime
-fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> {
+fn extract_scales_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
             // Skip optional inputs (those that were never provided)
@@ -141,7 +141,7 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
 }
 
 /// Extract sizes input as either static or runtime
-fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
+fn extract_sizes_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
             // Skip optional inputs (those that were never provided)
@@ -202,7 +202,7 @@ impl NodeProcessor for ResizeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift roi input (input[1]) if present and constant
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -223,7 +223,7 @@ impl NodeProcessor for ResizeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -379,7 +379,7 @@ impl NodeProcessor for ResizeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut mode: Option<ResizeMode> = None;
@@ -467,15 +467,15 @@ impl NodeProcessor for ResizeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         mode: &str,
         scales: Option<Vec<f32>>,
         sizes: Option<Vec<i64>>,
         roi: Option<Vec<f32>>,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Resize, "test_resize")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Resize, "test_resize")
             .input_tensor_f32("X", 4, None) // N,C,H,W format
             .output_tensor_f32("Y", 4, None)
             .attr_string("mode", mode);

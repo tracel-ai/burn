@@ -19,7 +19,7 @@
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -65,7 +65,7 @@ impl NodeProcessor for GatherElementsProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -88,7 +88,7 @@ impl NodeProcessor for GatherElementsProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the input rank for axis normalization

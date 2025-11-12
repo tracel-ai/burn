@@ -1,18 +1,20 @@
-use crate::ir::{ArgType, Argument, AttributeValue, DType, Node, NodeType, TensorData, TensorType};
+use crate::ir::{
+    ArgType, Argument, AttributeValue, DType, NodeBuilder, NodeType, TensorData, TensorType,
+};
 use std::collections::HashMap;
 
 /// Builder for creating test node instances with convenient defaults and simple API.
-pub struct NodeBuilder {
-    node_type: NodeType,
-    name: String,
-    inputs: Vec<Argument>,
-    outputs: Vec<Argument>,
-    attrs: HashMap<String, AttributeValue>,
+pub struct TestNodeBuilder {
+    pub(crate) node_type: NodeType,
+    pub(crate) name: String,
+    pub(crate) inputs: Vec<Argument>,
+    pub(crate) outputs: Vec<Argument>,
+    pub(crate) attrs: HashMap<String, AttributeValue>,
     /// Stores constant data for inputs that should be constants (input_name -> (data, shape))
-    constant_data: HashMap<String, TensorData>,
+    pub(crate) constant_data: HashMap<String, TensorData>,
 }
 
-impl NodeBuilder {
+impl TestNodeBuilder {
     /// Create a new builder with the specified node type and name
     pub fn new(node_type: NodeType, name: &str) -> Self {
         Self {
@@ -479,7 +481,11 @@ impl NodeBuilder {
     }
 
     /// Build the node and process it with the given processor.
-    pub fn process<P: crate::processor::NodeProcessor>(self, processor: P, opset: usize) -> Node {
+    pub fn process<P: crate::processor::NodeProcessor>(
+        self,
+        processor: P,
+        opset: usize,
+    ) -> NodeBuilder {
         use crate::processor::OutputPreferences;
 
         let mut node = self.build_with_graph_data(opset);
@@ -497,8 +503,8 @@ impl NodeBuilder {
     }
 
     /// Build the node
-    pub fn build(self) -> Node {
-        Node {
+    pub fn build(self) -> NodeBuilder {
+        NodeBuilder {
             node_type: self.node_type,
             name: self.name,
             inputs: self.inputs,
@@ -513,7 +519,7 @@ impl NodeBuilder {
     ///
     /// Note: After calling this method, the GraphState will be wrapped in Rc<RefCell<>>
     /// and attached to the node's arguments.
-    pub fn build_with_graph_data(self, _opset: usize) -> Node {
+    pub fn build_with_graph_data(self, _opset: usize) -> NodeBuilder {
         use std::cell::RefCell;
         use std::rc::Rc;
 

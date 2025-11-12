@@ -12,7 +12,7 @@
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -60,7 +60,7 @@ impl NodeProcessor for SplitProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift split input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -71,7 +71,7 @@ impl NodeProcessor for SplitProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -100,7 +100,7 @@ impl NodeProcessor for SplitProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Initialize the axis to split along (default is 0 as per ONNX specification)
@@ -300,7 +300,7 @@ impl NodeProcessor for SplitProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, AttributeValue, DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_node(
@@ -309,9 +309,9 @@ mod tests {
         static_shape: Option<Vec<usize>>,
         attrs: Option<HashMap<String, AttributeValue>>,
         split_sizes_input: Option<Vec<i64>>,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         // Start with input tensor
-        let mut builder = NodeBuilder::new(NodeType::Split, "test_split").input_tensor_f32(
+        let mut builder = TestNodeBuilder::new(NodeType::Split, "test_split").input_tensor_f32(
             "input",
             input_rank,
             static_shape,
@@ -591,7 +591,7 @@ mod tests {
     fn test_split_config_with_runtime_split_sizes() {
         // Test with runtime split sizes (no static value)
         let static_shape = Some(vec![20, 30, 40]);
-        let node = NodeBuilder::new(NodeType::Split, "test_split")
+        let node = TestNodeBuilder::new(NodeType::Split, "test_split")
             .input_tensor_f32("input", 3, static_shape)
             .input_tensor_i64("split", 1, Some(vec![2])) // Runtime input - no static value
             .output_tensor_f32("output_0", 0, None)

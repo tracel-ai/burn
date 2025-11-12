@@ -19,7 +19,7 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -65,7 +65,7 @@ impl NodeProcessor for TopKProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift K input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -76,7 +76,7 @@ impl NodeProcessor for TopKProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -134,7 +134,7 @@ impl NodeProcessor for TopKProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract the shape of the input data tensor
@@ -196,15 +196,15 @@ impl NodeProcessor for TopKProcessor {
 mod tests {
     use super::*;
     use crate::ir::{AttributeValue, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_node(
         input_rank: usize,
         attrs: Option<HashMap<String, AttributeValue>>,
         k_input_value: Option<i64>,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::TopK, "test_topk")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::TopK, "test_topk")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Values", 0, None) // Rank will be updated
             .output_tensor_i64("Indices", 0, None); // Rank will be updated
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn test_top_k_config_with_runtime_k() {
         // Test when k is provided as a runtime input (no static value)
-        let node = NodeBuilder::new(NodeType::TopK, "test_topk")
+        let node = TestNodeBuilder::new(NodeType::TopK, "test_topk")
             .input_tensor_f32("X", 3, None)
             .input_tensor_i64("K", 0, None) // Runtime input - no static value
             .output_tensor_f32("Values", 0, None)
