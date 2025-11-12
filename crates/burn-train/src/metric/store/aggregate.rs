@@ -144,11 +144,9 @@ mod tests {
             }
         }
         fn log(&mut self, num: f64) {
-            self.logger.log(
-                &MetricEntry::new(Arc::new(NAME.into()), num.to_string(), num.to_string()),
-                self.epoch,
-                Split::Train,
-            );
+            let entry = MetricEntry::new(Arc::new(NAME.into()), num.to_string(), num.to_string());
+            let entries = Vec::from([&entry]);
+            self.logger.log(entries, self.epoch, Split::Train, 1);
         }
         fn new_epoch(&mut self) {
             self.epoch += 1;
@@ -195,7 +193,8 @@ mod tests {
             loss_1.to_string(),
             NumericEntry::Value(loss_1).serialize(),
         );
-        logger.log(&entry, 1, Split::Train);
+        let entries = Vec::from([&entry]);
+        logger.log(entries, 1, Split::Train, 1);
         let entry = MetricEntry::new(
             metric_name.clone(),
             loss_2.to_string(),
@@ -206,7 +205,8 @@ mod tests {
             }
             .serialize(),
         );
-        logger.log(&entry, 1, Split::Train);
+        let entries = Vec::from([&entry]);
+        logger.log(entries, 1, Split::Train, 1);
 
         let value = aggregate
             .aggregate(

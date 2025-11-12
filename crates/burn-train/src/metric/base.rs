@@ -205,9 +205,7 @@ impl NumericEntry {
             NumericEntry::Aggregated { current, .. } => *current,
         }
     }
-}
 
-impl NumericEntry {
     /// Returns a String representing the NumericEntry
     pub fn serialize(&self) -> String {
         match self {
@@ -245,6 +243,11 @@ impl NumericEntry {
         } else {
             Err("Invalid number of values for numeric entry".to_string())
         }
+    }
+
+    /// Compare thsi numeric metric's value with another one using the specified direction.
+    pub fn better_than(&self, other: &NumericEntry, higher_is_better: bool) -> bool {
+        (self.current() > other.current()) == higher_is_better
     }
 }
 
