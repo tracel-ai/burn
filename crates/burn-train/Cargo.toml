@@ -23,14 +23,14 @@ tui = ["ratatui"]
 ddp = ["burn-collective", "burn-optim/collective"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.20.0", features = [
+burn-core = { path = "../burn-core", version = "0.20.0-pre.1", features = [
     "dataset",
     "std",
 ], default-features = false }
-burn-optim = { path = "../burn-optim", version = "0.20.0", features = [
+burn-optim = { path = "../burn-optim", version = "0.20.0-pre.1", features = [
     "std",
 ], default-features = false }
-burn-collective = { path = "../burn-collective", version = "0.20.0", optional = true }
+burn-collective = { path = "../burn-collective", version = "0.20.0-pre.1", optional = true }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -52,11 +52,11 @@ ratatui = { workspace = true, optional = true, features = [
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 async-channel = { workspace = true }
-burn-ndarray = { path = "../burn-ndarray", version = "0.20.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.20.0-pre.1" }
 rstest.workspace = true
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.20.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.20.0-pre.1" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

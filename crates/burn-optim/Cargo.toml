@@ -60,8 +60,8 @@ test-memory-checks = ["burn-fusion/memory-checks"]
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
-burn-core = { path = "../burn-core", version = "0.20.0", default-features = false }
-burn-collective = { path = "../burn-collective", version = "0.20.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.20.0-pre.1", default-features = false }
+burn-collective = { path = "../burn-collective", version = "0.20.0-pre.1", optional = true, default-features = false }
 
 num-traits = { workspace = true }
 derive-new = { workspace = true }
@@ -72,18 +72,18 @@ serde = { workspace = true, features = ["derive"] }
 hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 
 # FOR TESTING
-burn-cuda = { path = "../burn-cuda", version = "0.20.0", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "0.20.0", optional = true, default-features = false }
-burn-remote = { path = "../burn-remote", version = "0.20.0", default-features = false, optional = true }
-burn-router = { path = "../burn-router", version = "0.20.0", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "0.20.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.20.0", optional = true, default-features = false }
-burn-fusion = { path = "../burn-fusion", version = "0.20.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.20.0-pre.1", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "0.20.0-pre.1", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "0.20.0-pre.1", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.20.0-pre.1", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "0.20.0-pre.1", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.20.0-pre.1", optional = true, default-features = false }
+burn-fusion = { path = "../burn-fusion", version = "0.20.0-pre.1", optional = true }
 
 [dev-dependencies]
-burn-nn = { path = "../burn-nn", version = "0.20.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.20.0" }
-burn-autodiff = { path = "../burn-autodiff", version = "0.20.0" }
+burn-nn = { path = "../burn-nn", version = "0.20.0-pre.1" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.20.0-pre.1" }
+burn-autodiff = { path = "../burn-autodiff", version = "0.20.0-pre.1" }
 rstest = { workspace = true }
 
 [package.metadata.docs.rs]

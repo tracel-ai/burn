@@ -4,7 +4,7 @@ edition.workspace = true
 license = "MIT OR Apache-2.0"
 name = "import-model-weights"
 publish = false
-version = "0.20.0"
+version = "0.20.0-pre.1"
 
 [lints]
 workspace = true

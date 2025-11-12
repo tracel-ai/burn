@@ -24,18 +24,18 @@ accelerate = ["candle-core/accelerate"]
 
 [dependencies]
 derive-new = { workspace = true }
-burn-tensor = { path = "../burn-tensor", version = "0.20.0", default-features = false }
-burn-common = { path = "../burn-common", version = "0.20.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1", default-features = false }
+burn-common = { path = "../burn-common", version = "0.20.0-pre.1", default-features = false }
 half = { workspace = true }
 candle-core = { workspace = true }
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.20.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.20.0-pre.1", default-features = false, features = [
     "export_tests",
 ] }
-burn-tch = { path = "../burn-tch", version = "0.20.0", default-features = false, features = [
+burn-tch = { path = "../burn-tch", version = "0.20.0-pre.1", default-features = false, features = [
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.20.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1", default-features = false, features = [
     "export_tests",
 ] }
 

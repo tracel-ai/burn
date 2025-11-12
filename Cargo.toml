@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0"
+version = "0.20.0-pre.1"
 
 [workspace.lints.clippy]
 
@@ -171,20 +171,20 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
+# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
+# cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubecl-quant = { path = "../cubecl/crates/cubecl-quant", default-features = false }
 ### For the release. ###
-# cubecl = { version = "0.8.0", default-features = false }
-# cubecl-common = { version = "0.8.0", default-features = false }
-# cubecl-quant = { version = "0.8.0", default-features = false }
+cubecl = { version = "0.9.0-pre.1", default-features = false }
+cubecl-common = { version = "0.9.0-pre.1", default-features = false }
+cubecl-quant = { version = "0.9.0-pre.1", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.1.11" }
+tracel-xtask = { version = "=2.2.1" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

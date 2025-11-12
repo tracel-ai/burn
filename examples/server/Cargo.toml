@@ -18,5 +18,5 @@ ndarray = ["burn/ndarray"]
 
 [dependencies]
 cfg-if = { workspace = true }
-burn = { path = "../../crates/burn", version = "0.20.0", features = ["server"] }
+burn = { path = "../../crates/burn", version = "0.20.0-pre.1", features = ["server"] }
 cubecl = { workspace = true }
