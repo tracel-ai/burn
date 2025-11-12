@@ -337,6 +337,7 @@ fn main() {
         .input("tests/loop/loop_dynamic_cond.onnx")
         .input("tests/loop/loop_multi_deps.onnx")
         .input("tests/loop/loop_nested.onnx")
+        .input("tests/loop/loop_scan_outputs.onnx")
         // Scan operator tests
         .input("tests/scan/scan_cumsum.onnx")
         .input("tests/scan/scan_reverse.onnx")

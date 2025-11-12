@@ -1,7 +1,13 @@
 // Tests for ONNX Loop operator
 
 use crate::include_models;
-include_models!(loop_simple, loop_dynamic_cond, loop_multi_deps, loop_nested);
+include_models!(
+    loop_simple,
+    loop_dynamic_cond,
+    loop_multi_deps,
+    loop_nested,
+    loop_scan_outputs
+);
 
 #[cfg(test)]
 mod tests {
@@ -315,5 +321,94 @@ mod tests {
         sum_output
             .to_data()
             .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn loop_scan_outputs_3_iterations() {
+        // Test loop with scan outputs (M=3 iterations)
+        // Collects intermediate accumulator values and iteration numbers
+        let device = Default::default();
+        let model: loop_scan_outputs::Model<TestBackend> = Default::default();
+
+        let m = 3i64;
+        let cond = true;
+
+        // Initial accumulator [2, 3]
+        let initial_accum = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+            &device,
+        );
+
+        let (final_accum, accumulated_values, iteration_numbers) =
+            model.forward(m, cond, initial_accum);
+
+        // Final accumulator after 3 iterations (each iteration adds 1.0)
+        let expected_final = TensorData::from([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
+
+        // Scan output: accumulated_values concatenated along axis 0
+        // Shape: [6, 3] = [3 iters * 2 batch, 3 features]
+        // Iteration 0: [[1,2,3], [4,5,6]]
+        // Iteration 1: [[2,3,4], [5,6,7]]
+        // Iteration 2: [[3,4,5], [6,7,8]]
+        let expected_accumulated = TensorData::from([
+            [1.0, 2.0, 3.0], // iter 0, batch 0
+            [4.0, 5.0, 6.0], // iter 0, batch 1
+            [2.0, 3.0, 4.0], // iter 1, batch 0
+            [5.0, 6.0, 7.0], // iter 1, batch 1
+            [3.0, 4.0, 5.0], // iter 2, batch 0
+            [6.0, 7.0, 8.0], // iter 2, batch 1
+        ]);
+
+        // Scan output: iteration numbers
+        // Shape: [3, 1] (ONNX adds dimension for scalars)
+        let expected_iterations = TensorData::from([[0.0], [1.0], [2.0]]);
+
+        final_accum
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_final, burn::tensor::Tolerance::default());
+        accumulated_values
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_accumulated, burn::tensor::Tolerance::default());
+        iteration_numbers
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_iterations, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn loop_scan_outputs_1_iteration() {
+        // Test loop with scan outputs (M=1 iteration - edge case)
+        let device = Default::default();
+        let model: loop_scan_outputs::Model<TestBackend> = Default::default();
+
+        let m = 1i64;
+        let cond = true;
+
+        // Initial accumulator [2, 3]
+        let initial_accum = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]]),
+            &device,
+        );
+
+        let (final_accum, accumulated_values, iteration_numbers) =
+            model.forward(m, cond, initial_accum.clone());
+
+        // Final accumulator after 1 iteration
+        let expected_final = TensorData::from([[11.0, 21.0, 31.0], [41.0, 51.0, 61.0]]);
+
+        // Scan output: only 1 iteration, so shape [2, 3] (same as input)
+        let expected_accumulated = TensorData::from([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]]);
+
+        // Iteration numbers: [1, 1] for single iteration
+        let expected_iterations = TensorData::from([[0.0]]);
+
+        final_accum
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_final, burn::tensor::Tolerance::default());
+        accumulated_values
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_accumulated, burn::tensor::Tolerance::default());
+        iteration_numbers
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_iterations, burn::tensor::Tolerance::default());
     }
 }

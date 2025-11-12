@@ -15,6 +15,37 @@ use std::any::Any;
 use crate::ir::{ArgType, DType, Node, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
+/// Helper function to transform type for scan output concatenation
+/// Per ONNX Loop spec, scan outputs are concatenated along axis 0:
+/// - Scalars (rank 0): unsqueezed to [1], then concatenated → [N, 1] (rank 2)
+/// - Tensors (rank K): concatenated along axis 0 → [N*D0, D1, ...] (rank K, same rank)
+fn add_concat_dimension(ty: ArgType) -> ArgType {
+    use crate::ir::TensorType;
+
+    match ty {
+        // Scalar (rank 0) → unsqueeze to [1] → concat → [N, 1] (rank 2)
+        ArgType::Scalar(dtype) => ArgType::Tensor(TensorType {
+            dtype,
+            rank: 2, // ONNX unsqueezes scalars before concat, resulting in rank 2
+            static_shape: None,
+        }),
+        // Tensors: concatenated along axis 0 (same rank, first dim changes)
+        ArgType::Tensor(mut tensor_type) => {
+            // Clear static shape since num_iterations affects first dimension
+            tensor_type.static_shape = None;
+            ArgType::Tensor(tensor_type)
+        }
+        ArgType::Shape(_) => {
+            // Shapes become rank-1 tensors when concatenated
+            ArgType::Tensor(TensorType {
+                dtype: DType::I64,
+                rank: 1,
+                static_shape: None,
+            })
+        }
+    }
+}
+
 /// Configuration for Loop operation
 #[derive(Debug, Clone)]
 pub struct LoopConfig {
@@ -173,16 +204,37 @@ impl NodeProcessor for LoopProcessor {
         }
 
         // Create outputs based on body outputs (excluding cond_out)
-        // Final values of loop-carried dependencies
+        // Per ONNX spec:
+        // - Loop-carried dependencies: final value matches body output type
+        // - Scan outputs: concatenated along axis 0, adding a new dimension
+        //
+        // Body outputs: [cond_out, v_out_1, ..., v_out_N, scan_out_1, ..., scan_out_K]
+        // Loop outputs: [v_final_1, ..., v_final_N, scan_1, ..., scan_K]
+        let num_loop_carried_outputs = num_body_loop_inputs;
+
         if node.outputs.is_empty() {
-            for body_output in body_outputs.iter().skip(1) {
-                node.outputs.push(body_output.clone());
+            for (i, body_output) in body_outputs.iter().skip(1).enumerate() {
+                let mut output = body_output.clone();
+
+                // Scan outputs get concatenated, adding a dimension at axis 0
+                if i >= num_loop_carried_outputs {
+                    output.ty = add_concat_dimension(output.ty);
+                }
+
+                node.outputs.push(output);
             }
         } else {
             // Update types for existing outputs
             for (i, body_output) in body_outputs.iter().skip(1).enumerate() {
                 if i < node.outputs.len() {
-                    node.outputs[i].ty = body_output.ty.clone();
+                    let mut ty = body_output.ty.clone();
+
+                    // Scan outputs get concatenated, adding a dimension at axis 0
+                    if i >= num_loop_carried_outputs {
+                        ty = add_concat_dimension(ty);
+                    }
+
+                    node.outputs[i].ty = ty;
                 }
             }
         }

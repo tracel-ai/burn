@@ -76,17 +76,23 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
     body
 }
 
-/// Loop node - iterative execution with loop-carried dependencies
+/// Loop node - iterative execution with loop-carried dependencies and scan outputs
 ///
 /// The Loop operation executes a body subgraph for a specified number of iterations,
-/// carrying state between iterations.
+/// carrying state between iterations. Can also collect intermediate values as scan outputs.
+///
+/// Per ONNX spec:
+/// - Body inputs: [iteration_num, condition, loop_carried_dependencies...]
+/// - Body outputs: [condition, loop_carried_dependencies..., scan_outputs...]
+/// - Loop outputs: [final_loop_carried_deps..., scan_outputs_concatenated...]
 #[derive(Debug, Clone)]
 pub struct LoopNode {
     pub max_trip_count: Type, // M - optional max iteration count
     pub condition: Type,      // cond - initial loop condition
     pub v_initial: Vec<Type>, // Loop-carried dependency initial values
-    pub outputs: Vec<Type>,   // Final values of loop-carried dependencies
+    pub outputs: Vec<Type>,   // Final loop-carried deps + scan outputs
     pub body: onnx_ir::OnnxGraph,
+    pub num_loop_carried_outputs: usize, // Number of loop-carried dependency outputs
 }
 
 impl LoopNode {
@@ -96,6 +102,7 @@ impl LoopNode {
         v_initial: Vec<Type>,
         outputs: Vec<Type>,
         body: onnx_ir::OnnxGraph,
+        num_loop_carried_outputs: usize,
     ) -> Self {
         Self {
             max_trip_count,
@@ -103,6 +110,7 @@ impl LoopNode {
             v_initial,
             outputs,
             body,
+            num_loop_carried_outputs,
         }
     }
 }
@@ -150,15 +158,19 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
         // Body inputs: [iter_num, cond_in, v_in...]
         // Body outputs: [cond_out, v_out..., scan_outputs...]
         //
-        // Note: Not all v_in need to have corresponding v_out. Variables that are only
-        // read (not modified) won't have outputs. The number of outputs corresponds to
-        // the number of Loop node outputs (self.outputs.len()).
+        // Per ONNX spec:
+        // - self.v_initial.len() = number of loop-carried deps passed as input
+        // - self.num_loop_carried_outputs = number of loop-carried deps that are output/modified
+        // - self.outputs.len() = num_loop_carried_outputs + num_scan_outputs
 
         // Number of loop-carried dependencies passed as input
         let num_loop_vars = self.v_initial.len();
 
         // Number of loop-carried dependencies that are actually output/modified
-        let num_output_vars = self.outputs.len();
+        let num_loop_carried_outputs = self.num_loop_carried_outputs;
+
+        // Number of scan outputs (collected from each iteration)
+        let num_scan_outputs = self.outputs.len() - num_loop_carried_outputs;
 
         // Body should have 2 + num_loop_vars inputs (iter, cond, v_in...)
         assert_eq!(
@@ -169,12 +181,16 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
             self.body.inputs.len()
         );
 
-        // Body should have at least 1 + num_output_vars outputs (cond_out, v_out...)
-        // May have additional scan outputs
-        assert!(
-            self.body.outputs.len() > num_output_vars,
-            "Loop body should have at least {} outputs, got {}",
-            1 + num_output_vars,
+        // Body should have 1 + num_loop_carried_outputs + num_scan_outputs outputs
+        // [cond_out, v_out..., scan_outputs...]
+        let expected_body_outputs = 1 + num_loop_carried_outputs + num_scan_outputs;
+        assert_eq!(
+            self.body.outputs.len(),
+            expected_body_outputs,
+            "Loop body should have {} outputs (1 cond + {} loop-carried + {} scan), got {}",
+            expected_body_outputs,
+            num_loop_carried_outputs,
+            num_scan_outputs,
             self.body.outputs.len()
         );
 
@@ -204,7 +220,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
 
             // Only variables that are updated by the loop body outputs need to be mutable
             // Read-only variables are cloned at the start of each iteration via shadowing
-            if idx < num_output_vars {
+            if idx < num_loop_carried_outputs {
                 init_stmts.extend(quote! {
                     let mut #var_name = #init_value;
                 });
@@ -253,10 +269,32 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
 
         init_stmts.extend(cond_var_init);
 
+        // Initialize scan output accumulators (Vec for collecting values from each iteration)
+        let scan_vec_names: Vec<_> = (0..num_scan_outputs)
+            .map(|i| {
+                let scan_idx = 1 + num_loop_carried_outputs + i; // +1 for cond_out
+                let output_name = &self.body.outputs[scan_idx].name;
+                syn::Ident::new(
+                    &format!("{}_scan_vec", output_name),
+                    proc_macro2::Span::call_site(),
+                )
+            })
+            .collect();
+
+        for vec_name in &scan_vec_names {
+            init_stmts.extend(quote! {
+                let mut #vec_name = Vec::new();
+            });
+        }
+
         // For read-only variables, shadow them with a clone at the start of each iteration
         // This creates a new binding that shadows the old one for the loop body
         let mut pre_body_stmts = quote! {};
-        for (idx, var_name) in loop_var_names.iter().enumerate().skip(num_output_vars) {
+        for (idx, var_name) in loop_var_names
+            .iter()
+            .enumerate()
+            .skip(num_loop_carried_outputs)
+        {
             // Check if this is a tensor type that needs cloning
             if let Type::Tensor(_) = &self.v_initial[idx] {
                 pre_body_stmts.extend(quote! {
@@ -275,7 +313,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
             syn::Ident::new(&self.body.outputs[0].name, proc_macro2::Span::call_site());
 
         // Update loop variables from body outputs
-        // Only the first num_output_vars loop variables have corresponding body outputs
+        // Only the first num_loop_carried_outputs loop variables have corresponding body outputs
         let mut update_stmts = quote! {};
 
         // Update condition (cond_out_name is always from the loop body output, which matches the body input type)
@@ -299,7 +337,42 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
         };
         update_stmts.extend(cond_bool_update);
 
-        for (idx, var_name) in loop_var_names.iter().enumerate().take(num_output_vars) {
+        // Collect scan outputs from this iteration BEFORE updating loop variables
+        // This ensures we capture the body output values, not the updated loop variables
+        for (i, vec_name) in scan_vec_names.iter().enumerate() {
+            let scan_idx = 1 + num_loop_carried_outputs + i;
+            let scan_out_name = syn::Ident::new(
+                &self.body.outputs[scan_idx].name,
+                proc_macro2::Span::call_site(),
+            );
+
+            // Check the body output type (not the loop output type)
+            let body_output_type = Type::from(&self.body.outputs[scan_idx]);
+
+            match body_output_type {
+                Type::Scalar(_) => {
+                    // Scalar body outputs: wrap directly in rank-1 tensor [1]
+                    // This matches ONNX semantics: scalars are unsqueezed before concat
+                    update_stmts.extend(quote! {
+                        #vec_name.push(Tensor::<B, 1>::from_data([#scan_out_name], &B::Device::default()));
+                    });
+                }
+                Type::Tensor(_) => {
+                    // Tensor body outputs can be pushed directly
+                    update_stmts.extend(quote! {
+                        #vec_name.push(#scan_out_name.clone());
+                    });
+                }
+                _ => panic!("Unsupported scan body output type"),
+            }
+        }
+
+        // Update loop-carried variables from body outputs
+        for (idx, var_name) in loop_var_names
+            .iter()
+            .enumerate()
+            .take(num_loop_carried_outputs)
+        {
             let out_name = syn::Ident::new(
                 &self.body.outputs[idx + 1].name,
                 proc_macro2::Span::call_site(),
@@ -321,15 +394,65 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
             _ => quote! {},
         };
 
-        if self.outputs.len() == 1 {
-            // Single output: let output_name = { ... loop code ... var_name };
-            let output = &self.outputs[0];
-            let output_name = match output {
+        // Concatenate scan outputs after loop completes (convert Vec<Tensor> to Tensor via concat)
+        let mut scan_concat_stmts = quote! {};
+        let scan_output_names: Vec<_> = (0..num_scan_outputs)
+            .map(|i| {
+                let output_idx = num_loop_carried_outputs + i;
+                let output = &self.outputs[output_idx];
+                match output {
+                    Type::Tensor(t) => &t.name,
+                    Type::Scalar(s) => &s.name, // Scalar types (rank-0 tensors in ONNX)
+                    _ => panic!("Scan outputs must be tensors or scalars, got {:?}", output),
+                }
+            })
+            .collect();
+
+        for (i, scan_output_name) in scan_output_names.iter().enumerate() {
+            let vec_name = &scan_vec_names[i];
+
+            // Check if this scan output came from a scalar body output
+            let scan_idx = 1 + num_loop_carried_outputs + i;
+            let body_output_type = Type::from(&self.body.outputs[scan_idx]);
+
+            match body_output_type {
+                Type::Scalar(_) => {
+                    // Scalars: cat [1] tensors → [N], then unsqueeze at dim 1 → [N, 1]
+                    scan_concat_stmts.extend(quote! {
+                        let #scan_output_name = Tensor::cat(#vec_name, 0).unsqueeze_dim::<2>(1);
+                    });
+                }
+                Type::Tensor(_) => {
+                    // Tensors: just concatenate
+                    scan_concat_stmts.extend(quote! {
+                        let #scan_output_name = Tensor::cat(#vec_name, 0);
+                    });
+                }
+                _ => panic!("Unsupported scan body output type"),
+            }
+        }
+
+        // Collect all output names (loop-carried + scan)
+        let all_output_names: Vec<_> = self
+            .outputs
+            .iter()
+            .map(|output| match output {
                 Type::Tensor(t) => &t.name,
                 Type::Scalar(s) => &s.name,
                 _ => panic!("Unsupported output type in Loop node"),
-            };
-            let var_name = &loop_var_names[0];
+            })
+            .collect();
+
+        // Collect loop-carried variable names (only the ones that are output)
+        let loop_carried_var_names: Vec<_> = loop_var_names
+            .iter()
+            .take(num_loop_carried_outputs)
+            .collect();
+
+        if self.outputs.len() == 1 && num_scan_outputs == 0 {
+            // Single loop-carried output: let output_name = { ... loop code ... var_name };
+            let output_name = &all_output_names[0];
+            let var_name = &loop_carried_var_names[0];
 
             quote! {
                 #allow_attr
@@ -346,22 +469,12 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
                 };
             }
         } else {
-            // Multiple outputs: let (out1, out2, ...) = { ... loop code ... (var1, var2, ...) };
-            let output_names: Vec<_> = self
-                .outputs
-                .iter()
-                .map(|output| match output {
-                    Type::Tensor(t) => &t.name,
-                    Type::Scalar(s) => &s.name,
-                    _ => panic!("Unsupported output type in Loop node"),
-                })
-                .collect();
-
-            let var_names: Vec<_> = loop_var_names.iter().take(self.outputs.len()).collect();
+            // Multiple outputs (loop-carried + scan):
+            // let (out1, out2, ...) = { ... loop code + concat ... (var1, var2, ..., scan1, scan2, ...) };
 
             quote! {
                 #allow_attr
-                let (#(#output_names),*) = {
+                let (#(#all_output_names),*) = {
                     #init_stmts
 
                     while #iter_name < #max_trip_count && #cond_bool_name {
@@ -370,7 +483,11 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
                         #update_stmts
                     }
 
-                    (#(#var_names),*)
+                    // Concatenate scan outputs
+                    #scan_concat_stmts
+
+                    // Return all outputs (loop-carried + scan)
+                    (#(#loop_carried_var_names),*, #(#scan_output_names),*)
                 };
             }
         }
@@ -381,6 +498,12 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
+        // Register Vec for scan output accumulators
+        let num_scan_outputs = self.outputs.len() - self.num_loop_carried_outputs;
+        if num_scan_outputs > 0 {
+            imports.register("alloc::vec::Vec");
+        }
+
         // Register imports from body nodes
         for onnx_node in &self.body.nodes {
             if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
@@ -403,10 +526,39 @@ impl OnnxIntoNode for LoopNode {
         // Loop-carried dependencies are inputs after M and cond
         let v_initial: Vec<Type> = node.inputs.iter().skip(2).map(Type::from).collect();
 
-        // Outputs are the final values of loop-carried dependencies
-        // (and potentially scan outputs, but we'll handle those later)
+        // Per ONNX spec:
+        // - Body inputs: [iteration_num, cond_in, v_in_1, ..., v_in_N]
+        // - Body outputs: [cond_out, v_out_1, ..., v_out_N, scan_out_1, ..., scan_out_K]
+        // - Loop node outputs: [v_final_1, ..., v_final_N, scan_1, ..., scan_K]
+        //
+        // Where N = number of loop-carried dependencies = v_initial.len()
+        // And K = number of scan outputs = node.outputs.len() - N
+        let num_loop_carried_outputs = v_initial.len();
+
+        // Validate that body outputs match expected structure
+        let expected_body_outputs =
+            1 + num_loop_carried_outputs + (node.outputs.len() - num_loop_carried_outputs);
+        if body.outputs.len() != expected_body_outputs {
+            panic!(
+                "Loop body output mismatch: expected {} outputs (1 cond + {} loop-carried + {} scan), got {}",
+                expected_body_outputs,
+                num_loop_carried_outputs,
+                node.outputs.len() - num_loop_carried_outputs,
+                body.outputs.len()
+            );
+        }
+
+        // Convert node outputs to Type
+        // Note: onnx-ir handles type inference for scan outputs (adding concat dimension)
         let outputs: Vec<Type> = node.outputs.iter().map(Type::from).collect();
 
-        Self::new(max_trip_count, condition, v_initial, outputs, body)
+        Self::new(
+            max_trip_count,
+            condition,
+            v_initial,
+            outputs,
+            body,
+            num_loop_carried_outputs,
+        )
     }
 }
