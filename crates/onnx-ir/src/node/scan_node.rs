@@ -23,6 +23,7 @@ pub struct ScanConfig {
     pub scan_input_directions: Vec<i64>,
     pub scan_output_directions: Vec<i64>,
     pub scan_input_axes: Vec<i64>,
+    pub scan_output_axes: Vec<i64>,
 }
 
 impl NodeConfig for ScanConfig {
@@ -183,12 +184,19 @@ impl NodeProcessor for ScanProcessor {
             .map(|v| v.clone().into_i64s())
             .unwrap_or_default();
 
+        let scan_output_axes = node
+            .attrs
+            .get("scan_output_axes")
+            .map(|v| v.clone().into_i64s())
+            .unwrap_or_default();
+
         Ok(Some(Box::new(ScanConfig {
             body,
             num_scan_inputs,
             scan_input_directions,
             scan_output_directions,
             scan_input_axes,
+            scan_output_axes,
         })))
     }
 }

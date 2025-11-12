@@ -1,7 +1,7 @@
 // Tests for ONNX Scan operator
 
 use crate::include_models;
-include_models!(scan_cumsum, scan_reverse, scan_multi_state);
+include_models!(scan_cumsum, scan_reverse, scan_multi_state, scan_axis1);
 
 #[cfg(test)]
 mod tests {
@@ -125,5 +125,55 @@ mod tests {
 
         // Output sequence shape should be [4, 2, 3]
         assert_eq!(cumsum_sequence.dims(), [4, 2, 3]);
+    }
+
+    #[test]
+    fn scan_axis1_cumsum() {
+        // Test scanning along axis 1 (non-default scan axis)
+        // NOTE: Expected values are manually computed because ONNX ReferenceEvaluator
+        // doesn't support scan_input_axes != [0]
+        let device = Default::default();
+        let model: scan_axis1::Model<TestBackend> = Default::default();
+
+        // Initial sum state [2, 2]
+        let initial_sum = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.0, 0.0], [0.0, 0.0]]),
+            &device,
+        );
+
+        // Input sequence [2, 3, 2] (batch=2, seq=3, features=2)
+        // Batch 0: [[1, 2], [3, 4], [5, 6]]
+        // Batch 1: [[10, 20], [30, 40], [50, 60]]
+        let input_sequence = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
+                [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+                [[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]],
+            ]),
+            &device,
+        );
+
+        let (final_sum, cumsum_sequence) = model.forward(initial_sum, input_sequence);
+
+        // Expected final sum:
+        // Batch 0: [0,0] + [1,2] + [3,4] + [5,6] = [9, 12]
+        // Batch 1: [0,0] + [10,20] + [30,40] + [50,60] = [90, 120]
+        let expected_final = TensorData::from([[9.0, 12.0], [90.0, 120.0]]);
+        final_sum
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_final, burn::tensor::Tolerance::default());
+
+        // Expected cumsum sequence:
+        // Batch 0: [[1, 2], [4, 6], [9, 12]]
+        // Batch 1: [[10, 20], [40, 60], [90, 120]]
+        let expected_cumsum = TensorData::from([
+            [[1.0, 2.0], [4.0, 6.0], [9.0, 12.0]],
+            [[10.0, 20.0], [40.0, 60.0], [90.0, 120.0]],
+        ]);
+        cumsum_sequence
+            .to_data()
+            .assert_approx_eq::<f32>(&expected_cumsum, burn::tensor::Tolerance::default());
+
+        // Output sequence shape should be [2, 3, 2]
+        assert_eq!(cumsum_sequence.dims(), [2, 3, 2]);
     }
 }

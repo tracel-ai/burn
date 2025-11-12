@@ -342,6 +342,7 @@ fn main() {
         .input("tests/scan/scan_cumsum.onnx")
         .input("tests/scan/scan_reverse.onnx")
         .input("tests/scan/scan_multi_state.onnx")
+        .input("tests/scan/scan_axis1.onnx")
         // Deeply nested subgraph tests (If -> Loop -> If -> Scan)
         .input("tests/subgraph/nested_if_loop_if.onnx")
         .input("tests/subgraph/nested_if_loop_if_scan.onnx")

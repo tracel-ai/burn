@@ -90,6 +90,7 @@ pub struct ScanNode {
     pub scan_input_directions: Vec<i64>,
     pub scan_output_directions: Vec<i64>,
     pub scan_input_axes: Vec<i64>,
+    pub scan_output_axes: Vec<i64>,
 }
 
 impl ScanNode {
@@ -103,6 +104,7 @@ impl ScanNode {
         scan_input_directions: Vec<i64>,
         scan_output_directions: Vec<i64>,
         scan_input_axes: Vec<i64>,
+        scan_output_axes: Vec<i64>,
     ) -> Self {
         Self {
             initial_state_vars,
@@ -113,6 +115,7 @@ impl ScanNode {
             scan_input_directions,
             scan_output_directions,
             scan_input_axes,
+            scan_output_axes,
         }
     }
 }
@@ -237,13 +240,26 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for ScanNode {
             match scan_input {
                 Type::Tensor(tensor) => {
                     let tensor_name = &tensor.name;
+                    let scan_axis = if !self.scan_input_axes.is_empty() {
+                        self.scan_input_axes[idx] as usize
+                    } else {
+                        0
+                    };
                     let iter_expr = if reverse {
                         quote! { seq_len - i - 1 }
                     } else {
                         quote! { i }
                     };
+
+                    // Use slice_dim to slice along the correct scan axis, then squeeze_dim to remove only that dimension
+                    // Input rank D, slice along scan_axis, then squeeze → output rank D-1
+                    let input_rank = tensor.rank;
+                    let output_rank = input_rank - 1;
                     slice_stmts.extend(quote! {
-                        let #var_name = #tensor_name.clone().slice([#iter_expr..#iter_expr + 1]).squeeze();
+                        let #var_name = #tensor_name
+                            .clone()
+                            .slice_dim(#scan_axis, #iter_expr..#iter_expr + 1)
+                            .squeeze_dim::<#output_rank>(#scan_axis);
                     });
                 }
                 _ => panic!("Scan input must be a tensor"),
@@ -297,8 +313,16 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for ScanNode {
                     #output_name.reverse();
                 });
             }
+
+            // Determine which axis to stack along (defaults to 0 if not specified)
+            let stack_axis = if !self.scan_output_axes.is_empty() {
+                self.scan_output_axes[idx] as usize
+            } else {
+                0
+            };
+
             finalize_stmts.extend(quote! {
-                let #output_name = Tensor::stack(#output_name, 0usize);
+                let #output_name = Tensor::stack(#output_name, #stack_axis);
             });
         }
 
@@ -386,6 +410,7 @@ impl OnnxIntoNode for ScanNode {
         let scan_input_directions = config.scan_input_directions.clone();
         let scan_output_directions = config.scan_output_directions.clone();
         let scan_input_axes = config.scan_input_axes.clone();
+        let scan_output_axes = config.scan_output_axes.clone();
 
         // Split inputs into state variables and scan inputs
         let num_state_vars = node.inputs.len() - num_scan_inputs;
@@ -415,6 +440,7 @@ impl OnnxIntoNode for ScanNode {
             scan_input_directions,
             scan_output_directions,
             scan_input_axes,
+            scan_output_axes,
         )
     }
 }
