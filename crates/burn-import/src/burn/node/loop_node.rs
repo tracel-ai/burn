@@ -281,10 +281,27 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
             })
             .collect();
 
-        for vec_name in &scan_vec_names {
-            init_stmts.extend(quote! {
-                let mut #vec_name = Vec::new();
-            });
+        // Initialize Vec with appropriate type for scalar vs tensor scan outputs
+        for (i, vec_name) in scan_vec_names.iter().enumerate() {
+            let scan_idx = 1 + num_loop_carried_outputs + i;
+            let body_output_type = Type::from(&self.body.outputs[scan_idx]);
+
+            match body_output_type {
+                Type::Scalar(_) => {
+                    // For scalars, create a Vec of the scalar type (e.g., Vec<f32>, Vec<i64>)
+                    // This avoids creating N tensors in the loop
+                    init_stmts.extend(quote! {
+                        let mut #vec_name = Vec::new();
+                    });
+                }
+                Type::Tensor(_) => {
+                    // For tensors, we still need Vec<Tensor> for concatenation
+                    init_stmts.extend(quote! {
+                        let mut #vec_name = Vec::new();
+                    });
+                }
+                _ => panic!("Unsupported scan body output type"),
+            }
         }
 
         // For read-only variables, shadow them with a clone at the start of each iteration
@@ -351,10 +368,10 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
 
             match body_output_type {
                 Type::Scalar(_) => {
-                    // Scalar body outputs: wrap directly in rank-1 tensor [1]
-                    // This matches ONNX semantics: scalars are unsqueezed before concat
+                    // Scalar body outputs: just push the raw scalar value
+                    // We'll create a single tensor from the Vec after the loop completes
                     update_stmts.extend(quote! {
-                        #vec_name.push(Tensor::<B, 1>::from_data([#scan_out_name], &B::Device::default()));
+                        #vec_name.push(#scan_out_name);
                     });
                 }
                 Type::Tensor(_) => {
@@ -417,13 +434,14 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
 
             match body_output_type {
                 Type::Scalar(_) => {
-                    // Scalars: cat [1] tensors → [N], then unsqueeze at dim 1 → [N, 1]
+                    // Scalars: create single tensor from Vec → [N], then unsqueeze at dim 1 → [N, 1]
+                    // This avoids creating N tensors in the loop
                     scan_concat_stmts.extend(quote! {
-                        let #scan_output_name = Tensor::cat(#vec_name, 0).unsqueeze_dim::<2>(1);
+                        let #scan_output_name = Tensor::<B, 1>::from_data(#vec_name.as_slice(), &B::Device::default()).unsqueeze_dim::<2>(1);
                     });
                 }
                 Type::Tensor(_) => {
-                    // Tensors: just concatenate
+                    // Tensors: concatenate the Vec<Tensor>
                     scan_concat_stmts.extend(quote! {
                         let #scan_output_name = Tensor::cat(#vec_name, 0);
                     });
