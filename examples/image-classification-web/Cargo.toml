@@ -17,10 +17,10 @@ default = []
 half_precision = []
 
 [dependencies]
-burn = { path = "../../crates/burn", version = "0.20.0", default-features = false, features = [
+burn = { path = "../../crates/burn", version = "0.20.0-pre.1", default-features = false, features = [
     "ndarray", "webgpu",
 ] }
-burn-candle = { path = "../../crates/burn-candle", version = "0.20.0", default-features = false }
+burn-candle = { path = "../../crates/burn-candle", version = "0.20.0-pre.1", default-features = false }
 
 log = { workspace = true }
 serde = { workspace = true }

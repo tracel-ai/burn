@@ -17,7 +17,7 @@ workspace = true
 
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.20.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1", default-features = false }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
