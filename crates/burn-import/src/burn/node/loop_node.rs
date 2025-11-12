@@ -15,7 +15,6 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
     node_position: usize,
 ) -> TokenStream {
     let mut body = quote! {};
-    let mut unsupported_ops = vec![];
 
     // Helper to extract tensor types
     fn to_tensor(ty: Type) -> Option<TensorType> {
@@ -30,16 +29,10 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
         .nodes
         .iter()
         .map(|node| {
-            try_convert_onnx_node::<PS>(node.clone()).unwrap_or_else(|| {
-                unsupported_ops.push(node.node_type.clone());
-                panic!("Unsupported op in loop body: {:?}", node.node_type)
-            })
+            try_convert_onnx_node::<PS>(node.clone())
+                .unwrap_or_else(|| panic!("Unsupported op in loop body: {:?}", node.node_type))
         })
         .collect();
-
-    if !unsupported_ops.is_empty() {
-        panic!("Unsupported ops in loop body: {unsupported_ops:?}");
-    }
 
     // Register subgraph inputs in scope (they reference loop variables)
     for input in &subgraph.inputs {
