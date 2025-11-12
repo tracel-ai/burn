@@ -227,6 +227,12 @@ macro_rules! make_complex {
                 Complex64::new(self.real as f64, self.imag as f64)
             }
         }
+
+        impl Element for $type {
+            fn dtype() -> DType {
+                $dtype
+            }
+        }
     };
 }
 

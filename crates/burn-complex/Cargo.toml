@@ -9,10 +9,10 @@ version.workspace = true
 [features]
 #candle = ["burn-candle"]
 #cubecl-backend = ["cubecl", "burn-cubecl"]
-default = ["ndarray"]
+#default = ["ndarray"]
 #export-tests = ["burn-tensor-testgen"]
 #fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
-ndarray = ["burn-ndarray"]
+#ndarray = ["burn-ndarray"]
 std = []
 #tch = ["burn-tch"]
 
@@ -29,7 +29,7 @@ bon = { workspace = true }
 # burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", optional = true }
 # burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
 # burn-ir = { path = "../burn-ir", version = "0.19.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true }
+#burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true }
 # burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0" }
 burn-common = { path = "../burn-common", version = "0.19.0" }

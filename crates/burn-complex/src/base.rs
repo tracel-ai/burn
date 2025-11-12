@@ -11,8 +11,6 @@ use burn_tensor::{
     ops::{FloatTensor, IntTensor},
 };
 
-use core::ops::Range;
-
 /// The layout of the complex tensor. Used to define shared behavior only meant
 /// to be used for a specific layout (such as butterfly operations).
 pub trait ComplexLayout {}
