@@ -269,7 +269,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
         let device = input.device.clone();
-        let handle = client.create(E::as_bytes(&[E::from_int(0)]));
+        let handle = client.create_from_slice(E::as_bytes(&[E::from_int(0)]));
         let output = CubeTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
 
         cubecl::reduce::shared_sum::<Run, E>(
