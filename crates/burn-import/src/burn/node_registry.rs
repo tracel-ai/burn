@@ -175,6 +175,11 @@ node_registry! {
     // Special ops
     Attention => attention as AttentionNode,
 
+    // Control flow ops
+    If => if_node as IfNode,
+    Loop => loop_node as LoopNode,
+    Scan => scan_node as ScanNode,
+
     // Grouped mappings: Multiple ONNX ops -> Single node type
     [ReduceMax, ReduceMin, ReduceMean, ReduceProd, ReduceSum,
      ReduceSumSquare, ReduceL1, ReduceL2, ReduceLogSum, ReduceLogSumExp]

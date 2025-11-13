@@ -123,8 +123,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
         let output = &self.output.name();
 
         // Handle input based on type
-        let (input, input_rank) = match &self.input {
-            Type::Tensor(tensor) => (scope.tensor_use_owned(tensor, node_position), tensor.rank),
+        let (input, input_rank, is_bool) = match &self.input {
+            Type::Tensor(tensor) => (
+                scope.tensor_use_owned(tensor, node_position),
+                tensor.rank,
+                tensor.kind == TensorKind::Bool,
+            ),
             _ => panic!("ReduceNode input must be a tensor"),
         };
 
@@ -136,6 +140,51 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
         };
         let dims = self.config.dims.clone();
         let keepdims = self.config.keepdims;
+
+        // For boolean tensors with Min/Max reduction, use all()/any()
+        if is_bool && matches!(self.reduction_type, ReductionType::Min | ReductionType::Max) {
+            let (bool_reduction_all, bool_reduction_dim) = match self.reduction_type {
+                ReductionType::Min => (quote! { all }, quote! { all_dim }),
+                ReductionType::Max => (quote! { any }, quote! { any_dim }),
+                _ => unreachable!(),
+            };
+
+            let reduced_input = if dims.is_empty() {
+                // Reduce all dimensions
+                quote! { #input.#bool_reduction_all() }
+            } else {
+                // Reduce along specific dimensions
+                dims.iter().fold(input.clone(), |tokens, dim| {
+                    quote! { #tokens.#bool_reduction_dim(#dim) }
+                })
+            };
+
+            let final_output = if keepdims {
+                if dims.is_empty() {
+                    quote! { #reduced_input.expand([1; #output_rank]) }
+                } else {
+                    reduced_input
+                }
+            } else if output_rank == 0 {
+                reduced_input
+            } else {
+                // Need to squeeze dimensions
+                let dims_to_squeeze = dims.to_tokens();
+                quote! { #reduced_input.squeeze_dims(&#dims_to_squeeze) }
+            };
+
+            return if output_rank == 0 {
+                quote! {
+                    let #output = {
+                        #final_output.into_scalar().elem::<bool>()
+                    };
+                }
+            } else {
+                quote! {
+                    let #output = #final_output;
+                }
+            };
+        }
 
         let raw_output_expr = match self.reduction_type {
             ReductionType::SumSquare => {

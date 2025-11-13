@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 use burn_tensor::TensorData;
 
+use crate::OnnxGraph;
+
 /// The type of an attribute.
 #[derive(Debug, Clone)]
 pub enum AttributeValue {
@@ -18,6 +20,8 @@ pub enum AttributeValue {
     Strings(Vec<String>),
     Tensor(TensorData),
     Tensors(Vec<TensorData>),
+    Graph(OnnxGraph),
+    Graphs(Vec<OnnxGraph>),
 }
 
 pub type Attributes = HashMap<String, AttributeValue>;
@@ -92,6 +96,22 @@ impl AttributeValue {
             elem
         } else {
             panic!("Expected Tensors, got {self:?}");
+        }
+    }
+
+    pub fn into_graph(self) -> OnnxGraph {
+        if let AttributeValue::Graph(elem) = self {
+            elem
+        } else {
+            panic!("Expected Graph, got {self:?}");
+        }
+    }
+
+    pub fn into_graphs(self) -> Vec<OnnxGraph> {
+        if let AttributeValue::Graphs(elem) = self {
+            elem
+        } else {
+            panic!("Expected Graphs, got {self:?}");
         }
     }
 }
