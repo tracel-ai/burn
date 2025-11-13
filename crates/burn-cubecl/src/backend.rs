@@ -1,5 +1,8 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
-use burn_tensor::backend::{Backend, DeviceOps};
+use burn_tensor::{
+    TensorData,
+    backend::{Backend, DeviceOps},
+};
 use cubecl::server::ComputeServer;
 use std::marker::PhantomData;
 
@@ -67,6 +70,14 @@ where
     fn memory_cleanup(device: &Self::Device) {
         let client = R::client(device);
         client.memory_cleanup();
+    }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut TensorData>,
+    {
+        let client = R::client(device);
+        client.staging(data.map(|td| &mut td.bytes), false);
     }
 }
 
