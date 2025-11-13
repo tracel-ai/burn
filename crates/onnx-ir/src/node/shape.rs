@@ -28,7 +28,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the Shape operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ShapeConfig {
     pub start: usize,
     pub end: usize,
@@ -47,6 +47,8 @@ impl NodeConfig for ShapeConfig {
 pub struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
+    type Config = ShapeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -59,14 +61,16 @@ impl NodeProcessor for ShapeProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Determine output dimension based on input type
         let dim = match &node.inputs[0].ty {
             ArgType::Tensor(_) => {
                 // Shape of a Tensor: output has (end - start) elements
-                let config = node.config::<ShapeConfig>();
+                let config = self
+                    .extract_config(node, opset)
+                    .expect("Config extraction failed");
                 config.end - config.start
             }
             ArgType::Shape(_) => {
@@ -91,7 +95,7 @@ impl NodeProcessor for ShapeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the rank/dimension count from the input
         let rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -134,17 +138,13 @@ impl NodeProcessor for ShapeProcessor {
         let end = end_dim as usize;
 
         let config = ShapeConfig { start, end };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Shape {
             name: builder.name,
@@ -184,10 +184,8 @@ mod tests {
         let prefs = OutputPreferences::new();
 
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 4);
 
@@ -203,10 +201,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 4);
     }
@@ -219,10 +215,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 3);
     }
@@ -235,10 +229,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 3);
     }
@@ -251,10 +243,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 2); // -2 + 4 = 2
         assert_eq!(config.end, 3); // -1 + 4 = 3
     }
@@ -307,8 +297,7 @@ mod tests {
         let processor = ShapeProcessor;
         let prefs = OutputPreferences::new();
 
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should always output Shape type

@@ -27,8 +27,14 @@ pub enum SplitSizesInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for SplitSizesInput {
+    fn default() -> Self {
+        SplitSizesInput::Static(vec![])
+    }
+}
+
 /// Configuration for the Split operation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SplitConfig {
     /// The axis along which to split the input tensor.
     pub axis: usize,
@@ -51,6 +57,8 @@ impl NodeConfig for SplitConfig {
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
+    type Config = SplitConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -102,7 +110,7 @@ impl NodeProcessor for SplitProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;
         // Holds the uniform split size if calculated or provided
@@ -292,17 +300,13 @@ impl NodeProcessor for SplitProcessor {
             split_size,
             split_sizes,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Split {
             name: builder.name,
@@ -368,8 +372,7 @@ mod tests {
 
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 1);
@@ -388,8 +391,7 @@ mod tests {
 
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 3);
@@ -427,9 +429,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         // Default axis should be 0, and split_size should be calculated
         assert_eq!(config.axis, 0);
@@ -450,9 +450,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 1);
         assert_eq!(config.split_size, Some(10)); // 20 / 2 = 10
@@ -472,9 +470,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 2); // -1 should be converted to 2
         assert_eq!(config.split_size, Some(10)); // 30 / 3 = 10
@@ -494,9 +490,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, Some(3)); // 12 / 4 = 3
@@ -516,9 +510,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
@@ -542,8 +534,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         // When both are provided, split_sizes takes precedence, so extract_config should succeed
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
     }
 
@@ -573,8 +564,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
     }
 
@@ -619,9 +609,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
@@ -643,9 +631,7 @@ mod tests {
         let processor = SplitProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SplitConfig>();
 
         // 11 / (3-1) = 5, since the dimension is not evenly divisible
         assert_eq!(config.split_size, Some(5));

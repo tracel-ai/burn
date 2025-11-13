@@ -24,7 +24,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the Slice operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SliceConfig {
     pub starts: SliceInput,
     pub ends: SliceInput,
@@ -49,6 +49,12 @@ pub enum SliceInput {
     Static(Vec<i64>),
     /// Runtime argument determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
+}
+
+impl Default for SliceInput {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
 }
 
 /// Normalize negative axes to positive indices based on tensor rank.
@@ -100,6 +106,8 @@ fn calculate_shape_slice_output_len(
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
+    type Config = SliceConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 10,
@@ -152,11 +160,11 @@ impl NodeProcessor for SliceProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference
-        let config = node.config::<SliceConfig>();
+        let config = self.extract_config(node, opset)?;
 
         // Infer output type based on input type
         let input_ty = node.inputs[0].ty.clone();
@@ -215,7 +223,7 @@ impl NodeProcessor for SliceProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract config - helper function to get slice inputs
         fn get_slice_input(
             node: &NodeBuilder,
@@ -307,17 +315,13 @@ impl NodeProcessor for SliceProcessor {
             axes,
             steps,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Slice {
             name: builder.name,
@@ -405,11 +409,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -437,11 +439,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -467,11 +467,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -495,11 +493,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have runtime starts and ends
         match (&result.starts, &result.ends) {
@@ -529,8 +525,6 @@ mod tests {
 
         let processor = SliceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // After calling, output should be the same type as input
@@ -551,8 +545,6 @@ mod tests {
 
         let processor = SliceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // After calling, output should be ArgType::Shape with the calculated length
@@ -570,11 +562,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -596,11 +586,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -629,11 +617,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that we have static starts, ends, and steps
         match (&result.starts, &result.ends, &result.steps) {
@@ -687,11 +673,9 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let result = node.config::<SliceConfig>();
+        let result = processor.extract_config(&node, 16).unwrap();
 
         // Check that negative steps are preserved
         match &result.steps {

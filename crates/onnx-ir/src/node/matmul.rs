@@ -34,6 +34,8 @@ use core::cmp::max;
 pub struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -41,6 +43,14 @@ impl NodeProcessor for MatMulProcessor {
             inputs: InputSpec::Exact(2),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn infer_types(
@@ -114,7 +124,7 @@ impl NodeProcessor for MatMulProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::MatMul {
             name: builder.name,
             inputs: builder.inputs,

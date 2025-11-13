@@ -29,8 +29,14 @@ pub enum SqueezeInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for SqueezeInput {
+    fn default() -> Self {
+        SqueezeInput::Static(vec![])
+    }
+}
+
 /// Configuration for Squeeze operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SqueezeConfig {
     pub axes: Option<SqueezeInput>,
 }
@@ -47,6 +53,8 @@ impl NodeConfig for SqueezeConfig {
 pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
+    type Config = SqueezeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 13,
@@ -71,11 +79,13 @@ impl NodeProcessor for SqueezeProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference
-        let config = node.config::<SqueezeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let axes = config.axes.clone();
 
         // Extract axes for type inference
@@ -158,7 +168,7 @@ impl NodeProcessor for SqueezeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         fn get_squeeze_axes(node: &NodeBuilder) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input
             if node.inputs.len() < 2 {
@@ -183,17 +193,13 @@ impl NodeProcessor for SqueezeProcessor {
 
         let axes = get_squeeze_axes(node);
         let config = SqueezeConfig { axes };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<SqueezeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Squeeze {
             name: builder.name,
@@ -245,9 +251,7 @@ mod tests {
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Static(ref axes)) if axes == &vec![0, 2]));
     }
 
@@ -262,9 +266,7 @@ mod tests {
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SqueezeConfig>();
         assert!(config.axes.is_none());
     }
 
@@ -275,9 +277,7 @@ mod tests {
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));
     }
 

@@ -32,7 +32,7 @@ use protobuf::Enum;
 use std::any::Any;
 
 /// Configuration for RandomNormal operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RandomNormalConfig {
     pub mean: f64,
     pub scale: f64,
@@ -50,7 +50,7 @@ impl NodeConfig for RandomNormalConfig {
 }
 
 /// Configuration for RandomUniform operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RandomUniformConfig {
     pub low: f64,
     pub high: f64,
@@ -67,9 +67,34 @@ impl NodeConfig for RandomUniformConfig {
     }
 }
 
+/// Enum config that can hold either RandomNormal or RandomUniform config
+#[derive(Debug, Clone)]
+pub enum RandomConfig {
+    Normal(RandomNormalConfig),
+    Uniform(RandomUniformConfig),
+}
+
+impl Default for RandomConfig {
+    fn default() -> Self {
+        RandomConfig::Normal(RandomNormalConfig::default())
+    }
+}
+
+impl NodeConfig for RandomConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 pub struct RandomProcessor;
 
 impl NodeProcessor for RandomProcessor {
+    type Config = RandomConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -155,7 +180,7 @@ impl NodeProcessor for RandomProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let shape = node
             .attrs
             .get("shape")
@@ -164,7 +189,7 @@ impl NodeProcessor for RandomProcessor {
             .into_i64s();
         let shape: Vec<usize> = shape.into_iter().map(|i| i as usize).collect();
 
-        let config: Box<dyn NodeConfig> = match node.node_type {
+        let config = match node.node_type {
             crate::ir::NodeType::RandomNormal => {
                 let mean = node
                     .attrs
@@ -176,7 +201,7 @@ impl NodeProcessor for RandomProcessor {
                     .get("scale")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomNormalConfig { mean, scale, shape })
+                RandomConfig::Normal(RandomNormalConfig { mean, scale, shape })
             }
             crate::ir::NodeType::RandomUniform => {
                 let low = node
@@ -189,7 +214,7 @@ impl NodeProcessor for RandomProcessor {
                     .get("high")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomUniformConfig { low, high, shape })
+                RandomConfig::Uniform(RandomUniformConfig { low, high, shape })
             }
             _ => {
                 return Err(ProcessError::Custom(format!(
@@ -199,39 +224,24 @@ impl NodeProcessor for RandomProcessor {
             }
         };
 
-        Ok(Some(config))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        match builder.node_type {
-            crate::ir::NodeType::RandomNormal => {
-                let config = builder
-                    .config
-                    .expect("Config should be set by extract_config")
-                    .as_any()
-                    .downcast_ref::<RandomNormalConfig>()
-                    .expect("Wrong config type for RandomNormal")
-                    .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
-                Node::RandomNormal {
-                    name: builder.name,
-                    inputs: builder.inputs,
-                    outputs: builder.outputs,
-                    config,
-                }
-            }
-            crate::ir::NodeType::RandomUniform => {
+        match config {
+            RandomConfig::Normal(normal_config) => Node::RandomNormal {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: normal_config,
+            },
+            RandomConfig::Uniform(uniform_config) => {
                 // RandomUniform doesn't have a Node variant yet, so we convert it to RandomNormal
-                // by extracting the config and creating a RandomNormalConfig with equivalent params
-                let uniform_config = builder
-                    .config
-                    .expect("Config should be set by extract_config")
-                    .as_any()
-                    .downcast_ref::<RandomUniformConfig>()
-                    .expect("Wrong config type for RandomUniform")
-                    .clone();
-
-                // Convert RandomUniformConfig to RandomNormalConfig
+                // by approximating the uniform distribution with equivalent params
                 // For a uniform distribution [low, high], approximate with normal: mean = (low+high)/2, scale = (high-low)/sqrt(12)
                 let mean = (uniform_config.low + uniform_config.high) / 2.0;
                 let scale = (uniform_config.high - uniform_config.low) / (12.0_f64.sqrt());
@@ -251,7 +261,6 @@ impl NodeProcessor for RandomProcessor {
                     config: normal_config,
                 }
             }
-            _ => panic!("RandomProcessor called with unsupported node type"),
         }
     }
 }

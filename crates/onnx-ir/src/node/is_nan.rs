@@ -30,6 +30,8 @@ use crate::{Node, NodeBuilder};
 pub struct IsNaNProcessor;
 
 impl NodeProcessor for IsNaNProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -37,6 +39,14 @@ impl NodeProcessor for IsNaNProcessor {
             inputs: InputSpec::Exact(1),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn infer_types(
@@ -62,7 +72,7 @@ impl NodeProcessor for IsNaNProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::IsNaN {
             name: builder.name,
             inputs: builder.inputs,

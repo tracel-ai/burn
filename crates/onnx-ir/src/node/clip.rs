@@ -33,7 +33,7 @@ pub enum ClipInput {
 }
 
 /// Configuration for Clip operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ClipConfig {
     pub min: Option<ClipInput>,
     pub max: Option<ClipInput>,
@@ -52,6 +52,8 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
+    type Config = ClipConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -97,7 +99,7 @@ impl NodeProcessor for ClipProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         fn get_clip_input(
             node: &NodeBuilder,
             index: usize,
@@ -168,17 +170,13 @@ impl NodeProcessor for ClipProcessor {
             min: min_result,
             max: max_result,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Clip {
             name: builder.name,
@@ -234,11 +232,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
@@ -251,11 +247,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(config.max.is_none());
     }
@@ -268,11 +262,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(config.min.is_none());
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
@@ -285,11 +277,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
@@ -304,11 +294,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         // max is a runtime input (no static value provided)
         assert!(matches!(config.max, Some(ClipInput::Runtime(_))));
@@ -324,11 +312,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         // min is a runtime input (no static value provided)
         assert!(matches!(config.min, Some(ClipInput::Runtime(_))));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
@@ -350,11 +336,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
 
         // Check that we have runtime inputs
         assert!(matches!(config.min, Some(ClipInput::Runtime(ref arg)) if arg.name == "min"));
@@ -376,11 +360,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
 
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Runtime(ref arg)) if arg.name == "max"));

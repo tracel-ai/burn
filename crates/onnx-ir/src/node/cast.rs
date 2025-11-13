@@ -38,6 +38,12 @@ impl CastConfig {
     }
 }
 
+impl Default for CastConfig {
+    fn default() -> Self {
+        Self { to: DType::F32 }
+    }
+}
+
 impl NodeConfig for CastConfig {
     fn as_any(&self) -> &dyn Any {
         self
@@ -51,6 +57,8 @@ impl NodeConfig for CastConfig {
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
+    type Config = CastConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -63,7 +71,7 @@ impl NodeProcessor for CastProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Add validation for unexpected attributes
@@ -76,7 +84,9 @@ impl NodeProcessor for CastProcessor {
         // TODO: Add test for casting from complex types (should error per spec)
 
         // Get reference to config for type inference
-        let config = node.config::<CastConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let elem_type = config.to;
 
         // Infer output type based on input type
@@ -126,7 +136,7 @@ impl NodeProcessor for CastProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the target element type from attributes
         let elem_type = match node.attrs.get("to") {
             Some(AttributeValue::Int64(type_id)) => element_type_from_proto(*type_id as i32)
@@ -146,17 +156,13 @@ impl NodeProcessor for CastProcessor {
         };
 
         let config = CastConfig::new(elem_type);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<CastConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Cast {
             name: builder.name,
@@ -198,10 +204,8 @@ mod tests {
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<CastConfig>();
         assert_eq!(config.to, DType::I64);
 
         let mut node = create_test_node(2, DataType::FLOAT.value() as i64);
@@ -209,10 +213,8 @@ mod tests {
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<CastConfig>();
         assert_eq!(config.to, DType::F32);
 
         let mut node = create_test_node(2, DataType::BOOL.value() as i64);
@@ -220,10 +222,8 @@ mod tests {
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<CastConfig>();
         assert_eq!(config.to, DType::Bool);
     }
 
@@ -233,8 +233,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -252,8 +251,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -303,8 +301,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -325,8 +322,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -349,8 +345,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -371,8 +366,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

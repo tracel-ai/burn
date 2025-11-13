@@ -159,6 +159,11 @@ pub enum ProcessError {
 
 /// Node-specific processing logic for type inference and configuration extraction
 pub trait NodeProcessor: Send + Sync {
+    /// Associated config type for this processor
+    ///
+    /// For operations without config, use `()` as the type.
+    type Config: NodeConfig + Clone + Default;
+
     /// Return the node specification for validation
     ///
     /// This defines the supported opset versions, input/output counts, etc.
@@ -184,6 +189,8 @@ pub trait NodeProcessor: Send + Sync {
     }
 
     /// Infer output types given preferences from consumers
+    ///
+    /// This method should call `extract_config()` internally if it needs the config.
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
@@ -191,26 +198,30 @@ pub trait NodeProcessor: Send + Sync {
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError>;
 
-    /// Extract config for codegen
+    /// Extract config dynamically (not cached in NodeBuilder)
+    ///
+    /// This is called by `infer_types()` and `build_node()` as needed.
+    /// Processors with custom config must implement this method.
+    /// Processors with `type Config = ()` can use the default implementation.
     fn extract_config(
         &self,
         _node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(None)
+    ) -> Result<Self::Config, ProcessError> {
+        // Default implementation for processors with Config = () or any Config that implements Default
+        Ok(Default::default())
     }
 
     /// Build the final Node enum from a NodeBuilder
     ///
-    /// This method converts the mutable NodeBuilder (with attrs + config) into the final
-    /// immutable Node enum. The config should already be extracted and validated by
-    /// `extract_config()`.
+    /// This method converts the NodeBuilder into the final immutable Node enum.
+    /// It should call `extract_config()` internally to get the config.
     ///
     /// # Default Implementation
     ///
     /// The default implementation panics, as each processor should implement this method
     /// to build its specific Node variant.
-    fn build_node(&self, _builder: NodeBuilder) -> Node {
+    fn build_node(&self, _builder: NodeBuilder, _opset: usize) -> Node {
         panic!("build_node not implemented for this processor")
     }
 }
@@ -221,6 +232,8 @@ pub trait NodeProcessor: Send + Sync {
 pub(crate) struct DefaultProcessor;
 
 impl NodeProcessor for DefaultProcessor {
+    type Config = ();
+
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
@@ -230,6 +243,16 @@ impl NodeProcessor for DefaultProcessor {
         // Default: preserve input type
         same_as_input(node);
         Ok(())
+    }
+}
+
+/// Unit type implementation for NodeConfig (for operations without config)
+impl NodeConfig for () {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(())
     }
 }
 
@@ -493,6 +516,8 @@ mod tests {
     struct TestProcessor;
 
     impl NodeProcessor for TestProcessor {
+        type Config = ();
+
         fn infer_types(
             &self,
             node: &mut NodeBuilder,
@@ -531,10 +556,9 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        NodeProcessor::infer_types(&processor, &mut node, 16, &prefs).unwrap();
 
         // Output should match input type
         assert_eq!(node.outputs[0].ty, node.inputs[0].ty);
@@ -581,10 +605,9 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        NodeProcessor::infer_types(&processor, &mut node, 16, &prefs).unwrap();
 
         // Default processor should preserve input type
         match &node.outputs[0].ty {

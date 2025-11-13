@@ -18,7 +18,7 @@ use crate::processor::{
 };
 
 /// Configuration for If operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
@@ -38,6 +38,8 @@ impl NodeConfig for IfConfig {
 pub struct IfProcessor;
 
 impl NodeProcessor for IfProcessor {
+    type Config = IfConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -50,7 +52,7 @@ impl NodeProcessor for IfProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate condition input is scalar bool
@@ -75,7 +77,9 @@ impl NodeProcessor for IfProcessor {
         }
 
         // Get branches from config (clone to avoid borrow checker issues)
-        let config = node.config::<IfConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let then_outputs = config.then_branch.outputs.clone();
         let else_outputs = config.else_branch.outputs.clone();
 
@@ -126,7 +130,7 @@ impl NodeProcessor for IfProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
         let then_branch = node
             .attrs
@@ -142,20 +146,16 @@ impl NodeProcessor for IfProcessor {
             .clone()
             .into_graph();
 
-        Ok(Some(Box::new(IfConfig {
+        Ok(IfConfig {
             then_branch,
             else_branch,
-        })))
+        })
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<IfConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::If {
             name: builder.name,
@@ -212,8 +212,7 @@ mod tests {
         let processor = IfProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -248,8 +247,7 @@ mod tests {
         let processor = IfProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
@@ -290,8 +288,7 @@ mod tests {
         let processor = IfProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

@@ -18,7 +18,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for Concat operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConcatConfig {
     pub axis: usize,
 }
@@ -36,6 +36,8 @@ impl NodeConfig for ConcatConfig {
 pub struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
+    type Config = ConcatConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 4,
@@ -78,11 +80,13 @@ impl NodeProcessor for ConcatProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference (not used, but extracted for consistency)
-        let _config = node.config::<ConcatConfig>();
+        let _config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // For shapes, axis must be 0 (since they're 1D) - validation already done in extract_config
 
@@ -206,7 +210,7 @@ impl NodeProcessor for ConcatProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the axis attribute (required per ONNX spec)
         let mut axis: Option<i64> = None;
 
@@ -245,17 +249,13 @@ impl NodeProcessor for ConcatProcessor {
         let config = ConcatConfig {
             axis: normalized_axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ConcatConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Concat {
             name: builder.name,
@@ -282,14 +282,16 @@ mod tests {
     #[test]
     fn test_concat_config_basic() {
         let node = create_test_node(1, 3, 2).process(ConcatProcessor, 16);
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
     fn test_concat_config_negative_axis() {
         let node = create_test_node(-2, 3, 2).process(ConcatProcessor, 16);
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
@@ -302,7 +304,8 @@ mod tests {
             .attr_int("axis", 0) // Required attribute
             .process(ConcatProcessor, 16);
 
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 0); // Shape concat uses axis 0
     }
 
@@ -360,7 +363,8 @@ mod tests {
             .attr_int("axis", -1) // -1 should become 0 for 1D shapes
             .process(ConcatProcessor, 16);
 
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 0); // -1 + 1 = 0
     }
 
@@ -389,8 +393,7 @@ mod tests {
 
         let processor = ConcatProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }

@@ -36,7 +36,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the Reshape operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReshapeConfig {
     pub shape: ReshapeInput,
 }
@@ -58,6 +58,12 @@ pub enum ReshapeInput {
     Static(Vec<i64>),
     /// Runtime shape determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
+}
+
+impl Default for ReshapeInput {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
 }
 
 /// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
@@ -225,40 +231,12 @@ fn get_static_shape(node: &NodeBuilder) -> Option<Vec<i64>> {
     None
 }
 
-/// Extract shape input as either static or runtime
-fn extract_shape_input(node: &NodeBuilder) -> ReshapeInput {
-    match &node.inputs[1].ty {
-        ArgType::Tensor(_) => extract_tensor_shape(node),
-        ArgType::Shape(_) => {
-            // Runtime input - store reference instead of cloning the argument
-            ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
-        }
-        _ => panic!("Reshape: second input must be either a Tensor or Shape type"),
-    }
-}
-
-/// Extract shape from tensor input
-fn extract_tensor_shape(node: &NodeBuilder) -> ReshapeInput {
-    match node.inputs[1].value() {
-        Some(tensor_data) => {
-            assert_eq!(
-                tensor_data.shape.len(),
-                1,
-                "Reshape: shape tensor must be 1D"
-            );
-            ReshapeInput::Static(tensor_data.to_vec::<i64>().unwrap())
-        }
-        None => {
-            // Runtime input - store reference instead of cloning the argument
-            ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
-        }
-    }
-}
-
 /// Node processor for Reshape operation
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
+    type Config = ReshapeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 5,
@@ -380,11 +358,6 @@ impl NodeProcessor for ReshapeProcessor {
             }
         }
 
-        // Extract and validate shape input
-        let shape = extract_shape_input(node);
-        let config = ReshapeConfig { shape };
-        node.config = Some(Box::new(config));
-
         // Extract input information
         let input_info = extract_input_info(&node.inputs[0]);
 
@@ -407,7 +380,7 @@ impl NodeProcessor for ReshapeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract shape input as either static or runtime
         let shape = match &node.inputs[1].ty {
             ArgType::Tensor(_tensor) => {
@@ -443,17 +416,13 @@ impl NodeProcessor for ReshapeProcessor {
         };
 
         let config = ReshapeConfig { shape };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ReshapeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Reshape {
             name: builder.name,
@@ -502,7 +471,8 @@ mod tests {
     fn test_reshape_config_basic() {
         let node = create_test_node(0, vec![2, 3]).process(ReshapeProcessor, 16);
 
-        let config = node.config::<ReshapeConfig>();
+        let processor = ReshapeProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         match &config.shape {
             ReshapeInput::Static(shape) => assert_eq!(shape, &vec![2, 3]),
             _ => panic!("Expected static shape"),
@@ -520,7 +490,8 @@ mod tests {
     fn test_reshape_config_runtime() {
         let node = create_runtime_reshape_node().process(ReshapeProcessor, 16);
 
-        let config = node.config::<ReshapeConfig>();
+        let processor = ReshapeProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         match &config.shape {
             ReshapeInput::Runtime(runtime_ref) => assert_eq!(runtime_ref.name, "shape"),
             _ => panic!("Expected runtime shape"),
@@ -547,7 +518,7 @@ mod tests {
     #[should_panic(expected = "shape tensor must be 1D")]
     fn test_reshape_config_invalid_shape_dim() {
         // Create a node with 2D shape tensor (should trigger panic)
-        let _node = TestNodeBuilder::new(NodeType::Reshape, "test_reshape")
+        let node = TestNodeBuilder::new(NodeType::Reshape, "test_reshape")
             .input_tensor_f32("data", 4, None)
             .input_tensor_with_data(
                 "shape",
@@ -556,7 +527,10 @@ mod tests {
                 crate::ir::TensorData::new(vec![2i64, 3], vec![2, 1]), // 2D shape - this should cause panic
             )
             .output_tensor_f32("reshaped", 2, None)
-            .process(ReshapeProcessor, 16);
+            .build_with_graph_data(16);
+        let processor = ReshapeProcessor;
+        // This should panic when validating the shape tensor is 1D
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]
@@ -598,7 +572,8 @@ mod tests {
     fn test_reshape_config_with_shape_type() {
         let node = create_reshape_with_shape_input().process(ReshapeProcessor, 16);
 
-        let config = node.config::<ReshapeConfig>();
+        let processor = ReshapeProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         match &config.shape {
             ReshapeInput::Runtime(runtime_ref) => assert_eq!(runtime_ref.name, "shape"),
             _ => panic!("Expected runtime shape"),

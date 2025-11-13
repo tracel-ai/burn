@@ -7,7 +7,7 @@ use super::argument::Argument;
 use super::node::NodeBuilder;
 
 /// ONNX graph representation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OnnxGraph {
     /// The nodes of the graph.
     pub nodes: Vec<NodeBuilder>,

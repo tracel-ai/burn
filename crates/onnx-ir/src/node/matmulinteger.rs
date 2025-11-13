@@ -20,6 +20,16 @@ use core::cmp::max;
 pub struct MatMulIntegerProcessor;
 
 impl NodeProcessor for MatMulIntegerProcessor {
+    type Config = ();
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
+    }
+
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
@@ -79,16 +89,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
         }
     }
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
-        // MatMulInteger has no config
-        Ok(None)
-    }
-
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::MatMulInteger {
             name: builder.name,
             inputs: builder.inputs,

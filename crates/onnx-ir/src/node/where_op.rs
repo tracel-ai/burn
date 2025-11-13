@@ -52,6 +52,16 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 pub struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
+    type Config = ();
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
+    }
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -120,7 +130,7 @@ impl NodeProcessor for WhereProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::Where {
             name: builder.name,
             inputs: builder.inputs,

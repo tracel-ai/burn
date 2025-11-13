@@ -23,6 +23,8 @@ use crate::processor::{
 pub struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -30,6 +32,14 @@ impl NodeProcessor for ConstantProcessor {
             inputs: InputSpec::AtLeast(0),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn infer_types(
@@ -109,7 +119,7 @@ impl NodeProcessor for ConstantProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::Constant {
             name: builder.name,
             inputs: builder.inputs,

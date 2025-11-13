@@ -26,7 +26,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the GatherElements operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GatherElementsConfig {
     pub indices: GatherElementsInput,
     pub axis: usize,
@@ -51,9 +51,17 @@ pub enum GatherElementsInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for GatherElementsInput {
+    fn default() -> Self {
+        GatherElementsInput::Static(Vec::new())
+    }
+}
+
 pub struct GatherElementsProcessor;
 
 impl NodeProcessor for GatherElementsProcessor {
+    type Config = GatherElementsConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -90,7 +98,7 @@ impl NodeProcessor for GatherElementsProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {
             crate::ir::ArgType::Tensor(tensor) => tensor.rank as i64,
@@ -151,17 +159,13 @@ impl NodeProcessor for GatherElementsProcessor {
             indices,
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<GatherElementsConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::GatherElements {
             name: builder.name,

@@ -27,7 +27,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for LayerNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LayerNormConfig {
     /// Number of features/model dimension
     pub d_model: usize,
@@ -73,6 +73,8 @@ impl LayerNormConfig {
 pub struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
+    type Config = LayerNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 17,
@@ -149,7 +151,7 @@ impl NodeProcessor for LayerNormProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -175,17 +177,13 @@ impl NodeProcessor for LayerNormProcessor {
         let config = LayerNormConfig::new(num_features)
             .with_epsilon(epsilon as f64)
             .with_full_precision(full_precision);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<LayerNormConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::LayerNormalization {
             name: builder.name,
@@ -227,10 +225,8 @@ mod tests {
         let processor = LayerNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 17).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 17, &prefs).unwrap();
 
-        let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
         assert!(config.full_precision); // stash_type == 1
@@ -242,10 +238,8 @@ mod tests {
         let processor = LayerNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 17).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 17, &prefs).unwrap();
 
-        let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 32);
         assert!(!config.full_precision); // stash_type == 0
     }

@@ -13,7 +13,7 @@ use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{ArgType, Argument, NodeBuilder, NodeConfig, TensorType};
 use std::any::Any;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AttentionConfig {
     pub is_causal: bool,
     pub kv_num_heads: Option<usize>,
@@ -55,8 +55,9 @@ impl NodeConfig for AttentionConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AttentionQkMatmulOutputMode {
+    #[default]
     Matmul,
     MatmulPlusAttentionMask,
     MatmulAfterSoftcap,
@@ -81,6 +82,8 @@ fn extract_tensor<'a>(
 pub struct AttentionProcessor;
 
 impl NodeProcessor for AttentionProcessor {
+    type Config = AttentionConfig;
+
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
@@ -147,7 +150,9 @@ impl NodeProcessor for AttentionProcessor {
         // TODO: Add test for very large qk_matmul_output dimensions - potential memory issues not validated
 
         // Get reference to config for validation
-        let config = node.config::<AttentionConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         if q.rank == 3 && (config.kv_num_heads.is_none() || config.q_num_heads.is_none()) {
             return Err(ProcessError::Custom(
@@ -199,7 +204,7 @@ impl NodeProcessor for AttentionProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let _q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
             ProcessError::Custom("Attention: Q input must be present".to_string())
         })?;
@@ -259,17 +264,13 @@ impl NodeProcessor for AttentionProcessor {
             softcap,
             softmax_precision,
         );
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<AttentionConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Attention {
             name: builder.name,
@@ -450,8 +451,7 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 23).unwrap();
         let result = processor.infer_types(&mut node, 23, &prefs);
         assert!(result.is_err());
     }
@@ -463,9 +463,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert_eq!(config.softcap, 2.0);
     }
 
@@ -476,9 +474,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert_eq!(config.scale, Some(2.0));
     }
 
@@ -489,9 +485,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert!(config.is_causal);
     }
 
@@ -506,9 +500,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert_eq!(config.qk_matmul_output_mode, mode);
     }
 }

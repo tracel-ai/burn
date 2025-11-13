@@ -33,7 +33,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the Gather operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GatherConfig {
     pub axis: usize,
 }
@@ -51,6 +51,8 @@ impl NodeConfig for GatherConfig {
 pub struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
+    type Config = GatherConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -188,7 +190,7 @@ impl NodeProcessor for GatherProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
@@ -218,17 +220,13 @@ impl NodeProcessor for GatherProcessor {
         let config = GatherConfig {
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Gather {
             name: builder.name,
@@ -269,9 +267,7 @@ mod tests {
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
     }
 
@@ -282,9 +278,7 @@ mod tests {
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
@@ -295,9 +289,7 @@ mod tests {
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
     }
 
@@ -329,8 +321,7 @@ mod tests {
 
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output scalar, not tensor
@@ -354,8 +345,7 @@ mod tests {
 
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output tensor with rank 2 (1 + 2 - 1)
@@ -382,8 +372,7 @@ mod tests {
         // This should not panic - it was panicking before the fix
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(1) since we're gathering from Shape(3) with Shape(1) indices
@@ -407,8 +396,7 @@ mod tests {
 
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output scalar when gathering from shape with scalar indices
@@ -433,8 +421,7 @@ mod tests {
 
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(2) since indices are Shape(2)
@@ -458,8 +445,7 @@ mod tests {
 
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(3) since indices are Shape(3)
@@ -483,8 +469,7 @@ mod tests {
 
         let processor = GatherProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(1) for 1D tensor indices (indices_rank = 1)

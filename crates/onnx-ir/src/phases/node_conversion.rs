@@ -148,15 +148,8 @@ fn convert_nodes_impl(
                 )
             });
 
-        let config = processor
-            .extract_config(&node, opset_version)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Failed to extract config for node {} (type: {:?}): {:?}",
-                    node.name, node.node_type, e
-                )
-            });
-        node.config = config;
+        // Config extraction is now done in infer_types instead of here
+        // This allows processors to call extract_config during type inference
 
         // Add to graph state
         state_rc.borrow_mut().add_node(node);

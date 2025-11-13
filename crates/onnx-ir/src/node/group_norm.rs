@@ -17,7 +17,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for GroupNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GroupNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -54,6 +54,8 @@ impl GroupNormConfig {
 pub struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
+    type Config = GroupNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 18,
@@ -78,7 +80,7 @@ impl NodeProcessor for GroupNormProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Validate X tensor rank is at least 3 per ONNX spec (N x C x D1 x ... x Dn) - Missing rank validation
@@ -98,7 +100,9 @@ impl NodeProcessor for GroupNormProcessor {
         }
 
         // Validate num_groups divisibility
-        let config = node.config::<GroupNormConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // TODO: Validate num_groups > 0 per ONNX spec - num_groups must be positive - Missing constraint validation
         if config.num_groups > 0 && !config.num_features.is_multiple_of(config.num_groups) {
@@ -118,7 +122,7 @@ impl NodeProcessor for GroupNormProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .as_ref()
@@ -150,17 +154,13 @@ impl NodeProcessor for GroupNormProcessor {
 
         let full_precision = stash_type == 1;
         let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64, full_precision);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<GroupNormConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::GroupNormalization {
             name: builder.name,
@@ -202,10 +202,8 @@ mod tests {
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 18).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 18, &prefs).unwrap();
 
-        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -218,10 +216,8 @@ mod tests {
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 18).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 18, &prefs).unwrap();
 
-        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -234,8 +230,7 @@ mod tests {
         let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 18).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 18).unwrap();
         let result = processor.infer_types(&mut node, 18, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }

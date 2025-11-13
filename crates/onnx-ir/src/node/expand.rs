@@ -26,6 +26,12 @@ pub enum ExpandShape {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for ExpandShape {
+    fn default() -> Self {
+        ExpandShape::Static(Vec::new())
+    }
+}
+
 impl NodeConfig for ExpandShape {
     fn as_any(&self) -> &dyn Any {
         self
@@ -39,6 +45,8 @@ impl NodeConfig for ExpandShape {
 pub struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
+    type Config = ExpandShape;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 8,
@@ -61,7 +69,7 @@ impl NodeProcessor for ExpandProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Validate no unexpected attributes - Expand has no attributes per spec - Missing attribute validation
@@ -92,7 +100,9 @@ impl NodeProcessor for ExpandProcessor {
         }
 
         // Get reference to config for type inference
-        let config = node.config::<ExpandShape>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Get input element type - Expand should preserve the input's element type
         let input_elem_type = match &node.inputs[0].ty {
@@ -159,7 +169,7 @@ impl NodeProcessor for ExpandProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract config
         let config = match node.inputs[1].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
@@ -175,10 +185,14 @@ impl NodeProcessor for ExpandProcessor {
                 ExpandShape::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
             }
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let _config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
         Node::Expand {
             name: builder.name,
             inputs: builder.inputs,
@@ -221,8 +235,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -241,8 +254,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -282,9 +294,7 @@ mod tests {
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ExpandShape>();
 
         match config {
             ExpandShape::Static(shape) => {
@@ -301,9 +311,7 @@ mod tests {
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ExpandShape>();
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -321,9 +329,7 @@ mod tests {
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ExpandShape>();
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -344,8 +350,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -361,8 +366,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -374,8 +378,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -405,8 +408,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -430,8 +432,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -465,8 +466,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
-            let config = processor.extract_config(&node, 16).unwrap();
-            node.config = config;
+            let _config = processor.extract_config(&node, 16).unwrap();
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -499,8 +499,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
-            let config = processor.extract_config(&node, 16).unwrap();
-            node.config = config;
+            let _config = processor.extract_config(&node, 16).unwrap();
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -533,8 +532,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
-            let config = processor.extract_config(&node, 16).unwrap();
-            node.config = config;
+            let _config = processor.extract_config(&node, 16).unwrap();
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -563,8 +561,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

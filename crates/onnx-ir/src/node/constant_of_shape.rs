@@ -18,7 +18,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the ConstantOfShape operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConstantOfShapeConfig {
     /// Shape information (static or runtime).
     pub shape: ConstantOfShapeShape,
@@ -35,6 +35,12 @@ pub enum ConstantOfShapeShape {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for ConstantOfShapeShape {
+    fn default() -> Self {
+        Self::Static(vec![])
+    }
+}
+
 impl NodeConfig for ConstantOfShapeConfig {
     fn as_any(&self) -> &dyn Any {
         self
@@ -48,6 +54,8 @@ impl NodeConfig for ConstantOfShapeConfig {
 pub struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
+    type Config = ConstantOfShapeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -106,6 +114,10 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         // TODO: Add test for negative shape values - spec says "all values must be >= 0"
         // TODO: Add test for very large shape dimensions - potential memory/overflow issues
         // TODO: Add test for opset 20+ types (bfloat16, int4, uint4, float8) - mentioned in spec
+        let _config = self
+            .extract_config(node, _opset)
+            .expect("Config extraction failed");
+
         let value_type = node
             .attrs
             .get("value")
@@ -181,7 +193,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Check if we have static values or need runtime resolution
         let shape = match node.inputs[0].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
@@ -203,17 +215,13 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         let value = node.attrs.get("value").map(|v| v.clone().into_tensor());
 
         let config = ConstantOfShapeConfig { shape, value };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ConstantOfShapeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::ConstantOfShape {
             name: builder.name,

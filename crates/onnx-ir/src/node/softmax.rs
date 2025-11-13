@@ -21,7 +21,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for Softmax operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SoftmaxConfig {
     /// Axis along which to apply softmax
     pub axis: usize,
@@ -40,6 +40,8 @@ impl NodeConfig for SoftmaxConfig {
 pub struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
+    type Config = SoftmaxConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 13,
@@ -72,7 +74,7 @@ impl NodeProcessor for SoftmaxProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -101,17 +103,13 @@ impl NodeProcessor for SoftmaxProcessor {
         let config = SoftmaxConfig {
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<SoftmaxConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Softmax {
             name: builder.name,
@@ -143,9 +141,7 @@ mod tests {
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
@@ -156,9 +152,7 @@ mod tests {
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 1);
     }
 

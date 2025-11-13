@@ -16,7 +16,7 @@ use crate::proto_conversion::element_type_from_proto;
 use std::any::Any;
 
 /// Configuration for EyeLike operations
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone, Default, new)]
 pub struct EyeLikeConfig {
     /// Data type of the output tensor (optional, defaults to input type)
     pub dtype: Option<DType>,
@@ -36,6 +36,8 @@ impl NodeConfig for EyeLikeConfig {
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
+    type Config = EyeLikeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -48,7 +50,7 @@ impl NodeProcessor for EyeLikeProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Extract tensor info and validate
@@ -70,7 +72,9 @@ impl NodeProcessor for EyeLikeProcessor {
         };
 
         // Get reference to config for type inference
-        let config = node.config::<EyeLikeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Output type is either specified dtype or input type
         let output_type = config.dtype.unwrap_or(input_elem_type);
@@ -88,7 +92,7 @@ impl NodeProcessor for EyeLikeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut dtype = None;
         let mut k = 0i64; // default to main diagonal
 
@@ -118,17 +122,13 @@ impl NodeProcessor for EyeLikeProcessor {
         }
 
         let config = EyeLikeConfig { dtype, k };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<EyeLikeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::EyeLike {
             name: builder.name,
@@ -156,8 +156,7 @@ mod tests {
 
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -182,10 +181,8 @@ mod tests {
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, 0);
         assert_eq!(config.dtype, None);
     }
@@ -204,10 +201,8 @@ mod tests {
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, -1);
         assert_eq!(config.dtype, Some(DType::I64));
     }
@@ -222,8 +217,7 @@ mod tests {
 
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

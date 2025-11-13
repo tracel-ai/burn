@@ -28,7 +28,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for InstanceNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct InstanceNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -59,6 +59,8 @@ impl NodeConfig for InstanceNormConfig {
 pub struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
+    type Config = InstanceNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -113,7 +115,7 @@ impl NodeProcessor for InstanceNormProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -133,17 +135,13 @@ impl NodeProcessor for InstanceNormProcessor {
         }
 
         let config = InstanceNormConfig::new(num_features, epsilon as f64);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<InstanceNormConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::InstanceNormalization {
             name: builder.name,
@@ -179,9 +177,7 @@ mod tests {
         let processor = InstanceNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<InstanceNormConfig>();
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);

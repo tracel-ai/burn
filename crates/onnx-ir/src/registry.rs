@@ -3,16 +3,64 @@
 //! This module provides a centralized registry that maps ONNX node types
 //! to their corresponding processor implementations.
 
-use crate::ir::NodeType;
-use crate::processor::NodeProcessor;
+use crate::ir::{NodeBuilder, NodeType};
+use crate::processor::{InputPreferences, NodeSpec, OutputPreferences, ProcessError};
 use std::collections::HashMap;
+
+/// Trait for registry-specific processor methods (without associated Config type).
+///
+/// This trait is object-safe and used only for storing processors in the registry.
+/// It doesn't expose `extract_config` or `build_node` since those need the Config type.
+pub trait ProcessorMethods: Send + Sync {
+    fn spec(&self) -> NodeSpec;
+    fn input_preferences(
+        &self,
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError>;
+    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError>;
+    fn infer_types(
+        &self,
+        node: &mut NodeBuilder,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError>;
+}
+
+/// Blanket implementation: all NodeProcessor types implement ProcessorMethods
+impl<T: crate::processor::NodeProcessor> ProcessorMethods for T {
+    fn spec(&self) -> NodeSpec {
+        crate::processor::NodeProcessor::spec(self)
+    }
+
+    fn input_preferences(
+        &self,
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
+        crate::processor::NodeProcessor::input_preferences(self, node, opset)
+    }
+
+    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError> {
+        crate::processor::NodeProcessor::lift_constants(self, node, opset)
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut NodeBuilder,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        crate::processor::NodeProcessor::infer_types(self, node, opset, output_preferences)
+    }
+}
 
 /// Registry for node processors.
 ///
 /// This registry maps node types to their corresponding processor implementations.
 /// It provides a centralized way to look up and use processors for different node types.
 pub struct ProcessorRegistry {
-    processors: HashMap<NodeType, Box<dyn NodeProcessor>>,
+    processors: HashMap<NodeType, Box<dyn ProcessorMethods>>,
 }
 
 impl ProcessorRegistry {
@@ -24,12 +72,12 @@ impl ProcessorRegistry {
     }
 
     /// Register a processor for a specific node type
-    pub fn register(&mut self, node_type: NodeType, processor: Box<dyn NodeProcessor>) {
+    pub fn register(&mut self, node_type: NodeType, processor: Box<dyn ProcessorMethods>) {
         self.processors.insert(node_type, processor);
     }
 
     /// Get the processor for a node type, or the default processor if not found
-    pub fn get(&self, node_type: &NodeType) -> &dyn NodeProcessor {
+    pub fn get(&self, node_type: &NodeType) -> &dyn ProcessorMethods {
         self.processors
             .get(node_type)
             .map(|b| b.as_ref())

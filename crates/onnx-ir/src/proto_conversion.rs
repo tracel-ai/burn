@@ -438,7 +438,6 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> NodeBuil
         inputs,
         outputs,
         attrs,
-        config: None,
     }
 }
 

@@ -33,6 +33,8 @@ use crate::processor::{
 pub struct PReluProcessor;
 
 impl NodeProcessor for PReluProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -40,6 +42,14 @@ impl NodeProcessor for PReluProcessor {
             inputs: InputSpec::Exact(2),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
@@ -88,7 +98,7 @@ impl NodeProcessor for PReluProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::PRelu {
             name: builder.name,
             inputs: builder.inputs,

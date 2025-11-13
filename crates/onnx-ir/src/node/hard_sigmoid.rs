@@ -25,7 +25,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for HardSigmoid operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct HardSigmoidConfig {
     pub alpha: f64,
     pub beta: f64,
@@ -43,6 +43,8 @@ impl NodeConfig for HardSigmoidConfig {
 pub struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
+    type Config = HardSigmoidConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -82,7 +84,7 @@ impl NodeProcessor for HardSigmoidProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract alpha and beta attributes
         let mut alpha = 0.2;
         let mut beta = 0.5;
@@ -96,17 +98,13 @@ impl NodeProcessor for HardSigmoidProcessor {
         }
 
         let config = HardSigmoidConfig { alpha, beta };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<HardSigmoidConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::HardSigmoid {
             name: builder.name,
@@ -139,9 +137,7 @@ mod tests {
         let processor = HardSigmoidProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<HardSigmoidConfig>();
         assert!((config.alpha - 0.3).abs() < 1e-6);
         assert!((config.beta - 0.6).abs() < 1e-6);
     }
@@ -154,9 +150,7 @@ mod tests {
         let processor = HardSigmoidProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<HardSigmoidConfig>();
         assert_eq!(config.alpha, 0.2); // Check default values
         assert_eq!(config.beta, 0.5);
     }

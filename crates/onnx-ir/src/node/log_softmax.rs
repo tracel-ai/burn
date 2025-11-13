@@ -28,7 +28,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for LogSoftmax operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LogSoftmaxConfig {
     /// Axis along which to apply log softmax
     pub axis: usize,
@@ -47,6 +47,8 @@ impl NodeConfig for LogSoftmaxConfig {
 pub struct LogSoftmaxProcessor;
 
 impl NodeProcessor for LogSoftmaxProcessor {
+    type Config = LogSoftmaxConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 13,
@@ -88,7 +90,7 @@ impl NodeProcessor for LogSoftmaxProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -119,17 +121,13 @@ impl NodeProcessor for LogSoftmaxProcessor {
         let config = LogSoftmaxConfig {
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<LogSoftmaxConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::LogSoftmax {
             name: builder.name,
@@ -161,9 +159,7 @@ mod tests {
         let processor = LogSoftmaxProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<LogSoftmaxConfig>();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
@@ -174,9 +170,7 @@ mod tests {
         let processor = LogSoftmaxProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<LogSoftmaxConfig>();
         assert_eq!(config.axis, 1);
     }
 

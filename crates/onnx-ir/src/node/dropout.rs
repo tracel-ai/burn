@@ -30,8 +30,14 @@ pub enum DropoutInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for DropoutInput {
+    fn default() -> Self {
+        Self::Static(0.0)
+    }
+}
+
 /// Configuration for Dropout operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DropoutConfig {
     /// Probability of dropping out a unit
     pub prob: DropoutInput,
@@ -49,6 +55,8 @@ impl NodeConfig for DropoutConfig {
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
+    type Config = DropoutConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -106,7 +114,7 @@ impl NodeProcessor for DropoutProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // TODO: Validate 'seed' attribute mentioned in spec (opset 12+) - currently not handled
         // TODO: Validate ratio value is in range [0.0, 1.0] per ONNX spec - Missing constraint validation - Should return error for invalid ratios
         // Opset 7 and older store probability as an attribute
@@ -115,7 +123,7 @@ impl NodeProcessor for DropoutProcessor {
             let config = DropoutConfig {
                 prob: DropoutInput::Static(prob as f64),
             };
-            return Ok(Some(Box::new(config)));
+            return Ok(config);
         }
 
         // Opset 12+ uses input for ratio
@@ -146,17 +154,13 @@ impl NodeProcessor for DropoutProcessor {
         };
 
         let config = DropoutConfig { prob };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<DropoutConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Dropout {
             name: builder.name,
@@ -194,9 +198,7 @@ mod tests {
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.3) < 1e-6));
     }
 
@@ -207,9 +209,7 @@ mod tests {
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.5) < 1e-6));
     }
 
@@ -227,9 +227,7 @@ mod tests {
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Runtime(arg) if arg.name == "ratio"));
     }
 

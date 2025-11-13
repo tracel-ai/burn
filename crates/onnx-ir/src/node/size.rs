@@ -16,6 +16,8 @@ use crate::processor::{
 pub struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -23,6 +25,14 @@ impl NodeProcessor for SizeProcessor {
             inputs: InputSpec::Exact(1),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn infer_types(
@@ -36,7 +46,7 @@ impl NodeProcessor for SizeProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::Size {
             name: builder.name,
             inputs: builder.inputs,

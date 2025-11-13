@@ -29,7 +29,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for LeakyRelu operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LeakyReluConfig {
     /// Alpha value for negative slope
     pub alpha: f64,
@@ -48,6 +48,8 @@ impl NodeConfig for LeakyReluConfig {
 pub struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
+    type Config = LeakyReluConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -89,7 +91,7 @@ impl NodeProcessor for LeakyReluProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract alpha attribute
         let mut alpha = 0.01;
         for (key, value) in node.attrs.iter() {
@@ -100,17 +102,13 @@ impl NodeProcessor for LeakyReluProcessor {
         }
 
         let config = LeakyReluConfig { alpha };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<LeakyReluConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::LeakyRelu {
             name: builder.name,
@@ -142,9 +140,7 @@ mod tests {
         let processor = LeakyReluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<LeakyReluConfig>();
         assert!((config.alpha - 0.2).abs() < 1e-6);
     }
 
@@ -156,9 +152,7 @@ mod tests {
         let processor = LeakyReluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<LeakyReluConfig>();
         assert_eq!(config.alpha, 0.01); // Check default value
     }
 }

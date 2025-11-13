@@ -321,7 +321,6 @@ fn create_constant_node(
             value_store: None,
         }],
         attrs: HashMap::new(),
-        config: None,
     }
 }
 

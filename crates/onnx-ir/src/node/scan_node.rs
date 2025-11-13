@@ -16,7 +16,7 @@ use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ScanConfig {
     pub body: OnnxGraph,
     pub num_scan_inputs: i64,
@@ -40,6 +40,8 @@ impl NodeConfig for ScanConfig {
 pub struct ScanProcessor;
 
 impl NodeProcessor for ScanProcessor {
+    type Config = ScanConfig;
+
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
@@ -49,7 +51,9 @@ impl NodeProcessor for ScanProcessor {
         crate::processor::validate_opset(opset, 8)?;
 
         // Get config to determine number of state variables and scan inputs
-        let config = node.config::<ScanConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let num_scan_inputs = config.num_scan_inputs as usize;
 
         // Total inputs = num_state_vars + num_scan_inputs
@@ -148,7 +152,7 @@ impl NodeProcessor for ScanProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
         let body = node
             .attrs
@@ -190,24 +194,20 @@ impl NodeProcessor for ScanProcessor {
             .map(|v| v.clone().into_i64s())
             .unwrap_or_default();
 
-        Ok(Some(Box::new(ScanConfig {
+        Ok(ScanConfig {
             body,
             num_scan_inputs,
             scan_input_directions,
             scan_output_directions,
             scan_input_axes,
             scan_output_axes,
-        })))
+        })
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ScanConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Scan {
             name: builder.name,
@@ -308,8 +308,7 @@ mod tests {
 
         let processor = ScanProcessor;
         // Extract config first
-        let config = processor.extract_config(&node, 8).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 8).unwrap();
 
         let result = processor.infer_types(&mut node, 8, &OutputPreferences::default());
 

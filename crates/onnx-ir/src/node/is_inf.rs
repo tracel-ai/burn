@@ -19,7 +19,7 @@ use crate::processor::{
 use crate::{Node, NodeBuilder, NodeConfig};
 use std::any::Any;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct IsInfConfig {
     pub detect_negative: bool,
     pub detect_positive: bool,
@@ -46,6 +46,8 @@ impl NodeConfig for IsInfConfig {
 pub struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
+    type Config = IsInfConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 10,
@@ -84,7 +86,7 @@ impl NodeProcessor for IsInfProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract detect_negative and detect_positive attributes
         let mut detect_negative = true;
         let mut detect_positive = true;
@@ -98,17 +100,13 @@ impl NodeProcessor for IsInfProcessor {
         }
 
         let config = IsInfConfig::new(detect_negative, detect_positive);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<IsInfConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::IsInf {
             name: builder.name,
@@ -148,9 +146,7 @@ mod tests {
         let processor = IsInfProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<IsInfConfig>();
 
         // Both should default to true if not specified according to the spec
         assert!(config.detect_negative);
@@ -164,9 +160,7 @@ mod tests {
         let processor = IsInfProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<IsInfConfig>();
 
         assert!(config.detect_negative);
         assert!(!config.detect_positive);
@@ -179,9 +173,7 @@ mod tests {
         let processor = IsInfProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<IsInfConfig>();
 
         assert!(!config.detect_negative);
         assert!(config.detect_positive);
@@ -194,9 +186,7 @@ mod tests {
         let processor = IsInfProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<IsInfConfig>();
 
         assert!(!config.detect_negative);
         assert!(!config.detect_positive);

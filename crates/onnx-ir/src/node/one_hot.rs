@@ -52,6 +52,16 @@ pub struct OneHotConfig {
     pub axis: i64,
 }
 
+impl Default for OneHotConfig {
+    fn default() -> Self {
+        Self {
+            depth: OneHotDepthInput::Static(0),
+            values: OneHotValuesInput::Static([0.0, 1.0]),
+            axis: -1,
+        }
+    }
+}
+
 impl NodeConfig for OneHotConfig {
     fn as_any(&self) -> &dyn Any {
         self
@@ -87,6 +97,8 @@ pub fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> 
 pub struct OneHotProcessor;
 
 impl NodeProcessor for OneHotProcessor {
+    type Config = OneHotConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -149,7 +161,7 @@ impl NodeProcessor for OneHotProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let depth = match node.inputs[1].value() {
             None => {
                 // Runtime input - no static value available
@@ -194,17 +206,13 @@ impl NodeProcessor for OneHotProcessor {
             values,
             axis,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<OneHotConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::OneHot {
             name: builder.name,
@@ -242,9 +250,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 5));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[0.0, 1.0]));
         assert_eq!(config.axis, -1); // default axis
@@ -257,9 +263,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 5));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[0.0, 1.0]));
         assert_eq!(config.axis, 1);
@@ -272,9 +276,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 10));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[-1.0, 2.0])); // custom off/on values
         assert_eq!(config.axis, -1);
@@ -293,9 +295,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Runtime(arg) if arg.name == "depth"));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[0.0, 1.0]));
     }
@@ -313,9 +313,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 5));
         assert!(matches!(&config.values, OneHotValuesInput::Runtime(arg) if arg.name == "values"));
     }
@@ -333,9 +331,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Runtime(arg) if arg.name == "depth"));
         assert!(matches!(&config.values, OneHotValuesInput::Runtime(arg) if arg.name == "values"));
     }

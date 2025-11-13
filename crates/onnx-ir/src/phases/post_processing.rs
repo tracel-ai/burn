@@ -96,18 +96,8 @@ fn rewire_node_subgraphs(
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
 
-            // Also update the config
-            if let Some(config) = node.config.as_mut()
-                && let Some(if_config) = config
-                    .as_any()
-                    .downcast_ref::<crate::node::if_node::IfConfig>()
-            {
-                // Clone, modify, and replace the config
-                let mut new_config = if_config.clone();
-                rewire_subgraph(&mut new_config.then_branch, rewire_map, output_arg_map);
-                rewire_subgraph(&mut new_config.else_branch, rewire_map, output_arg_map);
-                node.config = Some(Box::new(new_config));
-            }
+            // Note: The config is now extracted during infer_types, not stored on NodeBuilder
+            // The if node's branches are already rewired above through the attributes
         }
         NodeType::Loop | NodeType::Scan => {
             // Loop and Scan nodes have a body graph
@@ -348,7 +338,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         }
     }
 
@@ -389,7 +378,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         }
     }
 

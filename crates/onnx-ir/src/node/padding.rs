@@ -10,9 +10,10 @@
 use std::fmt;
 
 /// Padding configuration for 1D operations such as convolution
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum PaddingConfig1d {
     /// No padding (valid padding)
+    #[default]
     Valid,
     /// Explicit padding with a specific size
     Explicit(usize),
@@ -66,9 +67,10 @@ pub fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
 }
 
 /// Padding configuration for 2D operations such as convolution
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum PaddingConfig2d {
     /// No padding (valid padding)
+    #[default]
     Valid,
     /// Explicit padding with specific width and height
     Explicit(usize, usize),
@@ -86,9 +88,10 @@ impl fmt::Display for PaddingConfig2d {
 }
 
 /// Padding configuration for 3D operations such as convolution
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum PaddingConfig3d {
     /// No padding (valid padding)
+    #[default]
     Valid,
     /// Explicit padding with specific width, height, and depth
     Explicit(usize, usize, usize),

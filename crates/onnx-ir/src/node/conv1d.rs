@@ -17,7 +17,7 @@ use std::any::Any;
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
 /// Configuration for Conv1d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Conv1dConfig {
     /// Input channels
     pub channels_in: usize,
@@ -77,6 +77,8 @@ impl NodeConfig for Conv1dConfig {
 pub struct Conv1dProcessor;
 
 impl NodeProcessor for Conv1dProcessor {
+    type Config = Conv1dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -223,7 +225,7 @@ impl NodeProcessor for Conv1dProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];
@@ -280,17 +282,13 @@ impl NodeProcessor for Conv1dProcessor {
             padding,
         };
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<Conv1dConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Conv1d {
             name: builder.name,
@@ -362,9 +360,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -384,9 +380,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -406,9 +400,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -428,9 +420,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 4);
         assert_eq!(config.channels_out, 2);
@@ -476,9 +466,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -525,9 +513,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape
     }

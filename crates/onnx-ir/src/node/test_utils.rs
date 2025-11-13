@@ -491,11 +491,6 @@ impl TestNodeBuilder {
         let mut node = self.build_with_graph_data(opset);
         let prefs = OutputPreferences::new();
 
-        // Extract config if the processor provides one
-        if let Ok(Some(config)) = processor.extract_config(&node, opset) {
-            node.config = Some(config);
-        }
-
         // Run type inference
         let _ = processor.infer_types(&mut node, opset, &prefs);
 
@@ -510,7 +505,6 @@ impl TestNodeBuilder {
             inputs: self.inputs,
             outputs: self.outputs,
             attrs: self.attrs,
-            config: None,
         }
     }
 

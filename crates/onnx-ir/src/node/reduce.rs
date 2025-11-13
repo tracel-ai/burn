@@ -25,7 +25,7 @@ use crate::processor::{
 use crate::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use std::any::Any;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
@@ -50,6 +50,8 @@ impl ReduceConfig {
 pub struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
+    type Config = ReduceConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -71,7 +73,7 @@ impl NodeProcessor for ReduceProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Add validation for maximum input count
@@ -118,12 +120,11 @@ impl NodeProcessor for ReduceProcessor {
         };
 
         // Get config values before using them
-        let dims = node.config::<ReduceConfig>().dims.clone();
-        let keepdims = if node.config::<ReduceConfig>().keepdims {
-            1
-        } else {
-            0
-        };
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
+        let dims = config.dims.clone();
+        let keepdims = if config.keepdims { 1 } else { 0 };
 
         // Determine if the output should be a scalar
         let should_be_scalar = keepdims == 0 && (dims.is_empty() || dims.len() == tensor_rank);
@@ -173,7 +174,7 @@ impl NodeProcessor for ReduceProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Validate input type and extract tensor info
         let tensor_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -217,17 +218,13 @@ impl NodeProcessor for ReduceProcessor {
         dims.sort();
 
         let config = ReduceConfig::new(dims, keepdims == 1);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         match builder.node_type {
             crate::ir::NodeType::ReduceMax => Node::ReduceMax {
@@ -302,10 +299,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, true);
@@ -319,10 +313,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
@@ -336,10 +327,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, Vec::<usize>::new());
         assert_eq!(config.keepdims, true);
@@ -353,10 +341,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [0, 1]);
         assert_eq!(config.keepdims, true);
@@ -370,10 +355,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, false);
@@ -385,8 +367,7 @@ mod tests {
         let mut node = create_test_node(None, Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -408,8 +389,7 @@ mod tests {
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -431,8 +411,7 @@ mod tests {
         let mut node = create_test_node(Some(vec![1]), Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -455,8 +434,7 @@ mod tests {
         let mut node = create_test_node(None, Some(1));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -487,8 +465,7 @@ mod tests {
         // This should not panic
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -517,8 +494,7 @@ mod tests {
         // This should not panic
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -546,8 +522,7 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

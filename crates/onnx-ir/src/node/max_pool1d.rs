@@ -48,6 +48,17 @@ pub struct MaxPool1dConfig {
     pub padding: PaddingConfig1d,
 }
 
+impl Default for MaxPool1dConfig {
+    fn default() -> Self {
+        Self {
+            kernel_size: 1,
+            stride: 1,
+            dilation: 1,
+            padding: PaddingConfig1d::Valid,
+        }
+    }
+}
+
 impl MaxPool1dConfig {
     /// Create a new MaxPool1dConfig
     pub fn new(kernel_size: usize) -> Self {
@@ -91,6 +102,8 @@ impl NodeConfig for MaxPool1dConfig {
 pub struct MaxPool1dProcessor;
 
 impl NodeProcessor for MaxPool1dProcessor {
+    type Config = MaxPool1dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -167,7 +180,7 @@ impl NodeProcessor for MaxPool1dProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1];
         let mut pads = vec![0, 0];
@@ -195,17 +208,13 @@ impl NodeProcessor for MaxPool1dProcessor {
             padding,
         };
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<MaxPool1dConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::MaxPool1d {
             name: builder.name,
@@ -250,9 +259,7 @@ mod tests {
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -267,9 +274,7 @@ mod tests {
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 2);
@@ -284,9 +289,7 @@ mod tests {
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -309,9 +312,7 @@ mod tests {
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);

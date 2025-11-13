@@ -21,7 +21,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for ConvTranspose2d operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConvTranspose2dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],
@@ -80,6 +80,8 @@ impl NodeConfig for ConvTranspose2dConfig {
 pub struct Convtranspose2dProcessor;
 
 impl NodeProcessor for Convtranspose2dProcessor {
+    type Config = ConvTranspose2dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -139,7 +141,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1, 1]; // Default stride to 1
         let mut pads = vec![0, 0, 0, 0]; // Default padding to 0
@@ -220,17 +222,13 @@ impl NodeProcessor for Convtranspose2dProcessor {
             bias,
         );
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ConvTranspose2dConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::ConvTranspose2d {
             name: builder.name,
@@ -311,9 +309,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2]);
@@ -342,9 +338,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert_eq!(config.padding, [1, 1]);
         assert_eq!(config.stride, [2, 2]);
@@ -367,9 +361,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert_eq!(config.padding_out, [1, 1]);
     }
@@ -391,9 +383,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert_eq!(config.groups, 2);
         assert_eq!(config.channels, [8, 2]); // channels_in is adjusted by groups
@@ -416,9 +406,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert!(config.bias);
     }
@@ -460,9 +448,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2]);
@@ -511,9 +497,7 @@ mod tests {
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]); // Inferred via weight tensor shape
     }

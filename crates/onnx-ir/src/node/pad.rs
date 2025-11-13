@@ -99,6 +99,16 @@ pub struct PadConfig {
     pub mode: PadMode,
 }
 
+impl Default for PadConfig {
+    fn default() -> Self {
+        Self {
+            pads: PadInput::Static(vec![]),
+            constant_value: ConstantValueInput::Static(0.0),
+            mode: PadMode::default(),
+        }
+    }
+}
+
 impl NodeConfig for PadConfig {
     fn as_any(&self) -> &dyn Any {
         self
@@ -111,6 +121,8 @@ impl NodeConfig for PadConfig {
 pub struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {
+    type Config = PadConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -191,7 +203,7 @@ impl NodeProcessor for PadProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Helper function to get mode
         fn get_mode(node: &NodeBuilder) -> Result<PadMode, ProcessError> {
             use std::str::FromStr;
@@ -403,17 +415,13 @@ impl NodeProcessor for PadProcessor {
             constant_value,
             mode,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<PadConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Pad {
             name: builder.name,
@@ -486,9 +494,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)
@@ -506,9 +512,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 1.0).abs() < 1e-6)
@@ -532,9 +536,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.5).abs() < 1e-6)
@@ -559,9 +561,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 2, 0, 2]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)
@@ -583,9 +583,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
 
         // Check that we have runtime inputs
         assert!(matches!(&config.pads, PadInput::Runtime(arg) if arg.name == "pads"));
@@ -608,9 +606,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
 
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
@@ -632,9 +628,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
 
         assert!(matches!(&config.pads, PadInput::Runtime(arg) if arg.name == "pads"));
         assert!(
@@ -652,9 +646,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)

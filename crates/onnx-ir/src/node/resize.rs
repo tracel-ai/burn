@@ -32,6 +32,12 @@ pub enum ResizeMode {
     Cubic,
 }
 
+impl Default for ResizeMode {
+    fn default() -> Self {
+        Self::Nearest
+    }
+}
+
 impl FromStr for ResizeMode {
     type Err = String;
 
@@ -46,7 +52,7 @@ impl FromStr for ResizeMode {
 }
 
 /// Configuration for the Resize operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ResizeConfig {
     pub mode: ResizeMode,
     pub scales: Option<ResizeScales>,
@@ -84,6 +90,12 @@ pub enum ResizeScales {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for ResizeScales {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
+}
+
 /// Represents either a static value or a runtime argument for resize sizes.
 #[derive(Debug, Clone)]
 pub enum ResizeSizes {
@@ -91,6 +103,12 @@ pub enum ResizeSizes {
     Static(Vec<usize>),
     /// Runtime sizes determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
+}
+
+impl Default for ResizeSizes {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
 }
 
 /// Extract scales input as either static or runtime
@@ -193,6 +211,8 @@ fn extract_sizes_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeSi
 pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
+    type Config = ResizeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -224,7 +244,7 @@ impl NodeProcessor for ResizeProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Add maximum input count validation
@@ -362,7 +382,9 @@ impl NodeProcessor for ResizeProcessor {
         }
 
         // Get reference to config for validation
-        let config = node.config::<ResizeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Check that at least one of scales or sizes is provided
         if config.scales.is_none() && config.sizes.is_none() {
@@ -381,7 +403,7 @@ impl NodeProcessor for ResizeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut mode: Option<ResizeMode> = None;
         let mut coordinate_transformation_mode = "half_pixel".to_string();
         let mut cubic_coeff_a = -0.75f32;
@@ -459,17 +481,13 @@ impl NodeProcessor for ResizeProcessor {
             extrapolation_value,
             antialias,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ResizeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Resize {
             name: builder.name,
@@ -540,9 +558,7 @@ mod tests {
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Nearest);
         match &config.scales {
             Some(ResizeScales::Static(scales)) => {
@@ -573,9 +589,7 @@ mod tests {
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Linear);
         assert!(config.scales.is_none(), "Expected no scales");
         match &config.sizes {
@@ -598,8 +612,7 @@ mod tests {
         let mut node = node;
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -610,8 +623,7 @@ mod tests {
         let mut node = node;
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }

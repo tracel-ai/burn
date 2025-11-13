@@ -25,7 +25,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for Linear operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LinearConfig {
     /// Input dimension (features)
     pub d_input: usize,
@@ -65,6 +65,8 @@ impl NodeConfig for LinearConfig {
 pub struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
+    type Config = LinearConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -128,7 +130,7 @@ impl NodeProcessor for LinearProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -144,17 +146,13 @@ impl NodeProcessor for LinearProcessor {
         let bias = node.inputs.len() == 3 && !node.inputs[2].is_optional();
 
         let config = LinearConfig::new(in_size, out_size).with_bias(bias);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<LinearConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Linear {
             name: builder.name,
@@ -193,7 +191,8 @@ mod tests {
     #[test]
     fn test_linear_config_basic() {
         let node = create_test_node(false, vec![10, 5]).process(LinearProcessor, 16);
-        let config = node.config::<LinearConfig>();
+        let processor = LinearProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -203,7 +202,8 @@ mod tests {
     #[test]
     fn test_linear_config_with_bias() {
         let node = create_test_node(true, vec![10, 5]).process(LinearProcessor, 16);
-        let config = node.config::<LinearConfig>();
+        let processor = LinearProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -213,8 +213,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "index out of bounds")]
     fn test_linear_config_invalid_weight_dims() {
-        let _node = create_test_node(false, vec![10]).process(LinearProcessor, 16);
-        // Error should occur in extract_config when accessing weight_shape[1]
+        let node = create_test_node(false, vec![10]).build_with_graph_data(16);
+        let processor = LinearProcessor;
+        // This should panic when accessing weight_shape[1] on a 1D weight tensor
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]

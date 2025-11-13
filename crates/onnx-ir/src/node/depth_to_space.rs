@@ -26,8 +26,9 @@ use crate::{
 use std::any::Any;
 
 /// Mode for DepthToSpace operation
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DepthToSpaceMode {
+    #[default]
     DCR,
     CRD,
 }
@@ -43,7 +44,7 @@ impl DepthToSpaceMode {
 }
 
 /// Configuration for DepthToSpace operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DepthToSpaceConfig {
     pub mode: DepthToSpaceMode,
     pub block_size: usize,
@@ -68,6 +69,8 @@ impl NodeConfig for DepthToSpaceConfig {
 pub struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
+    type Config = DepthToSpaceConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -97,7 +100,9 @@ impl NodeProcessor for DepthToSpaceProcessor {
         }
 
         // Get reference to config for type inference
-        let config = node.config::<DepthToSpaceConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Validate that if mode is CRD, we need opset 11+
         if config.mode == DepthToSpaceMode::CRD && opset < 11 {
@@ -160,7 +165,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut block_size: Option<usize> = None;
         let mut mode = DepthToSpaceMode::DCR;
 
@@ -184,17 +189,13 @@ impl NodeProcessor for DepthToSpaceProcessor {
             block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         let config = DepthToSpaceConfig::new(mode, block_size);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<DepthToSpaceConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::DepthToSpace {
             name: builder.name,
@@ -239,9 +240,7 @@ mod tests {
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 2);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -254,9 +253,7 @@ mod tests {
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -269,9 +266,7 @@ mod tests {
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::CRD);
@@ -282,8 +277,7 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

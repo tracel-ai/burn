@@ -44,6 +44,8 @@ use crate::processor::{
 pub struct ArithmeticBinaryProcessor;
 
 impl NodeProcessor for ArithmeticBinaryProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 7,
@@ -51,6 +53,14 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
             inputs: InputSpec::Exact(2),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn input_preferences(
@@ -111,7 +121,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         match builder.node_type {
             crate::ir::NodeType::Add => Node::Add {
                 name: builder.name,

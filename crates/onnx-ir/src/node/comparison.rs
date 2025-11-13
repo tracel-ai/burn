@@ -85,6 +85,16 @@ pub fn elementwise_comparison_outputs(node: &mut NodeBuilder) {
 pub struct ComparisonProcessor;
 
 impl NodeProcessor for ComparisonProcessor {
+    type Config = ();
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
+    }
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 7,
@@ -158,7 +168,7 @@ impl NodeProcessor for ComparisonProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         match builder.node_type {
             crate::ir::NodeType::Equal => Node::Equal {
                 name: builder.name,

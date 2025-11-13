@@ -34,8 +34,14 @@ pub enum TopKInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for TopKInput {
+    fn default() -> Self {
+        TopKInput::Static(0)
+    }
+}
+
 /// Configuration for the TopK operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TopKConfig {
     /// The axis along which to perform the top-k selection.
     pub axis: usize,
@@ -56,6 +62,8 @@ impl NodeConfig for TopKConfig {
 pub struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
+    type Config = TopKConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 10,
@@ -136,7 +144,7 @@ impl NodeProcessor for TopKProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input data tensor
         let data_tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor,
@@ -188,17 +196,13 @@ impl NodeProcessor for TopKProcessor {
             axis: axis as usize,
             k,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::TopK {
             name: builder.name,
@@ -257,8 +261,7 @@ mod tests {
 
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 2);
@@ -306,9 +309,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
         assert_eq!(config.axis, 2);
@@ -324,9 +325,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
         assert_eq!(config.axis, 3);
@@ -345,9 +344,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 1);
         assert!(matches!(&config.k, TopKInput::Static(k) if *k == 3));
@@ -365,9 +362,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         // For rank 4, axis -2 should be 2
         assert_eq!(config.axis, 2);
@@ -386,9 +381,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 1);
         assert!(matches!(&config.k, TopKInput::Static(k) if *k == 7));
@@ -406,9 +399,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 2);
         assert!(matches!(&config.k, TopKInput::Static(k) if *k == 2));
@@ -425,8 +416,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -442,8 +432,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -486,9 +475,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         // K from input should be used (5), not from attribute (10)
         assert_eq!(config.axis, 2);
@@ -509,9 +496,7 @@ mod tests {
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 2); // Default axis -1 becomes 2 for rank 3
         assert!(matches!(&config.k, TopKInput::Runtime(arg) if arg.name == "K"));

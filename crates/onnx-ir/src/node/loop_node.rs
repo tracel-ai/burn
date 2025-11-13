@@ -52,6 +52,19 @@ pub struct LoopConfig {
     pub body: OnnxGraph,
 }
 
+impl Default for LoopConfig {
+    fn default() -> Self {
+        Self {
+            body: OnnxGraph {
+                nodes: vec![],
+                inputs: vec![],
+                outputs: vec![],
+                _graph_data: None,
+            },
+        }
+    }
+}
+
 impl NodeConfig for LoopConfig {
     fn as_any(&self) -> &dyn Any {
         self
@@ -66,6 +79,8 @@ impl NodeConfig for LoopConfig {
 pub struct LoopProcessor;
 
 impl NodeProcessor for LoopProcessor {
+    type Config = LoopConfig;
+
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
@@ -128,7 +143,9 @@ impl NodeProcessor for LoopProcessor {
         }
 
         // Get body graph from config
-        let config = node.config::<LoopConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let body_inputs = config.body.inputs.clone();
         let body_outputs = config.body.outputs.clone();
 
@@ -149,7 +166,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_in_type {
-            ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
                 // Valid
             }
             _ => {
@@ -176,7 +193,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_out_type {
-            ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
                 // Valid
             }
             _ => {
@@ -246,7 +263,7 @@ impl NodeProcessor for LoopProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
         let body = node
             .attrs
@@ -255,17 +272,13 @@ impl NodeProcessor for LoopProcessor {
             .clone()
             .into_graph();
 
-        Ok(Some(Box::new(LoopConfig { body })))
+        Ok(LoopConfig { body })
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<LoopConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Loop {
             name: builder.name,
@@ -356,8 +369,7 @@ mod tests {
         let processor = LoopProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -383,8 +395,7 @@ mod tests {
 
         let processor = LoopProcessor;
 
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

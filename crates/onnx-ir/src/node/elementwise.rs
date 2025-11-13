@@ -82,6 +82,16 @@ use crate::processor::{
 pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
+    type Config = ();
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
+    }
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -107,7 +117,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         use crate::ir::NodeType;
 
         match builder.node_type {
@@ -169,6 +179,16 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 pub struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
+    type Config = ();
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
+    }
+
     fn spec(&self) -> NodeSpec {
         // Determine opset based on operation type
         let min_opset = 1;
@@ -238,7 +258,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         use crate::ir::NodeType;
 
         match builder.node_type {
@@ -427,7 +447,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -463,7 +482,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -503,7 +521,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         let result = processor.infer_types(&mut node, 10, &prefs);

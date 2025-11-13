@@ -19,7 +19,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for Flatten operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FlattenConfig {
     /// Axis along which to flatten
     pub axis: usize,
@@ -38,6 +38,8 @@ impl NodeConfig for FlattenConfig {
 pub struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
+    type Config = FlattenConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -50,7 +52,7 @@ impl NodeProcessor for FlattenProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Extract the shape of the input tensor
@@ -73,7 +75,9 @@ impl NodeProcessor for FlattenProcessor {
         }
 
         // Get reference to config for type inference
-        let _config = node.config::<FlattenConfig>();
+        let _config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Infer output type - Flatten to a 2D tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 2, ..tensor });
@@ -85,7 +89,7 @@ impl NodeProcessor for FlattenProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -123,17 +127,13 @@ impl NodeProcessor for FlattenProcessor {
         let config = FlattenConfig {
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<FlattenConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Flatten {
             name: builder.name,
@@ -160,14 +160,16 @@ mod tests {
     #[test]
     fn test_flatten_config_basic() {
         let node = create_test_node(1).process(FlattenProcessor, 16);
-        let config = node.config::<FlattenConfig>();
+        let processor = FlattenProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
     fn test_flatten_config_with_negative_axis() {
         let node = create_test_node(-2).process(FlattenProcessor, 16);
-        let config = node.config::<FlattenConfig>();
+        let processor = FlattenProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 
@@ -185,8 +187,7 @@ mod tests {
 
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }

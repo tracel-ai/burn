@@ -33,7 +33,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for the Range operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RangeConfig {
     pub start: RangeInput,
     pub limit: RangeInput,
@@ -59,9 +59,17 @@ pub enum RangeInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for RangeInput {
+    fn default() -> Self {
+        Self::Static(0)
+    }
+}
+
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
+    type Config = RangeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -142,7 +150,7 @@ impl NodeProcessor for RangeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Helper function to extract range input
         fn get_range_input(
             node: &NodeBuilder,
@@ -177,17 +185,13 @@ impl NodeProcessor for RangeProcessor {
             limit,
             delta,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<RangeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Range {
             name: builder.name,

@@ -26,6 +26,8 @@ use crate::processor::{
 pub struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 8,
@@ -33,6 +35,14 @@ impl NodeProcessor for SumProcessor {
             inputs: InputSpec::AtLeast(1),
             outputs: OutputSpec::Exact(1),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &NodeBuilder,
+        _opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        Ok(())
     }
 
     fn infer_types(
@@ -55,7 +65,7 @@ impl NodeProcessor for SumProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         Node::Sum {
             name: builder.name,
             inputs: builder.inputs,
@@ -105,7 +115,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         let prefs = OutputPreferences::new();
@@ -163,7 +172,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         let prefs = OutputPreferences::new();

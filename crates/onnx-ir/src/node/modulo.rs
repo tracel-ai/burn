@@ -25,7 +25,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for Mod operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ModConfig {
     /// Determines the modulo operation behavior:
     /// false (default): Integer modulo - sign follows divisor (Python-style %)
@@ -52,6 +52,8 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
+    type Config = ModConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 10,
@@ -119,7 +121,7 @@ impl NodeProcessor for ModuloProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract fmod attribute
         let fmod = match node.attrs.get("fmod") {
             Some(AttributeValue::Int64(value)) => {
@@ -130,17 +132,13 @@ impl NodeProcessor for ModuloProcessor {
         };
 
         let config = ModConfig::new(fmod);
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<ModConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Mod {
             name: builder.name,
@@ -173,9 +171,7 @@ mod tests {
         let processor = ModuloProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false); // Should default to false
     }
 
@@ -188,9 +184,7 @@ mod tests {
         let processor = ModuloProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false);
     }
 
@@ -203,9 +197,7 @@ mod tests {
         let processor = ModuloProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, true);
     }
 }

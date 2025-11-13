@@ -18,7 +18,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for AvgPool2d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AvgPool2dConfig {
     /// Kernel size [height, width]
     pub kernel_size: [usize; 2],
@@ -69,6 +69,8 @@ impl NodeConfig for AvgPool2dConfig {
 pub struct AvgPool2dProcessor;
 
 impl NodeProcessor for AvgPool2dProcessor {
+    type Config = AvgPool2dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -157,7 +159,7 @@ impl NodeProcessor for AvgPool2dProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
@@ -185,17 +187,13 @@ impl NodeProcessor for AvgPool2dProcessor {
         )
         .with_dilation([dilations[0] as usize, dilations[1] as usize]);
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<AvgPool2dConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::AveragePool2d {
             name: builder.name,
@@ -243,9 +241,7 @@ mod tests {
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -261,9 +257,7 @@ mod tests {
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
@@ -279,9 +273,7 @@ mod tests {
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -304,9 +296,7 @@ mod tests {
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -321,8 +311,7 @@ mod tests {
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }

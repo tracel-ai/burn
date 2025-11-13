@@ -23,7 +23,7 @@ use crate::processor::{
 use std::any::Any;
 
 /// Configuration for Transpose operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TransposeConfig {
     /// Permutation of dimensions
     pub perm: Vec<i64>,
@@ -42,6 +42,8 @@ impl NodeConfig for TransposeConfig {
 pub struct TransposeProcessor;
 
 impl NodeProcessor for TransposeProcessor {
+    type Config = TransposeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -54,11 +56,13 @@ impl NodeProcessor for TransposeProcessor {
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference
-        let config = node.config::<TransposeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // TODO: Missing validation that perm is a valid permutation.
         // Must verify: len(perm) == rank, all values in [0, rank-1], no duplicates.
@@ -96,7 +100,7 @@ impl NodeProcessor for TransposeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -119,17 +123,13 @@ impl NodeProcessor for TransposeProcessor {
         }
 
         let config = TransposeConfig { perm };
-        Ok(Some(Box::new(config)))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        let config = builder
-            .config
-            .expect("Config should be set by extract_config")
-            .as_any()
-            .downcast_ref::<TransposeConfig>()
-            .expect("Wrong config type")
-            .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
         Node::Transpose {
             name: builder.name,
@@ -165,9 +165,7 @@ mod tests {
         let processor = TransposeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![2, 1, 0]); // Default is to reverse the dimensions
     }
 
@@ -178,9 +176,7 @@ mod tests {
         let processor = TransposeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![0, 2, 1]);
     }
 

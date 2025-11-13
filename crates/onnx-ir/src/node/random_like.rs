@@ -24,7 +24,7 @@ use protobuf::Enum;
 use std::any::Any;
 
 /// Configuration for RandomNormalLike operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RandomNormalLikeConfig {
     pub mean: f64,
     pub scale: f64,
@@ -41,7 +41,7 @@ impl NodeConfig for RandomNormalLikeConfig {
 }
 
 /// Configuration for RandomUniformLike operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RandomUniformLikeConfig {
     pub low: f64,
     pub high: f64,
@@ -57,9 +57,34 @@ impl NodeConfig for RandomUniformLikeConfig {
     }
 }
 
+/// Enum config that can hold either RandomNormalLike or RandomUniformLike config
+#[derive(Debug, Clone)]
+pub enum RandomLikeConfig {
+    Normal(RandomNormalLikeConfig),
+    Uniform(RandomUniformLikeConfig),
+}
+
+impl Default for RandomLikeConfig {
+    fn default() -> Self {
+        RandomLikeConfig::Normal(RandomNormalLikeConfig::default())
+    }
+}
+
+impl NodeConfig for RandomLikeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 pub struct RandomLikeProcessor;
 
 impl NodeProcessor for RandomLikeProcessor {
+    type Config = RandomLikeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -117,8 +142,8 @@ impl NodeProcessor for RandomLikeProcessor {
         &self,
         node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
-        let config: Box<dyn NodeConfig> = match node.node_type {
+    ) -> Result<Self::Config, ProcessError> {
+        let config = match node.node_type {
             crate::ir::NodeType::RandomNormalLike => {
                 let mean = node
                     .attrs
@@ -130,7 +155,7 @@ impl NodeProcessor for RandomLikeProcessor {
                     .get("scale")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomNormalLikeConfig { mean, scale })
+                RandomLikeConfig::Normal(RandomNormalLikeConfig { mean, scale })
             }
             crate::ir::NodeType::RandomUniformLike => {
                 let low = node
@@ -143,7 +168,7 @@ impl NodeProcessor for RandomLikeProcessor {
                     .get("high")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomUniformLikeConfig { low, high })
+                RandomLikeConfig::Uniform(RandomUniformLikeConfig { low, high })
             }
             _ => {
                 return Err(ProcessError::Custom(format!(
@@ -153,44 +178,27 @@ impl NodeProcessor for RandomLikeProcessor {
             }
         };
 
-        Ok(Some(config))
+        Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder) -> Node {
-        match builder.node_type {
-            crate::ir::NodeType::RandomNormalLike => {
-                let config = builder
-                    .config
-                    .expect("Config should be set by extract_config")
-                    .as_any()
-                    .downcast_ref::<RandomNormalLikeConfig>()
-                    .expect("Wrong config type for RandomNormalLike")
-                    .clone();
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
 
-                Node::RandomNormalLike {
-                    name: builder.name,
-                    inputs: builder.inputs,
-                    outputs: builder.outputs,
-                    config,
-                }
-            }
-            crate::ir::NodeType::RandomUniformLike => {
-                let config = builder
-                    .config
-                    .expect("Config should be set by extract_config")
-                    .as_any()
-                    .downcast_ref::<RandomUniformLikeConfig>()
-                    .expect("Wrong config type for RandomUniformLike")
-                    .clone();
-
-                Node::RandomUniformLike {
-                    name: builder.name,
-                    inputs: builder.inputs,
-                    outputs: builder.outputs,
-                    config,
-                }
-            }
-            _ => panic!("RandomLikeProcessor called with unsupported node type"),
+        match config {
+            RandomLikeConfig::Normal(normal_like_config) => Node::RandomNormalLike {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: normal_like_config,
+            },
+            RandomLikeConfig::Uniform(uniform_like_config) => Node::RandomUniformLike {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: uniform_like_config,
+            },
         }
     }
 }
