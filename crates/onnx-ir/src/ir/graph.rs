@@ -60,6 +60,12 @@ impl OnnxGraphBuilder {
 }
 
 /// Convert a vector of NodeBuilders to Nodes, handling subgraphs recursively
+pub fn finalize_graph_nodes(builders: &mut Vec<NodeBuilder>, opset: usize) -> Vec<Node> {
+    let taken_builders = std::mem::take(builders);
+    convert_builders_to_nodes(taken_builders, opset)
+}
+
+/// Convert a vector of NodeBuilders to Nodes, handling subgraphs recursively
 fn convert_builders_to_nodes(builders: Vec<NodeBuilder>, opset: usize) -> Vec<Node> {
     let registry = crate::processor::get_processor_registry();
 

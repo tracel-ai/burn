@@ -63,9 +63,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
 
 impl OnnxIntoNode for RandomUniformNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let output = node.outputs.first().unwrap();
+        let output = node.outputs().first().unwrap();
         let output_type = TensorType::from(output);
-        let config = node.config::<onnx_ir::node::random::RandomUniformConfig>();
+
+        let config = match &node {
+            onnx_ir::ir::Node::RandomUniform { config, .. } => config,
+            _ => panic!("Expected RandomUniform node"),
+        };
+
         Self::new(output_type, config.low, config.high, config.shape.clone())
     }
 }

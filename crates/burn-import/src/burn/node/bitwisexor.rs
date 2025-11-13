@@ -75,8 +75,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseXorNode {
 
 impl OnnxIntoNode for BitwiseXorNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = Type::from(node.outputs.first().unwrap());
+        let inputs = node.inputs().iter().map(Type::from).collect();
+        let output = Type::from(node.outputs().first().unwrap());
         Self::new(inputs, output)
     }
 }

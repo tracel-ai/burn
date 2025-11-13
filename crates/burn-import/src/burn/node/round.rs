@@ -35,11 +35,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RoundNode {
 
 impl OnnxIntoNode for RoundNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match Type::from(node.inputs.first().unwrap()) {
+        let input = match Type::from(node.inputs().first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("RoundNode expects tensor input"),
         };
-        let output = match Type::from(node.outputs.first().unwrap()) {
+        let output = match Type::from(node.outputs().first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("RoundNode expects tensor output"),
         };

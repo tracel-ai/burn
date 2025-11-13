@@ -57,6 +57,7 @@ pub mod matmul;
 pub mod matmulinteger;
 pub mod max_pool1d;
 pub mod max_pool2d;
+pub mod mean;
 pub mod modulo;
 pub mod nonzero;
 pub mod one_hot;

@@ -147,6 +147,7 @@ impl ProcessorRegistry {
             Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
         );
         registry.register(NodeType::Sum, Box::new(crate::node::sum::SumProcessor));
+        registry.register(NodeType::Mean, Box::new(crate::node::mean::MeanProcessor));
 
         // Unary operations
         registry.register(

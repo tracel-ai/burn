@@ -37,15 +37,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TransposeNode {
 
 impl OnnxIntoNode for TransposeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+        let input = match crate::burn::Type::from(node.inputs().first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Transpose expects tensor input"),
         };
-        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+        let output = match crate::burn::Type::from(node.outputs().first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Transpose expects tensor output"),
         };
-        let config = node.config::<onnx_ir::node::transpose::TransposeConfig>();
+        let config = match &node {
+            onnx_ir::ir::Node::Transpose { config, .. } => config,
+            _ => panic!("Expected Transpose node"),
+        };
         Self::new(input, output, config.perm.clone())
     }
 }

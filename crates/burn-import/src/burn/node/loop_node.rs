@@ -30,7 +30,7 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
         .iter()
         .map(|node| {
             try_convert_onnx_node::<PS>(node.clone())
-                .unwrap_or_else(|| panic!("Unsupported op in loop body: {:?}", node.node_type))
+                .unwrap_or_else(|| panic!("Unsupported op in loop body: {}", node.name()))
         })
         .collect();
 
@@ -534,15 +534,18 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
 impl OnnxIntoNode for LoopNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Extract M (max trip count) and cond (condition) - first two inputs
-        let max_trip_count = Type::from(node.inputs.first().unwrap());
-        let condition = Type::from(&node.inputs[1]);
+        let max_trip_count = Type::from(node.inputs().first().unwrap());
+        let condition = Type::from(&node.inputs()[1]);
 
         // Get body graph from config
-        let config = node.config::<onnx_ir::node::loop_node::LoopConfig>();
+        let config = match &node {
+            onnx_ir::ir::Node::Loop { config, .. } => config,
+            _ => panic!("Expected Loop node"),
+        };
         let body = config.body.clone();
 
         // Loop-carried dependencies are inputs after M and cond
-        let v_initial: Vec<Type> = node.inputs.iter().skip(2).map(Type::from).collect();
+        let v_initial: Vec<Type> = node.inputs().iter().skip(2).map(Type::from).collect();
 
         // Per ONNX spec:
         // - Body inputs: [iteration_num, cond_in, v_in_1, ..., v_in_N]
@@ -550,25 +553,25 @@ impl OnnxIntoNode for LoopNode {
         // - Loop node outputs: [v_final_1, ..., v_final_N, scan_1, ..., scan_K]
         //
         // Where N = number of loop-carried dependencies = v_initial.len()
-        // And K = number of scan outputs = node.outputs.len() - N
+        // And K = number of scan outputs = node.outputs().len() - N
         let num_loop_carried_outputs = v_initial.len();
 
         // Validate that body outputs match expected structure
         let expected_body_outputs =
-            1 + num_loop_carried_outputs + (node.outputs.len() - num_loop_carried_outputs);
+            1 + num_loop_carried_outputs + (node.outputs().len() - num_loop_carried_outputs);
         if body.outputs.len() != expected_body_outputs {
             panic!(
                 "Loop body output mismatch: expected {} outputs (1 cond + {} loop-carried + {} scan), got {}",
                 expected_body_outputs,
                 num_loop_carried_outputs,
-                node.outputs.len() - num_loop_carried_outputs,
+                node.outputs().len() - num_loop_carried_outputs,
                 body.outputs.len()
             );
         }
 
         // Convert node outputs to Type
         // Note: onnx-ir handles type inference for scan outputs (adding concat dimension)
-        let outputs: Vec<Type> = node.outputs.iter().map(Type::from).collect();
+        let outputs: Vec<Type> = node.outputs().iter().map(Type::from).collect();
 
         Self::new(
             max_trip_count,

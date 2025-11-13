@@ -117,22 +117,59 @@ impl NodeProcessor for IfProcessor {
     fn extract_config(
         &self,
         node: &NodeBuilder,
-        _opset: usize,
+        opset: usize,
     ) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
-        let then_branch = node
+        let then_attr = node
             .attrs
             .get("then_branch")
             .ok_or_else(|| ProcessError::MissingAttribute("then_branch".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
 
-        let else_branch = node
+        let else_attr = node
             .attrs
             .get("else_branch")
             .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
+
+        // Handle both Graph and GraphBuilder
+        let then_branch = match then_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for then_branch".to_string(),
+                ));
+            }
+        };
+
+        let else_branch = match else_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for else_branch".to_string(),
+                ));
+            }
+        };
 
         Ok(IfConfig {
             then_branch,

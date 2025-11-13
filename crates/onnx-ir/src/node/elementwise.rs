@@ -54,6 +54,7 @@
 //! - **BitwiseAnd**: Bitwise AND (Opset 18+)
 //! - **BitwiseOr**: Bitwise OR (Opset 18+)
 //! - **BitwiseXor**: Bitwise XOR (Opset 18+)
+//! - **BitwiseNot**: Bitwise NOT (Opset 18+)
 //!
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
@@ -241,6 +242,8 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             crate::ir::NodeType::Round => 11,
             // Opset 1 operations
             crate::ir::NodeType::Not => 1,
+            // Opset 18 operations (bitwise)
+            crate::ir::NodeType::BitwiseNot => 18,
             // Other unary operations (need proper opset validation)
             crate::ir::NodeType::Sigmoid => 6,
             crate::ir::NodeType::Gelu => 20, // TODO: Verify Gelu opset requirement - may need custom processor for 'approximate' attribute
@@ -378,6 +381,11 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
                 outputs: builder.outputs,
             },
             NodeType::Not => Node::Not {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::BitwiseNot => Node::BitwiseNot {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,

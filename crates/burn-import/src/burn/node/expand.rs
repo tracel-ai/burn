@@ -5,9 +5,9 @@ use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-/// Burn-import version of ExpandShape that stores Argument instead of RuntimeInputRef
+/// Burn-import version of ExpandConfig that stores Argument instead of RuntimeInputRef
 #[derive(Debug, Clone)]
-pub enum ExpandShape {
+pub enum ExpandConfig {
     Static(Vec<i64>),
     Runtime(Argument),
 }
@@ -16,7 +16,7 @@ pub enum ExpandShape {
 pub struct ExpandNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub shape: ExpandShape,
+    pub shape: ExpandConfig,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
@@ -29,8 +29,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
         // If the shape is static, we only have the input tensor as an input,
         // if it is dynamic, the shape will be our 2nd:
         match &self.shape {
-            ExpandShape::Static(_) => vec![input],
-            ExpandShape::Runtime(rt_type) => vec![input, Type::from(rt_type)],
+            ExpandConfig::Static(_) => vec![input],
+            ExpandConfig::Runtime(rt_type) => vec![input, Type::from(rt_type)],
         }
     }
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -39,8 +39,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
         let output_rank = &self.output.rank;
 
         let shape = match &self.shape {
-            ExpandShape::Static(static_shape) => static_shape.to_tokens(),
-            ExpandShape::Runtime(ty) => match Type::from(ty) {
+            ExpandConfig::Static(static_shape) => static_shape.to_tokens(),
+            ExpandConfig::Runtime(ty) => match Type::from(ty) {
                 Type::Tensor(shape_tensor) => {
                     let tensor_name = &shape_tensor.name;
                     quote! {
@@ -68,17 +68,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
 
 impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::expand::ExpandShape>();
+        let input = TensorType::from(node.inputs().first().unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::Expand { config, .. } => config,
+            _ => panic!("Expected Expand node"),
+        };
 
-        // Convert from onnx-ir ExpandShape (with RuntimeInputRef) to burn-import ExpandShape (with Argument)
+        // Convert from onnx-ir ExpandConfig (with RuntimeInputRef) to burn-import ExpandConfig (with Argument)
         let shape = match config {
-            onnx_ir::node::expand::ExpandShape::Static(s) => ExpandShape::Static(s.clone()),
-            onnx_ir::node::expand::ExpandShape::Runtime(shape_ref) => {
+            onnx_ir::node::expand::ExpandConfig::Static(s) => ExpandConfig::Static(s.clone()),
+            onnx_ir::node::expand::ExpandConfig::Runtime(shape_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let shape_arg = node.inputs[shape_ref.input_index].clone();
-                ExpandShape::Runtime(shape_arg)
+                let shape_arg = node.inputs()[shape_ref.input_index].clone();
+                ExpandConfig::Runtime(shape_arg)
             }
         };
         Self::new(input, output, shape)
@@ -104,7 +107,7 @@ mod tests {
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Static([4, 4, 4, 4].into()),
+            ExpandConfig::Static([4, 4, 4, 4].into()),
         ));
 
         graph.register_input_output(
@@ -152,7 +155,7 @@ mod tests {
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(arg),
+            ExpandConfig::Runtime(arg),
         ));
 
         graph.register_input_output(
@@ -209,7 +212,7 @@ mod tests {
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(arg),
+            ExpandConfig::Runtime(arg),
         ));
 
         graph.register_input_output(

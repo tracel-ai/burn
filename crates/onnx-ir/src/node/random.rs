@@ -208,28 +208,12 @@ impl NodeProcessor for RandomProcessor {
                 outputs: builder.outputs,
                 config: normal_config,
             },
-            RandomConfig::Uniform(uniform_config) => {
-                // RandomUniform doesn't have a Node variant yet, so we convert it to RandomNormal
-                // by approximating the uniform distribution with equivalent params
-                // For a uniform distribution [low, high], approximate with normal: mean = (low+high)/2, scale = (high-low)/sqrt(12)
-                let mean = (uniform_config.low + uniform_config.high) / 2.0;
-                let scale = (uniform_config.high - uniform_config.low) / (12.0_f64.sqrt());
-
-                let normal_config = RandomNormalConfig {
-                    mean,
-                    scale,
-                    shape: uniform_config.shape,
-                };
-
-                // Since there's no Node::RandomUniform variant, we use RandomNormal
-                // TODO: Add RandomUniform variant to Node enum in node_enum.rs
-                Node::RandomNormal {
-                    name: builder.name,
-                    inputs: builder.inputs,
-                    outputs: builder.outputs,
-                    config: normal_config,
-                }
-            }
+            RandomConfig::Uniform(uniform_config) => Node::RandomUniform {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: uniform_config,
+            },
         }
     }
 }

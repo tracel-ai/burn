@@ -595,9 +595,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
 
 impl OnnxIntoNode for SliceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::slice::SliceConfig>();
+        let input = Type::from(node.inputs().first().unwrap());
+        let output = Type::from(node.outputs().first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::Slice { config, .. } => config,
+            _ => panic!("Expected Slice node"),
+        };
         use onnx_ir::node::slice::SliceInput;
 
         // Convert starts parameter
@@ -605,7 +608,7 @@ impl OnnxIntoNode for SliceNode {
             SliceInput::Static(values) => SliceParam::Static(values.clone()),
             SliceInput::Runtime(starts_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let starts_arg = &node.inputs[starts_ref.input_index];
+                let starts_arg = &node.inputs()[starts_ref.input_index];
                 SliceParam::Runtime(Type::from(starts_arg))
             }
         };
@@ -615,7 +618,7 @@ impl OnnxIntoNode for SliceNode {
             SliceInput::Static(values) => SliceParam::Static(values.clone()),
             SliceInput::Runtime(ends_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let ends_arg = &node.inputs[ends_ref.input_index];
+                let ends_arg = &node.inputs()[ends_ref.input_index];
                 SliceParam::Runtime(Type::from(ends_arg))
             }
         };
@@ -628,7 +631,7 @@ impl OnnxIntoNode for SliceNode {
                 SliceInput::Static(values) => SliceParam::Static(values.clone()),
                 SliceInput::Runtime(axes_ref) => {
                     // Get the actual argument using the RuntimeInputRef
-                    let axes_arg = &node.inputs[axes_ref.input_index];
+                    let axes_arg = &node.inputs()[axes_ref.input_index];
                     SliceParam::Runtime(Type::from(axes_arg))
                 }
             };
@@ -641,7 +644,7 @@ impl OnnxIntoNode for SliceNode {
                 SliceInput::Static(values) => SliceParam::Static(values.clone()),
                 SliceInput::Runtime(steps_ref) => {
                     // Get the actual argument using the RuntimeInputRef
-                    let steps_arg = &node.inputs[steps_ref.input_index];
+                    let steps_arg = &node.inputs()[steps_ref.input_index];
                     SliceParam::Runtime(Type::from(steps_arg))
                 }
             };

@@ -30,7 +30,7 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
         .iter()
         .map(|node| {
             try_convert_onnx_node::<PS>(node.clone())
-                .unwrap_or_else(|| panic!("Unsupported op in scan body: {:?}", node.node_type))
+                .unwrap_or_else(|| panic!("Unsupported op in scan body: {}", node.name()))
         })
         .collect();
 
@@ -404,7 +404,10 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for ScanNode {
 impl OnnxIntoNode for ScanNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Get body graph and config from node
-        let config = node.config::<onnx_ir::node::scan_node::ScanConfig>();
+        let config = match &node {
+            onnx_ir::ir::Node::Scan { config, .. } => config,
+            _ => panic!("Expected Scan node"),
+        };
         let body = config.body.clone();
         let num_scan_inputs = config.num_scan_inputs as usize;
         let scan_input_directions = config.scan_input_directions.clone();
@@ -413,23 +416,23 @@ impl OnnxIntoNode for ScanNode {
         let scan_output_axes = config.scan_output_axes.clone();
 
         // Split inputs into state variables and scan inputs
-        let num_state_vars = node.inputs.len() - num_scan_inputs;
+        let num_state_vars = node.inputs().len() - num_scan_inputs;
         let initial_state_vars: Vec<Type> = node
-            .inputs
+            .inputs()
             .iter()
             .take(num_state_vars)
             .map(Type::from)
             .collect();
 
         let scan_input_sequences: Vec<Type> = node
-            .inputs
+            .inputs()
             .iter()
             .skip(num_state_vars)
             .map(Type::from)
             .collect();
 
         // Outputs are final state vars + scan output sequences
-        let outputs: Vec<Type> = node.outputs.iter().map(Type::from).collect();
+        let outputs: Vec<Type> = node.outputs().iter().map(Type::from).collect();
 
         Self::new(
             initial_state_vars,

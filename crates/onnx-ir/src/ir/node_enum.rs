@@ -85,6 +85,7 @@ use crate::node::conv2d::Conv2dConfig;
 use crate::node::conv3d::Conv3dConfig;
 use crate::node::depth_to_space::DepthToSpaceConfig;
 use crate::node::dropout::DropoutConfig;
+use crate::node::expand::ExpandConfig;
 use crate::node::eye_like::EyeLikeConfig;
 use crate::node::flatten::FlattenConfig;
 use crate::node::gather::GatherConfig;
@@ -105,7 +106,7 @@ use crate::node::max_pool2d::MaxPool2dConfig;
 use crate::node::modulo::ModConfig;
 use crate::node::one_hot::OneHotConfig;
 use crate::node::pad::PadConfig;
-use crate::node::random::RandomNormalConfig;
+use crate::node::random::{RandomNormalConfig, RandomUniformConfig};
 use crate::node::random_like::{RandomNormalLikeConfig, RandomUniformLikeConfig};
 use crate::node::range::RangeConfig;
 use crate::node::reduce::ReduceConfig;
@@ -219,7 +220,7 @@ define_node_enum! {
     Cast { config: CastConfig },
     Clip { config: ClipConfig },
     Concat { config: ConcatConfig },
-    Expand,
+    Expand { config: ExpandConfig },
     Flatten { config: FlattenConfig },
     Gather { config: GatherConfig },
     GatherElements { config: GatherElementsConfig },
@@ -281,6 +282,7 @@ define_node_enum! {
 
     // RANDOM OPERATIONS
     RandomNormal { config: RandomNormalConfig },
+    RandomUniform { config: RandomUniformConfig },
     RandomNormalLike { config: RandomNormalLikeConfig },
     RandomUniformLike { config: RandomUniformLikeConfig },
     Bernoulli,

@@ -521,8 +521,8 @@ impl ParsedOnnxGraph {
             if let Some(burn_node) = try_convert_onnx_node::<PS>(node.clone()) {
                 graph.register(burn_node);
             } else {
-                // Unsupported node type
-                unsupported_ops.push(node.node_type);
+                // Unsupported node type - extract variant name from Debug output
+                unsupported_ops.push(format!("{:?}", node).to_string());
             }
         }
 

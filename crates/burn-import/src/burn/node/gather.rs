@@ -252,10 +252,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 
 impl OnnxIntoNode for GatherNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let indices = Type::from(&node.inputs[1]);
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::gather::GatherConfig>();
+        let input = Type::from(node.inputs().first().unwrap());
+        let indices = Type::from(&node.inputs()[1]);
+        let output = Type::from(node.outputs().first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::Gather { config, .. } => config,
+            _ => panic!("Expected Gather node"),
+        };
 
         // burn-import always deals with runtime indices
         // All indices (including from ONNX Constant nodes) are treated as runtime arguments

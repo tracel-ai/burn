@@ -145,7 +145,7 @@ pub fn extract_node_data<E: burn::tensor::Element>(
     node: &onnx_ir::Node,
     input_index: usize,
 ) -> Option<burn::tensor::TensorData> {
-    let input = node.inputs.get(input_index)?;
+    let input = node.inputs().get(input_index)?;
     let value = input.value()?;
 
     // onnx-ir now uses burn_tensor::TensorData directly

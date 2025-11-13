@@ -142,9 +142,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
 
 impl OnnxIntoNode for BatchNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let config = node.config::<onnx_ir::node::batch_norm::BatchNormConfig>();
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::BatchNormalization { config, .. } => config,
+            _ => panic!("Expected BatchNormalization node"),
+        };
+        let input = TensorType::from(node.inputs().first().unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
         let dim = input.rank - 2;
 
         // Extract data using f32 as the element type
@@ -153,7 +156,7 @@ impl OnnxIntoNode for BatchNormNode {
         let running_mean = extract_node_data::<f32>(&node, 3).expect("Running mean is required");
         let running_var = extract_node_data::<f32>(&node, 4).expect("Running var is required");
 
-        let name = &node.name;
+        let name = &node.name();
         Self::new(
             dim,
             name,

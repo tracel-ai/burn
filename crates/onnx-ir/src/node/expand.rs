@@ -18,23 +18,24 @@ use crate::{
 
 /// Shape information for the Expand operation.
 #[derive(Debug, Clone)]
-pub enum ExpandShape {
+// TODO rename ExpandConfig to ExpandConfig
+pub enum ExpandConfig {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
     /// Runtime shape determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 
-impl Default for ExpandShape {
+impl Default for ExpandConfig {
     fn default() -> Self {
-        ExpandShape::Static(Vec::new())
+        ExpandConfig::Static(Vec::new())
     }
 }
 
 pub struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
-    type Config = ExpandShape;
+    type Config = ExpandConfig;
 
     fn spec(&self) -> NodeSpec {
         NodeSpec {
@@ -106,7 +107,7 @@ impl NodeProcessor for ExpandProcessor {
 
         // Determine output type based on config
         match config {
-            ExpandShape::Static(shape) => {
+            ExpandConfig::Static(shape) => {
                 // TODO: Validate shape values are positive or -1 per ONNX spec - Negative values other than -1 are invalid - Missing constraint validation
                 // TODO: Validate broadcasting rules - Per spec, input shape and target shape must be compatible for broadcasting - Missing broadcast validation
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -115,7 +116,7 @@ impl NodeProcessor for ExpandProcessor {
                     static_shape: Some(shape.iter().map(|&dim| dim as usize).collect()),
                 });
             }
-            ExpandShape::Runtime(_) => {
+            ExpandConfig::Runtime(_) => {
                 // When the shape cannot be determined statically, infer the rank from the shape input
                 let output_rank = match &node.inputs[1].ty {
                     ArgType::Shape(rank) => *rank,
@@ -162,7 +163,7 @@ impl NodeProcessor for ExpandProcessor {
         // Extract config
         let config = match node.inputs[1].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
-                Ok(shape) => ExpandShape::Static(shape),
+                Ok(shape) => ExpandConfig::Static(shape),
                 Err(_) => {
                     return Err(ProcessError::Custom(
                         "Expand: shape data type must be int32 or int64".to_string(),
@@ -171,14 +172,14 @@ impl NodeProcessor for ExpandProcessor {
             },
             None => {
                 // Runtime shape - store reference instead of cloning the argument
-                ExpandShape::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
+                ExpandConfig::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
             }
         };
         Ok(config)
     }
 
     fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
-        let _config = self
+        let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
@@ -186,6 +187,7 @@ impl NodeProcessor for ExpandProcessor {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
+            config,
         }
     }
 }
@@ -286,10 +288,10 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match config {
-            ExpandShape::Static(shape) => {
+            ExpandConfig::Static(shape) => {
                 assert_eq!(*shape, vec![2, 3, 4]);
             }
-            ExpandShape::Runtime(_) => panic!("Expected Static config, got Runtime"),
+            ExpandConfig::Runtime(_) => panic!("Expected Static config, got Runtime"),
         }
     }
 
@@ -303,8 +305,8 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match config {
-            ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
-            ExpandShape::Runtime(name) => {
+            ExpandConfig::Static(_) => panic!("Expected Runtime config, got Static"),
+            ExpandConfig::Runtime(name) => {
                 assert_eq!(name.name, "shape");
             }
         }
@@ -321,8 +323,8 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match config {
-            ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
-            ExpandShape::Runtime(name) => {
+            ExpandConfig::Static(_) => panic!("Expected Runtime config, got Static"),
+            ExpandConfig::Runtime(name) => {
                 assert_eq!(name.name, "shape");
             }
         }

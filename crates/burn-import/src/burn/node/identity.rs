@@ -35,8 +35,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IdentityNode {
 
 impl OnnxIntoNode for IdentityNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        let input = crate::burn::TensorType::from(node.inputs().first().unwrap());
+        let output = crate::burn::TensorType::from(node.outputs().first().unwrap());
         Self::new(input, output)
     }
 }

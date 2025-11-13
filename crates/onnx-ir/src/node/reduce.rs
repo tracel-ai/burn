@@ -252,6 +252,30 @@ impl NodeProcessor for ReduceProcessor {
                 outputs: builder.outputs,
                 config,
             },
+            crate::ir::NodeType::ReduceL1 => Node::ReduceL1 {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceL2 => Node::ReduceL2 {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceLogSum => Node::ReduceLogSum {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceLogSumExp => Node::ReduceLogSumExp {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
             _ => panic!("ReduceProcessor called with unsupported node type"),
         }
     }

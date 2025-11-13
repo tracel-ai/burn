@@ -92,9 +92,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
 
 impl OnnxIntoNode for AvgPool2dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::avg_pool2d::AvgPool2dConfig>();
+        let input = TensorType::from(node.inputs().first().unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::AveragePool2d { config, .. } => config,
+            _ => panic!("Expected AveragePool2d node"),
+        };
 
         // Burn doesn't support dilations in AvgPool2d yet
         if config.dilation != [1, 1] {
@@ -104,7 +107,7 @@ impl OnnxIntoNode for AvgPool2dNode {
             );
         }
 
-        let name = &node.name;
+        let name = &node.name();
         Self::new(name, input, output, config.clone())
     }
 }

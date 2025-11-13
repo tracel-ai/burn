@@ -139,15 +139,34 @@ impl NodeProcessor for ScanProcessor {
     fn extract_config(
         &self,
         node: &NodeBuilder,
-        _opset: usize,
+        opset: usize,
     ) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
-        let body = node
+        let body_attr = node
             .attrs
             .get("body")
             .ok_or_else(|| ProcessError::MissingAttribute("body".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
+
+        // Handle both Graph and GraphBuilder
+        let body = match body_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for body".to_string(),
+                ));
+            }
+        };
 
         // Extract num_scan_inputs (required)
         let num_scan_inputs = node

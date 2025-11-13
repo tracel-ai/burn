@@ -51,9 +51,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
 
 impl OnnxIntoNode for ClipNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::clip::ClipConfig>();
+        let input = TensorType::from(node.inputs().first().unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::Clip { config, .. } => config,
+            _ => panic!("Expected Clip node"),
+        };
 
         // Extract static values from ClipInput enum
         let min = match &config.min {

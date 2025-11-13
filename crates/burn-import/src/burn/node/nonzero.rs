@@ -52,8 +52,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NonZeroNode {
 
 impl OnnxIntoNode for NonZeroNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = TensorType::from(node.inputs().first().unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
         Self::new(input, output)
     }
 }

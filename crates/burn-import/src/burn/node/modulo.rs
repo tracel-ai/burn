@@ -106,10 +106,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
 
 impl OnnxIntoNode for ModNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::modulo::ModConfig>();
+        let lhs = Type::from(node.inputs().first().unwrap());
+        let rhs = Type::from(node.inputs().get(1).unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::Mod { config, .. } => config,
+            _ => panic!("Expected Mod node"),
+        };
         Self::new(lhs, rhs, output, config.fmod)
     }
 }

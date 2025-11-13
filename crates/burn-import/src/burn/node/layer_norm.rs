@@ -126,16 +126,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
 
 impl OnnxIntoNode for LayerNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let config = node.config::<onnx_ir::node::layer_norm::LayerNormConfig>();
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = match &node {
+            onnx_ir::ir::Node::LayerNormalization { config, .. } => config,
+            _ => panic!("Expected LayerNormalization node"),
+        };
+        let input = TensorType::from(node.inputs().first().unwrap());
+        let output = TensorType::from(node.outputs().first().unwrap());
 
         // Scale tensor (aka gamma)
         let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
         // Bias (B) optional tensor
         let beta = extract_node_data::<f32>(&node, 2);
 
-        let name = &node.name;
+        let name = &node.name();
         Self::new(
             name,
             input,
