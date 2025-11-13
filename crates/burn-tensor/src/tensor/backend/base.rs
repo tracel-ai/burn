@@ -122,10 +122,10 @@ pub trait Backend:
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) {}
 
-    /// Marks the given data as being used as staging buffer for transfer between CPU and
+    /// Marks the given data as being used as a staging buffer for transfer between CPU and
     /// accelerators like GPUs.
     ///
-    /// The given data might be transfer to pinned memory or other format to improve data transfer
+    /// The given data might be transferred to pinned memory or another format to improve data transfer
     /// speed.
     fn staging<'a, Iter>(_data: Iter, _device: &Self::Device)
     where
