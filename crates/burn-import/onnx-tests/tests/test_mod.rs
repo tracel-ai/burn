@@ -108,6 +108,11 @@ pub mod split;
 pub mod sqrt;
 pub mod squeeze;
 pub mod sub;
+// Control flow operators
+pub mod if_op;
+pub mod r#loop;
+pub mod scan;
+pub mod subgraph;
 pub mod sum;
 pub mod tan;
 pub mod tanh;
@@ -118,6 +123,7 @@ pub mod trilu;
 pub mod unsqueeze;
 pub mod where_op;
 pub mod xor;
+
 /// Include specified models in the `model` directory in the target directory.
 #[macro_export]
 macro_rules! include_models {

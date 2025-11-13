@@ -59,6 +59,11 @@ pub struct Node {
 }
 
 impl Node {
+    /// Get a reference to the node's attributes
+    pub fn attrs(&self) -> &Attributes {
+        &self.attrs
+    }
+
     /// Get a reference to the node's configuration with automatic downcasting.
     /// Returns None if the config is not set or cannot be downcast to type T.
     ///

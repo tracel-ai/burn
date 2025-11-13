@@ -10,33 +10,102 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 use crate::{
     graph_state::GraphState,
     ir::{ArgType, AttributeValue, Node, NodeType, TensorData, TensorDataExt},
+    pipeline::OnnxIrError,
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
-    protos::{ModelProto, NodeProto},
+    protos::{GraphProto, NodeProto},
 };
 
-/// Convert all ONNX nodes to IR nodes
-pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState>>) {
-    let opset_version = extract_opset_version(model);
+/// Convert all ONNX nodes from GraphProto to IR nodes (for subgraphs)
+///
+/// # Errors
+///
+/// Returns an error if graph attribute processing fails
+pub(crate) fn convert_nodes_from_graph(
+    graph: &GraphProto,
+    state_rc: &Rc<RefCell<GraphState>>,
+    opset_version: usize,
+) -> Result<(), OnnxIrError> {
+    convert_nodes_impl(&graph.node, state_rc, opset_version)
+}
+
+/// Internal implementation for node conversion
+///
+/// # Errors
+///
+/// Returns an error if graph attribute processing fails
+fn convert_nodes_impl(
+    nodes: &[NodeProto],
+    state_rc: &Rc<RefCell<GraphState>>,
+    opset_version: usize,
+) -> Result<(), OnnxIrError> {
     let mut node_name_counter: HashMap<NodeType, usize> = HashMap::new();
 
-    // Initialize constant counter from initializers
-    {
+    // Get the name registry (if available)
+    let name_registry = {
         let state = state_rc.borrow();
-        let constant_count = state
-            .processed_nodes
-            .iter()
-            .filter(|n| n.node_type == NodeType::Constant)
-            .count();
-        if constant_count > 0 {
-            node_name_counter.insert(NodeType::Constant, constant_count);
-        }
-    }
 
-    let mut node_iter = model.graph.node.iter().peekable();
+        if let Some(registry) = state.name_registry() {
+            // Registry is shared, already initialized with constant count from initializers
+            Some(registry.clone())
+        } else {
+            // Fall back to local counter for backwards compatibility
+            let constant_count = state
+                .processed_nodes
+                .iter()
+                .filter(|n| n.node_type == NodeType::Constant)
+                .count();
+            if constant_count > 0 {
+                node_name_counter.insert(NodeType::Constant, constant_count);
+            }
+            None
+        }
+    };
+
+    let mut node_iter = nodes.iter().peekable();
 
     while let Some(node_proto) = node_iter.next() {
         let mut node = convert_node_proto(node_proto, &state_rc.borrow());
+
+        // Handle graph attributes for control flow nodes (If, Loop, Scan)
+        if matches!(
+            node.node_type,
+            NodeType::If | NodeType::Loop | NodeType::Scan
+        ) {
+            // Pass the current graph's NameRegistry to ensure unique names across nested subgraphs
+            // If no registry exists, create one and initialize with current node counts
+            let parent_registry = if let Some(registry) = state_rc.borrow().name_registry().cloned()
+            {
+                registry
+            } else {
+                // Create new registry and initialize with current node name counters
+                let registry = crate::graph_state::NameRegistry::new();
+                // Initialize counters from the current graph's already-named nodes
+                // IMPORTANT: Increment by 1 to account for the current node which will be
+                // renamed later using the local counter
+                for (node_type, count) in &node_name_counter {
+                    registry.set_initial_counter(node_type, count + 1);
+                }
+                // Also account for the current node's type
+                registry.set_initial_counter(&node.node_type, 1);
+                registry
+            };
+
+            let graph_attrs = crate::proto_conversion::convert_graph_attributes(
+                node_proto,
+                opset_version,
+                Some(parent_registry),
+            );
+            // Merge graph attributes with existing attributes
+            for (key, value) in graph_attrs {
+                node.attrs.insert(key, value);
+            }
+
+            // Update subgraph inputs to use renamed names from parent scope
+            // This is necessary because onnx-ir renames outputs (e.g., var2 -> add3_out1)
+            // but subgraph inputs still reference original ONNX names
+            update_subgraph_inputs(&mut node, &state_rc.borrow());
+        }
 
         // Attach value_store to all arguments
         attach_value_stores(&mut node, state_rc);
@@ -50,7 +119,7 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
         remap_node_type(&mut node);
 
         // Rename node with counter
-        rename_node(&mut node, &mut node_name_counter);
+        rename_node(&mut node, &mut node_name_counter, name_registry.as_ref());
 
         // Track node type before coalesce (may change it)
         let node_type_before = node.node_type.clone();
@@ -63,7 +132,7 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
 
         // Rename if coalesce changed node type
         if node.node_type != node_type_before {
-            rename_node(&mut node, &mut node_name_counter);
+            rename_node(&mut node, &mut node_name_counter, name_registry.as_ref());
         }
 
         // Lift constants and extract config
@@ -92,6 +161,8 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
         // Add to graph state
         state_rc.borrow_mut().add_node(node);
     }
+
+    Ok(())
 }
 
 /// Extract constant data from node attributes and move to tensor store
@@ -167,24 +238,31 @@ fn attach_value_stores(node: &mut Node, state_rc: &Rc<RefCell<GraphState>>) {
 }
 
 /// Rename node with type-based counter
-fn rename_node(node: &mut Node, counters: &mut HashMap<NodeType, usize>) {
-    counters
-        .entry(node.node_type.clone())
-        .and_modify(|e| *e += 1)
-        .or_insert(1);
+fn rename_node(
+    node: &mut Node,
+    counters: &mut HashMap<NodeType, usize>,
+    name_registry: Option<&crate::graph_state::NameRegistry>,
+) {
+    // If registry is available, use it to generate unique names across subgraphs
+    if let Some(registry) = name_registry {
+        let old_name = node.name.clone();
+        node.name = registry.generate_node_name(&node.node_type);
+        log::debug!(
+            "Renamed node: '{}' -> '{}' (type: {:?})",
+            old_name,
+            node.name,
+            node.node_type
+        );
+    } else {
+        // Fall back to local counter for backwards compatibility
+        counters
+            .entry(node.node_type.clone())
+            .and_modify(|e| *e += 1)
+            .or_insert(1);
 
-    let new_name = format!("{}{}", node.node_type, counters[&node.node_type]).to_lowercase();
-    node.name = new_name;
-}
-
-/// Extract opset version from model
-fn extract_opset_version(model: &ModelProto) -> usize {
-    model
-        .opset_import
-        .iter()
-        .find(|opset| opset.domain.is_empty())
-        .map(|opset| opset.version as usize)
-        .expect("ONNX model must specify opset version for default domain")
+        let new_name = format!("{}{}", node.node_type, counters[&node.node_type]).to_lowercase();
+        node.name = new_name;
+    }
 }
 
 /// Remap node type using kernel shape
@@ -450,6 +528,76 @@ fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
     current_node.outputs[0]
         .name
         .clone_from(&bias_node.outputs[0].name);
+}
+
+/// Update subgraph inputs to use renamed names from parent scope
+///
+/// When onnx-ir processes nodes, it renames outputs (e.g., var2 -> add3_out1).
+/// Subgraph inputs reference original ONNX names, so we need to update them
+/// to use the renamed names from the parent scope.
+fn update_subgraph_inputs(node: &mut Node, graph_state: &GraphState) {
+    // Get the node_output_map which maps original ONNX names to (node_idx, output_idx)
+    let node_output_map = graph_state.node_output_map();
+
+    // Update inputs for each graph attribute
+    for attr_value in node.attrs.values_mut() {
+        match attr_value {
+            AttributeValue::Graph(subgraph) => {
+                update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
+            }
+            AttributeValue::Graphs(subgraphs) => {
+                for subgraph in subgraphs {
+                    update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Update inputs for a single subgraph
+fn update_single_subgraph_inputs(
+    subgraph: &mut crate::ir::OnnxGraph,
+    node_output_map: &HashMap<String, (usize, usize)>,
+    graph_state: &GraphState,
+) {
+    // Build a mapping of old names to new names
+    let mut rename_map = HashMap::new();
+
+    for input in &mut subgraph.inputs {
+        // Check if this input name exists in the parent's node_output_map
+        if let Some(&(node_idx, output_idx)) = node_output_map.get(&input.name) {
+            // Get the renamed output name from the parent node
+            let renamed_name = graph_state.processed_nodes[node_idx].outputs[output_idx]
+                .name
+                .clone();
+            log::debug!(
+                "Updating subgraph input: {} -> {}",
+                input.name,
+                renamed_name
+            );
+
+            // Store the mapping
+            rename_map.insert(input.name.clone(), renamed_name.clone());
+
+            // Update the input name
+            input.name = renamed_name;
+        }
+    }
+
+    // Also update all node inputs within the subgraph that reference the old names
+    for node in &mut subgraph.nodes {
+        for node_input in &mut node.inputs {
+            if let Some(new_name) = rename_map.get(&node_input.name) {
+                log::debug!(
+                    "Updating node input in subgraph: {} -> {}",
+                    node_input.name,
+                    new_name
+                );
+                node_input.name = new_name.clone();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
