@@ -24,10 +24,6 @@ fn main() {
     println!("Silero VAD Model Test");
     println!("========================================\n");
 
-    println!("This model tests burn-import's support for:");
-    println!("  - If operators (conditional execution)");
-    println!("  - Loop operators (iterative execution)");
-    println!("  - Scan operators (sequential processing)");
     println!();
 
     // Check if artifacts exist
@@ -57,7 +53,10 @@ fn main() {
 
     // Save model structure to file
     let model_txt_path = artifacts_dir.join("silero_vad_model.txt");
-    println!("\nSaving model structure to {}...", model_txt_path.display());
+    println!(
+        "\nSaving model structure to {}...",
+        model_txt_path.display()
+    );
     let model_str = format!("{}", model);
     std::fs::write(&model_txt_path, &model_str).expect("Failed to write model structure to file");
     println!("  ✓ Model structure saved");
@@ -100,7 +99,10 @@ fn main() {
 
     // Get the voice probability value
     let prob: f32 = output.clone().into_scalar();
-    println!("  Voice probability: {:.4} (0.0 = no voice, 1.0 = voice)", prob);
+    println!(
+        "  Voice probability: {:.4} (0.0 = no voice, 1.0 = voice)",
+        prob
+    );
 
     if prob >= 0.0 && prob <= 1.0 {
         println!("  ✓ Output is a valid probability");
