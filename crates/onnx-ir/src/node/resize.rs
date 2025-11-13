@@ -21,20 +21,15 @@ use crate::processor::{
 use std::str::FromStr;
 
 /// Interpolation mode for resize operation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ResizeMode {
     /// Nearest neighbor interpolation
+    #[default]
     Nearest,
     /// Linear interpolation (bilinear for 2D, trilinear for 3D)
     Linear,
     /// Cubic interpolation
     Cubic,
-}
-
-impl Default for ResizeMode {
-    fn default() -> Self {
-        Self::Nearest
-    }
 }
 
 impl FromStr for ResizeMode {
