@@ -7,15 +7,19 @@ use strum::{Display, EnumString};
 
 /// Supported ONNX operators (plus Burn-specific extensions for dimensional mapping)
 ///
-/// See: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
+/// See: <https://onnx.ai/onnx/operators/index.html>
 ///
 /// TODO: Derive NodeTypes from Node using a macro
+///
+/// Note: Some operators have dimensional variants (e.g., Conv1d, Conv2d, Conv3d) that are
+/// Burn-specific extensions for better type safety and code generation.
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
 pub enum NodeType {
     Abs,
     Acos,
     Acosh,
     Add,
+    AffineGrid,
     And,
     ArgMax,
     ArgMin,
@@ -41,7 +45,7 @@ pub enum NodeType {
     Celu,
     CenterCropPad,
     Clip,
-    Col,
+    Col2Im,
     Compress,
     Concat,
     ConcatFromSequence,
@@ -59,10 +63,11 @@ pub enum NodeType {
     Cos,
     Cosh,
     CumSum,
+    DFT,
+    DeformConv,
     DepthToSpace,
     DequantizeLinear,
     Det,
-    DFT,
     Div,
     Dropout,
     DynamicQuantizeLinear,
@@ -96,6 +101,7 @@ pub enum NodeType {
     Identity,
     If,
     Im,
+    ImageDecoder,
     InstanceNormalization,
     IsInf,
     IsNaN,
@@ -143,6 +149,8 @@ pub enum NodeType {
     QLinearConv,
     QLinearMatMul,
     QuantizeLinear,
+    RMSNormalization,
+    RNN,
     RandomNormal,
     RandomNormalLike,
     RandomUniform,
@@ -159,12 +167,13 @@ pub enum NodeType {
     ReduceProd,
     ReduceSum,
     ReduceSumSquare,
+    RegexFullMatch,
     Relu,
     Reshape,
     Resize,
     ReverseSequence,
-    RNN,
     RoiAlign,
+    RotaryEmbedding,
     Round,
     Scan,
     Scatter,
@@ -196,11 +205,15 @@ pub enum NodeType {
     Sqrt,
     Squeeze,
     STFT,
+    StringConcat,
     StringNormalizer,
+    StringSplit,
     Sub,
     Sum,
+    Swish,
     Tan,
     Tanh,
+    TensorScatter,
     TfIdfVectorizer,
     ThresholdedRelu,
     Tile,
