@@ -11,7 +11,7 @@ use cubecl_quant::scheme::BlockSize;
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.as_bytes());
+    let buffer = client.create(data.bytes);
 
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
