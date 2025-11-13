@@ -146,7 +146,7 @@ impl<B: Backend> Metric for RecallMetric<B> {
 
 impl<B: Backend> Numeric for RecallMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

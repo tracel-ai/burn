@@ -169,7 +169,7 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
 
 impl<B: Backend> Numeric for FBetaScoreMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

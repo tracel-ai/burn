@@ -150,7 +150,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
 
 impl<B: Backend> Numeric for PrecisionMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

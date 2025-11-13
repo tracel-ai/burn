@@ -58,6 +58,6 @@ impl Metric for LearningRateMetric {
 
 impl Numeric for LearningRateMetric {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
