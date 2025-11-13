@@ -111,7 +111,7 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
 
 impl<B: Backend> Numeric for TopKAccuracyMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

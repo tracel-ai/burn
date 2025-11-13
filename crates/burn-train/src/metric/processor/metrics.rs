@@ -232,7 +232,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         // Replace if value is None or better than the previous best.
         if entry
             .as_ref()
-            .map_or(true, |old| value.better_than(old, higher_is_better))
+            .is_none_or(|old| value.better_than(old, higher_is_better))
         {
             *entry = Some(value.clone());
         }
@@ -253,7 +253,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         // Replace if value is None or better than the previous best.
         if entry
             .as_ref()
-            .map_or(true, |old| value.better_than(old, higher_is_better))
+            .is_none_or(|old| value.better_than(old, higher_is_better))
         {
             *entry = Some(value.clone());
         }

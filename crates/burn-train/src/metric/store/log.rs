@@ -32,7 +32,7 @@ impl EventStore for LogEventStore {
                     .collect();
                 self.loggers
                     .iter_mut()
-                    .for_each(|logger| logger.log(entries.clone(), epoch, split, iteration));
+                    .for_each(|logger| logger.log(entries.clone(), epoch, split));
                 self.iterations.insert(split, iteration + 1);
             }
             Event::EndEpoch(summary) => {

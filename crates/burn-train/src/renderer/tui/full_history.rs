@@ -151,13 +151,11 @@ impl FullHistoryPoints {
                 val
             }
             NumericEntry::Aggregated {
-                sum,
-                count,
-                current,
+                aggregated_value, ..
             } => {
-                self.avg_sum = sum;
-                self.avg_counter = count as f64;
-                current
+                self.avg_sum += aggregated_value;
+                self.avg_counter += 1.0;
+                aggregated_value
             }
         };
 

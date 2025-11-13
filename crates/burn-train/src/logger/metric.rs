@@ -21,7 +21,7 @@ pub trait MetricLogger: Send {
     /// * `epoch` - Current epoch.
     /// * `split` - Current dataset split.
     /// * `iteration` - Current iteration.
-    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split, iteration: usize);
+    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split);
 
     /// Read the logs for an epoch.
     fn read_numeric(
@@ -204,7 +204,7 @@ impl FileMetricLogger {
 }
 
 impl MetricLogger for FileMetricLogger {
-    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split, _iteration: usize) {
+    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split) {
         for item in items.iter() {
             match item.tags.is_empty() {
                 true => self.log_item(None, item, Some(epoch), split),
@@ -280,7 +280,7 @@ impl InMemoryMetricLogger {
 }
 
 impl MetricLogger for InMemoryMetricLogger {
-    fn log(&mut self, items: Vec<&MetricEntry>, _epoch: usize, split: Split, _iteration: usize) {
+    fn log(&mut self, items: Vec<&MetricEntry>, _epoch: usize, split: Split) {
         for item in items.iter() {
             let key = logger_key(&item.name, split);
 
