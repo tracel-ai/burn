@@ -42,8 +42,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SinhNode {
 
 impl OnnxIntoNode for SinhNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs().first().unwrap());
-        let output = Type::from(node.outputs().first().unwrap());
+        let (inputs, outputs) = match node {
+            onnx_ir::ir::Node::Sinh {
+                inputs, outputs, ..
+            } => (inputs, outputs),
+            _ => panic!("Expected Sinh node"),
+        };
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
         Self::new(input, output)
     }
 }

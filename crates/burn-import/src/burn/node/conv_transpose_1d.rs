@@ -131,12 +131,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose1dNode {
 
 impl OnnxIntoNode for ConvTranspose1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let onnx_config = match &node {
-            onnx_ir::ir::Node::ConvTranspose1d { config, .. } => config,
+        let (inputs, outputs, onnx_config, name) = match &node {
+            onnx_ir::ir::Node::ConvTranspose1d {
+                inputs,
+                outputs,
+                config,
+                name,
+                ..
+            } => (inputs, outputs, config, name),
             _ => panic!("Expected ConvTranspose1d node"),
         };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
         let config = burn::nn::conv::ConvTranspose1dConfig::new(
             [onnx_config.channels_in, onnx_config.channels_out],
             onnx_config.kernel_size,
@@ -146,14 +152,13 @@ impl OnnxIntoNode for ConvTranspose1dNode {
         .with_dilation(onnx_config.dilation)
         .with_padding_out(onnx_config.padding_out)
         .with_groups(onnx_config.groups);
-        let has_bias = node.inputs().len() == 3;
+        let has_bias = inputs.len() == 3;
         let weight = extract_node_data::<f32>(&node, 1).unwrap();
         let bias = if has_bias {
             extract_node_data::<f32>(&node, 2)
         } else {
             None
         };
-        let name = &node.name();
         Self::new(name, input, output, weight, bias, config)
     }
 }

@@ -116,19 +116,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for InstanceNormNode {
 
 impl OnnxIntoNode for InstanceNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::InstanceNormalization { config, .. } => config,
+        let (inputs, outputs, config, name) = match &node {
+            onnx_ir::ir::Node::InstanceNormalization {
+                inputs,
+                outputs,
+                config,
+                name,
+                ..
+            } => (inputs, outputs, config, name),
             _ => panic!("Expected InstanceNormalization node"),
         };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Scale tensor (aka gamma)
         let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
         // Bias (B) tensor
         let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
 
-        let name = &node.name();
         Self::new(name, input, output, gamma, beta, config.clone())
     }
 }

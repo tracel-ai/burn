@@ -68,19 +68,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
 
 impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::Expand { config, .. } => config,
+        let (inputs, outputs, config) = match node {
+            onnx_ir::ir::Node::Expand {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
             _ => panic!("Expected Expand node"),
         };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Convert from onnx-ir ExpandConfig (with RuntimeInputRef) to burn-import ExpandConfig (with Argument)
         let shape = match config {
-            onnx_ir::node::expand::ExpandConfig::Static(s) => ExpandConfig::Static(s.clone()),
+            onnx_ir::node::expand::ExpandConfig::Static(s) => ExpandConfig::Static(s),
             onnx_ir::node::expand::ExpandConfig::Runtime(shape_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let shape_arg = node.inputs()[shape_ref.input_index].clone();
+                let shape_arg = inputs[shape_ref.input_index].clone();
                 ExpandConfig::Runtime(shape_arg)
             }
         };

@@ -87,13 +87,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DropoutNode {
 
 impl OnnxIntoNode for DropoutNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let name = &node.name();
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::Dropout { config, .. } => config,
+        let (inputs, outputs, config, name) = match &node {
+            onnx_ir::ir::Node::Dropout {
+                inputs,
+                outputs,
+                config,
+                name,
+                ..
+            } => (inputs, outputs, config, name),
             _ => panic!("Expected Dropout node"),
         };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
         Self::new(name, input, output, config.clone())
     }
 }

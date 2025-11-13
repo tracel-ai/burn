@@ -50,12 +50,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
 
 impl OnnxIntoNode for RandomNormalLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::RandomNormalLike { config, .. } => config,
+        let (inputs, outputs, config) = match node {
+            onnx_ir::ir::Node::RandomNormalLike {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
             _ => panic!("Expected RandomNormalLike node"),
         };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
         Self::new(config.mean, config.scale, input, output)
     }
 }

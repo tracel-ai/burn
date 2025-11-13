@@ -192,9 +192,13 @@ impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 
-        // Get the shape configuration from onnx-ir
-        let config = match &node {
-            onnx_ir::ir::Node::ConstantOfShape { config, .. } => config,
+        let (inputs, outputs, config) = match node {
+            onnx_ir::ir::Node::ConstantOfShape {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
             _ => panic!("Expected ConstantOfShape node"),
         };
 
@@ -204,12 +208,12 @@ impl OnnxIntoNode for ConstantOfShapeNode {
                 ConstantOfShapeShapeParam::Static(values.clone())
             }
             ConstantOfShapeShape::Runtime(runtime_ref) => {
-                let arg = &node.inputs()[runtime_ref.input_index];
+                let arg = &inputs[runtime_ref.input_index];
                 ConstantOfShapeShapeParam::Runtime(Type::from(arg))
             }
         };
 
-        let output = Type::from(node.outputs().first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
 
         // The value of the output elements. Should be a one-element tensor.
         // If not specified, it defaults to a tensor of value 0 and datatype float32

@@ -35,11 +35,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SigmoidNode {
 
 impl OnnxIntoNode for SigmoidNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match Type::from(node.inputs().first().unwrap()) {
+        let (inputs, outputs) = match node {
+            onnx_ir::ir::Node::Sigmoid {
+                inputs, outputs, ..
+            } => (inputs, outputs),
+            _ => panic!("Expected Sigmoid node"),
+        };
+        let input = match Type::from(inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("SigmoidNode expects tensor input"),
         };
-        let output = match Type::from(node.outputs().first().unwrap()) {
+        let output = match Type::from(outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("SigmoidNode expects tensor output"),
         };

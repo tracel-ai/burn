@@ -64,12 +64,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
 
 impl OnnxIntoNode for OneHotNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::OneHot { config, .. } => config,
+        let (inputs, outputs, config) = match node {
+            onnx_ir::ir::Node::OneHot {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
             _ => panic!("Expected OneHot node"),
         };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Extract num_classes from config.depth
         let num_classes = match config.depth {

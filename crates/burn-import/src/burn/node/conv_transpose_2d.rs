@@ -132,20 +132,25 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode {
 
 impl OnnxIntoNode for ConvTranspose2dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs().first().unwrap());
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::ConvTranspose2d { config, .. } => config,
+        let (inputs, outputs, config, name) = match &node {
+            onnx_ir::ir::Node::ConvTranspose2d {
+                inputs,
+                outputs,
+                config,
+                name,
+                ..
+            } => (inputs, outputs, config, name),
             _ => panic!("Expected ConvTranspose2d node"),
         };
-        let has_bias = node.inputs().len() == 3;
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
+        let has_bias = inputs.len() == 3;
         let weight = extract_node_data::<f32>(&node, 1).unwrap();
         let bias = if has_bias {
             extract_node_data::<f32>(&node, 2)
         } else {
             None
         };
-        let name = &node.name();
         Self::new(name, input, output, weight, bias, config.clone())
     }
 }

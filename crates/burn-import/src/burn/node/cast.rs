@@ -178,12 +178,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
 
 impl OnnxIntoNode for CastNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::Type::from(node.inputs().first().unwrap());
-        let output = crate::burn::Type::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::Cast { config, .. } => config,
+        let (inputs, outputs, config) = match node {
+            onnx_ir::ir::Node::Cast {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
             _ => panic!("Expected Cast node"),
         };
+        let input = crate::burn::Type::from(inputs.first().unwrap());
+        let output = crate::burn::Type::from(outputs.first().unwrap());
         Self::new(input, output, config.to)
     }
 }

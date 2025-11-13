@@ -42,8 +42,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AbsNode {
 
 impl OnnxIntoNode for AbsNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs().first().unwrap());
-        let output = Type::from(node.outputs().first().unwrap());
+        let (inputs, outputs) = match node {
+            onnx_ir::ir::Node::Abs {
+                inputs, outputs, ..
+            } => (inputs, outputs),
+            _ => panic!("Expected Abs node"),
+        };
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
         Self::new(input, output)
     }
 }

@@ -37,17 +37,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LeakyReluNode {
 
 impl OnnxIntoNode for LeakyReluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match crate::burn::Type::from(node.inputs().first().unwrap()) {
+        let (inputs, outputs, config) = match node {
+            onnx_ir::ir::Node::LeakyRelu {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
+            _ => panic!("Expected LeakyRelu node"),
+        };
+        let input = match crate::burn::Type::from(inputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("LeakyRelu expects tensor input"),
         };
-        let output = match crate::burn::Type::from(node.outputs().first().unwrap()) {
+        let output = match crate::burn::Type::from(outputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("LeakyRelu expects tensor output"),
-        };
-        let config = match &node {
-            onnx_ir::ir::Node::LeakyRelu { config, .. } => config,
-            _ => panic!("Expected LeakyRelu node"),
         };
         let alpha = config.alpha;
         Self::new(input, output, alpha)

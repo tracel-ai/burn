@@ -273,14 +273,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 
 impl OnnxIntoNode for ResizeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let name = &node.name();
-
-        let input = TensorType::from(&node.inputs()[0]);
-        let output = TensorType::from(node.outputs().first().unwrap());
-        let config = match &node {
-            onnx_ir::ir::Node::Resize { config, .. } => config,
+        let (inputs, outputs, config, name) = match &node {
+            onnx_ir::ir::Node::Resize {
+                inputs,
+                outputs,
+                config,
+                name,
+                ..
+            } => (inputs, outputs, config, name),
             _ => panic!("Expected Resize node"),
         };
+
+        let input = TensorType::from(&inputs[0]);
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Convert from onnx-ir types to burn types
         let mode = match config.mode {
@@ -295,7 +300,7 @@ impl OnnxIntoNode for ResizeNode {
             }
             Some(onnx_ir::node::resize::ResizeScales::Runtime(scales_ref)) => {
                 // Get the actual argument using the RuntimeInputRef
-                let scales_arg = &node.inputs()[scales_ref.input_index];
+                let scales_arg = &inputs[scales_ref.input_index];
                 Some(ResizeScales::Runtime(Type::from(scales_arg)))
             }
             None => None,
@@ -307,7 +312,7 @@ impl OnnxIntoNode for ResizeNode {
             }
             Some(onnx_ir::node::resize::ResizeSizes::Runtime(sizes_ref)) => {
                 // Get the actual argument using the RuntimeInputRef
-                let sizes_arg = &node.inputs()[sizes_ref.input_index];
+                let sizes_arg = &inputs[sizes_ref.input_index];
                 Some(ResizeSizes::Runtime(Type::from(sizes_arg)))
             }
             None => None,

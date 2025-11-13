@@ -122,9 +122,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DivNode {
 
 impl OnnxIntoNode for DivNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs().first().unwrap());
-        let rhs = Type::from(node.inputs().get(1).unwrap());
-        let output = Type::from(node.outputs().first().unwrap());
+        let (inputs, outputs) = match node {
+            onnx_ir::ir::Node::Div {
+                inputs, outputs, ..
+            } => (inputs, outputs),
+            _ => panic!("Expected Div node"),
+        };
+        let lhs = Type::from(inputs.first().unwrap());
+        let rhs = Type::from(inputs.get(1).unwrap());
+        let output = Type::from(outputs.first().unwrap());
 
         Self::new(lhs, rhs, output)
     }
