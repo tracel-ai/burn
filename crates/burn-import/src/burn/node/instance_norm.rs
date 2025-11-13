@@ -130,9 +130,9 @@ impl OnnxIntoNode for InstanceNormNode {
         let output = TensorType::from(outputs.first().unwrap());
 
         // Scale tensor (aka gamma)
-        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
+        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
         // Bias (B) tensor
-        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
+        let beta = extract_node_data(inputs, 2).expect("Beta is required");
 
         Self::new(name, input, output, gamma, beta, config.clone())
     }

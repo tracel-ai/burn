@@ -113,7 +113,7 @@ impl OnnxIntoNode for PReluNode {
         };
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
-        let mut weight = extract_node_data::<f32>(&node, 1).expect("PRelu weight is required");
+        let mut weight = extract_node_data(inputs, 1).expect("PRelu weight is required");
 
         // Determine weight shape and flatten if necessary
         let weight_shape = if weight.shape.len() > 1 {

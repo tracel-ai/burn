@@ -142,9 +142,9 @@ impl OnnxIntoNode for Conv2dNode {
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
         let has_bias = inputs.len() == 3;
-        let weight = extract_node_data::<f32>(&node, 1).unwrap();
+        let weight = extract_node_data(inputs, 1).unwrap();
         let bias = if has_bias {
-            extract_node_data::<f32>(&node, 2)
+            extract_node_data(inputs, 2)
         } else {
             None
         };

@@ -135,21 +135,16 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
 ///
 /// # Arguments
 ///
-/// * `node` - The ONNX IR node
+/// * `inputs` - The node's input arguments
 /// * `input_index` - Index of the input to extract data from
 ///
 /// # Returns
 ///
 /// `Some(TensorData)` if the input has a constant value, `None` otherwise
-pub fn extract_node_data<E: burn::tensor::Element>(
-    node: &onnx_ir::Node,
+pub fn extract_node_data(
+    inputs: &[onnx_ir::Argument],
     input_index: usize,
 ) -> Option<burn::tensor::TensorData> {
-    let input = node.inputs().get(input_index)?;
-    let value = input.value()?;
-
-    // onnx-ir now uses burn_tensor::TensorData directly
-    let data = value.clone().convert::<E>();
-
-    Some(data)
+    let input = inputs.get(input_index)?;
+    input.value()
 }

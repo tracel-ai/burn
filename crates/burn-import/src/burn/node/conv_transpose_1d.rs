@@ -153,9 +153,9 @@ impl OnnxIntoNode for ConvTranspose1dNode {
         .with_padding_out(onnx_config.padding_out)
         .with_groups(onnx_config.groups);
         let has_bias = inputs.len() == 3;
-        let weight = extract_node_data::<f32>(&node, 1).unwrap();
+        let weight = extract_node_data(inputs, 1).unwrap();
         let bias = if has_bias {
-            extract_node_data::<f32>(&node, 2)
+            extract_node_data(inputs, 2)
         } else {
             None
         };
