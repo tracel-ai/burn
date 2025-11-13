@@ -43,6 +43,7 @@ pub struct FileMetricLogger {
     loggers: HashMap<String, AsyncLogger<String>>,
     directory: PathBuf,
     is_eval: bool,
+    last_epoch: Option<usize>,
 }
 
 impl FileMetricLogger {
@@ -60,6 +61,7 @@ impl FileMetricLogger {
             loggers: HashMap::new(),
             directory: directory.as_ref().to_path_buf(),
             is_eval: false,
+            last_epoch: None,
         }
     }
 
@@ -77,6 +79,7 @@ impl FileMetricLogger {
             loggers: HashMap::new(),
             directory: directory.as_ref().to_path_buf(),
             is_eval: true,
+            last_epoch: None,
         }
     }
 
@@ -205,6 +208,10 @@ impl FileMetricLogger {
 
 impl MetricLogger for FileMetricLogger {
     fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split) {
+        if !self.is_eval && self.last_epoch != Some(epoch) {
+            self.loggers.clear();
+            self.last_epoch = Some(epoch);
+        }
         for item in items.iter() {
             match item.tags.is_empty() {
                 true => self.log_item(None, item, Some(epoch), split),
@@ -270,6 +277,7 @@ fn logger_key(name: &str, split: Split) -> String {
 #[derive(Default)]
 pub struct InMemoryMetricLogger {
     values: HashMap<String, Vec<InMemoryLogger>>,
+    last_epoch: Option<usize>,
 }
 
 impl InMemoryMetricLogger {
@@ -280,7 +288,13 @@ impl InMemoryMetricLogger {
 }
 
 impl MetricLogger for InMemoryMetricLogger {
-    fn log(&mut self, items: Vec<&MetricEntry>, _epoch: usize, split: Split) {
+    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split) {
+        if self.last_epoch != Some(epoch) {
+            self.values
+                .values_mut()
+                .for_each(|loggers| loggers.push(InMemoryLogger::default()));
+            self.last_epoch = Some(epoch);
+        }
         for item in items.iter() {
             let key = logger_key(&item.name, split);
 
@@ -319,9 +333,5 @@ impl MetricLogger for InMemoryMetricLogger {
 
     fn log_metric_definition(&self, _definition: MetricDefinition) {}
 
-    fn log_epoch_summary(&mut self, _summary: EpochSummary) {
-        self.values
-            .values_mut()
-            .for_each(|loggers| loggers.push(InMemoryLogger::default()));
-    }
+    fn log_epoch_summary(&mut self, _summary: EpochSummary) {}
 }
