@@ -8,7 +8,6 @@ pub(crate) struct LogEventStore {
     loggers: Vec<Box<dyn MetricLogger>>,
     aggregate: NumericMetricsAggregate,
     epochs: HashMap<Split, usize>,
-    iterations: HashMap<Split, usize>,
 }
 
 impl EventStore for LogEventStore {
@@ -24,7 +23,6 @@ impl EventStore for LogEventStore {
                 });
             }
             Event::MetricsUpdate(update) => {
-                let iteration = *self.iterations.entry(split).or_insert(1);
                 let entries: Vec<_> = update
                     .entries
                     .iter()
@@ -33,11 +31,9 @@ impl EventStore for LogEventStore {
                 self.loggers
                     .iter_mut()
                     .for_each(|logger| logger.log(entries.clone(), epoch, split));
-                self.iterations.insert(split, iteration + 1);
             }
             Event::EndEpoch(summary) => {
                 self.epochs.insert(split, summary.epoch_number + 1);
-                self.iterations = HashMap::default();
                 self.loggers
                     .iter_mut()
                     .for_each(|logger| logger.log_epoch_summary(summary.clone()));
