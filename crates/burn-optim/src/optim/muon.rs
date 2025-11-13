@@ -315,7 +315,8 @@ impl<B: Backend> Muon<B> {
 
         // Step 2: Normalize by Frobenius norm
         // X = X / (||X|| + epsilon)
-        let norm = x.clone()
+        let norm = x
+            .clone()
             .powf_scalar(2.0)
             .sum()
             .sqrt()
@@ -376,7 +377,7 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
     /// different learning rates:
     /// - Weight decay uses the original `lr`
     /// - Parameter update uses the shape-adjusted `lr`
-    /// 
+    ///
     /// # Panics
     /// This function will panic if the input tensors are not 2D.
     fn step<const D: usize>(
@@ -494,7 +495,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected =  "Newton-Schulz iteration requires 2D tensors, got 1D")]
+    #[should_panic(expected = "Newton-Schulz iteration requires 2D tensors, got 1D")]
     fn test_1d_tensor_panics() {
         let device = Default::default();
         let config = MuonConfig::new();
