@@ -188,12 +188,10 @@ pub enum NumericEntry {
     Value(f64),
     /// Aggregated numeric (value, number of elements).
     Aggregated {
-        /// The sum of all entries.
-        sum: f64,
-        /// The number of entries present in the sum.
+        /// The aggregated value of all entries.
+        aggregated_value: f64,
+        /// The number of entries present in the aggregated value.
         count: usize,
-        /// The current aggregated value.
-        current: f64,
     },
 }
 
@@ -202,17 +200,20 @@ impl NumericEntry {
     pub fn current(&self) -> f64 {
         match self {
             NumericEntry::Value(val) => *val,
-            NumericEntry::Aggregated { current, .. } => *current,
+            NumericEntry::Aggregated {
+                aggregated_value, ..
+            } => *aggregated_value,
         }
     }
-}
 
-impl NumericEntry {
     /// Returns a String representing the NumericEntry
     pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
-            Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
+            Self::Aggregated {
+                aggregated_value,
+                count,
+            } => format!("{aggregated_value},{count}"),
         }
     }
 
@@ -234,9 +235,8 @@ impl NumericEntry {
             match value.parse::<f64>() {
                 Ok(value) => match numel.parse::<usize>() {
                     Ok(numel) => Ok(NumericEntry::Aggregated {
-                        sum: value,
+                        aggregated_value: value,
                         count: numel,
-                        current: value,
                     }),
                     Err(err) => Err(err.to_string()),
                 },
@@ -245,6 +245,11 @@ impl NumericEntry {
         } else {
             Err("Invalid number of values for numeric entry".to_string())
         }
+    }
+
+    /// Compare this numeric metric's value with another one using the specified direction.
+    pub fn better_than(&self, other: &NumericEntry, higher_is_better: bool) -> bool {
+        (self.current() > other.current()) == higher_is_better
     }
 }
 

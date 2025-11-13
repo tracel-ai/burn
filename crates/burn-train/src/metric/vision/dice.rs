@@ -183,7 +183,7 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
 
 impl<B: Backend, const D: usize> crate::metric::Numeric for DiceMetric<B, D> {
     fn value(&self) -> crate::metric::NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

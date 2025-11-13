@@ -141,7 +141,7 @@ impl<B: Backend> Metric for WordErrorRate<B> {
 
 impl<B: Backend> Numeric for WordErrorRate<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 
