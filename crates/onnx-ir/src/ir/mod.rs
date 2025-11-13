@@ -8,8 +8,6 @@ pub mod argument;
 pub mod attribute;
 pub mod graph;
 pub mod node;
-pub mod node_enum;
-pub mod node_type;
 pub mod tensor_data_ext;
 
 // Re-export burn-tensor's DType
@@ -25,13 +23,7 @@ pub use attribute::{AttributeValue, Attributes};
 pub use graph::{OnnxGraph, OnnxGraphBuilder};
 
 // Re-exports from node module
-pub use node::{NodeBuilder, NodeConfig, RuntimeInputRef};
-
-// Re-exports from node_enum module
-pub use node_enum::Node;
-
-// Re-exports from node_type module
-pub use node_type::NodeType;
+pub use node::{Node, NodeBuilder, NodeConfig, NodeType, RuntimeInputRef};
 
 // Re-exports from tensor_data_ext module
 pub use tensor_data_ext::{TensorData, TensorDataExt};

@@ -4,8 +4,7 @@
 //! ONNX computational graph with nodes, inputs, and outputs.
 
 use super::argument::Argument;
-use super::node::NodeBuilder;
-use super::node_enum::Node;
+use super::node::{Node, NodeBuilder};
 
 /// ONNX graph representation containing fully processed nodes
 #[derive(Debug, Clone, Default)]
