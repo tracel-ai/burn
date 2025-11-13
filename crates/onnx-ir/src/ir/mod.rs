@@ -16,7 +16,7 @@ pub mod tensor_data_ext;
 pub use burn_tensor::DType;
 
 // Re-exports from argument module
-pub use argument::{ArgType, Argument, Rank, Shape, TensorId, TensorType, ValueSource};
+pub use argument::{ArgType, Argument, DataId, Rank, Shape, TensorType, ValueSource};
 
 // Re-exports from attribute module
 pub use attribute::{AttributeValue, Attributes};

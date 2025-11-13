@@ -12,7 +12,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::ir::{ArgType, Argument, NodeBuilder, NodeType, TensorData, TensorId};
+use crate::ir::{ArgType, Argument, NodeBuilder, NodeType, TensorData, argument::DataId};
 use crate::proto_conversion::argument_from_initializer;
 use crate::protos::{TensorProto, ValueInfoProto};
 
@@ -262,22 +262,22 @@ impl GraphState {
 
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
-    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> TensorId {
+    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
         self.tensor_store.store(data)
     }
 
     /// Get tensor data by ID from central store
-    pub(crate) fn get_tensor_data(&self, id: TensorId) -> Option<&TensorData> {
+    pub(crate) fn get_tensor_data(&self, id: DataId) -> Option<&TensorData> {
         self.tensor_store.get(id)
     }
 
     /// Get mutable tensor data by ID from central store
-    pub(crate) fn get_tensor_data_mut(&mut self, id: TensorId) -> Option<&mut TensorData> {
+    pub(crate) fn get_tensor_data_mut(&mut self, id: DataId) -> Option<&mut TensorData> {
         self.tensor_store.get_mut(id)
     }
 
     /// Get data_id for a constant by output name
-    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<TensorId> {
+    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<DataId> {
         self.processed_nodes
             .iter()
             .find(|node| {
@@ -293,7 +293,7 @@ impl GraphState {
 
     /// Alias for get_constant_data_id_by_output (for test utilities)
     #[cfg(test)]
-    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<TensorId> {
+    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<DataId> {
         self.get_constant_data_id_by_output(name)
     }
 }
@@ -303,7 +303,7 @@ fn create_constant_node(
     node_name: String,
     output_name: String,
     ty: ArgType,
-    data_id: TensorId,
+    data_id: DataId,
 ) -> NodeBuilder {
     NodeBuilder {
         node_type: NodeType::Constant,
