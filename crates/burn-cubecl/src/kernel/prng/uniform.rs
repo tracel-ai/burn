@@ -13,7 +13,13 @@ pub fn random_uniform<R: CubeRuntime, E: CubeElement>(
     let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
     let output_handle = output.as_handle_ref();
 
-    cubecl::random::random_uniform(&client, lower_bound, upper_bound, output_handle);
+    cubecl::random::random_uniform(
+        &client,
+        lower_bound.elem::<f32>(),
+        upper_bound.elem::<f32>(),
+        output_handle,
+        E::dtype().into(),
+    );
 
     output
 }

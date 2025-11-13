@@ -8,14 +8,15 @@ use cubecl::{
     std::{CubeOption, CubeOptionExpand, FastDivmod},
 };
 
+use crate::ops::numeric::empty_device_optimized_dtype;
 use crate::{
-    CubeElement, CubeRuntime,
+    CubeRuntime,
     kernel::{
         conv::div_mod_seq,
         into_contiguous_aligned,
         utils::{linear_view, shape_divmod},
     },
-    ops::{max_line_size, numeric::empty_device_optimized},
+    ops::max_line_size,
     tensor::CubeTensor,
 };
 
@@ -37,6 +38,7 @@ fn direct_conv2d_kernel<E: Numeric>(
     shape_out: Sequence<FastDivmod>,
     shape_out_c: FastDivmod,
     #[comptime] has_padding: bool,
+    #[define(E)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -216,12 +218,13 @@ fn kernel_loop_inner<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
+pub fn conv_direct<R: CubeRuntime, const N: usize>(
     mut input: CubeTensor<R>,
     mut weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
+    let out_dtype = input.dtype;
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
@@ -252,10 +255,11 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
     shape_out.extend(out_size.iter().copied());
     shape_out.push(out_channels);
 
-    let output = empty_device_optimized::<R, E>(
+    let output = empty_device_optimized_dtype::<R>(
         input.client.clone(),
         input.device.clone(),
         shape_out.into(),
+        out_dtype,
     );
 
     // Need custom line size calculation here to account for the groups division. Need to vectorize
@@ -285,25 +289,26 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
         ));
     }
 
-    let bias = bias.as_ref().map(|b| b.as_tensor_arg::<E>(line_size_out));
+    let bias = bias.as_ref().map(|b| b.as_tensor_arg(line_size_out));
 
     let num_elems_output = output.shape.num_elements() / line_size_out as usize;
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
     unsafe {
-        direct_conv2d_kernel::launch_unchecked::<E, R>(
+        direct_conv2d_kernel::launch_unchecked::<R>(
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(line_size_in),
-            weight.as_tensor_arg::<E>(line_size_in),
+            input.as_tensor_arg(line_size_in),
+            weight.as_tensor_arg(line_size_in),
             bias.into(),
             linear_view(&output, line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,
             shape_out_c,
             options.padding.iter().any(|it| *it != 0),
+            out_dtype.into(),
         )
     };
 

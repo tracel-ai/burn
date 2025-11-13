@@ -1,14 +1,11 @@
-use burn_tensor::{ElementConversion, Shape, ops::ConvOptions};
+use burn_tensor::ops::ConvOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner};
 
 use crate::{
-    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
-    kernel::{
-        conv::{
-            conv_direct, conv_gemm_cyclic, conv_gemm_tma, conv_gemm_tma_multi_stage, conv_im2col,
-            conv_im2col_1x1,
-        },
-        prng::random_uniform,
+    CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    kernel::conv::{
+        conv_direct, conv_gemm_cyclic, conv_gemm_tma, conv_gemm_tma_multi_stage, conv_im2col,
+        conv_im2col_1x1,
     },
     tensor::CubeTensor,
 };
@@ -16,7 +13,7 @@ use crate::{
 use super::ConvAutotuneKey;
 
 /// Executes autotune on conv2d operations
-pub fn conv_autotune<R: CubeRuntime, E: FloatElement, const N: usize>(
+pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weights: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -27,13 +24,13 @@ pub fn conv_autotune<R: CubeRuntime, E: FloatElement, const N: usize>(
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        TunableSet::new(create_key::<R, E, N>, create_conv_input::<R, E, N>)
-            .with(Tunable::new(conv_direct::<R, E, N>))
-            .with(Tunable::new(conv_im2col_1x1::<R, E, N>))
-            .with(Tunable::new(conv_im2col::<R, E, N>))
-            .with(Tunable::new(conv_gemm_cyclic::<R, E, N>))
-            .with(Tunable::new(conv_gemm_tma::<R, E, N>))
-            .with(Tunable::new(conv_gemm_tma_multi_stage::<R, E, N>))
+        TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>)
+            .with(Tunable::new(conv_direct::<R, N>))
+            .with(Tunable::new(conv_im2col_1x1::<R, N>))
+            .with(Tunable::new(conv_im2col::<R, N>))
+            .with(Tunable::new(conv_gemm_cyclic::<R, N>))
+            .with(Tunable::new(conv_gemm_tma::<R, N>))
+            .with(Tunable::new(conv_gemm_tma_multi_stage::<R, N>))
     });
 
     TUNER.execute(
@@ -44,11 +41,11 @@ pub fn conv_autotune<R: CubeRuntime, E: FloatElement, const N: usize>(
     )
 }
 
-pub fn create_conv_input<R: CubeRuntime, E: FloatElement, const N: usize>(
-    key: &CubeAutotuneKey,
+pub fn create_conv_input<R: CubeRuntime, const N: usize>(
+    _key: &CubeAutotuneKey,
     input: &CubeTensor<R>,
-    _weights: &CubeTensor<R>,
-    _bias: &Option<CubeTensor<R>>,
+    weights: &CubeTensor<R>,
+    bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<N>,
 ) -> (
     CubeTensor<R>,
@@ -56,40 +53,21 @@ pub fn create_conv_input<R: CubeRuntime, E: FloatElement, const N: usize>(
     Option<CubeTensor<R>>,
     ConvOptions<N>,
 ) {
-    let device = &input.device;
-    let key = match key {
-        CubeAutotuneKey::Conv2d(key) => key,
-        _ => unreachable!(),
-    };
-
-    let rand_bounds: (E, E) = ((-1.0).elem::<E>(), (1.0).elem::<E>());
-
-    let mut input_shape = vec![key.batch_size];
-    input_shape.extend(key.shape.iter().copied());
-    input_shape.push(key.in_channels);
-    let input = random_uniform(input_shape.into(), device, rand_bounds.0, rand_bounds.1);
-
-    let c_per_grp = key.in_channels / key.groups;
-    let mut weight_shape = vec![key.out_channels];
-    weight_shape.extend(key.kernel_size.iter().copied());
-    weight_shape.push(c_per_grp);
-
-    let weights = random_uniform(weight_shape.into(), device, rand_bounds.0, rand_bounds.1);
-
-    let bias_shape = Shape::new([key.out_channels]);
-    let bias = key
-        .has_bias
-        .then(|| random_uniform(bias_shape, device, rand_bounds.0, rand_bounds.1));
-
-    (input, weights, bias, options.clone())
+    (
+        input.clone(),
+        weights.clone(),
+        bias.clone(),
+        options.clone(),
+    )
 }
 
-fn create_key<R: CubeRuntime, E: FloatElement, const N: usize>(
+fn create_key<R: CubeRuntime, const N: usize>(
     input: &CubeTensor<R>,
     weights: &CubeTensor<R>,
     bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<N>,
 ) -> CubeAutotuneKey {
+    let dtype = input.dtype;
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
@@ -120,6 +98,6 @@ fn create_key<R: CubeRuntime, E: FloatElement, const N: usize>(
         in_shape,
         batch_size,
         bias.is_some(),
-        E::dtype(),
+        dtype,
     ))
 }

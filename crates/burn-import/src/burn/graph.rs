@@ -52,7 +52,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
 // The backend used for recording.
 type Backend = burn_ndarray::NdArray;
 
-impl<PS: PrecisionSettings> BurnGraph<PS> {
+impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
     /// Register a new operation node into the graph.
     ///
     /// # Notes
@@ -376,12 +376,145 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         });
     }
 
+    /// Recursively collect all fields from nodes, including subgraph nodes in If/Loop/Scan
+    fn collect_all_fields(&self) -> Vec<(Type, Option<TokenStream>)> {
+        use super::node::try_convert_onnx_node;
+        use std::collections::HashMap;
+
+        // Track field name usage to make them unique
+        let mut field_name_counts: HashMap<String, usize> = HashMap::new();
+        let mut all_fields: Vec<(Type, Option<TokenStream>)> = Vec::new();
+
+        // Helper to recursively collect fields from a subgraph and its nested subgraphs
+        // Used by both If and Loop nodes
+        fn collect_subgraph_fields_recursive<PS: PrecisionSettings + 'static>(
+            subgraph: &onnx_ir::OnnxGraph,
+            field_name_counts: &mut HashMap<String, usize>,
+            all_fields: &mut Vec<(Type, Option<TokenStream>)>,
+        ) {
+            for onnx_node in &subgraph.nodes {
+                if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                    // Collect this node's field if it has one
+                    if let Some(mut field_type) = burn_node.field_type() {
+                        let field_init = burn_node.field_init();
+
+                        // Make field name unique by appending a counter if needed
+                        let base_name = field_type.name().to_string();
+                        let count = field_name_counts.entry(base_name.clone()).or_insert(0);
+                        *count += 1;
+
+                        // Only append counter if this name has been seen before
+                        if *count > 1 {
+                            // Need to create a new renamed field_type
+                            let new_name_str = format!("{}_{}", base_name, count);
+                            let new_name =
+                                syn::Ident::new(&new_name_str, proc_macro2::Span::call_site());
+
+                            // Update the field type with new name
+                            field_type = match field_type {
+                                Type::Tensor(mut t) => {
+                                    t.name = new_name.clone();
+                                    Type::Tensor(t)
+                                }
+                                Type::Scalar(mut s) => {
+                                    s.name = new_name.clone();
+                                    Type::Scalar(s)
+                                }
+                                Type::Other(mut o) => {
+                                    o.name = new_name.clone();
+                                    Type::Other(o)
+                                }
+                                Type::Shape(mut s) => {
+                                    s.name = new_name.clone();
+                                    Type::Shape(s)
+                                }
+                            };
+
+                            // Also need to update field_init to use the renamed variable
+                            if let Some(init_code) = field_init {
+                                let init_str = init_code.to_string();
+                                let old_let = format!("let {} :", base_name);
+                                let new_let = format!("let {} :", new_name_str);
+                                let updated_init_str = init_str.replace(&old_let, &new_let);
+
+                                // Also handle "let base_name ="
+                                let old_let2 = format!("let {} =", base_name);
+                                let new_let2 = format!("let {} =", new_name_str);
+                                let updated_init_str =
+                                    updated_init_str.replace(&old_let2, &new_let2);
+
+                                // Parse back to TokenStream
+                                let updated_init: TokenStream =
+                                    updated_init_str.parse().unwrap_or(init_code);
+                                all_fields.push((field_type, Some(updated_init)));
+                            } else {
+                                all_fields.push((field_type, field_init));
+                            }
+                        } else {
+                            all_fields.push((field_type, field_init));
+                        }
+                    }
+
+                    // Recursively collect from nested If/Loop nodes
+                    if let Node::If(nested_if_node) = burn_node {
+                        collect_subgraph_fields_recursive::<PS>(
+                            &nested_if_node.then_branch,
+                            field_name_counts,
+                            all_fields,
+                        );
+                        collect_subgraph_fields_recursive::<PS>(
+                            &nested_if_node.else_branch,
+                            field_name_counts,
+                            all_fields,
+                        );
+                    } else if let Node::Loop(nested_loop_node) = burn_node {
+                        collect_subgraph_fields_recursive::<PS>(
+                            &nested_loop_node.body,
+                            field_name_counts,
+                            all_fields,
+                        );
+                    }
+                }
+            }
+        }
+
+        for node in &self.nodes {
+            // Collect this node's field if it has one
+            if let Some(field_type) = node.field_type() {
+                let field_init = node.field_init();
+                all_fields.push((field_type, field_init));
+            }
+
+            // Recursively collect fields from If/Loop node subgraphs
+            // Note: Subgraph fields are NOT deduplicated - each branch has unique fields
+            if let Node::If(if_node) = node {
+                collect_subgraph_fields_recursive::<PS>(
+                    &if_node.then_branch,
+                    &mut field_name_counts,
+                    &mut all_fields,
+                );
+                collect_subgraph_fields_recursive::<PS>(
+                    &if_node.else_branch,
+                    &mut field_name_counts,
+                    &mut all_fields,
+                );
+            } else if let Node::Loop(loop_node) = node {
+                collect_subgraph_fields_recursive::<PS>(
+                    &loop_node.body,
+                    &mut field_name_counts,
+                    &mut all_fields,
+                );
+            }
+        }
+
+        all_fields
+    }
+
     fn codegen_struct(&self) -> TokenStream {
         let mut body = quote! {};
-        self.nodes
+        self.collect_all_fields()
             .iter()
-            .filter_map(|node| node.field_type())
-            .map(|field| {
+            .map(|(field, _)| {
                 let name = field.name();
                 let ty = field.ty();
 
@@ -413,18 +546,18 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
     fn codegen_new(&self) -> TokenStream {
         let mut body = quote! {};
+        let all_fields = self.collect_all_fields();
 
-        self.nodes
-            .iter()
-            .map(|node| node.field_init())
-            .for_each(|code| body.extend(code));
+        // Generate field initialization code
+        for (_field_type, field_init) in &all_fields {
+            body.extend(field_init.clone());
+        }
 
-        let fields = self
-            .nodes
+        // Collect field names for struct initialization
+        let field_names: Vec<_> = all_fields
             .iter()
-            .flat_map(|node| node.field_type())
-            .map(|field| field.name().clone())
-            .collect::<Vec<_>>();
+            .map(|(field_type, _)| field_type.name().clone())
+            .collect();
 
         quote! {
             #[allow(unused_variables)]
@@ -432,7 +565,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #body
 
                 Self {
-                    #(#fields,)*
+                    #(#field_names,)*
                     phantom: core::marker::PhantomData,
                     device: burn::module::Ignored(device.clone()),
                 }
@@ -515,15 +648,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     ///
     /// * `input_names` - The names of the inputs of the graph.
     /// * `output_names` - The names of the outputs of the graph.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the graph is empty.
-    pub fn register_input_output(&mut self, input_names: Vec<String>, output_names: Vec<String>) {
-        assert!(
-            !self.nodes.is_empty(),
-            "Cannot register input and output types for an empty graph."
-        );
+    /// * `input_types` - The types of the inputs (from ONNX graph, used for empty graphs).
+    /// * `output_types` - The types of the outputs (from ONNX graph, used for empty graphs).
+    pub fn register_input_output(
+        &mut self,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
+        input_types: &[Type],
+        output_types: &[Type],
+    ) {
+        // Handle empty graphs: use provided types directly
+        if self.nodes.is_empty() {
+            // For empty graphs, inputs pass through directly to outputs
+            self.graph_input_types.extend_from_slice(input_types);
+            self.graph_output_types.extend_from_slice(output_types);
+            return;
+        }
 
         // Get the unique names of each input of the nodes
         let mut inputs = HashMap::new();
@@ -538,23 +678,46 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         }
 
         // Get the input and output types of the graph using passed in names
-        input_names.iter().for_each(|input| {
-            self.graph_input_types.push(
-                inputs
-                    .get(&Type::format_name(input))
-                    .unwrap_or_else(|| panic!("Input type not found for {input}"))
-                    .clone(),
-            );
+        // For outer scope variables, fall back to the provided input_types
+        input_names.iter().enumerate().for_each(|(idx, input)| {
+            let input_type = inputs
+                .get(input)
+                .cloned()
+                .or_else(|| {
+                    // Fall back to provided input_types for outer scope variables
+                    if idx < input_types.len() {
+                        Some(input_types[idx].clone())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| panic!("Input type not found for {input}"));
+
+            self.graph_input_types.push(input_type);
         });
 
-        output_names.iter().for_each(|output| {
-            self.graph_output_types.push(
-                outputs
-                    .get(&Type::format_name(output))
-                    .unwrap_or_else(|| panic!("Output type not found for {output}"))
-                    .clone(),
-            );
-        });
+        // Handle outputs - if output_types is provided (from ONNX), use it with renaming
+        // Otherwise, look up types from node outputs (for tests)
+        if !output_types.is_empty() {
+            output_names
+                .iter()
+                .zip(output_types.iter())
+                .for_each(|(name, ty)| {
+                    // Use the type from onnx-ir but rename it to the graph output name
+                    // (onnx-ir provides the resolved node output, we want the graph output name)
+                    self.graph_output_types.push(ty.with_name(name));
+                });
+        } else {
+            // For tests and non-ONNX usage: look up output types from node outputs
+            output_names.iter().for_each(|output| {
+                self.graph_output_types.push(
+                    outputs
+                        .get(output)
+                        .unwrap_or_else(|| panic!("Output type not found for {output}"))
+                        .clone(),
+                );
+            });
+        }
     }
 }
 
@@ -577,20 +740,96 @@ struct BurnGraphState<'a, PS: PrecisionSettings> {
 /// Instead, they use the `StructTuple` serialization strategy (to avoid memory overhead presumably).
 struct StructMap<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
-impl<PS: PrecisionSettings> Serialize for StructMap<'_, PS> {
+impl<PS: PrecisionSettings + 'static> Serialize for StructMap<'_, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let nodes_with_names = self
-            .0
-            .nodes
-            .iter()
-            .filter_map(|node| node.field_type().map(|ty| (node, ty.name().clone())))
-            .collect::<Vec<_>>();
-        let mut map = serializer.serialize_map(Some(nodes_with_names.len()))?;
+        use super::node::try_convert_onnx_node;
+        use std::collections::HashMap;
 
-        for (node, name) in nodes_with_names.iter() {
+        // Track field name usage to make them unique (same logic as collect_all_fields)
+        let mut field_name_counts: HashMap<String, usize> = HashMap::new();
+        let mut all_nodes: Vec<(String, Node<PS>)> = Vec::new();
+
+        // Helper to recursively collect nodes from subgraphs
+        // Used by both If and Loop nodes
+        fn collect_subgraph_nodes_recursive<PS: PrecisionSettings + 'static>(
+            subgraph: &onnx_ir::OnnxGraph,
+            field_name_counts: &mut HashMap<String, usize>,
+            all_nodes: &mut Vec<(String, Node<PS>)>,
+        ) {
+            for onnx_node in &subgraph.nodes {
+                if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                    if let Some(field_type) = burn_node.field_type() {
+                        let base_name = field_type.name().to_string();
+                        let count = field_name_counts.entry(base_name.clone()).or_insert(0);
+                        *count += 1;
+
+                        // Create unique name if needed
+                        let unique_name = if *count > 1 {
+                            format!("{}_{}", base_name, count)
+                        } else {
+                            base_name
+                        };
+
+                        all_nodes.push((unique_name, burn_node.clone()));
+                    }
+
+                    // Recursively collect from nested If/Loop nodes
+                    if let Node::If(nested_if_node) = burn_node {
+                        collect_subgraph_nodes_recursive::<PS>(
+                            &nested_if_node.then_branch,
+                            field_name_counts,
+                            all_nodes,
+                        );
+                        collect_subgraph_nodes_recursive::<PS>(
+                            &nested_if_node.else_branch,
+                            field_name_counts,
+                            all_nodes,
+                        );
+                    } else if let Node::Loop(nested_loop_node) = burn_node {
+                        collect_subgraph_nodes_recursive::<PS>(
+                            &nested_loop_node.body,
+                            field_name_counts,
+                            all_nodes,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Add main graph nodes
+        for node in self.0.nodes.iter() {
+            if let Some(field_type) = node.field_type() {
+                let field_name = field_type.name().to_string();
+                all_nodes.push((field_name, node.clone()));
+            }
+
+            // Add subgraph nodes from If/Loop nodes with unique names
+            if let Node::If(if_node) = node {
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.then_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.else_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+            } else if let Node::Loop(loop_node) = node {
+                collect_subgraph_nodes_recursive::<PS>(
+                    &loop_node.body,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+            }
+        }
+
+        let mut map = serializer.serialize_map(Some(all_nodes.len()))?;
+
+        for (name, node) in all_nodes.iter() {
             map.serialize_entry(&name.to_string(), &node)?;
         }
 
@@ -611,20 +850,90 @@ impl<PS: PrecisionSettings> Serialize for StructMap<'_, PS> {
 /// serializing tuples. Instead, they use the `StructMap` serialization strategy.
 struct StructTuple<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
-impl<PS: PrecisionSettings> Serialize for StructTuple<'_, PS> {
+impl<PS: PrecisionSettings + 'static> Serialize for StructTuple<'_, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let nodes_with_names = self
-            .0
-            .nodes
-            .iter()
-            .filter_map(|node| node.field_type().map(|ty| (node, ty.name().clone())))
-            .collect::<Vec<_>>();
-        let mut map = serializer.serialize_tuple(nodes_with_names.len())?;
+        use super::node::try_convert_onnx_node;
+        use std::collections::HashMap;
 
-        for (node, _name) in nodes_with_names.iter() {
+        // Track field name usage (same as other methods, for consistency)
+        let mut field_name_counts: HashMap<String, usize> = HashMap::new();
+        let mut all_nodes: Vec<Node<PS>> = Vec::new();
+
+        // Helper to recursively collect nodes from subgraphs
+        // Used by both If and Loop nodes
+        fn collect_subgraph_nodes_recursive<PS: PrecisionSettings + 'static>(
+            subgraph: &onnx_ir::OnnxGraph,
+            field_name_counts: &mut HashMap<String, usize>,
+            all_nodes: &mut Vec<Node<PS>>,
+        ) {
+            for onnx_node in &subgraph.nodes {
+                if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                    if let Some(field_type) = burn_node.field_type() {
+                        let base_name = field_type.name().to_string();
+                        let count = field_name_counts.entry(base_name.clone()).or_insert(0);
+                        *count += 1;
+
+                        // Just track the count for ordering consistency
+                        all_nodes.push(burn_node.clone());
+                    }
+
+                    // Recursively collect from nested If/Loop nodes
+                    if let Node::If(nested_if_node) = burn_node {
+                        collect_subgraph_nodes_recursive::<PS>(
+                            &nested_if_node.then_branch,
+                            field_name_counts,
+                            all_nodes,
+                        );
+                        collect_subgraph_nodes_recursive::<PS>(
+                            &nested_if_node.else_branch,
+                            field_name_counts,
+                            all_nodes,
+                        );
+                    } else if let Node::Loop(nested_loop_node) = burn_node {
+                        collect_subgraph_nodes_recursive::<PS>(
+                            &nested_loop_node.body,
+                            field_name_counts,
+                            all_nodes,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Add main graph nodes
+        for node in self.0.nodes.iter() {
+            if node.field_type().is_some() {
+                all_nodes.push(node.clone());
+            }
+
+            // Add subgraph nodes from If/Loop nodes
+            // Apply same uniqueness logic even though tuple serialization doesn't use names
+            if let Node::If(if_node) = node {
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.then_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+                collect_subgraph_nodes_recursive::<PS>(
+                    &if_node.else_branch,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+            } else if let Node::Loop(loop_node) = node {
+                collect_subgraph_nodes_recursive::<PS>(
+                    &loop_node.body,
+                    &mut field_name_counts,
+                    &mut all_nodes,
+                );
+            }
+        }
+
+        let mut map = serializer.serialize_tuple(all_nodes.len())?;
+
+        for node in all_nodes.iter() {
             map.serialize_element(&node)?;
         }
 

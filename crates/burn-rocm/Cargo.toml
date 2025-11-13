@@ -24,11 +24,11 @@ std = ["burn-cubecl/std", "cubecl/std"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }
-burn-cubecl = { path = "../burn-cubecl", version = "0.20.0", default-features = true }
-burn-tensor = { path = "../burn-tensor", version = "0.20.0", features = [
+burn-cubecl = { path = "../burn-cubecl", version = "0.20.0-pre.1", default-features = true }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1", features = [
     "cubecl-hip",
 ] }
-burn-fusion = { path = "../burn-fusion", version = "0.20.0", optional = true }
+burn-fusion = { path = "../burn-fusion", version = "0.20.0-pre.1", optional = true }
 
 half = { workspace = true }
 bytemuck = { workspace = true }
@@ -37,7 +37,7 @@ log = { workspace = true }
 derive-new = { workspace = true }
 
 [dev-dependencies]
-burn-cubecl = { path = "../burn-cubecl", version = "0.20.0", default-features = false, features = [
+burn-cubecl = { path = "../burn-cubecl", version = "0.20.0-pre.1", default-features = false, features = [
     "export_tests",
 ] }
 paste = { workspace = true }

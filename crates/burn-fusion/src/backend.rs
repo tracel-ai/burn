@@ -71,6 +71,13 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
     }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut burn_tensor::TensorData>,
+    {
+        B::staging(data, device);
+    }
 }
 
 /// The status of a [builder](OptimizationBuilder).

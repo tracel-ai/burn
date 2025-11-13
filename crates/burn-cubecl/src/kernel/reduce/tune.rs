@@ -71,7 +71,7 @@ pub(crate) fn create_key<Run: CubeRuntime, Acc: CubeElement, Rd: ReduceFamily>(
 mod reduce_ops {
     #![allow(missing_docs)]
 
-    use cubecl::reduce::ReduceFamily;
+    use cubecl::reduce::{ReduceDtypes, ReduceFamily};
 
     use super::*;
 
@@ -97,7 +97,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
+        cubecl::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -107,6 +107,11 @@ mod reduce_ops {
                 use_planes: false,
             }),
             config,
+            ReduceDtypes {
+                input: In::dtype().into(),
+                output: Out::dtype().into(),
+                accumulation: Acc::dtype().into(),
+            },
         )
         .map_err(|e| format!("{e}"))
     }
@@ -123,7 +128,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
+        cubecl::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -133,6 +138,11 @@ mod reduce_ops {
                 use_planes: false,
             }),
             config,
+            ReduceDtypes {
+                input: In::dtype().into(),
+                output: Out::dtype().into(),
+                accumulation: Acc::dtype().into(),
+            },
         )
         .map_err(|e| format!("{e}"))
     }
@@ -149,7 +159,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
+        cubecl::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -159,6 +169,11 @@ mod reduce_ops {
                 use_planes: true,
             }),
             config,
+            ReduceDtypes {
+                input: In::dtype().into(),
+                output: Out::dtype().into(),
+                accumulation: Acc::dtype().into(),
+            },
         )
         .map_err(|e| format!("{e}"))
     }
@@ -175,7 +190,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
+        cubecl::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -185,6 +200,11 @@ mod reduce_ops {
                 use_planes: true,
             }),
             config,
+            ReduceDtypes {
+                input: In::dtype().into(),
+                output: Out::dtype().into(),
+                accumulation: Acc::dtype().into(),
+            },
         )
         .map_err(|e| format!("{e}"))
     }
@@ -249,7 +269,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
         let device = input.device.clone();
-        let handle = client.create(E::as_bytes(&[E::from_int(0)]));
+        let handle = client.create_from_slice(E::as_bytes(&[E::from_int(0)]));
         let output = CubeTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
 
         cubecl::reduce::shared_sum::<Run, E>(

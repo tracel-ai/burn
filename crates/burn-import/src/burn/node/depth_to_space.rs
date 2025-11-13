@@ -72,8 +72,8 @@ impl OnnxIntoNode for DepthToSpaceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::depth_to_space::depth_to_space_config(&node);
-        Self::new(input, output, config)
+        let config = node.config::<onnx_ir::node::depth_to_space::DepthToSpaceConfig>();
+        Self::new(input, output, config.clone())
     }
 }
 
@@ -93,7 +93,12 @@ mod tests {
             DepthToSpaceConfig::new(DepthToSpaceMode::DCR, 2),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -137,7 +142,12 @@ mod tests {
             DepthToSpaceConfig::new(DepthToSpaceMode::CRD, 2),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

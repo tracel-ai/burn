@@ -25,7 +25,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TileNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 
-        let repeats = self.config.repeats.iter().map(|r| r.to_tokens());
+        // Extract static repeats from the enum wrapper
+        let repeats_vec = match &self.config.repeats {
+            onnx_ir::node::tile::TileInput::Static(repeats) => repeats,
+            onnx_ir::node::tile::TileInput::Runtime(_) => {
+                panic!("Runtime repeats are not supported in burn-import")
+            }
+        };
+        let repeats = repeats_vec.iter().map(|r| r.to_tokens());
 
         quote! {
             let #output = #input.repeat(&[#(#repeats),*]);
@@ -41,7 +48,7 @@ impl OnnxIntoNode for TileNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::tile::tile_config(&node);
+        let config = node.config::<onnx_ir::node::tile::TileConfig>().clone();
         Self::new(input, output, config)
     }
 }
@@ -59,14 +66,22 @@ mod tests {
 
     #[test]
     fn test_codegen_tile() {
+        use onnx_ir::node::tile::TileInput;
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TileConfig::new(vec![2, 3, 4]);
+        let config = TileConfig {
+            repeats: TileInput::Static(vec![2, 3, 4]),
+        };
         graph.register(TileNode::new(
             TensorType::new_float("input", 3),
             TensorType::new_float("output", 3),
             config,
         ));
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

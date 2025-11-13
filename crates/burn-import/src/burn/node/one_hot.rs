@@ -10,15 +10,12 @@ pub struct OneHotNode {
     pub output: TensorType,
     pub num_classes: usize,
     pub values: [f32; 2],
-    pub values_type: TensorType,
     pub axis: i64,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
     fn output_types(&self) -> Vec<Type> {
-        let mut new_output = self.output.clone();
-        new_output.kind = self.values_type.kind;
-        vec![Type::Tensor(new_output)]
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -34,7 +31,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         let off_value = &self.values[0];
         let axis = &self.axis;
         let input_type = &self.input.kind;
-        let output_type = &self.values_type.kind; // output is tied to values type
+        let output_type = &self.output.kind; // use actual output type from ONNX model
         match (input_type, output_type) {
             (TensorKind::Int, TensorKind::Int) | (TensorKind::Float, TensorKind::Float) => {
                 quote! {
@@ -69,9 +66,26 @@ impl OnnxIntoNode for OneHotNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let values_type = TensorType::from(node.inputs.get(2).unwrap());
-        let (num_classes, values, axis) = onnx_ir::node::one_hot::one_hot_config(&node);
-        Self::new(input, output, num_classes, values, values_type, axis)
+        let config = node.config::<onnx_ir::node::one_hot::OneHotConfig>();
+
+        // Extract num_classes from config.depth
+        let num_classes = match config.depth {
+            onnx_ir::node::one_hot::OneHotDepthInput::Static(d) => d,
+            onnx_ir::node::one_hot::OneHotDepthInput::Runtime(_) => {
+                panic!("OneHot with runtime depth is not supported in burn-import")
+            }
+        };
+
+        // Extract values from config.values
+        let values = match config.values {
+            onnx_ir::node::one_hot::OneHotValuesInput::Static(v) => v,
+            onnx_ir::node::one_hot::OneHotValuesInput::Runtime(_) => {
+                panic!("OneHot with runtime values is not supported in burn-import")
+            }
+        };
+
+        let axis = config.axis;
+        Self::new(input, output, num_classes, values, axis)
     }
 }
 
@@ -95,11 +109,15 @@ mod tests {
             TensorType::new_float("tensor2", 2),
             3,
             [0., 1.],
-            TensorType::new_float("tensor3", 1),
             -1,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

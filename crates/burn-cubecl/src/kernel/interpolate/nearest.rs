@@ -65,8 +65,8 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime, E: FloatElement>(
             &client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(line_size),
-            output.as_tensor_arg::<E>(line_size),
+            input.as_tensor_arg(line_size),
+            output.as_tensor_arg(line_size),
             shape_out,
             out_layout,
         )

@@ -37,9 +37,9 @@ safetensors = ["safetensors/std"]
 pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.20.0", default-features = false }
-burn-nn = { path = "../burn-nn", version = "0.20.0", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.20.0", default-features = false }
+burn-core = { path = "../burn-core", version = "0.20.0-pre.1", default-features = false }
+burn-nn = { path = "../burn-nn", version = "0.20.0-pre.1", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1", default-features = false }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
@@ -54,14 +54,14 @@ zip = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 
 # Optional backend dependencies for benchmarks
-burn-candle = { path = "../burn-candle", version = "0.20.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.20.0", optional = true }
-burn-tch = { path = "../burn-tch", version = "0.20.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.20.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.20.0-pre.1", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.20.0-pre.1", optional = true }
+burn-tch = { path = "../burn-tch", version = "0.20.0-pre.1", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.20.0-pre.1", optional = true }
 
 [dev-dependencies]
 # burn-import = { path = "../burn-import", version = "0.20.0" } # disabled (circular dep in publish, only for bench)
-burn-ndarray = { path = "../burn-ndarray", version = "0.20.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.20.0-pre.1" }
 divan = "0.1"
 tempfile = { workspace = true }
 

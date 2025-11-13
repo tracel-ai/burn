@@ -1,15 +1,12 @@
 use burn_tensor::{
-    DType, Device, Shape, TensorData, TensorPrimitive,
+    Bytes, DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
         QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
     },
 };
-use cubecl::{
-    matmul::components::{AccG, AccS, LhsG, LhsS, RhsG, RhsS},
-    server::{Allocation, AllocationDescriptor, AllocationKind},
-};
+use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
 use cubecl_quant::scheme::QuantStore;
 
 use crate::{
@@ -24,7 +21,7 @@ use super::{into_data, permute, swap_dims};
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor_optimized<R: CubeRuntime>(
-    data: &[u8],
+    data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
@@ -34,7 +31,7 @@ fn new_qtensor_optimized<R: CubeRuntime>(
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor<R: CubeRuntime>(
-    data: &[u8],
+    data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
@@ -66,7 +63,7 @@ fn new_quantized<R: CubeRuntime>(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
-    data: Option<&[u8]>,
+    data: Option<Bytes>,
     alloc_kind: AllocationKind,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -113,10 +110,15 @@ fn new_quantized<R: CubeRuntime>(
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
-            client.create_tensors(vec![
-                (data_desc, &data[..num_bytes]),
-                (scales_desc, &data[num_bytes..]),
-            ])
+
+            match data.split(num_bytes) {
+                Ok((bytes_data, bytes_scales)) => client
+                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_scales)]),
+                Err((data, _)) => client.create_tensors_from_slices(vec![
+                    (data_desc, &data[..num_bytes]),
+                    (scales_desc, &data[num_bytes..]),
+                ]),
+            }
         }
         None => client.empty_tensors(vec![data_desc, scales_desc]),
     };
@@ -173,7 +175,7 @@ where
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
-                    new_qtensor_optimized(data.as_bytes(), data.shape.clone(), scheme, device)
+                    new_qtensor_optimized(data.bytes, data.shape.clone(), scheme, device)
                 }
             },
             _ => panic!(
@@ -306,25 +308,17 @@ where
             _ => F::dtype(),
         };
 
-        let (lhs_dtype, lhs) = match lhs {
+        let (_lhs_dtype, lhs) = match lhs {
             TensorPrimitive::Float(lhs) => (lhs.dtype, lhs),
             TensorPrimitive::QFloat(lhs) => (out_dtype, lhs),
         };
-        let (rhs_dtype, rhs) = match rhs {
+        let (_rhs_dtype, rhs) = match rhs {
             TensorPrimitive::Float(rhs) => (rhs.dtype, rhs),
             TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
         };
 
-        let out = execute_with_dtype!(float(lhs_dtype), LP, {
-            execute_with_dtype!(float(rhs_dtype), RP, {
-                execute_with_dtype!(float(out_dtype), OP, {
-                    type MP = (LhsG<LP>, RhsG<RP>, AccG<OP>, LhsS<LP>, RhsS<RP>, AccS<OP>);
-
-                    kernel::matmul::matmul::<R, MP>(lhs, rhs, None, MatmulStrategy::default())
-                        .unwrap()
-                })
-            })
-        });
+        let out = kernel::matmul::matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), out_dtype)
+            .unwrap();
 
         match propagation {
             QuantPropagation::Propagate => {

@@ -92,10 +92,10 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             // Ignored shape + custom strides.
             TensorArg::from_raw_parts::<I>(&indices.handle, &strides, &strides, 1),
-            value.as_tensor_arg::<E>(1),
+            value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         );
     };

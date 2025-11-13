@@ -131,7 +131,7 @@ impl OnnxIntoNode for Conv2dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::conv2d::conv2d_config(&node);
+        let config = node.config::<onnx_ir::node::conv2d::Conv2dConfig>();
         let has_bias = node.inputs.len() == 3;
         let weight = extract_node_data::<f32>(&node, 1).unwrap();
         let bias = if has_bias {
@@ -140,7 +140,7 @@ impl OnnxIntoNode for Conv2dNode {
             None
         };
         let name = &node.name;
-        Self::new(name, input, output, weight, bias, config)
+        Self::new(name, input, output, weight, bias, config.clone())
     }
 }
 
@@ -176,7 +176,12 @@ mod tests {
             ),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0"
+version = "0.20.0-pre.1"
 
 [workspace.lints.clippy]
 
@@ -71,7 +71,7 @@ pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.101"
 protobuf = "3.7.2"
 protobuf-codegen = "3.7.2"
-quote = "1.0.41"
+quote = "1.0.42"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
@@ -171,20 +171,20 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "726ffef6be03e81080a4783523f54be9d330792c" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "726ffef6be03e81080a4783523f54be9d330792c" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "726ffef6be03e81080a4783523f54be9d330792c" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c5642d52cfd38fc10e213105a9d30bef678fa5ee" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c5642d52cfd38fc10e213105a9d30bef678fa5ee" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c5642d52cfd38fc10e213105a9d30bef678fa5ee" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubecl-quant = { path = "../cubecl/crates/cubecl-quant", default-features = false }
 ### For the release. ###
-# cubecl = { version = "0.8.0", default-features = false }
-# cubecl-common = { version = "0.8.0", default-features = false }
-# cubecl-quant = { version = "0.8.0", default-features = false }
+# cubecl = { version = "0.9.0-pre.1", default-features = false }
+# cubecl-common = { version = "0.9.0-pre.1", default-features = false }
+# cubecl-quant = { version = "0.9.0-pre.1", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.1.11" }
+tracel-xtask = { version = "=2.2.1" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

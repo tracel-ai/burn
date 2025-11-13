@@ -10,7 +10,7 @@ use cubecl::{
     frontend::Atomic,
     prelude::CubePrimitive,
     reduce::{
-        ReduceError,
+        ReduceDtypes, ReduceError,
         instructions::{ReduceFn, ReduceFnConfig},
         shared_sum,
     },
@@ -59,7 +59,7 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
 
     match strategy {
         SumStrategy::OneShot(cube_count) => {
-            let handle = client.create(E::as_bytes(&[E::from_int(0)]));
+            let handle = client.create_from_slice(E::as_bytes(&[E::from_int(0)]));
             let output =
                 CubeTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
             shared_sum::<Run, E>(
@@ -152,6 +152,11 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
     strategy: ReduceStrategy,
     config: ReduceFnConfig,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
+    let dtypes = ReduceDtypes {
+        input: In::dtype().into(),
+        output: Out::dtype().into(),
+        accumulation: Acc::dtype().into(),
+    };
     let client = input.client.clone();
     let output = init_reduce_output::<Run, In, Out>(&input, dim).ok_or(
         cubecl::reduce::ReduceError::InvalidAxis {
@@ -161,24 +166,24 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
     )?;
 
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
+        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, ReduceFn>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             dim,
             None,
             config,
+            dtypes,
         ),
-        ReduceStrategy::Specific(strategy) => {
-            cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
-                &client,
-                input.as_handle_ref(),
-                output.as_handle_ref(),
-                dim,
-                Some(strategy),
-                config,
-            )
-        }
+        ReduceStrategy::Specific(strategy) => cubecl::reduce::reduce::<Run, ReduceFn>(
+            &client,
+            input.as_handle_ref(),
+            output.as_handle_ref(),
+            dim,
+            Some(strategy),
+            config,
+            dtypes,
+        ),
         #[cfg(feature = "autotune")]
         ReduceStrategy::Autotune => {
             autotune_reduce::<Run, In, Out, Acc, ReduceFn>(

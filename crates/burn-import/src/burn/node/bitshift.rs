@@ -86,8 +86,8 @@ impl OnnxIntoNode for BitShiftNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let inputs = node.inputs.iter().map(Type::from).collect();
         let output = Type::from(node.outputs.first().unwrap());
-        let onnx_direction = onnx_ir::node::bitshift::bitshift_config(&node);
-        let direction = match onnx_direction {
+        let config = node.config::<onnx_ir::node::bitshift::BitShiftConfig>();
+        let direction = match config.direction {
             onnx_ir::node::bitshift::Direction::Left => Direction::Left,
             onnx_ir::node::bitshift::Direction::Right => Direction::Right,
         };
@@ -122,6 +122,8 @@ mod tests {
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -168,6 +170,8 @@ mod tests {
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

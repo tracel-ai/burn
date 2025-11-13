@@ -473,33 +473,18 @@ fn launch_reduce<Run: Runtime, Rd: ReduceFamily>(
     }
 }
 
-const INPUT: u8 = 0;
-const OUTPUT: u8 = 1;
-const ACC: u8 = 2;
-
 #[cube(launch_unchecked)]
-pub fn reduce_kernel<R: ReduceFamily>(
+pub fn reduce_kernel<R: ReduceFamily, In: Numeric, Out: Numeric, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
     axis_reduce: u32,
     #[comptime] params: ReduceParams,
     #[comptime] config: R::Config,
-    #[comptime] elem_in: StorageType,
-    #[comptime] elem_out: StorageType,
-    #[comptime] elem_acc: StorageType,
+    #[define(In)] _elem_in: StorageType,
+    #[define(Out)] _elem_out: StorageType,
+    #[define(Acc)] _elem_acc: StorageType,
 ) {
-    set_polyfill::<NumericExpand<INPUT>>(elem_in);
-    set_polyfill::<NumericExpand<OUTPUT>>(elem_out);
-    set_polyfill::<NumericExpand<ACC>>(elem_acc);
+    let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
 
-    let (input, mut output) =
-        init_tensors::<FusedReduceArgs, NumericExpand<INPUT>, NumericExpand<OUTPUT>>(input, output);
-
-    reduce_kernel_virtual::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
-        &input,
-        &mut output,
-        axis_reduce,
-        params,
-        config,
-    );
+    reduce_kernel_virtual::<In, Out, Acc, R>(&input, &mut output, axis_reduce, params, config);
 }
