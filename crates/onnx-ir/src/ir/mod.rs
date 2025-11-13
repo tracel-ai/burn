@@ -22,7 +22,7 @@ pub use argument::{ArgType, Argument, Rank, Shape, TensorId, TensorType, ValueSo
 pub use attribute::{AttributeValue, Attributes};
 
 // Re-exports from graph module
-pub use graph::OnnxGraph;
+pub use graph::{OnnxGraph, OnnxGraphBuilder};
 
 // Re-exports from node module
 pub use node::{NodeBuilder, NodeConfig, RuntimeInputRef};

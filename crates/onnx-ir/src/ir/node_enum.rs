@@ -4,6 +4,68 @@
 //! for ONNX operations by encoding the operation type and its configuration in enum variants.
 
 use super::argument::Argument;
+
+/// Macro to define the Node enum and generate accessor methods
+///
+/// This macro takes a list of variants and generates both:
+/// 1. The Node enum with all variants having name, inputs, outputs (and optionally config)
+/// 2. Accessor methods (name(), inputs(), outputs()) that work for all variants
+///
+/// Usage:
+/// ```ignore
+/// define_node_enum! {
+///     VariantName,              // No config
+///     VariantName { config: ConfigType },  // With config
+/// }
+/// ```
+macro_rules! define_node_enum {
+    (
+        $(
+            $(#[$meta:meta])*
+            $variant:ident $({ $($field:ident: $type:ty),* $(,)? })?
+        ),* $(,)?
+    ) => {
+        /// Enum-based node representation
+        ///
+        /// Each ONNX operation is represented as a separate enum variant containing
+        /// the operation-specific configuration.
+        #[derive(Debug, Clone)]
+        pub enum Node {
+            $(
+                $(#[$meta])*
+                $variant {
+                    name: String,
+                    inputs: Vec<Argument>,
+                    outputs: Vec<Argument>,
+                    $($($field: $type),*)?
+                },
+            )*
+        }
+
+        impl Node {
+            /// Get the node name
+            pub fn name(&self) -> &str {
+                match self {
+                    $(Node::$variant { name, .. })|* => name,
+                }
+            }
+
+            /// Get the node inputs
+            pub fn inputs(&self) -> &[Argument] {
+                match self {
+                    $(Node::$variant { inputs, .. })|* => inputs,
+                }
+            }
+
+            /// Get the node outputs
+            pub fn outputs(&self) -> &[Argument] {
+                match self {
+                    $(Node::$variant { outputs, .. })|* => outputs,
+                }
+            }
+        }
+    };
+}
 use crate::node::argmax::ArgMaxConfig;
 use crate::node::argmin::ArgMinConfig;
 use crate::node::attention::AttentionConfig;
@@ -62,858 +124,183 @@ use crate::node::transpose::TransposeConfig;
 use crate::node::trilu::TriluConfig;
 use crate::node::unsqueeze::UnsqueezeConfig;
 
-/// Enum-based node representation
-///
-/// Each ONNX operation is represented as a separate enum variant containing
-/// the operation-specific configuration.
-#[derive(Debug, Clone)]
-pub enum Node {
-    // =========================================================================
+define_node_enum! {
+
     // ARITHMETIC & BASIC OPERATIONS (no config)
-    // =========================================================================
-    Add {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Sub {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Mul {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Div {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Neg {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Abs {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Pow {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Reciprocal {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Sqrt {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Exp {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Log {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Ceil {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Floor {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Round {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Sign {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Erf {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Neg,
+    Abs,
+    Pow,
+    Reciprocal,
+    Sqrt,
+    Exp,
+    Log,
+    Ceil,
+    Floor,
+    Round,
+    Sign,
+    Erf,
 
-    // =========================================================================
     // TRIGONOMETRIC OPERATIONS (no config)
-    // =========================================================================
-    Sin {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Cos {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Tan {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Asin {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Acos {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Atan {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Sinh {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Cosh {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Tanh {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Asinh {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Acosh {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Atanh {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Sinh,
+    Cosh,
+    Tanh,
+    Asinh,
+    Acosh,
+    Atanh,
 
-    // =========================================================================
     // ACTIVATION FUNCTIONS
-    // =========================================================================
-    Relu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Sigmoid {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Softmax {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: SoftmaxConfig,
-    },
-    LogSoftmax {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: LogSoftmaxConfig,
-    },
-    LeakyRelu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: LeakyReluConfig,
-    },
-    HardSigmoid {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: HardSigmoidConfig,
-    },
-    Elu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Selu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Celu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Gelu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Mish {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Softplus {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Softsign {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    ThresholdedRelu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    HardSwish {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    PRelu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    Relu,
+    Sigmoid,
+    Softmax { config: SoftmaxConfig },
+    LogSoftmax { config: LogSoftmaxConfig },
+    LeakyRelu { config: LeakyReluConfig },
+    HardSigmoid { config: HardSigmoidConfig },
+    Elu,
+    Selu,
+    Celu,
+    Gelu,
+    Mish,
+    Softplus,
+    Softsign,
+    ThresholdedRelu,
+    HardSwish,
+    PRelu,
 
-    // =========================================================================
     // COMPARISON & LOGICAL OPERATIONS (no config)
-    // =========================================================================
-    Equal {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Greater {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    GreaterOrEqual {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Less {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    LessOrEqual {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    And {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Or {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Xor {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Not {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Where {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    Equal,
+    Greater,
+    GreaterOrEqual,
+    Less,
+    LessOrEqual,
+    And,
+    Or,
+    Xor,
+    Not,
+    Where,
 
-    // =========================================================================
     // BITWISE OPERATIONS
-    // =========================================================================
-    BitwiseAnd {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    BitwiseOr {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    BitwiseXor {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    BitwiseNot {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    BitShift {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: BitShiftConfig,
-    },
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseNot,
+    BitShift { config: BitShiftConfig },
 
-    // =========================================================================
     // REDUCTION OPERATIONS
-    // =========================================================================
-    ArgMax {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ArgMaxConfig,
-    },
-    ArgMin {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ArgMinConfig,
-    },
-    ReduceMax {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceMin {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceMean {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceSum {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceProd {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceL1 {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceL2 {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceLogSum {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceLogSumExp {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
-    ReduceSumSquare {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReduceConfig,
-    },
+    ArgMax { config: ArgMaxConfig },
+    ArgMin { config: ArgMinConfig },
+    ReduceMax { config: ReduceConfig },
+    ReduceMin { config: ReduceConfig },
+    ReduceMean { config: ReduceConfig },
+    ReduceSum { config: ReduceConfig },
+    ReduceProd { config: ReduceConfig },
+    ReduceL1 { config: ReduceConfig },
+    ReduceL2 { config: ReduceConfig },
+    ReduceLogSum { config: ReduceConfig },
+    ReduceLogSumExp { config: ReduceConfig },
+    ReduceSumSquare { config: ReduceConfig },
 
-    // =========================================================================
     // AGGREGATION OPERATIONS (no config)
-    // =========================================================================
-    Max {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Min {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Mean {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Sum {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    Max,
+    Min,
+    Mean,
+    Sum,
 
-    // =========================================================================
     // TENSOR MANIPULATION
-    // =========================================================================
-    Cast {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: CastConfig,
-    },
-    Clip {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ClipConfig,
-    },
-    Concat {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ConcatConfig,
-    },
-    Expand {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Flatten {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: FlattenConfig,
-    },
-    Gather {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: GatherConfig,
-    },
-    GatherElements {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: GatherElementsConfig,
-    },
-    GatherND {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Identity {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Pad {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: PadConfig,
-    },
-    Reshape {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ReshapeConfig,
-    },
-    Resize {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ResizeConfig,
-    },
-    Scatter {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    ScatterElements {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    ScatterND {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Shape {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ShapeConfig,
-    },
-    Size {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Slice {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: SliceConfig,
-    },
-    Split {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: SplitConfig,
-    },
-    Squeeze {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: SqueezeConfig,
-    },
-    Tile {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: TileConfig,
-    },
-    Transpose {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: TransposeConfig,
-    },
-    Unsqueeze {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: UnsqueezeConfig,
-    },
-    DepthToSpace {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: DepthToSpaceConfig,
-    },
-    SpaceToDepth {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: SpaceToDepthConfig,
-    },
+    Cast { config: CastConfig },
+    Clip { config: ClipConfig },
+    Concat { config: ConcatConfig },
+    Expand,
+    Flatten { config: FlattenConfig },
+    Gather { config: GatherConfig },
+    GatherElements { config: GatherElementsConfig },
+    GatherND,
+    Identity,
+    Pad { config: PadConfig },
+    Reshape { config: ReshapeConfig },
+    Resize { config: ResizeConfig },
+    Scatter,
+    ScatterElements,
+    ScatterND,
+    Shape { config: ShapeConfig },
+    Size,
+    Slice { config: SliceConfig },
+    Split { config: SplitConfig },
+    Squeeze { config: SqueezeConfig },
+    Tile { config: TileConfig },
+    Transpose { config: TransposeConfig },
+    Unsqueeze { config: UnsqueezeConfig },
+    DepthToSpace { config: DepthToSpaceConfig },
+    SpaceToDepth { config: SpaceToDepthConfig },
 
-    // =========================================================================
     // MATRIX OPERATIONS
-    // =========================================================================
-    MatMul {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    MatMulInteger {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Gemm {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: GemmConfig,
-    },
+    MatMul,
+    MatMulInteger,
+    Gemm { config: GemmConfig },
 
-    // =========================================================================
     // CONVOLUTION & POOLING
-    // =========================================================================
-    Conv1d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: Conv1dConfig,
-    },
-    Conv2d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: Conv2dConfig,
-    },
-    Conv3d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: Conv3dConfig,
-    },
-    ConvTranspose1d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ConvTranspose1dConfig,
-    },
-    ConvTranspose2d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ConvTranspose2dConfig,
-    },
-    ConvTranspose3d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ConvTranspose3dConfig,
-    },
-    AveragePool1d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: AvgPool1dConfig,
-    },
-    AveragePool2d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: AvgPool2dConfig,
-    },
-    MaxPool1d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: MaxPool1dConfig,
-    },
-    MaxPool2d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: MaxPool2dConfig,
-    },
-    GlobalAveragePool {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    GlobalMaxPool {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    Conv1d { config: Conv1dConfig },
+    Conv2d { config: Conv2dConfig },
+    Conv3d { config: Conv3dConfig },
+    ConvTranspose1d { config: ConvTranspose1dConfig },
+    ConvTranspose2d { config: ConvTranspose2dConfig },
+    ConvTranspose3d { config: ConvTranspose3dConfig },
+    AveragePool1d { config: AvgPool1dConfig },
+    AveragePool2d { config: AvgPool2dConfig },
+    MaxPool1d { config: MaxPool1dConfig },
+    MaxPool2d { config: MaxPool2dConfig },
+    GlobalAveragePool,
+    GlobalMaxPool,
 
-    // =========================================================================
     // NORMALIZATION
-    // =========================================================================
-    BatchNormalization {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: BatchNormConfig,
-    },
-    InstanceNormalization {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: InstanceNormConfig,
-    },
-    LayerNormalization {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: LayerNormConfig,
-    },
-    GroupNormalization {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: GroupNormConfig,
-    },
+    BatchNormalization { config: BatchNormConfig },
+    InstanceNormalization { config: InstanceNormConfig },
+    LayerNormalization { config: LayerNormConfig },
+    GroupNormalization { config: GroupNormConfig },
 
-    // =========================================================================
     // DROPOUT & REGULARIZATION
-    // =========================================================================
-    Dropout {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: DropoutConfig,
-    },
+    Dropout { config: DropoutConfig },
 
-    // =========================================================================
     // LINEAR & SPECIAL LAYERS
-    // =========================================================================
-    Linear {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: LinearConfig,
-    },
-    Attention {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: AttentionConfig,
-    },
+    Linear { config: LinearConfig },
+    Attention { config: AttentionConfig },
 
-    // =========================================================================
     // CONSTANT GENERATION
-    // =========================================================================
-    Constant {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    ConstantOfShape {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ConstantOfShapeConfig,
-    },
-    EyeLike {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: EyeLikeConfig,
-    },
+    Constant,
+    ConstantOfShape { config: ConstantOfShapeConfig },
+    EyeLike { config: EyeLikeConfig },
 
-    // =========================================================================
     // RANDOM OPERATIONS
-    // =========================================================================
-    RandomNormal {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: RandomNormalConfig,
-    },
-    RandomNormalLike {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: RandomNormalLikeConfig,
-    },
-    RandomUniformLike {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: RandomUniformLikeConfig,
-    },
-    Bernoulli {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    RandomNormal { config: RandomNormalConfig },
+    RandomNormalLike { config: RandomNormalLikeConfig },
+    RandomUniformLike { config: RandomUniformLikeConfig },
+    Bernoulli,
 
-    // =========================================================================
     // RANGE & SEQUENCE OPERATIONS
-    // =========================================================================
-    Range {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: RangeConfig,
-    },
-    OneHot {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: OneHotConfig,
-    },
+    Range { config: RangeConfig },
+    OneHot { config: OneHotConfig },
 
-    // =========================================================================
     // CONTROL FLOW
-    // =========================================================================
-    If {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: IfConfig,
-    },
-    Loop {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: LoopConfig,
-    },
-    Scan {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ScanConfig,
-    },
+    If { config: IfConfig },
+    Loop { config: LoopConfig },
+    Scan { config: ScanConfig },
 
-    // =========================================================================
     // SPECIAL OPERATIONS
-    // =========================================================================
-    IsInf {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: IsInfConfig,
-    },
-    IsNaN {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    NonZero {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    TopK {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: TopKConfig,
-    },
-    Unique {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
-    Trilu {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: TriluConfig,
-    },
-    Mod {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: ModConfig,
-    },
-    CumSum {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-    },
+    IsInf { config: IsInfConfig },
+    IsNaN,
+    NonZero,
+    TopK { config: TopKConfig },
+    Unique,
+    Trilu { config: TriluConfig },
+    Mod { config: ModConfig },
+    CumSum,
 }

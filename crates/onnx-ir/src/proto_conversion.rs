@@ -463,7 +463,7 @@ pub fn convert_graph_attributes(
     opset_version: usize,
     parent_registry: Option<crate::graph_state::NameRegistry>,
 ) -> Attributes {
-    use crate::pipeline::build_graph_from_proto_with_registry;
+    use crate::pipeline::build_graph_builder_from_proto;
 
     let mut result = Attributes::new();
 
@@ -476,21 +476,24 @@ pub fn convert_graph_attributes(
             match attr_type {
                 AttributeType::GRAPH => {
                     if let Some(graph_proto) = attr.g.as_ref() {
-                        let onnx_graph = build_graph_from_proto_with_registry(
+                        let graph_builder = build_graph_builder_from_proto(
                             graph_proto,
                             opset_version,
                             Some(name_registry.clone()),
                         )
                         .expect("Failed to build subgraph from ONNX GraphProto");
-                        result.insert(attr.name.clone(), AttributeValue::Graph(onnx_graph));
+                        result.insert(
+                            attr.name.clone(),
+                            AttributeValue::GraphBuilder(graph_builder),
+                        );
                     }
                 }
                 AttributeType::GRAPHS => {
-                    let graphs: Vec<_> = attr
+                    let graph_builders: Vec<_> = attr
                         .graphs
                         .iter()
                         .map(|graph_proto| {
-                            build_graph_from_proto_with_registry(
+                            build_graph_builder_from_proto(
                                 graph_proto,
                                 opset_version,
                                 Some(name_registry.clone()),
@@ -498,7 +501,10 @@ pub fn convert_graph_attributes(
                             .expect("Failed to build subgraph from ONNX GraphProto")
                         })
                         .collect();
-                    result.insert(attr.name.clone(), AttributeValue::Graphs(graphs));
+                    result.insert(
+                        attr.name.clone(),
+                        AttributeValue::GraphBuilders(graph_builders),
+                    );
                 }
                 _ => {}
             }

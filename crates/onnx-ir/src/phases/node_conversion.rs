@@ -539,10 +539,10 @@ fn update_subgraph_inputs(node: &mut NodeBuilder, graph_state: &GraphState) {
     // Update inputs for each graph attribute
     for attr_value in node.attrs.values_mut() {
         match attr_value {
-            AttributeValue::Graph(subgraph) => {
+            AttributeValue::GraphBuilder(subgraph) => {
                 update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
             }
-            AttributeValue::Graphs(subgraphs) => {
+            AttributeValue::GraphBuilders(subgraphs) => {
                 for subgraph in subgraphs {
                     update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
                 }
@@ -554,7 +554,7 @@ fn update_subgraph_inputs(node: &mut NodeBuilder, graph_state: &GraphState) {
 
 /// Update inputs for a single subgraph
 fn update_single_subgraph_inputs(
-    subgraph: &mut crate::ir::OnnxGraph,
+    subgraph: &mut crate::ir::OnnxGraphBuilder,
     node_output_map: &HashMap<String, (usize, usize)>,
     graph_state: &GraphState,
 ) {

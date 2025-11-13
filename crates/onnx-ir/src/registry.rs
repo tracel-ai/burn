@@ -3,14 +3,13 @@
 //! This module provides a centralized registry that maps ONNX node types
 //! to their corresponding processor implementations.
 
-use crate::ir::{NodeBuilder, NodeType};
+use crate::ir::{Node, NodeBuilder, NodeType};
 use crate::processor::{InputPreferences, NodeSpec, OutputPreferences, ProcessError};
 use std::collections::HashMap;
 
 /// Trait for registry-specific processor methods (without associated Config type).
 ///
 /// This trait is object-safe and used only for storing processors in the registry.
-/// It doesn't expose `extract_config` or `build_node` since those need the Config type.
 pub trait ProcessorMethods: Send + Sync {
     fn spec(&self) -> NodeSpec;
     fn input_preferences(
@@ -25,6 +24,7 @@ pub trait ProcessorMethods: Send + Sync {
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError>;
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node;
 }
 
 /// Blanket implementation: all NodeProcessor types implement ProcessorMethods
@@ -52,6 +52,10 @@ impl<T: crate::processor::NodeProcessor> ProcessorMethods for T {
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::NodeProcessor::infer_types(self, node, opset, output_preferences)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        crate::processor::NodeProcessor::build_node(self, builder, opset)
     }
 }
 

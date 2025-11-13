@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use burn_tensor::TensorData;
 
-use crate::OnnxGraph;
+use crate::{OnnxGraph, OnnxGraphBuilder};
 
 /// The type of an attribute.
 #[derive(Debug, Clone)]
@@ -20,7 +20,13 @@ pub enum AttributeValue {
     Strings(Vec<String>),
     Tensor(TensorData),
     Tensors(Vec<TensorData>),
+    /// Graph attribute - holds OnnxGraphBuilder during processing, converts to OnnxGraph later
+    GraphBuilder(OnnxGraphBuilder),
+    /// Multiple graph attributes
+    GraphBuilders(Vec<OnnxGraphBuilder>),
+    /// Final graph after conversion (used in final Node enum)
     Graph(OnnxGraph),
+    /// Final graphs after conversion (used in final Node enum)
     Graphs(Vec<OnnxGraph>),
 }
 

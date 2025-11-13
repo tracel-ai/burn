@@ -375,7 +375,7 @@ fn test_constant_lifting_phase2() {
 
     // Diagnostic: Show what nodes we actually have
     for (i, node) in graph.nodes.iter().enumerate() {
-        println!("  Node {}: {:?} '{}'", i, node.node_type, node.name);
+        println!("  Node {}: '{}'", i, node.name());
     }
 }
 
@@ -450,7 +450,7 @@ fn test_single_node_graph() {
     let op_count = count_operation_nodes(&graph);
     assert_eq!(op_count, 1, "Should have exactly 1 operation node");
 
-    println!("Single node graph: {}", graph.nodes[0].name);
+    println!("Single node graph: {}", graph.nodes[0].name());
 }
 
 // ============================================================================
@@ -516,9 +516,9 @@ fn test_same_constant_in_multiple_inputs() {
     println!("Nodes: {}", graph.nodes.len());
 
     for (i, node) in graph.nodes.iter().enumerate() {
-        println!("\nNode {}: {:?} '{}'", i, node.node_type, node.name);
-        println!("  Inputs ({}):", node.inputs.len());
-        for (j, inp) in node.inputs.iter().enumerate() {
+        println!("\nNode {}: '{}'", i, node.name());
+        println!("  Inputs ({}):", node.inputs().len());
+        for (j, inp) in node.inputs().iter().enumerate() {
             println!("    [{}] name='{}', value={:?}", j, inp.name, inp.value());
         }
     }
@@ -527,19 +527,19 @@ fn test_same_constant_in_multiple_inputs() {
     let where_node = graph
         .nodes
         .iter()
-        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Where))
+        .find(|n| matches!(n, onnx_ir::ir::Node::Where { .. }))
         .expect("Should have Where node");
 
     println!("\n=== Where Node Analysis ===");
     println!(
         "Inputs: {} (should be 3: condition, true_val, false_val)",
-        where_node.inputs.len()
+        where_node.inputs().len()
     );
-    assert_eq!(where_node.inputs.len(), 3, "Where should have 3 inputs");
+    assert_eq!(where_node.inputs().len(), 3, "Where should have 3 inputs");
 
     // Check if inputs [1] and [2] reference the same constant
-    let true_val = &where_node.inputs[1];
-    let false_val = &where_node.inputs[2];
+    let true_val = &where_node.inputs()[1];
+    let false_val = &where_node.inputs()[2];
 
     println!(
         "  true_val:  name='{}', value={:?}",
@@ -683,11 +683,11 @@ fn test_node_multiple_outputs_partial_use() {
     let topk_node = graph
         .nodes
         .iter()
-        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::TopK))
+        .find(|n| matches!(n, onnx_ir::ir::Node::TopK { .. }))
         .expect("Should have TopK node");
 
-    println!("TopK node outputs: {}", topk_node.outputs.len());
-    assert_eq!(topk_node.outputs.len(), 2, "TopK should have 2 outputs");
+    println!("TopK node outputs: {}", topk_node.outputs().len());
+    assert_eq!(topk_node.outputs().len(), 2, "TopK should have 2 outputs");
 
     // But only one output should be consumed by other nodes
     println!("Node with multiple outputs, partial use handled correctly");
@@ -702,10 +702,10 @@ fn test_optional_input_clip() {
     let clip_node = graph
         .nodes
         .iter()
-        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Clip))
+        .find(|n| matches!(n, onnx_ir::ir::Node::Clip { .. }))
         .expect("Should have Clip node");
 
-    println!("Clip node inputs: {}", clip_node.inputs.len());
+    println!("Clip node inputs: {}", clip_node.inputs().len());
 
     // Clip should handle optional inputs gracefully
     println!("Optional input handling: Clip parsed successfully");
@@ -761,8 +761,8 @@ fn test_very_long_node_names() {
 
     // Check that long names are preserved
     for node in &graph.nodes {
-        if node.name.len() > 100 {
-            println!("Found node with long name: {} chars", node.name.len());
+        if node.name().len() > 100 {
+            println!("Found node with long name: {} chars", node.name().len());
         }
     }
 
@@ -803,7 +803,7 @@ fn test_static_constant_value_source_invariant() {
 
     // Check all node inputs to verify the invariant
     for node in &graph.nodes {
-        for (i, input) in node.inputs.iter().enumerate() {
+        for (i, input) in node.inputs().iter().enumerate() {
             // Extract data_id from ValueSource::Static variant
             let has_data = matches!(input.value_source, ValueSource::Static(_));
             let is_constant_source = matches!(input.value_source, ValueSource::Constant);
@@ -811,7 +811,10 @@ fn test_static_constant_value_source_invariant() {
 
             println!(
                 "Node '{}' input[{}]: source={:?}, has_data_id={}",
-                node.name, i, input.value_source, has_data
+                node.name(),
+                i,
+                input.value_source,
+                has_data
             );
 
             // INVARIANT CHECK: Should be either Static (with embedded data_id) OR Constant, never both

@@ -47,7 +47,7 @@ fn rewire_argument(
 /// Identity node outputs. We need to rewire these references before removing
 /// the Identity nodes.
 fn rewire_subgraph(
-    graph: &mut crate::ir::OnnxGraph,
+    graph: &mut crate::ir::OnnxGraphBuilder,
     rewire_map: &HashMap<String, String>,
     output_arg_map: &HashMap<String, Argument>,
 ) {
@@ -86,12 +86,12 @@ fn rewire_node_subgraphs(
         NodeType::If => {
             // If node has then_branch and else_branch - update both attrs and config
             if let Some(then_attr) = node.attrs.get_mut("then_branch")
-                && let AttributeValue::Graph(subgraph) = then_attr
+                && let AttributeValue::GraphBuilder(subgraph) = then_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
             if let Some(else_attr) = node.attrs.get_mut("else_branch")
-                && let AttributeValue::Graph(subgraph) = else_attr
+                && let AttributeValue::GraphBuilder(subgraph) = else_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
@@ -102,7 +102,7 @@ fn rewire_node_subgraphs(
         NodeType::Loop | NodeType::Scan => {
             // Loop and Scan nodes have a body graph
             if let Some(body_attr) = node.attrs.get_mut("body")
-                && let AttributeValue::Graph(subgraph) = body_attr
+                && let AttributeValue::GraphBuilder(subgraph) = body_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
