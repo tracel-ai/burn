@@ -21,9 +21,8 @@ use crate::processor::{
 
 use crate::{
     ArgType, TensorType,
-    ir::{Node, NodeBuilder, NodeConfig},
+    ir::{Node, NodeBuilder},
 };
-use std::any::Any;
 
 /// Mode for DepthToSpace operation
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -54,15 +53,6 @@ impl DepthToSpaceConfig {
     /// Create a new DepthToSpaceConfig
     pub fn new(mode: DepthToSpaceMode, block_size: usize) -> Self {
         Self { mode, block_size }
-    }
-}
-
-impl NodeConfig for DepthToSpaceConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

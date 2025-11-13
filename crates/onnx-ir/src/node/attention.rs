@@ -10,8 +10,7 @@
 
 use crate::ir::Node;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::{ArgType, Argument, NodeBuilder, NodeConfig, TensorType};
-use std::any::Any;
+use crate::{ArgType, Argument, NodeBuilder, TensorType};
 
 #[derive(Debug, Clone, Default)]
 pub struct AttentionConfig {
@@ -43,15 +42,6 @@ impl AttentionConfig {
             softcap,
             softmax_precision,
         }
-    }
-}
-
-impl NodeConfig for AttentionConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

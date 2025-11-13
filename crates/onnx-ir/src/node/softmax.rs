@@ -14,27 +14,16 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig};
+use crate::ir::{ArgType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Softmax operations
 #[derive(Debug, Clone, Default)]
 pub struct SoftmaxConfig {
     /// Axis along which to apply softmax
     pub axis: usize,
-}
-
-impl NodeConfig for SoftmaxConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct SoftmaxProcessor;

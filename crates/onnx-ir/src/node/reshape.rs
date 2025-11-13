@@ -26,29 +26,16 @@
 //!
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
-use crate::ir::{
-    ArgType, Argument, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
-};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Reshape operation.
 #[derive(Debug, Clone, Default)]
 pub struct ReshapeConfig {
     pub shape: ReshapeInput,
-}
-
-impl NodeConfig for ReshapeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Represents either a static value or a runtime argument for reshape shape.

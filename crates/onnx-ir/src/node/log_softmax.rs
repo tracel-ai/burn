@@ -20,28 +20,16 @@
 //! - TODO: No test for all-zero or constant inputs - Edge cases for softmax normalization
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig};
+use crate::ir::{ArgType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for LogSoftmax operations
 #[derive(Debug, Clone, Default)]
 pub struct LogSoftmaxConfig {
     /// Axis along which to apply log softmax
     pub axis: usize,
-}
-
-impl NodeConfig for LogSoftmaxConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct LogSoftmaxProcessor;

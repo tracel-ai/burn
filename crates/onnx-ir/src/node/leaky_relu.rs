@@ -21,28 +21,16 @@
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 //! - TODO: No test for zero-size tensors - Empty tensor handling
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for LeakyRelu operations
 #[derive(Debug, Clone, Default)]
 pub struct LeakyReluConfig {
     /// Alpha value for negative slope
     pub alpha: f64,
-}
-
-impl NodeConfig for LeakyReluConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct LeakyReluProcessor;

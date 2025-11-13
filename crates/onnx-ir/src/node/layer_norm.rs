@@ -20,11 +20,10 @@
 //! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for LayerNorm operations
 #[derive(Debug, Clone, Default)]
@@ -35,16 +34,6 @@ pub struct LayerNormConfig {
     pub epsilon: f64,
     /// Whether to use full precision for intermediate calculations (stash_type == 1)
     pub full_precision: bool,
-}
-
-impl NodeConfig for LayerNormConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 impl LayerNormConfig {

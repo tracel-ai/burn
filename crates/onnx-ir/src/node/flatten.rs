@@ -12,27 +12,16 @@
 //!
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Flatten operations
 #[derive(Debug, Clone, Default)]
 pub struct FlattenConfig {
     /// Axis along which to flatten
     pub axis: usize,
-}
-
-impl NodeConfig for FlattenConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct FlattenProcessor;

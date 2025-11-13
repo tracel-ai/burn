@@ -18,13 +18,10 @@
 //! Should reject non-integer types like float for indices/depth inputs.
 //! Location: infer_types method after validate_input_count
 
-use crate::ir::{
-    ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
-};
+use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for OneHot depth.
 #[derive(Debug, Clone)]
@@ -59,15 +56,6 @@ impl Default for OneHotConfig {
             values: OneHotValuesInput::Static([0.0, 1.0]),
             axis: -1,
         }
-    }
-}
-
-impl NodeConfig for OneHotConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

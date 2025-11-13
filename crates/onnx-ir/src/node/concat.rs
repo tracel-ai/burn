@@ -10,27 +10,16 @@
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Concat operation
 #[derive(Debug, Clone, Default)]
 pub struct ConcatConfig {
     pub axis: usize,
-}
-
-impl NodeConfig for ConcatConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct ConcatProcessor;

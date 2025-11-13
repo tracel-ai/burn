@@ -10,9 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use std::any::Any;
-
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -62,16 +60,6 @@ impl Default for LoopConfig {
                 _graph_data: None,
             },
         }
-    }
-}
-
-impl NodeConfig for LoopConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

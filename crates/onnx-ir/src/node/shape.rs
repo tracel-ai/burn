@@ -21,27 +21,16 @@
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig};
+use crate::ir::{ArgType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Shape operation.
 #[derive(Debug, Clone, Default)]
 pub struct ShapeConfig {
     pub start: usize,
     pub end: usize,
-}
-
-impl NodeConfig for ShapeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct ShapeProcessor;

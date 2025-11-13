@@ -3,7 +3,7 @@
 //! This module defines the `NodeProcessor` trait with support for type preferences
 //! and proper error handling.
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 use std::collections::HashMap;
 
 // Re-export registry types for backward compatibility
@@ -162,7 +162,7 @@ pub trait NodeProcessor: Send + Sync {
     /// Associated config type for this processor
     ///
     /// For operations without config, use `()` as the type.
-    type Config: NodeConfig + Clone + Default;
+    type Config: Clone + Default;
 
     /// Return the node specification for validation
     ///
@@ -243,16 +243,6 @@ impl NodeProcessor for DefaultProcessor {
         // Default: preserve input type
         same_as_input(node);
         Ok(())
-    }
-}
-
-/// Unit type implementation for NodeConfig (for operations without config)
-impl NodeConfig for () {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(())
     }
 }
 

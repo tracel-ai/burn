@@ -12,12 +12,11 @@
 //! - Weight tensor layout: Implementation expects [out_channels, in_channels, kernel_size]
 //!   (see FIXME at line 185 regarding ONNX spec clarification)
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
 #[derive(Debug, Clone, Default)]
@@ -67,16 +66,6 @@ impl ConvTranspose1dConfig {
             bias,
             padding_out,
         }
-    }
-}
-
-impl NodeConfig for ConvTranspose1dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

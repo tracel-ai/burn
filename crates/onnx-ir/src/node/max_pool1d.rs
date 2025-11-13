@@ -28,10 +28,9 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::{
-    ir::{Node, NodeBuilder, NodeConfig},
+    ir::{Node, NodeBuilder},
     node::padding::padding_config_1d,
 };
-use std::any::Any;
 
 use super::padding::PaddingConfig1d;
 
@@ -86,16 +85,6 @@ impl MaxPool1dConfig {
     pub fn with_dilation(mut self, dilation: usize) -> Self {
         self.dilation = dilation;
         self
-    }
-}
-
-impl NodeConfig for MaxPool1dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

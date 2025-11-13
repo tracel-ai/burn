@@ -24,13 +24,10 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
-use crate::ir::{
-    ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
-};
+use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Range operation.
 #[derive(Debug, Clone, Default)]
@@ -38,16 +35,6 @@ pub struct RangeConfig {
     pub start: RangeInput,
     pub limit: RangeInput,
     pub delta: RangeInput,
-}
-
-impl NodeConfig for RangeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Represents either a static value or a runtime argument for range parameters.

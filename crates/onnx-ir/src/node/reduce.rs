@@ -22,23 +22,12 @@
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
-use std::any::Any;
+use crate::{ArgType, Node, NodeBuilder, TensorType};
 
 #[derive(Debug, Clone, Default)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
-}
-
-impl NodeConfig for ReduceConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 impl ReduceConfig {

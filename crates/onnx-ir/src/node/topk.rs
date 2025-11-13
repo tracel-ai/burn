@@ -19,11 +19,10 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for TopK k parameter.
 #[derive(Debug, Clone)]
@@ -47,16 +46,6 @@ pub struct TopKConfig {
     pub axis: usize,
     /// The number of top elements to select.
     pub k: TopKInput,
-}
-
-impl NodeConfig for TopKConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct TopKProcessor;

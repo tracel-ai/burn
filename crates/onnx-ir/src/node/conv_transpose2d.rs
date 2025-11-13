@@ -13,12 +13,11 @@
 //!   (see FIXME at line 188 regarding ONNX spec clarification)
 //! - Padding order: See FIXME at line 163 regarding padding order verification
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for ConvTranspose2d operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -64,16 +63,6 @@ impl ConvTranspose2dConfig {
             groups,
             bias,
         }
-    }
-}
-
-impl NodeConfig for ConvTranspose2dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

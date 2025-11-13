@@ -25,27 +25,16 @@
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Gather operation.
 #[derive(Debug, Clone, Default)]
 pub struct GatherConfig {
     pub axis: usize,
-}
-
-impl NodeConfig for GatherConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct GatherProcessor;

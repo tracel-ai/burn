@@ -8,13 +8,12 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Conv3d operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -55,16 +54,6 @@ impl Conv3dConfig {
             bias,
             padding,
         }
-    }
-}
-
-impl NodeConfig for Conv3dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

@@ -13,9 +13,8 @@ use crate::processor::{
 };
 use crate::{
     DType,
-    ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
+    ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType},
 };
-use std::any::Any;
 
 /// Shape information for the Expand operation.
 #[derive(Debug, Clone)]
@@ -29,16 +28,6 @@ pub enum ExpandShape {
 impl Default for ExpandShape {
     fn default() -> Self {
         ExpandShape::Static(Vec::new())
-    }
-}
-
-impl NodeConfig for ExpandShape {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

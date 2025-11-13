@@ -7,13 +7,11 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::proto_conversion::element_type_from_proto;
-
-use std::any::Any;
 
 /// Configuration for EyeLike operations
 #[derive(Debug, Clone, Default, new)]
@@ -22,15 +20,6 @@ pub struct EyeLikeConfig {
     pub dtype: Option<DType>,
     /// Diagonal offset (0 = main diagonal, >0 = upper, <0 = lower)
     pub k: i64,
-}
-
-impl NodeConfig for EyeLikeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct EyeLikeProcessor;

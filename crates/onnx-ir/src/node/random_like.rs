@@ -15,13 +15,12 @@
 //! - Available since opset version 1
 //! - Current version: 22
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
-use std::any::Any;
 
 /// Configuration for RandomNormalLike operation.
 #[derive(Debug, Clone, Default)]
@@ -30,31 +29,11 @@ pub struct RandomNormalLikeConfig {
     pub scale: f64,
 }
 
-impl NodeConfig for RandomNormalLikeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
 /// Configuration for RandomUniformLike operation.
 #[derive(Debug, Clone, Default)]
 pub struct RandomUniformLikeConfig {
     pub low: f64,
     pub high: f64,
-}
-
-impl NodeConfig for RandomUniformLikeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Enum config that can hold either RandomNormalLike or RandomUniformLike config
@@ -67,16 +46,6 @@ pub enum RandomLikeConfig {
 impl Default for RandomLikeConfig {
     fn default() -> Self {
         RandomLikeConfig::Normal(RandomNormalLikeConfig::default())
-    }
-}
-
-impl NodeConfig for RandomLikeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

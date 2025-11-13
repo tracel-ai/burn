@@ -10,12 +10,11 @@
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for AvgPool2d operations
 #[derive(Debug, Clone, Default)]
@@ -53,16 +52,6 @@ impl AvgPool2dConfig {
     pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
         self.dilation = dilation;
         self
-    }
-}
-
-impl NodeConfig for AvgPool2dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

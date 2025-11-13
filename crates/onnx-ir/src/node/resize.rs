@@ -13,12 +13,11 @@
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef};
+use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use std::any::Any;
 use std::str::FromStr;
 
 /// Interpolation mode for resize operation
@@ -69,16 +68,6 @@ pub struct ResizeConfig {
     pub extrapolation_value: f32,
     /// Antialias flag (default: 0) - opset 13+
     pub antialias: i32,
-}
-
-impl NodeConfig for ResizeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Represents either a static value or a runtime argument for resize scales.

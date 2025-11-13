@@ -10,9 +10,7 @@
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
 
-use std::any::Any;
-
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
@@ -24,16 +22,6 @@ pub struct ScanConfig {
     pub scan_output_directions: Vec<i64>,
     pub scan_input_axes: Vec<i64>,
     pub scan_output_axes: Vec<i64>,
-}
-
-impl NodeConfig for ScanConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Scan node processor

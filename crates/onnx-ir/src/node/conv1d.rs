@@ -8,11 +8,10 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
@@ -60,16 +59,6 @@ impl Conv1dConfig {
             groups,
             bias,
         }
-    }
-}
-
-impl NodeConfig for Conv1dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

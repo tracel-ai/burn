@@ -10,12 +10,10 @@
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for ArgMin operations
 #[derive(Debug, Clone, Default, new)]
@@ -24,16 +22,6 @@ pub struct ArgMinConfig {
     pub axis: usize,
     /// Whether to keep dimensions after reduction
     pub keepdims: bool,
-}
-
-impl NodeConfig for ArgMinConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct ArgMinProcessor;

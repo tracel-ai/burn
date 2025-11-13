@@ -16,13 +16,11 @@
 //! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
-use crate::ir::{AttributeValue, Node, NodeBuilder, NodeConfig};
+use crate::ir::{AttributeValue, Node, NodeBuilder};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for Mod operations
 #[derive(Debug, Clone, Default)]
@@ -37,15 +35,6 @@ impl ModConfig {
     /// Create a new ModConfig
     pub fn new(fmod: bool) -> Self {
         Self { fmod }
-    }
-}
-
-impl NodeConfig for ModConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

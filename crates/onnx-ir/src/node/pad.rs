@@ -29,10 +29,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{
-    ArgType, AttributeValue, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt,
-};
-use std::any::Any;
+use crate::ir::{ArgType, AttributeValue, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 
 /// Represents either a static value or a runtime argument for pad values.
 #[derive(Debug, Clone)]
@@ -106,15 +103,6 @@ impl Default for PadConfig {
             constant_value: ConstantValueInput::Static(0.0),
             mode: PadMode::default(),
         }
-    }
-}
-
-impl NodeConfig for PadConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

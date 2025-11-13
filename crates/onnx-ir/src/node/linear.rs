@@ -18,11 +18,10 @@
 //! - TODO: No test for zero-size dimensions - Edge case for empty matrices
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Linear operations
 #[derive(Debug, Clone, Default)]
@@ -49,16 +48,6 @@ impl LinearConfig {
     pub fn with_bias(mut self, bias: bool) -> Self {
         self.bias = bias;
         self
-    }
-}
-
-impl NodeConfig for LinearConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

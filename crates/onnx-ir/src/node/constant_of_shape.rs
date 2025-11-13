@@ -9,13 +9,11 @@
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
 use crate::ir::{
-    ArgType, DType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorData, TensorDataExt,
-    TensorType,
+    ArgType, DType, Node, NodeBuilder, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
 };
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the ConstantOfShape operation.
 #[derive(Debug, Clone, Default)]
@@ -38,16 +36,6 @@ pub enum ConstantOfShapeShape {
 impl Default for ConstantOfShapeShape {
     fn default() -> Self {
         Self::Static(vec![])
-    }
-}
-
-impl NodeConfig for ConstantOfShapeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

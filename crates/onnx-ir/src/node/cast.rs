@@ -17,12 +17,11 @@
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 
-use crate::ir::{ArgType, AttributeValue, DType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, AttributeValue, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::proto_conversion::element_type_from_proto;
-use std::any::Any;
 
 /// Configuration for Cast operations
 #[derive(Debug, Clone)]
@@ -41,16 +40,6 @@ impl CastConfig {
 impl Default for CastConfig {
     fn default() -> Self {
         Self { to: DType::F32 }
-    }
-}
-
-impl NodeConfig for CastConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

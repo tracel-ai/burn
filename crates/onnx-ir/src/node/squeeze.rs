@@ -15,10 +15,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{
-    ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
-};
-use std::any::Any;
+use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 
 /// Represents either a static value or a runtime argument for squeeze axes.
 #[derive(Debug, Clone)]
@@ -39,15 +36,6 @@ impl Default for SqueezeInput {
 #[derive(Debug, Clone, Default)]
 pub struct SqueezeConfig {
     pub axes: Option<SqueezeInput>,
-}
-
-impl NodeConfig for SqueezeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct SqueezeProcessor;

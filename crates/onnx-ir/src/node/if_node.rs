@@ -10,9 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use std::any::Any;
-
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -22,16 +20,6 @@ use crate::processor::{
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
-}
-
-impl NodeConfig for IfConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// If node processor

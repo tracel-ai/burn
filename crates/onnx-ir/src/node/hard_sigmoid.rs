@@ -17,27 +17,16 @@
 //! - **Opset 1-5**: Earlier versions with different default values
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for HardSigmoid operation
 #[derive(Debug, Clone, Default)]
 pub struct HardSigmoidConfig {
     pub alpha: f64,
     pub beta: f64,
-}
-
-impl NodeConfig for HardSigmoidConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct HardSigmoidProcessor;

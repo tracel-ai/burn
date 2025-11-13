@@ -22,12 +22,11 @@
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
 
+use crate::NodeBuilder;
 use crate::ir::{Node, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{NodeBuilder, NodeConfig};
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for tile repeats.
 #[derive(Debug, Clone)]
@@ -49,16 +48,6 @@ impl Default for TileInput {
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
     pub repeats: TileInput,
-}
-
-impl NodeConfig for TileConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct TileProcessor;

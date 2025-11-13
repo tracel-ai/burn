@@ -20,25 +20,14 @@ use crate::processor::{
 
 use crate::{
     ArgType, TensorType,
-    ir::{Node, NodeBuilder, NodeConfig},
+    ir::{Node, NodeBuilder},
 };
-use std::any::Any;
 
 /// Configuration for SpaceToDepth operations
 #[derive(Debug, Clone, Default)]
 pub struct SpaceToDepthConfig {
     /// Block size for space-to-depth transformation
     pub block_size: usize,
-}
-
-impl NodeConfig for SpaceToDepthConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct SpaceToDepthProcessor;

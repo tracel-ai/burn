@@ -25,12 +25,11 @@
 //! - TODO: No test validating input is 4D (N x C x H x W) - Lower/higher rank should be rejected
 //! - TODO: No test for asymmetric kernel sizes - e.g., kernel=[3, 5]
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for MaxPool2d operations
 #[derive(Debug, Clone)]
@@ -83,16 +82,6 @@ impl MaxPool2dConfig {
     pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
         self.dilation = dilation;
         self
-    }
-}
-
-impl NodeConfig for MaxPool2dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

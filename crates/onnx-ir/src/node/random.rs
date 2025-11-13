@@ -23,13 +23,12 @@
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
-use std::any::Any;
 
 /// Configuration for RandomNormal operation.
 #[derive(Debug, Clone, Default)]
@@ -39,32 +38,12 @@ pub struct RandomNormalConfig {
     pub shape: Vec<usize>,
 }
 
-impl NodeConfig for RandomNormalConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
 /// Configuration for RandomUniform operation.
 #[derive(Debug, Clone, Default)]
 pub struct RandomUniformConfig {
     pub low: f64,
     pub high: f64,
     pub shape: Vec<usize>,
-}
-
-impl NodeConfig for RandomUniformConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Enum config that can hold either RandomNormal or RandomUniform config
@@ -77,16 +56,6 @@ pub enum RandomConfig {
 impl Default for RandomConfig {
     fn default() -> Self {
         RandomConfig::Normal(RandomNormalConfig::default())
-    }
-}
-
-impl NodeConfig for RandomConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

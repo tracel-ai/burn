@@ -12,11 +12,10 @@
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for Split sizes.
 #[derive(Debug, Clone)]
@@ -42,16 +41,6 @@ pub struct SplitConfig {
     pub split_size: Option<usize>,
     /// Custom sizes for each split when splitting unevenly (Static or Runtime).
     pub split_sizes: Option<SplitSizesInput>,
-}
-
-impl NodeConfig for SplitConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct SplitProcessor;

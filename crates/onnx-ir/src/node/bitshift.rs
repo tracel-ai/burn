@@ -17,12 +17,10 @@
 //! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
 //! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 pub use self::Direction as BitShiftDirection;
 
@@ -48,15 +46,6 @@ impl Direction {
 #[derive(Debug, Clone, Default)]
 pub struct BitShiftConfig {
     pub direction: Direction,
-}
-
-impl NodeConfig for BitShiftConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct BitShiftProcessor;

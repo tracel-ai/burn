@@ -31,12 +31,11 @@
 //!
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use core::cmp::max;
-use std::any::Any;
 
 /// Configuration for Gemm operation
 #[derive(Debug, Clone, Default)]
@@ -45,15 +44,6 @@ pub struct GemmConfig {
     pub beta: f32,
     pub trans_a: i64,
     pub trans_b: i64,
-}
-
-impl NodeConfig for GemmConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct GemmProcessor;

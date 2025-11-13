@@ -16,8 +16,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{Node, NodeBuilder, NodeConfig};
-use std::any::Any;
+use crate::{Node, NodeBuilder};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct IsInfConfig {
@@ -31,15 +30,6 @@ impl IsInfConfig {
             detect_negative,
             detect_positive,
         }
-    }
-}
-
-impl NodeConfig for IsInfConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

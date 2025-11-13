@@ -19,27 +19,16 @@
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
-use crate::ir::{Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the GatherElements operation.
 #[derive(Debug, Clone, Default)]
 pub struct GatherElementsConfig {
     pub indices: GatherElementsInput,
     pub axis: usize,
-}
-
-impl NodeConfig for GatherElementsConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Represents either a static value or a runtime argument for gather elements indices.

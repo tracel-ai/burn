@@ -16,27 +16,16 @@
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
-use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig};
+use crate::ir::{ArgType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
-use std::any::Any;
 
 /// Configuration for Transpose operations
 #[derive(Debug, Clone, Default)]
 pub struct TransposeConfig {
     /// Permutation of dimensions
     pub perm: Vec<i64>,
-}
-
-impl NodeConfig for TransposeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct TransposeProcessor;

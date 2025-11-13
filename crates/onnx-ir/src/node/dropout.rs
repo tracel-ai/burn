@@ -15,11 +15,10 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
-use crate::ir::{Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for dropout ratio.
 #[derive(Debug, Clone)]
@@ -41,15 +40,6 @@ impl Default for DropoutInput {
 pub struct DropoutConfig {
     /// Probability of dropping out a unit
     pub prob: DropoutInput,
-}
-
-impl NodeConfig for DropoutConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct DropoutProcessor;

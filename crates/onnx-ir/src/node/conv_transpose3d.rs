@@ -8,12 +8,11 @@
 //! - **Opset 1**: Initial version with basic transposed convolution support
 //! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
 
-use crate::ir::{Node, NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for ConvTranspose3d operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -59,16 +58,6 @@ impl ConvTranspose3dConfig {
             groups,
             bias,
         }
-    }
-}
-
-impl NodeConfig for ConvTranspose3dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
     }
 }
 

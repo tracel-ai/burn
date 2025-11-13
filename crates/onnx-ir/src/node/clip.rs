@@ -17,11 +17,10 @@
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
-use crate::ir::{Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for clip parameters.
 #[derive(Debug, Clone)]
@@ -37,16 +36,6 @@ pub enum ClipInput {
 pub struct ClipConfig {
     pub min: Option<ClipInput>,
     pub max: Option<ClipInput>,
-}
-
-impl NodeConfig for ClipConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 pub struct ClipProcessor;
