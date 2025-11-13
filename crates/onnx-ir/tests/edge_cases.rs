@@ -84,7 +84,7 @@ fn test_passthrough_graph() {
 
     // Note: Direct I/O Identity nodes might be preserved to maintain graph structure
     // This is actually correct behavior - the graph should handle this gracefully
-    let has_identity = has_node_type(&graph, onnx_ir::ir::NodeType::Identity);
+    let has_identity = has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Identity { .. }));
     println!("Has Identity: {}", has_identity);
 
     // Graph should be valid with minimal nodes
@@ -466,8 +466,8 @@ fn test_matmul_dynamic_weights_no_coalesce() {
     assert_eq!(graph.inputs.len(), 2, "Should have 2 runtime inputs");
 
     // Should have MatMul node (NOT coalesced to Linear because weights are runtime)
-    let has_matmul = has_node_type(&graph, onnx_ir::ir::NodeType::MatMul);
-    let has_linear = has_node_type(&graph, onnx_ir::ir::NodeType::Linear);
+    let has_matmul = has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::MatMul { .. }));
+    let has_linear = has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Linear { .. }));
 
     println!(
         "MatMul dynamic weights: MatMul={}, Linear={}",
@@ -492,8 +492,8 @@ fn test_gemm_to_linear_conversion() {
     // After coalescing, should have Linear node instead of Gemm
     // (or Gemm if it doesn't meet Linear criteria)
 
-    let has_linear = has_node_type(&graph, onnx_ir::ir::NodeType::Linear);
-    let has_gemm = has_node_type(&graph, onnx_ir::ir::NodeType::Gemm);
+    let has_linear = has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Linear { .. }));
+    let has_gemm = has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Gemm { .. }));
 
     println!(
         "Gemm/Linear conversion: Linear={}, Gemm={}",
@@ -718,7 +718,7 @@ fn test_shape_type_broadcasting() {
     let graph = load_onnx("shape_broadcasting.onnx");
 
     // Should have Shape node producing int64 tensor
-    let has_shape = has_node_type(&graph, onnx_ir::ir::NodeType::Shape);
+    let has_shape = has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Shape { .. }));
     assert!(has_shape, "Should have Shape node");
 
     println!("Shape type in broadcasting: {} nodes", graph.nodes.len());

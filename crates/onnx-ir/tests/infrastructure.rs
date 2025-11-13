@@ -110,7 +110,7 @@ fn test_graph_branching() {
 
     // Should have Relu as the branch point
     assert!(
-        has_node_type(&graph, onnx_ir::ir::NodeType::Relu),
+        has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Relu { .. })),
         "Should have Relu node as branch point"
     );
 
@@ -146,7 +146,7 @@ fn test_identity_elimination() {
     // Test Phase 4: Identity nodes should be eliminated
     let graph = load_onnx("identity.onnx");
 
-    let identity_count = count_nodes(&graph, onnx_ir::ir::NodeType::Identity);
+    let identity_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Identity { .. }));
 
     println!(
         "Identity nodes after Phase 4: {} (should be 0)",
@@ -175,15 +175,15 @@ fn test_transitive_rewiring() {
     // After rewiring: relu → add → output
 
     assert!(
-        has_node_type(&graph, onnx_ir::ir::NodeType::Relu),
+        has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Relu { .. })),
         "Relu should remain"
     );
     assert!(
-        has_node_type(&graph, onnx_ir::ir::NodeType::Add),
+        has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Add { .. })),
         "Add should remain"
     );
     assert!(
-        !has_node_type(&graph, onnx_ir::ir::NodeType::Identity),
+        !has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Identity { .. })),
         "Identity should be eliminated"
     );
 
@@ -518,9 +518,9 @@ fn test_value_info_initialization() {
     assert_eq!(graph.outputs.len(), 1, "Expected 1 output");
 
     // Count nodes by type
-    let reshape_count = count_nodes(&graph, onnx_ir::ir::NodeType::Reshape);
-    let transpose_count = count_nodes(&graph, onnx_ir::ir::NodeType::Transpose);
-    let add_count = count_nodes(&graph, onnx_ir::ir::NodeType::Add);
+    let reshape_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Reshape { .. }));
+    let transpose_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Transpose { .. }));
+    let add_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Add { .. }));
 
     println!("Reshape nodes: {}", reshape_count);
     println!("Transpose nodes: {}", transpose_count);
