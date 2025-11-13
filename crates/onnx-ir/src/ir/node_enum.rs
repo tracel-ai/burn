@@ -1,6 +1,6 @@
 //! Enum-based node representation for ONNX operations
 //!
-//! This module contains the new NodeEnum type which provides compile-time type safety
+//! This module contains the Node type which provides compile-time type safety
 //! for ONNX operations by encoding the operation type and its configuration in enum variants.
 
 use super::argument::Argument;
@@ -67,7 +67,7 @@ use crate::node::unsqueeze::UnsqueezeConfig;
 /// Each ONNX operation is represented as a separate enum variant containing
 /// the operation-specific configuration.
 #[derive(Debug, Clone)]
-pub enum NodeEnum {
+pub enum Node {
     // =========================================================================
     // ARITHMETIC & BASIC OPERATIONS (no config)
     // =========================================================================

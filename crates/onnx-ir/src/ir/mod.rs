@@ -28,7 +28,7 @@ pub use graph::OnnxGraph;
 pub use node::{NodeBuilder, NodeConfig, RuntimeInputRef};
 
 // Re-exports from node_enum module
-pub use node_enum::NodeEnum;
+pub use node_enum::Node;
 
 // Re-exports from node_type module
 pub use node_type::NodeType;

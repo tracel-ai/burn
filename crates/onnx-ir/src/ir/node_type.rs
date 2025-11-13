@@ -9,7 +9,7 @@ use strum::{Display, EnumString};
 ///
 /// See: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
 ///
-/// TODO: Derive NodeTypes from NodeEnum using a macro
+/// TODO: Derive NodeTypes from Node using a macro
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
 pub enum NodeType {
     Abs,
