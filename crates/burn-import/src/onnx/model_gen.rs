@@ -427,10 +427,6 @@ impl ModelGen {
 
         let graph = ParsedOnnxGraph(graph);
 
-        if self.development {
-            self.write_debug_file(&out_file, "graph.txt", &graph);
-        }
-
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
         let code = self.generate_code_with_precision(graph, &out_file, top_comment);
