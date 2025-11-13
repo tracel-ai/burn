@@ -21,7 +21,7 @@
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 
-use crate::ir::{NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -134,6 +134,23 @@ impl NodeProcessor for InstanceNormProcessor {
 
         let config = InstanceNormConfig::new(num_features, epsilon as f64);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<InstanceNormConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::InstanceNormalization {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

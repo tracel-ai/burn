@@ -17,7 +17,7 @@
 //! - **Opset 11**: Added optional `steps` input for strided slicing.
 //! - **Opset 13**: Added bfloat16 and additional type support.
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -308,6 +308,23 @@ impl NodeProcessor for SliceProcessor {
             steps,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Slice {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

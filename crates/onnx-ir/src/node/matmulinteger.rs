@@ -12,7 +12,7 @@
 //! The spec allows 2-4 inputs (optional zero-point tensors), but implementation only validates minimum
 //! of 2 inputs (see FIXME at line 44).
 
-use crate::ir::{ArgType, DType, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
@@ -86,6 +86,14 @@ impl NodeProcessor for MatMulIntegerProcessor {
     ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
         // MatMulInteger has no config
         Ok(None)
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::MatMulInteger {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

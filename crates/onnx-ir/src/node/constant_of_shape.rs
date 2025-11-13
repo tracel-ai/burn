@@ -9,7 +9,8 @@
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
 use crate::ir::{
-    ArgType, DType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
+    ArgType, DType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorData, TensorDataExt,
+    TensorType,
 };
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -203,6 +204,23 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 
         let config = ConstantOfShapeConfig { shape, value };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ConstantOfShapeConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::ConstantOfShape {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

@@ -10,7 +10,7 @@
 //! - **Opset 12**: Added `select_last_index` attribute
 //! - **Opset 11**: Changed `axis` range to support negative indices [-r, r-1]
 
-use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -150,6 +150,23 @@ impl NodeProcessor for ArgMaxProcessor {
 
         let config = ArgMaxConfig::new(axis as usize, keepdims);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ArgMaxConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::ArgMax {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

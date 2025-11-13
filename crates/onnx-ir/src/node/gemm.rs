@@ -31,7 +31,7 @@
 //!
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -153,6 +153,23 @@ impl NodeProcessor for GemmProcessor {
             trans_b,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<GemmConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Gemm {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

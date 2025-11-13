@@ -14,7 +14,7 @@
 //! - **Opset 13**: Expanded type support
 //! - **Opset 14+**: Added bfloat16 support
 
-use crate::ir::NodeBuilder;
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -67,6 +67,14 @@ impl NodeProcessor for ReluProcessor {
         crate::processor::same_as_input(node);
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::Relu {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

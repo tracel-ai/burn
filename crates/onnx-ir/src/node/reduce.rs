@@ -22,7 +22,7 @@
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{ArgType, NodeBuilder, NodeConfig, TensorType};
+use crate::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use std::any::Any;
 
 #[derive(Debug, Clone)]
@@ -218,6 +218,56 @@ impl NodeProcessor for ReduceProcessor {
 
         let config = ReduceConfig::new(dims, keepdims == 1);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        match builder.node_type {
+            crate::ir::NodeType::ReduceMax => Node::ReduceMax {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceMin => Node::ReduceMin {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceMean => Node::ReduceMean {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceSum => Node::ReduceSum {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceProd => Node::ReduceProd {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            crate::ir::NodeType::ReduceSumSquare => Node::ReduceSumSquare {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            },
+            _ => panic!("ReduceProcessor called with unsupported node type"),
+        }
     }
 }
 

@@ -28,7 +28,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::{
-    ir::{NodeBuilder, NodeConfig},
+    ir::{Node, NodeBuilder, NodeConfig},
     node::padding::padding_config_1d,
 };
 use std::any::Any;
@@ -196,6 +196,23 @@ impl NodeProcessor for MaxPool1dProcessor {
         };
 
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<MaxPool1dConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::MaxPool1d {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

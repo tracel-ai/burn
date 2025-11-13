@@ -16,7 +16,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{NodeBuilder, NodeConfig};
+use crate::{Node, NodeBuilder, NodeConfig};
 use std::any::Any;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +99,23 @@ impl NodeProcessor for IsInfProcessor {
 
         let config = IsInfConfig::new(detect_negative, detect_positive);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<IsInfConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::IsInf {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

@@ -25,7 +25,7 @@
 //! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
-use crate::ir::{ArgType, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -112,6 +112,14 @@ impl NodeProcessor for MatMulProcessor {
         }
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::MatMul {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

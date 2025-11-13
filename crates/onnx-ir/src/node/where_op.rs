@@ -15,7 +15,7 @@
 //!
 //! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
-use crate::ir::{ArgType, DType, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     compute_broadcast_rank, compute_broadcast_static_shape,
@@ -118,6 +118,14 @@ impl NodeProcessor for WhereProcessor {
         }
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::Where {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

@@ -12,7 +12,7 @@
 
 use std::any::Any;
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
@@ -198,6 +198,23 @@ impl NodeProcessor for ScanProcessor {
             scan_input_axes,
             scan_output_axes,
         })))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ScanConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Scan {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

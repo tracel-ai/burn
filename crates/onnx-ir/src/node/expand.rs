@@ -13,7 +13,7 @@ use crate::processor::{
 };
 use crate::{
     DType,
-    ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
+    ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
 };
 use std::any::Any;
 
@@ -176,6 +176,14 @@ impl NodeProcessor for ExpandProcessor {
             }
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::Expand {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

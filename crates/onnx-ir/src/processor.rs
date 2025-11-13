@@ -3,7 +3,7 @@
 //! This module defines the `NodeProcessor` trait with support for type preferences
 //! and proper error handling.
 
-use crate::ir::{NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder, NodeConfig};
 use std::collections::HashMap;
 
 // Re-export registry types for backward compatibility
@@ -198,6 +198,20 @@ pub trait NodeProcessor: Send + Sync {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         Ok(None)
+    }
+
+    /// Build the final Node enum from a NodeBuilder
+    ///
+    /// This method converts the mutable NodeBuilder (with attrs + config) into the final
+    /// immutable Node enum. The config should already be extracted and validated by
+    /// `extract_config()`.
+    ///
+    /// # Default Implementation
+    ///
+    /// The default implementation panics, as each processor should implement this method
+    /// to build its specific Node variant.
+    fn build_node(&self, _builder: NodeBuilder) -> Node {
+        panic!("build_node not implemented for this processor")
     }
 }
 

@@ -16,7 +16,7 @@
 //! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
-use crate::ir::{AttributeValue, NodeBuilder, NodeConfig};
+use crate::ir::{AttributeValue, Node, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -131,6 +131,23 @@ impl NodeProcessor for ModuloProcessor {
 
         let config = ModConfig::new(fmod);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ModConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Mod {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

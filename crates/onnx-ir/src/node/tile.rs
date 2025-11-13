@@ -22,7 +22,7 @@
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
 
-use crate::ir::RuntimeInputRef;
+use crate::ir::{Node, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -125,6 +125,23 @@ impl NodeProcessor for TileProcessor {
         let repeats = get_repeats(node);
         let config = TileConfig { repeats };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Tile {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

@@ -10,7 +10,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
 
-use crate::ir::{NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -151,6 +151,23 @@ impl NodeProcessor for GroupNormProcessor {
         let full_precision = stash_type == 1;
         let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64, full_precision);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<GroupNormConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::GroupNormalization {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

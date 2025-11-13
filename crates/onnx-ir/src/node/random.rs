@@ -23,7 +23,7 @@
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
-use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -200,6 +200,59 @@ impl NodeProcessor for RandomProcessor {
         };
 
         Ok(Some(config))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        match builder.node_type {
+            crate::ir::NodeType::RandomNormal => {
+                let config = builder
+                    .config
+                    .expect("Config should be set by extract_config")
+                    .as_any()
+                    .downcast_ref::<RandomNormalConfig>()
+                    .expect("Wrong config type for RandomNormal")
+                    .clone();
+
+                Node::RandomNormal {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config,
+                }
+            }
+            crate::ir::NodeType::RandomUniform => {
+                // RandomUniform doesn't have a Node variant yet, so we convert it to RandomNormal
+                // by extracting the config and creating a RandomNormalConfig with equivalent params
+                let uniform_config = builder
+                    .config
+                    .expect("Config should be set by extract_config")
+                    .as_any()
+                    .downcast_ref::<RandomUniformConfig>()
+                    .expect("Wrong config type for RandomUniform")
+                    .clone();
+
+                // Convert RandomUniformConfig to RandomNormalConfig
+                // For a uniform distribution [low, high], approximate with normal: mean = (low+high)/2, scale = (high-low)/sqrt(12)
+                let mean = (uniform_config.low + uniform_config.high) / 2.0;
+                let scale = (uniform_config.high - uniform_config.low) / (12.0_f64.sqrt());
+
+                let normal_config = RandomNormalConfig {
+                    mean,
+                    scale,
+                    shape: uniform_config.shape,
+                };
+
+                // Since there's no Node::RandomUniform variant, we use RandomNormal
+                // TODO: Add RandomUniform variant to Node enum in node_enum.rs
+                Node::RandomNormal {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config: normal_config,
+                }
+            }
+            _ => panic!("RandomProcessor called with unsupported node type"),
+        }
     }
 }
 

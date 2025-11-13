@@ -25,7 +25,7 @@
 //! - TODO: No test validating input is 4D (N x C x H x W) - Lower/higher rank should be rejected
 //! - TODO: No test for asymmetric kernel sizes - e.g., kernel=[3, 5]
 
-use crate::ir::{NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder, NodeConfig};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -190,6 +190,23 @@ impl NodeProcessor for MaxPool2dProcessor {
             .with_dilation([dilations[0] as usize, dilations[1] as usize]);
 
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<MaxPool2dConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::MaxPool2d {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

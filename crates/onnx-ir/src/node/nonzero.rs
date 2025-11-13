@@ -18,7 +18,7 @@
 //! unsupported types like string, complex64, complex128 should be explicitly rejected.
 //! Location: infer_types method after line 38
 
-use crate::ir::{ArgType, DType, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -69,6 +69,14 @@ impl NodeProcessor for NonZeroProcessor {
         }
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::NonZero {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

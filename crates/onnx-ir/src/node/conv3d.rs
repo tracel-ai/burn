@@ -8,7 +8,7 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder, NodeConfig};
 
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
 use crate::processor::{
@@ -195,6 +195,23 @@ impl NodeProcessor for Conv3dProcessor {
         );
 
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<Conv3dConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Conv3d {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

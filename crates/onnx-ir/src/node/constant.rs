@@ -15,7 +15,7 @@
 //! - **Opset 11-12**: Added sparse_value attribute for sparse tensor support
 //! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
-use crate::ir::{ArgType, NodeBuilder, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -107,6 +107,14 @@ impl NodeProcessor for ConstantProcessor {
         };
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::Constant {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

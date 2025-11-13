@@ -22,7 +22,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{ArgType, NodeBuilder, NodeConfig, TensorDataExt};
+use crate::{ArgType, Node, NodeBuilder, NodeConfig, TensorDataExt};
 
 use std::any::Any;
 
@@ -142,6 +142,23 @@ impl NodeProcessor for TriluProcessor {
 
         let config = TriluConfig::new(upper, diagonal);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Trilu {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

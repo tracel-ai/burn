@@ -10,7 +10,7 @@
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::node::padding::padding_config_1d;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -188,6 +188,23 @@ impl NodeProcessor for AvgPool1dProcessor {
         };
 
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<AvgPool1dConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::AveragePool1d {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

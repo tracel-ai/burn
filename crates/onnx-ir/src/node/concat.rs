@@ -10,7 +10,7 @@
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -246,6 +246,23 @@ impl NodeProcessor for ConcatProcessor {
             axis: normalized_axis as usize,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ConcatConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Concat {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

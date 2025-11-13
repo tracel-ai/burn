@@ -13,7 +13,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -460,6 +460,23 @@ impl NodeProcessor for ResizeProcessor {
             antialias,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ResizeConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Resize {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

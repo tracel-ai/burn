@@ -29,7 +29,9 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, AttributeValue, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{
+    ArgType, AttributeValue, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for pad values.
@@ -402,6 +404,23 @@ impl NodeProcessor for PadProcessor {
             mode,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<PadConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Pad {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

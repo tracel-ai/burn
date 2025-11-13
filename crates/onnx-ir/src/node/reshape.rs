@@ -27,7 +27,7 @@
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
 use crate::ir::{
-    ArgType, Argument, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
+    ArgType, Argument, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
 };
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
@@ -444,6 +444,23 @@ impl NodeProcessor for ReshapeProcessor {
 
         let config = ReshapeConfig { shape };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ReshapeConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Reshape {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

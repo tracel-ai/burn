@@ -15,7 +15,7 @@
 //! - Available since opset version 1
 //! - Current version: 22
 
-use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -154,6 +154,44 @@ impl NodeProcessor for RandomLikeProcessor {
         };
 
         Ok(Some(config))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        match builder.node_type {
+            crate::ir::NodeType::RandomNormalLike => {
+                let config = builder
+                    .config
+                    .expect("Config should be set by extract_config")
+                    .as_any()
+                    .downcast_ref::<RandomNormalLikeConfig>()
+                    .expect("Wrong config type for RandomNormalLike")
+                    .clone();
+
+                Node::RandomNormalLike {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config,
+                }
+            }
+            crate::ir::NodeType::RandomUniformLike => {
+                let config = builder
+                    .config
+                    .expect("Config should be set by extract_config")
+                    .as_any()
+                    .downcast_ref::<RandomUniformLikeConfig>()
+                    .expect("Wrong config type for RandomUniformLike")
+                    .clone();
+
+                Node::RandomUniformLike {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config,
+                }
+            }
+            _ => panic!("RandomLikeProcessor called with unsupported node type"),
+        }
     }
 }
 

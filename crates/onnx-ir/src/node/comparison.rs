@@ -44,7 +44,7 @@
 //! - When both inputs are scalars, the output is a scalar boolean
 //! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
 
-use crate::ir::{ArgType, DType, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -156,6 +156,37 @@ impl NodeProcessor for ComparisonProcessor {
         }
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        match builder.node_type {
+            crate::ir::NodeType::Equal => Node::Equal {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::Greater => Node::Greater {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::GreaterOrEqual => Node::GreaterOrEqual {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::Less => Node::Less {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::LessOrEqual => Node::LessOrEqual {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            _ => panic!("ComparisonProcessor called with unsupported node type"),
+        }
     }
 }
 

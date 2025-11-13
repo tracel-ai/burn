@@ -19,7 +19,7 @@
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
-use crate::ir::{NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -152,6 +152,23 @@ impl NodeProcessor for GatherElementsProcessor {
             axis: axis as usize,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<GatherElementsConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::GatherElements {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

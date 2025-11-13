@@ -21,7 +21,7 @@ use crate::processor::{
 
 use crate::{
     ArgType, TensorType,
-    ir::{NodeBuilder, NodeConfig},
+    ir::{Node, NodeBuilder, NodeConfig},
 };
 use std::any::Any;
 
@@ -185,6 +185,23 @@ impl NodeProcessor for DepthToSpaceProcessor {
 
         let config = DepthToSpaceConfig::new(mode, block_size);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<DepthToSpaceConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::DepthToSpace {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

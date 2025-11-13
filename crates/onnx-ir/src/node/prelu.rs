@@ -25,7 +25,7 @@
 //! - The slope input is lifted to static during constant lifting phase
 //! - This allows the slope to be embedded in the generated code
 
-use crate::ir::NodeBuilder;
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -86,6 +86,14 @@ impl NodeProcessor for PReluProcessor {
         crate::processor::same_as_input_broadcast(node);
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::PRelu {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

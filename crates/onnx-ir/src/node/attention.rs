@@ -8,6 +8,7 @@
 //!
 //! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
+use crate::ir::Node;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{ArgType, Argument, NodeBuilder, NodeConfig, TensorType};
 use std::any::Any;
@@ -259,6 +260,23 @@ impl NodeProcessor for AttentionProcessor {
             softmax_precision,
         );
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<AttentionConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Attention {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

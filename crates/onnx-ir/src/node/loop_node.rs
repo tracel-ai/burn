@@ -12,7 +12,7 @@
 
 use std::any::Any;
 
-use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -256,6 +256,23 @@ impl NodeProcessor for LoopProcessor {
             .into_graph();
 
         Ok(Some(Box::new(LoopConfig { body })))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<LoopConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Loop {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

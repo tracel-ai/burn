@@ -22,10 +22,10 @@
 //! - TODO: No test for higher-rank tensors (3D, 4D) - Only 2D tensor tested
 //! - TODO: No test for positive/negative NaN variants - Some platforms distinguish signaling/quiet NaN
 
-use crate::NodeBuilder;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use crate::{Node, NodeBuilder};
 
 pub struct IsNaNProcessor;
 
@@ -60,6 +60,14 @@ impl NodeProcessor for IsNaNProcessor {
         crate::node::comparison::elementwise_comparison_outputs(node);
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::IsNaN {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

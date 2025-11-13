@@ -12,7 +12,7 @@
 
 use std::any::Any;
 
-use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -146,6 +146,23 @@ impl NodeProcessor for IfProcessor {
             then_branch,
             else_branch,
         })))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<IfConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::If {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

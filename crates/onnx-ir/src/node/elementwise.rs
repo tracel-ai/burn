@@ -58,7 +58,7 @@
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
 
-use crate::ir::NodeBuilder;
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     same_as_input_broadcast,
@@ -105,6 +105,62 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 
         same_as_input_broadcast(node);
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        use crate::ir::NodeType;
+
+        match builder.node_type {
+            NodeType::Pow => Node::Pow {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Max => Node::Max {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Min => Node::Min {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::And => Node::And {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Or => Node::Or {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Xor => Node::Xor {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::BitwiseAnd => Node::BitwiseAnd {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::BitwiseOr => Node::BitwiseOr {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::BitwiseXor => Node::BitwiseXor {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            _ => panic!(
+                "Unsupported node type for ElementwiseBinaryProcessor: {:?}",
+                builder.node_type
+            ),
+        }
     }
 }
 
@@ -180,6 +236,152 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         // TODO: Hyperbolic functions (Sinh, Cosh, Tanh, Asinh, Acosh, Atanh) not listed in opset validation - May be missing from elementwise processor - Check if handled elsewhere
         same_as_input(node);
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        use crate::ir::NodeType;
+
+        match builder.node_type {
+            NodeType::Abs => Node::Abs {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Ceil => Node::Ceil {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Floor => Node::Floor {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Exp => Node::Exp {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Log => Node::Log {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Neg => Node::Neg {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Reciprocal => Node::Reciprocal {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Sqrt => Node::Sqrt {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Acos => Node::Acos {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Asin => Node::Asin {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Atan => Node::Atan {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Cos => Node::Cos {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Sin => Node::Sin {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Tan => Node::Tan {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Erf => Node::Erf {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Sign => Node::Sign {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Sinh => Node::Sinh {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Cosh => Node::Cosh {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Tanh => Node::Tanh {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Asinh => Node::Asinh {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Acosh => Node::Acosh {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Atanh => Node::Atanh {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Round => Node::Round {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Not => Node::Not {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Sigmoid => Node::Sigmoid {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::Gelu => Node::Gelu {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            NodeType::GlobalAveragePool => Node::GlobalAveragePool {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            _ => panic!(
+                "Unsupported node type for ElementwiseUnaryProcessor: {:?}",
+                builder.node_type
+            ),
+        }
     }
 }
 

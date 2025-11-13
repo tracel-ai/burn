@@ -11,7 +11,7 @@
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -140,6 +140,23 @@ impl NodeProcessor for BatchNormProcessor {
 
         let config = BatchNormConfig::new(num_features, epsilon as f64, momentum as f64);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<BatchNormConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::BatchNormalization {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

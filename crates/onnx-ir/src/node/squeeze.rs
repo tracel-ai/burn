@@ -15,7 +15,9 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{
+    ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType,
+};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for squeeze axes.
@@ -182,6 +184,23 @@ impl NodeProcessor for SqueezeProcessor {
         let axes = get_squeeze_axes(node);
         let config = SqueezeConfig { axes };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<SqueezeConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Squeeze {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

@@ -26,7 +26,7 @@
 //! - **Shape arithmetic**: When operating on Shape types with constants, prefers constants as Shape
 //! - **Scalar arithmetic**: When operating on Scalar types with constants, prefers constants as Scalar
 
-use crate::ir::NodeBuilder;
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError, same_as_input_broadcast,
@@ -109,6 +109,32 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         same_as_input_broadcast(node);
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        match builder.node_type {
+            crate::ir::NodeType::Add => Node::Add {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::Sub => Node::Sub {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::Mul => Node::Mul {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            crate::ir::NodeType::Div => Node::Div {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+            },
+            _ => panic!("ArithmeticBinaryProcessor called with unsupported node type"),
+        }
     }
 }
 

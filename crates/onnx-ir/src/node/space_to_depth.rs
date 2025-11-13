@@ -20,7 +20,7 @@ use crate::processor::{
 
 use crate::{
     ArgType, TensorType,
-    ir::{NodeBuilder, NodeConfig},
+    ir::{Node, NodeBuilder, NodeConfig},
 };
 use std::any::Any;
 
@@ -148,6 +148,23 @@ impl NodeProcessor for SpaceToDepthProcessor {
 
         let config = SpaceToDepthConfig { block_size };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<SpaceToDepthConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::SpaceToDepth {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

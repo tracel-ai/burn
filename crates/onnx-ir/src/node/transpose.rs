@@ -16,7 +16,7 @@
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -120,6 +120,23 @@ impl NodeProcessor for TransposeProcessor {
 
         let config = TransposeConfig { perm };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<TransposeConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Transpose {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

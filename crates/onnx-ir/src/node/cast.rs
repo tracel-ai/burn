@@ -17,7 +17,7 @@
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 
-use crate::ir::{ArgType, AttributeValue, DType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, AttributeValue, DType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -147,6 +147,23 @@ impl NodeProcessor for CastProcessor {
 
         let config = CastConfig::new(elem_type);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<CastConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Cast {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

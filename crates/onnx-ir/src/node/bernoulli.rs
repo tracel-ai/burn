@@ -8,7 +8,7 @@
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
 
-use crate::ir::{ArgType, DType, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -72,6 +72,14 @@ impl NodeProcessor for BernoulliProcessor {
         });
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::Bernoulli {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

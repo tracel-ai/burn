@@ -21,7 +21,7 @@
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -135,6 +135,23 @@ impl NodeProcessor for ShapeProcessor {
 
         let config = ShapeConfig { start, end };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Shape {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

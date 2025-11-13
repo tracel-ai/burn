@@ -17,7 +17,7 @@
 //! - **Opset 1-5**: Earlier versions with different default values
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
-use crate::ir::{NodeBuilder, NodeConfig};
+use crate::ir::{Node, NodeBuilder, NodeConfig};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -97,6 +97,23 @@ impl NodeProcessor for HardSigmoidProcessor {
 
         let config = HardSigmoidConfig { alpha, beta };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<HardSigmoidConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::HardSigmoid {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

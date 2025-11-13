@@ -18,7 +18,7 @@
 //! - TODO: No test for zero-size dimensions - Edge case for empty matrices
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -145,6 +145,23 @@ impl NodeProcessor for LinearProcessor {
 
         let config = LinearConfig::new(in_size, out_size).with_bias(bias);
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<LinearConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Linear {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

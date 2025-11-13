@@ -8,7 +8,7 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use crate::ir::{ArgType, DType, NodeBuilder};
+use crate::ir::{ArgType, DType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -34,6 +34,14 @@ impl NodeProcessor for SizeProcessor {
         node.outputs[0].ty = ArgType::Scalar(DType::I64);
 
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        Node::Size {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
     }
 }
 

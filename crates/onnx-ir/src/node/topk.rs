@@ -19,7 +19,7 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
-use crate::ir::{ArgType, DType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -189,6 +189,23 @@ impl NodeProcessor for TopKProcessor {
             k,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::TopK {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 

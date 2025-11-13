@@ -12,7 +12,7 @@
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
 
-use crate::ir::{ArgType, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -293,6 +293,23 @@ impl NodeProcessor for SplitProcessor {
             split_sizes,
         };
         Ok(Some(Box::new(config)))
+    }
+
+    fn build_node(&self, builder: NodeBuilder) -> Node {
+        let config = builder
+            .config
+            .expect("Config should be set by extract_config")
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .expect("Wrong config type")
+            .clone();
+
+        Node::Split {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 
