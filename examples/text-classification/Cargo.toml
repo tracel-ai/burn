@@ -39,6 +39,7 @@ burn = { path = "../../crates/burn", features = [
     "fusion",
     "std",
 ], default-features = false }
+log = { workspace = true }
 
 # Tokenizer
 tokenizers = { version = "0.22.1", default-features = false, features = [
