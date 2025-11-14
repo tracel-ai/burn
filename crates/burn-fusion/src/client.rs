@@ -173,6 +173,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -186,6 +187,7 @@ where
 
         core::mem::drop(server_current);
         core::mem::drop(server_other);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -200,6 +202,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -213,6 +216,7 @@ where
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -227,6 +231,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -240,6 +245,7 @@ where
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -254,6 +260,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -263,6 +270,7 @@ where
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
