@@ -44,11 +44,11 @@ impl<LC: LearnerComponentTypes> Worker<LC> {
             loop {
                 match receiver_input.recv() {
                     Ok(item) => {
-                        println!("On new step {:?}", device);
+                        // println!("On new step {:?}", device);
                         let model = item.model.fork(&device);
-                        println!("Model forked {:?}", device);
+                        // println!("Model forked {:?}", device);
                         let output = model.step(item.item);
-                        println!("Model stepped {:?}", device);
+                        // println!("Model stepped {:?}", device);
                         let item = MultiTrainOutput {
                             output,
                             device: device.to_id(),

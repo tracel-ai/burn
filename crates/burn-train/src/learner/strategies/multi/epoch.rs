@@ -71,7 +71,6 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
 
             let mut progress_items = Vec::with_capacity(items.len());
             for item in items.into_iter() {
-                log::info!("Accumulate item in {:?}", item.device);
                 let accumulator = accumulators.get_mut(&item.device).unwrap();
                 accumulator.accumulate(&model, item.output.grads);
                 progress_items.push(item.output.item);
@@ -83,7 +82,6 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
                 let mut grads = MultiGradientsParams::default();
                 for (device_id, accumulator) in accumulators.iter_mut() {
                     let grad = accumulator.grads();
-                    log::info!("Grad {:?} to {:?}", grad, device_id);
                     grads.grads.push((grad, *device_id));
                 }
                 model = model.optimize_multi(&mut optim, lr, grads);
