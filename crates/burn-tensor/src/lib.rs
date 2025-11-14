@@ -10,6 +10,7 @@
 extern crate derive_new;
 
 extern crate alloc;
+extern crate core;
 
 mod tensor;
 
