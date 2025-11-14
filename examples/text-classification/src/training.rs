@@ -21,7 +21,6 @@ use burn::{
     prelude::*,
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
-    train::renderer::CliMetricsRenderer,
     train::{
         LearnerBuilder,
         metric::{
@@ -36,9 +35,9 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = "SeqLengthOption::Fixed(256)")]
+    #[config(default = "SeqLengthOption::Fixed(512)")]
     pub seq_length: SeqLengthOption,
-    #[config(default = 8)]
+    #[config(default = 64)]
     pub batch_size: usize,
     #[config(default = 5)]
     pub num_epochs: usize,
@@ -93,7 +92,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train(IterationSpeedMetric::new())
-        .renderer(CliMetricsRenderer::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .metric_train_numeric(AccuracyMetric::new())
