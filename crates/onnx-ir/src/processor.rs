@@ -205,16 +205,20 @@ pub trait NodeProcessor: Send + Sync {
     ///
     /// # Default Implementation
     ///
-    /// The default implementation panics. Only processors with `type Config = ()`
+    /// The default implementation returns an error. Only processors with `type Config = ()`
     /// should rely on never calling this method.
     fn extract_config(
         &self,
         _node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        panic!(
-            "extract_config not implemented - processors with non-unit Config type must implement this method"
-        )
+    ) -> Result<Self::Config, ProcessError>
+    where
+        Self: Sized,
+    {
+        Err(ProcessError::Custom(format!(
+            "extract_config not implemented for {} - processors with non-unit Config type must implement this method",
+            std::any::type_name::<Self>()
+        )))
     }
 
     /// Build the final Node enum from a NodeBuilder
@@ -224,10 +228,16 @@ pub trait NodeProcessor: Send + Sync {
     ///
     /// # Default Implementation
     ///
-    /// The default implementation panics, as each processor should implement this method
-    /// to build its specific Node variant.
-    fn build_node(&self, _builder: NodeBuilder, _opset: usize) -> Node {
-        panic!("build_node not implemented for this processor")
+    /// The default implementation panics with the processor type name.
+    /// Each processor should implement this method to build its specific Node variant.
+    fn build_node(&self, _builder: NodeBuilder, _opset: usize) -> Node
+    where
+        Self: Sized,
+    {
+        panic!(
+            "build_node not implemented for {} - each processor must implement this method",
+            std::any::type_name::<Self>()
+        )
     }
 }
 
