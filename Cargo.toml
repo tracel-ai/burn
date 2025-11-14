@@ -33,6 +33,8 @@ broken_intra_doc_links = "deny"
 invalid_html_tags = "deny"
 
 [workspace.dependencies]
+ar_row = "1.3.0"
+ar_row_derive = "1.3.0"
 atomic_float = "1"
 axum = "0.8.5"
 bytemuck = "1.24.0"
@@ -48,6 +50,7 @@ dashmap = "6.1.0"
 data-encoding = { version = "2.9.0", default-features = false, features = [
     "alloc",
 ] }
+datafusion = { version = "50.3.0", default-features = false }
 dirs = "6.0.0"
 encoding_rs = "0.8.33"
 fake = "4.4.0"

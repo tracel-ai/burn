@@ -8,6 +8,11 @@ use serde::de::DeserializeOwned;
 
 use crate::Dataset;
 
+#[cfg(feature = "arrow")]
+use ar_row::arrow::array::RecordBatch;
+#[cfg(feature = "arrow")]
+use ar_row::deserialize::ArRowDeserialize;
+
 /// Dataset where all items are stored in ram.
 pub struct InMemDataset<I> {
     items: Vec<I>,
@@ -88,6 +93,26 @@ where
     }
 }
 
+// Support for arrow record batches
+#[cfg(feature = "arrow")]
+impl<I> InMemDataset<I>
+where
+    I: ArRowDeserialize + Clone,
+{
+    /// Create from Arrow Record Batches
+    /// See:
+    /// - [Deserialize structs in a row-oriented way from Apache Arrow](https://docs.rs/ar_row_derive/latest/ar_row_derive/index.html#examples)
+    pub fn from_arrow_batches(record_batches: Vec<RecordBatch>) -> Result<Self, std::io::Error> {
+        let items: Vec<I> = record_batches
+            .into_iter()
+            .flat_map(|batch| -> Vec<I> { I::from_record_batch(batch).unwrap() })
+            .collect();
+
+        let dataset = Self::new(items);
+
+        Ok(dataset)
+    }
+}
 #[cfg(test)]
 mod tests {
 
@@ -96,6 +121,12 @@ mod tests {
 
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
+
+    // To test Arrow Record Batch Reads
+    #[cfg(feature = "arrow")]
+    use datafusion::prelude::*;
+    #[cfg(feature = "arrow")]
+    use tokio::runtime::Runtime;
 
     const DB_FILE: &str = "tests/data/sqlite-dataset.db";
     const JSON_FILE: &str = "tests/data/dataset.json";
@@ -119,6 +150,24 @@ mod tests {
         column_int: i64,
         column_bool: bool,
         column_float: f64,
+    }
+
+    #[cfg(feature = "arrow")]
+    #[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
+    pub struct SampleCsvArrow {
+        column_str: String,
+        column_int: i64,
+        column_bool: bool,
+        column_float: f64,
+    }
+
+    #[cfg(feature = "arrow")]
+    #[derive(Debug, Default, Clone, Serialize, ar_row_derive::ArRowDeserialize, PartialEq)]
+    pub struct SampleCsvArrowReorder {
+        column_bool_r: bool,
+        column_float_r: f64,
+        column_str_r: String,
+        column_int_r: i64,
     }
 
     #[fixture]
@@ -162,6 +211,68 @@ mod tests {
         assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
         assert!(!dataset.get(record_index).unwrap().column_bool);
         assert_eq!(dataset.get(record_index).unwrap().column_float, 1.0);
+    }
+
+    #[test]
+    #[cfg(feature = "arrow")]
+    pub fn from_csv_arrow() {
+        let rt = Runtime::new().unwrap();
+        let record_batches: Vec<RecordBatch> = rt.block_on(async {
+            let ctx = SessionContext::new();
+
+            let df = ctx.read_csv(CSV_FILE, CsvReadOptions::new()).await.unwrap();
+            df.collect().await.unwrap()
+        });
+        let dataset = InMemDataset::<SampleCsvArrow>::from_arrow_batches(record_batches).unwrap();
+
+        let non_existing_record_index: usize = 10;
+        let record_index: usize = 1;
+
+        assert_eq!(dataset.get(non_existing_record_index), None);
+        assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
+        assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
+        assert!(!dataset.get(record_index).unwrap().column_bool);
+        assert_eq!(dataset.get(record_index).unwrap().column_float, 1.0);
+    }
+
+    #[test]
+    #[cfg(feature = "arrow")]
+    pub fn from_csv_arrow_renamed() {
+        let rt = Runtime::new().unwrap();
+        let record_batches: Vec<RecordBatch> = rt.block_on(async {
+            let ctx = SessionContext::new();
+
+            ctx.register_csv("test_csv", CSV_FILE, CsvReadOptions::new())
+                .await
+                .unwrap();
+
+            let df = ctx
+                .sql(
+                    r#"
+                SELECT
+                    column_bool AS column_bool_r,
+                    column_float AS column_float_r,
+                    column_str AS column_str_r,
+                    column_int AS column_int_r,
+                FROM test_csv
+                "#,
+                )
+                .await
+                .unwrap();
+
+            df.collect().await.unwrap()
+        });
+        let dataset =
+            InMemDataset::<SampleCsvArrowReorder>::from_arrow_batches(record_batches).unwrap();
+
+        let non_existing_record_index: usize = 10;
+        let record_index: usize = 1;
+
+        assert_eq!(dataset.get(non_existing_record_index), None);
+        assert_eq!(dataset.get(record_index).unwrap().column_str_r, "HI2");
+        assert_eq!(dataset.get(record_index).unwrap().column_int_r, 1);
+        assert!(!dataset.get(record_index).unwrap().column_bool_r);
+        assert_eq!(dataset.get(record_index).unwrap().column_float_r, 1.0);
     }
 
     #[test]

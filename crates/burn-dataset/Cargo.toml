@@ -33,6 +33,7 @@ __sqlite-shared = [
     "dep:gix-tempfile",
 ]
 dataframe = ["dep:polars", "dep:planus"]
+arrow = ["ar_row", "ar_row_derive"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.20.0-pre.1", optional = true, features = [
@@ -64,11 +65,15 @@ strum = { workspace = true }
 tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+ar_row = { workspace = true, optional = true}
+ar_row_derive = { workspace = true, optional = true }
 
 [dev-dependencies]
+datafusion = { workspace = true, default-features = false }
 fake = { workspace = true }
 rayon = { workspace = true }
 rstest = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["strum", "strum_macros"]
@@ -76,3 +81,9 @@ normal = ["strum", "strum_macros"]
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-check]
+# Minimal features for quick checks
+minimal = ["sqlite"]
+# Test-specific features
+test = ["sqlite", "fake", "vision"]
