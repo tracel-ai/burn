@@ -138,6 +138,7 @@ impl QuantizedBytes {
 
         (values, (qparams, num_params))
     }
+<<<<<<< HEAD
 }
 
 fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
@@ -148,6 +149,8 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
         // `Vec<u8>` can be Re-interpreted as `Vec<i8>` since they share the same alignment.
         Err(bytes) => unsafe { core::mem::transmute::<Vec<u8>, Vec<i8>>(bytes.to_vec()) },
     }
+=======
+>>>>>>> e26d9c08 (Move quantization strategy to ndarray)
 }
 
 #[cfg(test)]
