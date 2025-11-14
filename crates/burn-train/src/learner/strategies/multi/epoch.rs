@@ -32,6 +32,7 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &mut self,
         model: LC::Model,
