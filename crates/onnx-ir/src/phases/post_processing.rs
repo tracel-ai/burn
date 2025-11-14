@@ -96,8 +96,8 @@ fn rewire_node_subgraphs(
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
 
-            // Note: The config is now extracted during infer_types, not stored on NodeBuilder
-            // The if node's branches are already rewired above through the attributes
+            // Note: Configs are extracted on-demand from attributes by processors.
+            // Rewiring the branch attributes above is sufficient; no separate config update needed.
         }
         NodeType::Loop | NodeType::Scan => {
             // Loop and Scan nodes have a body graph
