@@ -354,61 +354,61 @@ impl OnnxIntoNode for ReduceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Extract reduction type, inputs, outputs, and config from node variant
         let (inputs, outputs, reduction_type, config) = match &node {
-            onnx_ir::ir::Node::ReduceMax {
+            onnx_ir::Node::ReduceMax {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::Max, config),
-            onnx_ir::ir::Node::ReduceMin {
+            onnx_ir::Node::ReduceMin {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::Min, config),
-            onnx_ir::ir::Node::ReduceSum {
+            onnx_ir::Node::ReduceSum {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::Sum, config),
-            onnx_ir::ir::Node::ReduceProd {
+            onnx_ir::Node::ReduceProd {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::Prod, config),
-            onnx_ir::ir::Node::ReduceMean {
+            onnx_ir::Node::ReduceMean {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::Mean, config),
-            onnx_ir::ir::Node::ReduceL1 {
+            onnx_ir::Node::ReduceL1 {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::L1, config),
-            onnx_ir::ir::Node::ReduceL2 {
+            onnx_ir::Node::ReduceL2 {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::L2, config),
-            onnx_ir::ir::Node::ReduceLogSum {
+            onnx_ir::Node::ReduceLogSum {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::LogSum, config),
-            onnx_ir::ir::Node::ReduceLogSumExp {
+            onnx_ir::Node::ReduceLogSumExp {
                 inputs,
                 outputs,
                 config,
                 ..
             } => (inputs, outputs, ReductionType::LogSumExp, config),
-            onnx_ir::ir::Node::ReduceSumSquare {
+            onnx_ir::Node::ReduceSumSquare {
                 inputs,
                 outputs,
                 config,

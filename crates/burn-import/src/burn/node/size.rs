@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SizeNode {
 impl OnnxIntoNode for SizeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Size {
+            onnx_ir::Node::Size {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Size node"),

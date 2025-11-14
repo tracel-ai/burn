@@ -124,7 +124,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MulNode {
 impl OnnxIntoNode for MulNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Mul {
+            onnx_ir::Node::Mul {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Mul node"),

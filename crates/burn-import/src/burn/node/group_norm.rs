@@ -127,7 +127,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
 impl OnnxIntoNode for GroupNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::GroupNormalization {
+            onnx_ir::Node::GroupNormalization {
                 inputs,
                 outputs,
                 config,

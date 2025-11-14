@@ -534,7 +534,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for LoopNode {
 impl OnnxIntoNode for LoopNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Loop {
+            onnx_ir::Node::Loop {
                 inputs,
                 outputs,
                 config,

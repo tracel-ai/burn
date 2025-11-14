@@ -69,7 +69,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
 impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Expand {
+            onnx_ir::Node::Expand {
                 inputs,
                 outputs,
                 config,

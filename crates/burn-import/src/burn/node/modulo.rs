@@ -107,7 +107,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
 impl OnnxIntoNode for ModNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Mod {
+            onnx_ir::Node::Mod {
                 inputs,
                 outputs,
                 config,

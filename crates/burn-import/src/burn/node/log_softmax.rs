@@ -38,7 +38,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LogSoftmaxNode {
 impl OnnxIntoNode for LogSoftmaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::LogSoftmax {
+            onnx_ir::Node::LogSoftmax {
                 inputs,
                 outputs,
                 config,

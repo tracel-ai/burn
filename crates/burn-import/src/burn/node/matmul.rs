@@ -103,7 +103,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
 impl OnnxIntoNode for MatmulNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::MatMul {
+            onnx_ir::Node::MatMul {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected MatMul node"),

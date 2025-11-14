@@ -103,7 +103,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 impl OnnxIntoNode for PReluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, name) = match &node {
-            onnx_ir::ir::Node::PRelu {
+            onnx_ir::Node::PRelu {
                 inputs,
                 outputs,
                 name,

@@ -231,7 +231,7 @@ impl OnnxIntoNode for ConstantNode {
         use onnx_ir::ir::{ArgType, DType};
 
         let (inputs, outputs, name) = match &node {
-            onnx_ir::ir::Node::Constant {
+            onnx_ir::Node::Constant {
                 inputs,
                 outputs,
                 name,

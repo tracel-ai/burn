@@ -76,7 +76,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
 impl OnnxIntoNode for BitwiseOrNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (node_inputs, outputs) = match node {
-            onnx_ir::ir::Node::BitwiseOr {
+            onnx_ir::Node::BitwiseOr {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected BitwiseOr node"),

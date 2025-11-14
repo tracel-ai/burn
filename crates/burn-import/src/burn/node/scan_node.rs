@@ -405,7 +405,7 @@ impl OnnxIntoNode for ScanNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Get body graph and config from node
         let (inputs, outputs, config) = match &node {
-            onnx_ir::ir::Node::Scan {
+            onnx_ir::Node::Scan {
                 inputs,
                 outputs,
                 config,

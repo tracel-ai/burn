@@ -43,7 +43,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LogNode {
 impl OnnxIntoNode for LogNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Log {
+            onnx_ir::Node::Log {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Log node"),

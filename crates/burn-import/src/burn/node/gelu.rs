@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GeluNode {
 impl OnnxIntoNode for GeluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Gelu {
+            onnx_ir::Node::Gelu {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Gelu node"),

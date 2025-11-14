@@ -80,7 +80,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
 impl OnnxIntoNode for ArgMaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::ArgMax {
+            onnx_ir::Node::ArgMax {
                 inputs,
                 outputs,
                 config,

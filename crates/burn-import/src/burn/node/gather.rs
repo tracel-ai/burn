@@ -253,7 +253,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 impl OnnxIntoNode for GatherNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Gather {
+            onnx_ir::Node::Gather {
                 inputs,
                 outputs,
                 config,

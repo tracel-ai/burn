@@ -46,7 +46,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BernoulliNode {
 impl OnnxIntoNode for BernoulliNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Bernoulli {
+            onnx_ir::Node::Bernoulli {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Bernoulli node"),

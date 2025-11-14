@@ -193,7 +193,7 @@ impl OnnxIntoNode for ConstantOfShapeNode {
         use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::ConstantOfShape {
+            onnx_ir::Node::ConstantOfShape {
                 inputs,
                 outputs,
                 config,

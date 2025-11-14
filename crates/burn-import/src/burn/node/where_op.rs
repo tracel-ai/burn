@@ -67,7 +67,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
 impl OnnxIntoNode for WhereNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Where {
+            onnx_ir::Node::Where {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Where node"),

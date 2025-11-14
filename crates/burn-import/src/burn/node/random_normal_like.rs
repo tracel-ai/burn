@@ -51,7 +51,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
 impl OnnxIntoNode for RandomNormalLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::RandomNormalLike {
+            onnx_ir::Node::RandomNormalLike {
                 inputs,
                 outputs,
                 config,

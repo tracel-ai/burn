@@ -124,7 +124,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
 impl OnnxIntoNode for AddNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Add {
+            onnx_ir::Node::Add {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Add node"),

@@ -157,7 +157,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
 impl OnnxIntoNode for MatMulIntegerNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::MatMulInteger {
+            onnx_ir::Node::MatMulInteger {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected MatMulInteger node"),

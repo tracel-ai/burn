@@ -52,7 +52,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MinPairNode {
 impl OnnxIntoNode for MinPairNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Min {
+            onnx_ir::Node::Min {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Min node"),

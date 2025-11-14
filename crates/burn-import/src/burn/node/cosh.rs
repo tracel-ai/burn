@@ -43,7 +43,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CoshNode {
 impl OnnxIntoNode for CoshNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Cosh {
+            onnx_ir::Node::Cosh {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Cosh node"),

@@ -131,7 +131,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv1dNode {
 impl OnnxIntoNode for Conv1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::Conv1d {
+            onnx_ir::Node::Conv1d {
                 inputs,
                 outputs,
                 config,

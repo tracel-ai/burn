@@ -85,7 +85,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
 impl OnnxIntoNode for BitShiftNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (node_inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::BitShift {
+            onnx_ir::Node::BitShift {
                 inputs,
                 outputs,
                 config,

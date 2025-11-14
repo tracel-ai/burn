@@ -65,7 +65,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IsInfNode {
 impl OnnxIntoNode for IsInfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::IsInf {
+            onnx_ir::Node::IsInf {
                 inputs,
                 outputs,
                 config,

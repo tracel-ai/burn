@@ -41,7 +41,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
 impl OnnxIntoNode for TriluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Trilu {
+            onnx_ir::Node::Trilu {
                 inputs,
                 outputs,
                 config,

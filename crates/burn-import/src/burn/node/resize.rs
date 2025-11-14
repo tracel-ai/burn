@@ -274,7 +274,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 impl OnnxIntoNode for ResizeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::Resize {
+            onnx_ir::Node::Resize {
                 inputs,
                 outputs,
                 config,

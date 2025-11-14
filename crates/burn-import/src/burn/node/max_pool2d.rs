@@ -92,7 +92,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
 impl OnnxIntoNode for MaxPool2dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (name, inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::MaxPool2d {
+            onnx_ir::Node::MaxPool2d {
                 name,
                 inputs,
                 outputs,

@@ -133,7 +133,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose3dNode {
 impl OnnxIntoNode for ConvTranspose3dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::ConvTranspose3d {
+            onnx_ir::Node::ConvTranspose3d {
                 inputs,
                 outputs,
                 config,

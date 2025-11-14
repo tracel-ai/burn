@@ -40,7 +40,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for HardSigmoidNode {
 impl OnnxIntoNode for HardSigmoidNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::HardSigmoid {
+            onnx_ir::Node::HardSigmoid {
                 inputs,
                 outputs,
                 config,

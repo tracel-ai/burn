@@ -50,7 +50,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NegNode {
 impl OnnxIntoNode for NegNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Neg {
+            onnx_ir::Node::Neg {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Neg node"),

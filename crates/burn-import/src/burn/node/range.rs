@@ -115,7 +115,7 @@ impl OnnxIntoNode for RangeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::node::range::RangeInput;
         let (inputs, outputs, config) = match &node {
-            onnx_ir::ir::Node::Range {
+            onnx_ir::Node::Range {
                 inputs,
                 outputs,
                 config,

@@ -112,7 +112,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EqualNode {
 impl OnnxIntoNode for EqualNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Equal {
+            onnx_ir::Node::Equal {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Equal node"),

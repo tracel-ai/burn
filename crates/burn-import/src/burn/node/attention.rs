@@ -351,7 +351,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 impl OnnxIntoNode for AttentionNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Attention {
+            onnx_ir::Node::Attention {
                 inputs,
                 outputs,
                 config,

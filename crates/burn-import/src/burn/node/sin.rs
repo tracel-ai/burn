@@ -43,7 +43,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SinNode {
 impl OnnxIntoNode for SinNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Sin {
+            onnx_ir::Node::Sin {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Sin node"),

@@ -43,7 +43,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IsNanNode {
 impl OnnxIntoNode for IsNanNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::IsNaN {
+            onnx_ir::Node::IsNaN {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected IsNaN node"),

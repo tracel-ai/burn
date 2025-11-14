@@ -47,7 +47,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {
 impl OnnxIntoNode for FlattenNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Flatten {
+            onnx_ir::Node::Flatten {
                 inputs,
                 outputs,
                 config,

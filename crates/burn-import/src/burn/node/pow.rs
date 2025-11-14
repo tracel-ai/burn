@@ -80,7 +80,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PowNode {
 impl OnnxIntoNode for PowNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Pow {
+            onnx_ir::Node::Pow {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Pow node"),

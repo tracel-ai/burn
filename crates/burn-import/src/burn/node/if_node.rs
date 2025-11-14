@@ -216,7 +216,7 @@ impl OnnxIntoNode for IfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Get then_branch and else_branch from config
         let (node_inputs, node_outputs, config) = match &node {
-            onnx_ir::ir::Node::If {
+            onnx_ir::Node::If {
                 inputs,
                 outputs,
                 config,

@@ -117,7 +117,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for InstanceNormNode {
 impl OnnxIntoNode for InstanceNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::InstanceNormalization {
+            onnx_ir::Node::InstanceNormalization {
                 inputs,
                 outputs,
                 config,

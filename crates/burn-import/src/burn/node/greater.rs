@@ -99,7 +99,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GreaterNode {
 impl OnnxIntoNode for GreaterNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Greater {
+            onnx_ir::Node::Greater {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Greater node"),

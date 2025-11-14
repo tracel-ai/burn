@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CeilNode {
 impl OnnxIntoNode for CeilNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Ceil {
+            onnx_ir::Node::Ceil {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Ceil node"),

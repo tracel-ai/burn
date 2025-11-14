@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RoundNode {
 impl OnnxIntoNode for RoundNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Round {
+            onnx_ir::Node::Round {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Round node"),

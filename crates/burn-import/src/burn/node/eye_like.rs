@@ -49,7 +49,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
 impl OnnxIntoNode for EyeLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::EyeLike {
+            onnx_ir::Node::EyeLike {
                 inputs,
                 outputs,
                 config,

@@ -64,7 +64,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
 impl OnnxIntoNode for RandomUniformNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (outputs, config) = match node {
-            onnx_ir::ir::Node::RandomUniform {
+            onnx_ir::Node::RandomUniform {
                 outputs, config, ..
             } => (outputs, config),
             _ => panic!("Expected RandomUniform node"),

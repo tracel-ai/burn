@@ -596,7 +596,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
 impl OnnxIntoNode for SliceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match &node {
-            onnx_ir::ir::Node::Slice {
+            onnx_ir::Node::Slice {
                 inputs,
                 outputs,
                 config,

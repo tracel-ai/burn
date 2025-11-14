@@ -108,7 +108,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
 impl OnnxIntoNode for GlobalAvgPoolNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, name) = match node {
-            onnx_ir::ir::Node::GlobalAveragePool {
+            onnx_ir::Node::GlobalAveragePool {
                 inputs,
                 outputs,
                 name,

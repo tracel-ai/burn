@@ -44,7 +44,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SumNode {
 impl OnnxIntoNode for SumNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Sum {
+            onnx_ir::Node::Sum {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Sum node"),

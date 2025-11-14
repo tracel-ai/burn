@@ -43,7 +43,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReciprocalNode {
 impl OnnxIntoNode for ReciprocalNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Reciprocal {
+            onnx_ir::Node::Reciprocal {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Reciprocal node"),

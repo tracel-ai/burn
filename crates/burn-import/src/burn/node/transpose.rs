@@ -38,7 +38,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TransposeNode {
 impl OnnxIntoNode for TransposeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Transpose {
+            onnx_ir::Node::Transpose {
                 inputs,
                 outputs,
                 config,

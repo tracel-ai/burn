@@ -99,7 +99,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LowerEqualNode {
 impl OnnxIntoNode for LowerEqualNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::LessOrEqual {
+            onnx_ir::Node::LessOrEqual {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected LessOrEqual node"),

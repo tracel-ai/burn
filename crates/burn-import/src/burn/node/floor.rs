@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FloorNode {
 impl OnnxIntoNode for FloorNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Floor {
+            onnx_ir::Node::Floor {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Floor node"),

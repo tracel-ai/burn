@@ -123,7 +123,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DivNode {
 impl OnnxIntoNode for DivNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Div {
+            onnx_ir::Node::Div {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Div node"),

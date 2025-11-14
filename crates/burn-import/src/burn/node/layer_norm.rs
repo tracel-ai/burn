@@ -127,7 +127,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
 impl OnnxIntoNode for LayerNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::LayerNormalization {
+            onnx_ir::Node::LayerNormalization {
                 inputs,
                 outputs,
                 config,

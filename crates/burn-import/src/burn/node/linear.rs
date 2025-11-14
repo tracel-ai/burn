@@ -120,7 +120,7 @@ impl OnnxIntoNode for LinearNode {
         use onnx_ir::ir::ArgType;
 
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::Linear {
+            onnx_ir::Node::Linear {
                 inputs,
                 outputs,
                 config,

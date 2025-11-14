@@ -215,7 +215,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
 impl OnnxIntoNode for ReshapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match &node {
-            onnx_ir::ir::Node::Reshape {
+            onnx_ir::Node::Reshape {
                 inputs,
                 outputs,
                 config,

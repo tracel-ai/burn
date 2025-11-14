@@ -93,7 +93,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BoolAndNode {
 impl OnnxIntoNode for BoolAndNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::And {
+            onnx_ir::Node::And {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected And node"),

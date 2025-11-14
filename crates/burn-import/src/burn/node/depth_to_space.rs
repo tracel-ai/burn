@@ -71,7 +71,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
 impl OnnxIntoNode for DepthToSpaceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::DepthToSpace {
+            onnx_ir::Node::DepthToSpace {
                 inputs,
                 outputs,
                 config,

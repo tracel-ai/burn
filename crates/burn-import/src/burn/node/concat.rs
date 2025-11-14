@@ -76,7 +76,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
 impl OnnxIntoNode for ConcatNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs_vec, outputs, config) = match node {
-            onnx_ir::ir::Node::Concat {
+            onnx_ir::Node::Concat {
                 inputs,
                 outputs,
                 config,

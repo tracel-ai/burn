@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MeanNode {
 impl OnnxIntoNode for MeanNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs) = match node {
-            onnx_ir::ir::Node::Mean {
+            onnx_ir::Node::Mean {
                 inputs, outputs, ..
             } => (inputs, outputs),
             _ => panic!("Expected Mean node"),

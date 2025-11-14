@@ -88,7 +88,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DropoutNode {
 impl OnnxIntoNode for DropoutNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config, name) = match &node {
-            onnx_ir::ir::Node::Dropout {
+            onnx_ir::Node::Dropout {
                 inputs,
                 outputs,
                 config,

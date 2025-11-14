@@ -108,7 +108,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
 impl OnnxIntoNode for GemmNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let (inputs, outputs, config) = match node {
-            onnx_ir::ir::Node::Gemm {
+            onnx_ir::Node::Gemm {
                 inputs,
                 outputs,
                 config,
