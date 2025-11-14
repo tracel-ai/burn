@@ -35,7 +35,7 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = "SeqLengthOption::Fixed(512)")]
+    #[config(default = "SeqLengthOption::Fixed(256)")]
     pub seq_length: SeqLengthOption,
     #[config(default = 64)]
     pub batch_size: usize,
