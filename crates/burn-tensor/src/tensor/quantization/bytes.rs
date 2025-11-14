@@ -42,7 +42,7 @@ impl QuantizedBytes {
                 bytes.extend_from_byte_slice_aligned(scale_bytes, align_of::<f32>());
             }
             QuantLevel::Block(_block_size) => {
-                let mut scale_bytes = Vec::with_capacity(scales.len() * size_of::<f32>());
+                let mut scale_bytes = Vec::with_capacity(size_of_val(scales));
                 for scale in scales {
                     scale_bytes.extend_from_slice(bytemuck::bytes_of(scale));
                 }
