@@ -162,15 +162,12 @@ where
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
-                log::info!("Move tensor to device.");
-                let t = tensor.to_device(&device);
-                log::info!("Move tensor to device Done.");
-                t
+                tensor.to_device(&device)
             } else {
                 tensor
             };
 
-            assert_eq!(
+            debug_assert_eq!(
                 grad.device(),
                 device,
                 "The gradient is on the provided device"
@@ -181,7 +178,7 @@ where
                 grad
             };
 
-            assert_eq!(
+            debug_assert_eq!(
                 tensor.device(),
                 device,
                 "Tensor and gradients are on the same device."
@@ -191,12 +188,7 @@ where
                 self.lr,
                 tensor.inner(),
                 clipped_grad,
-                record.map(|record| {
-                    log::info!("Move record to device.");
-                    let t = O::to_device(record.into_state(), &device);
-                    log::info!("Move record to device Done.");
-                    t
-                }),
+                record.map(|record| O::to_device(record.into_state(), &device)),
             );
 
             if let Some(state) = state {
