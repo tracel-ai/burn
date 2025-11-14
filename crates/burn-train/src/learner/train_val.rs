@@ -3,7 +3,7 @@ use crate::components::{
 };
 #[cfg(feature = "ddp")]
 use crate::ddp::DdpLearningStrategy;
-use crate::ddp_optim::MultiDeviceLearningStrategy;
+use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::MetricsRenderer;
 use crate::single::SingleDeviceLearningStrategy;
 use crate::{Learner, LearningMethod, LearningStrategy};
@@ -161,8 +161,8 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
             LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
                 .clone()
                 .fit(self, dataloader_train, dataloader_valid),
-            LearningStrategy::MultiDeviceNaive(devices) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
+            LearningStrategy::MultiDevice(devices, optim) => {
+                let multi_device = MultiDeviceLearningStrategy::new(devices.clone(), *optim);
                 multi_device.fit(self, dataloader_train, dataloader_valid)
             }
             LearningStrategy::CustomMultiDevice(learning_strategy) => learning_strategy

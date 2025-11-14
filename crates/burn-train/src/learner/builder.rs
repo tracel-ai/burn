@@ -394,7 +394,7 @@ where
         O::Record: 'static,
         S::Record<B>: 'static,
     {
-        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy
+        if let LearningStrategy::MultiDevice(devices, _) = &learning_strategy
             && devices.len() == 1
         {
             return LearningStrategy::SingleDevice(devices[0].clone());

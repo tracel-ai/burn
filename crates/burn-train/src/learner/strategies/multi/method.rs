@@ -1,19 +1,30 @@
 use crate::{
     LearnerComponents, LearningMethod, TrainLoader, ValidLoader, components::LearnerComponentTypes,
-    ddp_optim::epoch::MultiDeviceTrainEpoch,
     learner::strategies::single::epoch::SingleDeviceValidEpoch,
+    multi::epoch::MultiDeviceTrainEpoch,
 };
 use burn_core::{data::dataloader::split::split_dataloader, module::Module, prelude::Backend};
 use std::{marker::PhantomData, sync::Arc};
 
+#[derive(Clone, Copy, Debug)]
+/// Determine how the optimization is performed when training with multiple devices.
+pub enum MultiDeviceOptim {
+    /// The optimization is done on an elected device.
+    OptimMainDevice,
+    /// The optimization is sharded across all devices.
+    OptimSharded,
+}
+
 pub struct MultiDeviceLearningStrategy<LC: LearnerComponentTypes> {
     devices: Vec<<LC::Backend as Backend>::Device>,
+    optim: MultiDeviceOptim,
     _p: PhantomData<LC>,
 }
 impl<LC: LearnerComponentTypes> MultiDeviceLearningStrategy<LC> {
-    pub fn new(devices: Vec<<LC::Backend as Backend>::Device>) -> Self {
+    pub fn new(devices: Vec<<LC::Backend as Backend>::Device>, optim: MultiDeviceOptim) -> Self {
         Self {
             devices,
+            optim,
             _p: PhantomData,
         }
     }
@@ -74,6 +85,7 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrate
                 &mut components.event_processor,
                 self.devices.to_vec(),
                 &components.interrupter,
+                self.optim,
             );
 
             if components.interrupter.should_stop() {
