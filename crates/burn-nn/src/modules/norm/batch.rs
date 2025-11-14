@@ -226,21 +226,9 @@ mod tests_1d {
 
         let output = module.forward(input_tensor(&device));
 
-        let expected = TensorData::from([
-            [
-                [1.1483e+00, 3.7521e-01],
-                [1.6272e-03, 7.5067e-01],
-                [1.6204e+00, -4.5168e-02],
-            ],
-            [
-                [6.8856e-02, -1.5923e+00],
-                [-1.6318e+00, 8.7949e-01],
-                [-5.3368e-01, -1.0416e+00],
-            ],
-        ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(0.1, 0.001));
+            .assert_approx_eq::<FT>(&expected_train(), Tolerance::rel_abs(0.1, 0.001));
     }
 
     #[test]
@@ -252,13 +240,31 @@ mod tests_1d {
         let module = module.valid();
         let output = module.forward(input_tensor(&device));
 
-        let expected = TensorData::from([
-            [[0.9409, 0.6976], [0.5892, 0.8774], [0.9106, 0.6844]],
-            [[0.6012, 0.0782], [-0.0394, 0.9270], [0.6181, 0.5492]],
-        ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected_valid(), Tolerance::default());
+    }
+
+    fn expected_valid() -> TensorData {
+        TensorData::from([
+            [[0.9409, 0.6976], [0.5892, 0.8774], [0.9106, 0.6844]],
+            [[0.6012, 0.0782], [-0.0394, 0.9270], [0.6181, 0.5492]],
+        ])
+    }
+
+    fn expected_train() -> TensorData {
+        TensorData::from([
+            [
+                [1.1483e+00, 3.7521e-01],
+                [1.6272e-03, 7.5067e-01],
+                [1.6204e+00, -4.5168e-02],
+            ],
+            [
+                [6.8856e-02, -1.5923e+00],
+                [-1.6318e+00, 8.7949e-01],
+                [-5.3368e-01, -1.0416e+00],
+            ],
+        ])
     }
 
     fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
@@ -269,6 +275,26 @@ mod tests_1d {
             ],
             device,
         )
+    }
+
+    #[test]
+    fn batch_norm_forward_train_inference() {
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend>(&device);
+
+        module.forward(input_tensor(&device));
+        let module = module.valid();
+        let output = module.forward(input_tensor(&device));
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_valid(), Tolerance::default());
+
+        let module = module.train::<TestAutodiffBackend>();
+        let output = module.forward(input_tensor(&device));
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_train(), Tolerance::default());
     }
 }
 
