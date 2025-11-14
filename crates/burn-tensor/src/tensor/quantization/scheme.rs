@@ -1,5 +1,5 @@
 // We re-export those types.
-pub use cubecl_quant::scheme::{
+pub use burn_tensor_types::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 

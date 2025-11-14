@@ -1,17 +1,9 @@
 pub(crate) mod stats;
 
 mod api;
-mod data;
-mod distribution;
-mod element;
-mod shape;
 
 pub use api::*;
-pub use burn_common::bytes::*;
-pub use data::*;
-pub use distribution::*;
-pub use element::*;
-pub use shape::*;
+pub use burn_tensor_types::*;
 
 /// The activation module.
 pub mod activation;
@@ -24,11 +16,6 @@ pub mod container;
 
 /// The grid module.
 pub mod grid;
-
-/// The indexing module.
-pub mod indexing;
-
-pub use indexing::AsIndex;
 
 /// The linalg module.
 pub mod linalg;

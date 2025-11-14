@@ -9,15 +9,11 @@ use cubecl_quant::scheme::QuantScheme;
 use half::{bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
-use crate::{
-    DType, Distribution, Element, ElementConversion,
-    quantization::{QuantValue, QuantizedBytes},
-    tensor::Bytes,
-};
+use crate::{Bytes, DType, Distribution, Element, ElementConversion};
 
 use rand::RngCore;
 
-use super::quantization::{QuantLevel, QuantMode};
+use super::quantization::{QuantLevel, QuantMode, QuantValue, QuantizedBytes};
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -365,7 +361,9 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
-    pub(crate) fn full_dtype<E: Element, S: Into<Vec<usize>>>(
+    #[allow(dead_code)]
+    /// Populates the data with the given value
+    pub fn full_dtype<E: Element, S: Into<Vec<usize>>>(
         shape: S,
         fill_value: E,
         dtype: DType,

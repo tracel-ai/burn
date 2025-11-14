@@ -1,36 +1,29 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Tensor library with user-friendly APIs and automatic differentiation support"
-documentation = "https://docs.rs/burn-tensor"
+description = "Core types used by Burn's backend traits and tensor abstractions."
+documentation = "https://docs.rs/burn-tensor-types"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license.workspace = true
-name = "burn-tensor"
+name = "burn-tensor-types"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-types"
 version.workspace = true
 
 [lints]
 workspace = true
 
 [features]
-default = ["std", "burn-common/rayon"]
-cubecl = ["dep:cubecl", "burn-tensor-types/cubecl"]
-cubecl-cuda = ["cubecl", "cubecl/cuda"]
-cubecl-hip = ["cubecl", "cubecl/hip"]
-cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-cubecl-cpu = ["cubecl", "cubecl/cpu"]
+default = ["std"]
+cubecl = ["dep:cubecl"]
 doc = ["default"]
-experimental-named-tensor = []
-export_tests = ["burn-tensor-testgen", "cubecl"]
 std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.20.0-pre.2", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.2", optional = true }
-burn-tensor-types = { path = "../burn-tensor-types", version = "0.20.0-pre.2", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
+cubecl-quant = { workspace = true }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 colored = { workspace = true, optional = true }
@@ -40,8 +33,6 @@ num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
 
-# The same implementation of HashMap in std but with no_std support (only needs alloc crate)
-hashbrown = { workspace = true } # no_std compatible
 
 # Serialization
 serde = { workspace = true }
@@ -51,8 +42,3 @@ serde_bytes = { workspace = true }
 bincode = { workspace = true }
 rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 paste = { workspace = true }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-# KaTeX header is copied to the crate root in the publish workflow
-rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]

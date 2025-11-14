@@ -1,15 +1,10 @@
 use crate::{DType, Shape, Tensor, backend::Backend};
 use alloc::vec::Vec;
 
+pub use crate::QParams;
+
 /// The tensor quantization parameters.
 pub type QuantizationParameters<B> = QParams<Tensor<B, 1>>;
-
-/// The quantization tensor data parameters.
-#[derive(Clone, Debug)]
-pub struct QParams<S> {
-    /// The scaling factor.
-    pub scales: S,
-}
 
 /// The quantization parameters primitive.
 ///

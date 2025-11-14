@@ -2,6 +2,8 @@
 
 use core::fmt::Debug;
 
+use crate::Element;
+
 /// Helper trait for implementing indexing with support for negative indices.
 ///
 /// # Example
@@ -18,6 +20,13 @@ pub trait AsIndex: Debug + Copy + Sized {
     fn index(self) -> isize;
 }
 
+// TODO: split `Element` for int/float elems
+impl<E: Element> AsIndex for E {
+    fn index(self) -> isize {
+        self.to_isize()
+    }
+}
+
 impl AsIndex for usize {
     fn index(self) -> isize {
         self as isize
@@ -27,55 +36,6 @@ impl AsIndex for usize {
 impl AsIndex for isize {
     fn index(self) -> isize {
         self
-    }
-}
-
-impl AsIndex for i64 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u64 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-// Default integer type
-impl AsIndex for i32 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u32 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for i16 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u16 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for i8 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u8 {
-    fn index(self) -> isize {
-        self as isize
     }
 }
 

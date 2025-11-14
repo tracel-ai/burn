@@ -14,8 +14,8 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
-use super::{Slice, SliceArg, TensorMetadata, Transaction};
-use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
+use super::{TensorMetadata, Transaction};
+use crate::{AsIndex, Slice, SliceArg, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
@@ -4082,13 +4082,8 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for Shape {
         self
     }
 }
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
-    fn into_shape(self, _shape: &Shape) -> Shape {
-        Shape::from(self)
-    }
-}
 
-impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E; D2] {
+impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E; D2] {
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
     fn into_shape(self, shape: &Shape) -> Shape {
         if self.len() < shape.num_dims() {
@@ -4100,7 +4095,7 @@ impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E;
             .iter()
             .rev()
             .map(|x| {
-                let primitive = x.to_i64();
+                let primitive = x.index();
                 if primitive < -1 || primitive == 0 {
                     panic!("Broadcast arguments must be positive or -1");
                 }

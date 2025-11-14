@@ -1074,10 +1074,10 @@ dependencies = [
  "bincode",
  "burn-common",
  "burn-tensor-testgen",
+ "burn-tensor-types",
  "bytemuck",
  "colored 3.0.0",
  "cubecl",
- "cubecl-quant",
  "derive-new",
  "half",
  "hashbrown 0.15.5",
@@ -1096,6 +1096,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.110",
+]
+
+[[package]]
+name = "burn-tensor-types"
+version = "0.20.0-pre.2"
+dependencies = [
+ "bincode",
+ "burn-common",
+ "bytemuck",
+ "colored 3.0.0",
+ "cubecl",
+ "cubecl-quant",
+ "derive-new",
+ "half",
+ "num-traits",
+ "paste",
+ "rand 0.9.2",
+ "rand_distr",
+ "serde",
+ "serde_bytes",
 ]
 
 [[package]]
