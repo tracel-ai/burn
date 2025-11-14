@@ -85,9 +85,8 @@ impl PerplexityState {
 
         // Serialize the state for aggregation
         let serialized = NumericEntry::Aggregated {
-            sum: self.sum_nll,
+            aggregated_value: epoch_perplexity,
             count: self.total_tokens,
-            current: epoch_perplexity,
         }
         .serialize();
 
@@ -102,9 +101,8 @@ impl PerplexityState {
         };
 
         NumericEntry::Aggregated {
-            sum: self.sum_nll,
+            aggregated_value: perplexity,
             count: self.total_tokens,
-            current: perplexity,
         }
     }
 }

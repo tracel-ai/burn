@@ -80,6 +80,6 @@ impl<B: Backend> Metric for LossMetric<B> {
 
 impl<B: Backend> Numeric for LossMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }

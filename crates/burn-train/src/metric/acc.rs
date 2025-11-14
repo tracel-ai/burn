@@ -104,7 +104,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 
 impl<B: Backend> Numeric for AccuracyMetric<B> {
     fn value(&self) -> super::NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

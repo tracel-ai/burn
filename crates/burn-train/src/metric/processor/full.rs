@@ -1,6 +1,6 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
-use crate::metric::store::EventStoreClient;
+use crate::metric::store::{EpochSummary, EventStoreClient, Split};
 use crate::renderer::{MetricState, MetricsRenderer};
 use std::sync::Arc;
 
@@ -129,9 +129,13 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                 self.renderer.render_train(progress);
             }
             LearnerEvent::EndEpoch(epoch) => {
-                self.metrics.end_epoch_train();
                 self.store
-                    .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
+                        epoch,
+                        Split::Train,
+                        self.metrics.best_metric_entries_train(),
+                    )));
+                self.metrics.end_epoch_train();
             }
             LearnerEvent::End(summary) => {
                 self.renderer.on_train_end(summary).ok();
@@ -168,9 +172,13 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                 self.renderer.render_valid(progress);
             }
             LearnerEvent::EndEpoch(epoch) => {
-                self.metrics.end_epoch_valid();
                 self.store
-                    .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
+                        epoch,
+                        Split::Valid,
+                        self.metrics.best_metric_entries_valid(),
+                    )));
+                self.metrics.end_epoch_valid();
             }
             LearnerEvent::End(_) => {} // no-op for now
         }

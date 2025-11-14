@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::metric::{MetricDefinition, MetricEntry, NumericEntry};
 
@@ -9,7 +9,7 @@ pub enum Event {
     /// Signal that metrics have been updated.
     MetricsUpdate(MetricsUpdate),
     /// Signal the end of an epoch.
-    EndEpoch(usize),
+    EndEpoch(EpochSummary),
 }
 
 /// Contains all metric information.
@@ -31,6 +31,17 @@ impl MetricsUpdate {
             entry.tags.push(tag.clone());
         });
     }
+}
+
+/// Summary information about a given epoch
+#[derive(new, Clone, Debug)]
+pub struct EpochSummary {
+    /// Epoch number.
+    pub epoch_number: usize,
+    /// Dataset split (train, valid, test).
+    pub split: Split,
+    /// Contains the best MetricEntry reached during this epoch for each metric, for each split.
+    pub best_metric_values: HashMap<String, Option<NumericEntry>>,
 }
 
 /// Defines how training and validation events are collected and searched.

@@ -23,18 +23,20 @@ impl EventStore for LogEventStore {
                 });
             }
             Event::MetricsUpdate(update) => {
-                update
+                let entries: Vec<_> = update
                     .entries
                     .iter()
                     .chain(update.entries_numeric.iter().map(|(entry, _value)| entry))
-                    .for_each(|entry| {
-                        self.loggers
-                            .iter_mut()
-                            .for_each(|logger| logger.log(entry, epoch, split));
-                    });
+                    .collect();
+                self.loggers
+                    .iter_mut()
+                    .for_each(|logger| logger.log(entries.clone(), epoch, split));
             }
-            Event::EndEpoch(epoch) => {
-                self.epochs.insert(split, epoch + 1);
+            Event::EndEpoch(summary) => {
+                self.epochs.insert(split, summary.epoch_number + 1);
+                self.loggers
+                    .iter_mut()
+                    .for_each(|logger| logger.log_epoch_summary(summary.clone()));
             }
         }
     }

@@ -1,5 +1,8 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
-use crate::{metric::store::EventStoreClient, renderer::cli::CliMetricsRenderer};
+use crate::{
+    metric::store::{EpochSummary, EventStoreClient, Split},
+    renderer::cli::CliMetricsRenderer,
+};
 use std::sync::Arc;
 
 /// An [event processor](EventProcessor) that handles:
@@ -35,7 +38,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
             LearnerEvent::EndEpoch(epoch) => {
                 self.metrics.end_epoch_train();
                 self.store
-                    .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
+                        epoch,
+                        Split::Train,
+                        self.metrics.best_metric_entries_train(),
+                    )));
             }
             LearnerEvent::End(_summary) => {} // no-op for now
         }
@@ -56,7 +63,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
             LearnerEvent::EndEpoch(epoch) => {
                 self.metrics.end_epoch_valid();
                 self.store
-                    .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
+                        epoch,
+                        Split::Valid,
+                        self.metrics.best_metric_entries_valid(),
+                    )));
             }
             LearnerEvent::End(_) => {} // no-op for now
         }

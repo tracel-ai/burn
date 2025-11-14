@@ -116,7 +116,7 @@ impl<B: Backend> Metric for AurocMetric<B> {
 
 impl<B: Backend> Numeric for AurocMetric<B> {
     fn value(&self) -> super::NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

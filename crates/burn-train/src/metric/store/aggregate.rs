@@ -61,7 +61,10 @@ impl NumericMetricsAggregate {
                 NumericEntry::Value(v) => (v, 1),
                 // Right now the mean is the only aggregate available, so we can assume that the sum
                 // of an entry corresponds to (value * number of elements)
-                NumericEntry::Aggregated { sum, count, .. } => (sum * count as f64, count),
+                NumericEntry::Aggregated {
+                    aggregated_value,
+                    count,
+                } => (aggregated_value * count as f64, count),
             })
             .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
             .unwrap();
@@ -144,11 +147,9 @@ mod tests {
             }
         }
         fn log(&mut self, num: f64) {
-            self.logger.log(
-                &MetricEntry::new(Arc::new(NAME.into()), num.to_string(), num.to_string()),
-                self.epoch,
-                Split::Train,
-            );
+            let entry = MetricEntry::new(Arc::new(NAME.into()), num.to_string(), num.to_string());
+            let entries = Vec::from([&entry]);
+            self.logger.log(entries, self.epoch, Split::Train);
         }
         fn new_epoch(&mut self) {
             self.epoch += 1;
@@ -195,18 +196,19 @@ mod tests {
             loss_1.to_string(),
             NumericEntry::Value(loss_1).serialize(),
         );
-        logger.log(&entry, 1, Split::Train);
+        let entries = Vec::from([&entry]);
+        logger.log(entries, 1, Split::Train);
         let entry = MetricEntry::new(
             metric_name.clone(),
             loss_2.to_string(),
             NumericEntry::Aggregated {
-                sum: loss_2,
+                aggregated_value: loss_2,
                 count: 2,
-                current: 0.,
             }
             .serialize(),
         );
-        logger.log(&entry, 1, Split::Train);
+        let entries = Vec::from([&entry]);
+        logger.log(entries, 1, Split::Train);
 
         let value = aggregate
             .aggregate(
