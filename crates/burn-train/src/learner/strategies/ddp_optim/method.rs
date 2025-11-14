@@ -1,7 +1,7 @@
 use crate::{
     LearnerComponents, LearningMethod, TrainLoader, ValidLoader, components::LearnerComponentTypes,
+    ddp_optim::epoch::MultiDeviceTrainEpoch,
     learner::strategies::single::epoch::SingleDeviceValidEpoch,
-    multi::epoch::MultiDeviceTrainEpoch,
 };
 use burn_core::{data::dataloader::split::split_dataloader, module::Module, prelude::Backend};
 use std::{marker::PhantomData, sync::Arc};

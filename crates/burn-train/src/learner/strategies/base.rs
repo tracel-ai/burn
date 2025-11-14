@@ -10,11 +10,11 @@ use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
     TrainingResult, ValidLoader,
     components::LearnerComponentTypes,
+    ddp_optim::CustomMultiDeviceLearningStrategy,
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
     },
-    multi::CustomMultiDeviceLearningStrategy,
     single::CustomSingleDeviceLearningStrategy,
 };
 

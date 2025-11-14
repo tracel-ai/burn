@@ -3,7 +3,7 @@ use crate::components::{
 };
 #[cfg(feature = "ddp")]
 use crate::ddp::DdpLearningStrategy;
-use crate::multi::MultiDeviceLearningStrategy;
+use crate::ddp_optim::MultiDeviceLearningStrategy;
 use crate::renderer::MetricsRenderer;
 use crate::single::SingleDeviceLearningStrategy;
 use crate::{Learner, LearningMethod, LearningStrategy};
