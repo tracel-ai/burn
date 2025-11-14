@@ -303,19 +303,22 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn fork(self, device: &Device<B>) -> Self {
+        let id = self.id;
         self.map(|tensor| {
             let device_here = tensor.device();
             let is_require_grad = tensor.is_require_grad();
-            println!(
-                "[{:?}] Fork tensor on {:?} to {:?}",
+            log::info!(
+                "[{:?}] Fork tensor {:?} on {:?} to {:?}",
                 std::thread::current().id(),
+                id,
                 device_here,
                 device
             );
             let mut tensor = tensor.to_device(device).detach();
-            println!(
-                "[{:?}]-[COMPLETED] Fork tensor on {:?} to {:?}",
+            log::info!(
+                "[{:?}]-[COMPLETED] Fork tensor {:?} on {:?} to {:?}",
                 std::thread::current().id(),
+                id,
                 device_here,
                 device
             );
