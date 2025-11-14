@@ -1,5 +1,5 @@
 use burn_tensor::{
-    DType, Device, Shape, TensorData, TensorPrimitive,
+    Bytes, DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
@@ -21,7 +21,7 @@ use super::{into_data, permute, swap_dims};
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor_optimized<R: CubeRuntime>(
-    data: &[u8],
+    data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
@@ -31,7 +31,7 @@ fn new_qtensor_optimized<R: CubeRuntime>(
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor<R: CubeRuntime>(
-    data: &[u8],
+    data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
@@ -63,7 +63,7 @@ fn new_quantized<R: CubeRuntime>(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
-    data: Option<&[u8]>,
+    data: Option<Bytes>,
     alloc_kind: AllocationKind,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -110,10 +110,15 @@ fn new_quantized<R: CubeRuntime>(
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
-            client.create_tensors(vec![
-                (data_desc, &data[..num_bytes]),
-                (scales_desc, &data[num_bytes..]),
-            ])
+
+            match data.split(num_bytes) {
+                Ok((bytes_data, bytes_scales)) => client
+                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_scales)]),
+                Err((data, _)) => client.create_tensors_from_slices(vec![
+                    (data_desc, &data[..num_bytes]),
+                    (scales_desc, &data[num_bytes..]),
+                ]),
+            }
         }
         None => client.empty_tensors(vec![data_desc, scales_desc]),
     };
@@ -170,7 +175,7 @@ where
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
-                    new_qtensor_optimized(data.as_bytes(), data.shape.clone(), scheme, device)
+                    new_qtensor_optimized(data.bytes, data.shape.clone(), scheme, device)
                 }
             },
             _ => panic!(

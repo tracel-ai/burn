@@ -73,6 +73,6 @@ impl Metric for IterationSpeedMetric {
 
 impl Numeric for IterationSpeedMetric {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }

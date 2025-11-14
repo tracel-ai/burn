@@ -1,5 +1,8 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
-use crate::metric::{MetricDefinition, MetricEntry, NumericEntry, store::Split};
+use crate::metric::{
+    MetricDefinition, MetricEntry, NumericEntry,
+    store::{EpochSummary, Split},
+};
 use std::{
     collections::HashMap,
     fs,
@@ -14,8 +17,11 @@ pub trait MetricLogger: Send {
     ///
     /// # Arguments
     ///
-    /// * `item` - The item.
-    fn log(&mut self, item: &MetricEntry, epoch: usize, split: Split);
+    /// * `items` - List of items.
+    /// * `epoch` - Current epoch.
+    /// * `split` - Current dataset split.
+    /// * `iteration` - Current iteration.
+    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split);
 
     /// Read the logs for an epoch.
     fn read_numeric(
@@ -27,6 +33,9 @@ pub trait MetricLogger: Send {
 
     /// Logs the metric definition information (name, description, unit, etc.)
     fn log_metric_definition(&self, definition: MetricDefinition);
+
+    /// Logs summary of the epoch (duration, highest metric values reached, etc.)
+    fn log_epoch_summary(&mut self, summary: EpochSummary);
 }
 
 /// The file metric logger.
@@ -198,14 +207,16 @@ impl FileMetricLogger {
 }
 
 impl MetricLogger for FileMetricLogger {
-    fn log(&mut self, item: &MetricEntry, epoch: usize, split: Split) {
+    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split) {
         if !self.is_eval && self.last_epoch != Some(epoch) {
             self.loggers.clear();
             self.last_epoch = Some(epoch);
         }
-        match item.tags.is_empty() {
-            true => self.log_item(None, item, Some(epoch), split),
-            false => self.log_tags(item, Some(epoch), split),
+        for item in items.iter() {
+            match item.tags.is_empty() {
+                true => self.log_item(None, item, Some(epoch), split),
+                false => self.log_tags(item, Some(epoch), split),
+            }
         }
     }
 
@@ -250,6 +261,12 @@ impl MetricLogger for FileMetricLogger {
     }
 
     fn log_metric_definition(&self, _definition: MetricDefinition) {}
+
+    fn log_epoch_summary(&mut self, _summary: EpochSummary) {
+        if !self.is_eval {
+            self.loggers.clear();
+        }
+    }
 }
 
 fn logger_key(name: &str, split: Split) -> String {
@@ -271,24 +288,25 @@ impl InMemoryMetricLogger {
 }
 
 impl MetricLogger for InMemoryMetricLogger {
-    fn log(&mut self, item: &MetricEntry, epoch: usize, split: Split) {
+    fn log(&mut self, items: Vec<&MetricEntry>, epoch: usize, split: Split) {
         if self.last_epoch != Some(epoch) {
             self.values
                 .values_mut()
                 .for_each(|loggers| loggers.push(InMemoryLogger::default()));
             self.last_epoch = Some(epoch);
         }
+        for item in items.iter() {
+            let key = logger_key(&item.name, split);
 
-        let key = logger_key(&item.name, split);
+            if !self.values.contains_key(&key) {
+                self.values
+                    .insert(key.to_string(), vec![InMemoryLogger::default()]);
+            }
 
-        if !self.values.contains_key(&key) {
-            self.values
-                .insert(key.to_string(), vec![InMemoryLogger::default()]);
+            let values = self.values.get_mut(&key).unwrap();
+
+            values.last_mut().unwrap().log(item.serialize.clone());
         }
-
-        let values = self.values.get_mut(&key).unwrap();
-
-        values.last_mut().unwrap().log(item.serialize.clone());
     }
 
     fn read_numeric(
@@ -314,4 +332,6 @@ impl MetricLogger for InMemoryMetricLogger {
     }
 
     fn log_metric_definition(&self, _definition: MetricDefinition) {}
+
+    fn log_epoch_summary(&mut self, _summary: EpochSummary) {}
 }

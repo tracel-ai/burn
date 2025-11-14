@@ -34,25 +34,33 @@ impl Scope {
     /// # Notes
     ///
     /// We need to know all futures use of a variable in advance.
+    /// If the variable doesn't exist yet (e.g., it's created in a nested subgraph),
+    /// we register it with the given node_position.
     pub fn tensor_register_future_use(&mut self, tensor: &TensorType, node_position: usize) {
         if let Some(variable) = self.variables.get_mut(&tensor.name) {
             if node_position >= variable.node_position {
                 variable.references += 1;
             }
         } else {
-            panic!("No variable with name {}", tensor.name);
+            // Variable doesn't exist yet - register it (e.g., from nested subgraph)
+            self.variables
+                .insert(tensor.name.clone(), TensorVariable::new(1, node_position));
         }
     }
 
     /// Use a tensor variable, cloning it if it was registered multiple times and the tensor will still be used afterward.
     pub fn tensor_use_owned(&mut self, tensor: &TensorType, node_position: usize) -> TokenStream {
+        let name = &tensor.name;
+
         if let Some(variable) = self.variables.get_mut(&tensor.name) {
             let mut count = 0;
-            let name = &tensor.name;
 
             if node_position >= variable.node_position {
-                variable.references -= 1;
-                count = variable.references;
+                // Only decrement if references > 0 to avoid underflow
+                if variable.references > 0 {
+                    variable.references -= 1;
+                    count = variable.references;
+                }
             }
 
             if count > 0 {
@@ -65,7 +73,10 @@ impl Scope {
                 }
             }
         } else {
-            panic!("No variable with name {}", &tensor.name);
+            // Variable doesn't exist in scope (e.g., from nested subgraph) - just use it
+            quote! {
+                #name
+            }
         }
     }
 }

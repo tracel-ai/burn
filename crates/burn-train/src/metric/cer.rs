@@ -159,7 +159,7 @@ impl<B: Backend> Metric for CharErrorRate<B> {
 
 impl<B: Backend> Numeric for CharErrorRate<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

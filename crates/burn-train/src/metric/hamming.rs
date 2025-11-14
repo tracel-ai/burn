@@ -114,7 +114,7 @@ impl<B: Backend> Metric for HammingScore<B> {
 
 impl<B: Backend> Numeric for HammingScore<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 
