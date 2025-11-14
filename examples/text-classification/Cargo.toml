@@ -36,8 +36,8 @@ burn = { path = "../../crates/burn", features = [
     "sqlite-bundled",
     "metrics",
     "ndarray",
-    "autotune",
-    "fusion",
+    # "autotune",
+    # "fusion",
     "std",
 ], default-features = false }
 log = { workspace = true }
