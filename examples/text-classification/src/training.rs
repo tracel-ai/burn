@@ -93,7 +93,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train(IterationSpeedMetric::new())
-        .renderer(CliMetricsRenderer::new())
+        // .renderer(CliMetricsRenderer::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .metric_train_numeric(AccuracyMetric::new())
