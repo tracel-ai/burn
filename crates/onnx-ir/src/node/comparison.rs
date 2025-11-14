@@ -87,14 +87,6 @@ pub(crate) struct ComparisonProcessor;
 impl NodeProcessor for ComparisonProcessor {
     type Config = ();
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        Ok(())
-    }
-
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 7,

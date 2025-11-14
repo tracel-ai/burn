@@ -44,14 +44,6 @@ impl NodeProcessor for PReluProcessor {
         }
     }
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        Ok(())
-    }
-
     fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift the slope input (input[1]) to static
         if node.inputs.len() > 1 {

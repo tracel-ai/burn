@@ -85,14 +85,6 @@ pub(crate) struct ElementwiseBinaryProcessor;
 impl NodeProcessor for ElementwiseBinaryProcessor {
     type Config = ();
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        Ok(())
-    }
-
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -181,14 +173,6 @@ pub(crate) struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
     type Config = ();
-
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        Ok(())
-    }
 
     fn spec(&self) -> NodeSpec {
         // Determine opset based on operation type

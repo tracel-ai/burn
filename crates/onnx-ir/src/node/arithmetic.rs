@@ -55,14 +55,6 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         }
     }
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        Ok(())
-    }
-
     fn input_preferences(
         &self,
         node: &NodeBuilder,

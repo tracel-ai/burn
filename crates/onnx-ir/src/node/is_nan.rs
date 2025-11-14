@@ -41,14 +41,6 @@ impl NodeProcessor for IsNaNProcessor {
         }
     }
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        Ok(())
-    }
-
     fn infer_types(
         &self,
         node: &mut NodeBuilder,
