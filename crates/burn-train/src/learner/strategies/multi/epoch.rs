@@ -77,7 +77,7 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
+        let accumulation = self.grad_accumulation.unwrap_or(1);
         let step = MultiDevicesTrainStep::<LC>::new(&devices);
 
         // The main device is always the first in the list.
