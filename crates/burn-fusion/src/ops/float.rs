@@ -13,6 +13,10 @@ use burn_tensor::{
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
+    fn float_dtypes(device: &Device<Self>) -> Vec<FloatDType> {
+        B::float_dtypes(device)
+    }
+
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;

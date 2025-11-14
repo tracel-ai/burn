@@ -44,6 +44,10 @@ fn unsqueeze_like<B: Backend>(
 }
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
+    fn float_dtypes(device: &Device<Self>) -> Vec<FloatDType> {
+        B::float_dtypes(device)
+    }
+
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_from_data(data, device))
     }

@@ -14,6 +14,10 @@ use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntEl
 use burn_tensor::{Device, Distribution, Element, FloatDType, Shape, Slice, TensorData};
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
+    fn float_dtypes(_device: &Device<Self>) -> Vec<FloatDType> {
+        todo!()
+    }
+
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
         let out = client.register_tensor_data(data);
