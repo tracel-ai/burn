@@ -17,7 +17,7 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use cubecl::matmul::AcceleratedTileKind;
 use cubecl::matmul::components::MatmulElems;
-use cubecl::matmul::components::tile::io::Filled;
+use cubecl::matmul::components::tile::io::{Filled, Strided};
 use cubecl::matmul::components::tile::{cmma::CmmaMatmul, mma::MmaMatmul};
 use cubecl::matmul::components::{self, MatmulProblem, MatmulSetupError};
 use cubecl::matmul::kernels::layered::Selection;
@@ -422,7 +422,7 @@ macro_rules! with_tile_kind {
                 ($launch)()
             }
             AcceleratedTileKind::Mma => {
-                type $T = MmaMatmul<Filled>;
+                type $T = MmaMatmul<Strided>;
                 ($launch)()
             }
         }
