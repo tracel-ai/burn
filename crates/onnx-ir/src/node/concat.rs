@@ -17,7 +17,7 @@ use crate::processor::{
 };
 
 /// Configuration for Concat operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ConcatConfig {
     pub axis: usize,
 }

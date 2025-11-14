@@ -19,7 +19,7 @@ use crate::processor::{
 use super::padding::PaddingConfig1d;
 
 /// Configuration for AvgPool1d operations extracted from ONNX nodes
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AvgPool1dConfig {
     /// Kernel size
     pub kernel_size: usize,

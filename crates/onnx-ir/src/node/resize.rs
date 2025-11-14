@@ -46,7 +46,7 @@ impl FromStr for ResizeMode {
 }
 
 /// Configuration for the Resize operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ResizeConfig {
     pub mode: ResizeMode,
     pub scales: Option<ResizeScales>,

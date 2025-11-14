@@ -40,7 +40,7 @@ impl Default for TopKInput {
 }
 
 /// Configuration for the TopK operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TopKConfig {
     /// The axis along which to perform the top-k selection.
     pub axis: usize,

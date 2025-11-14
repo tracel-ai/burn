@@ -44,17 +44,6 @@ pub struct MaxPool2dConfig {
     pub dilation: [usize; 2],
 }
 
-impl Default for MaxPool2dConfig {
-    fn default() -> Self {
-        Self {
-            kernel_size: [1, 1],
-            strides: [1, 1],
-            padding: PaddingConfig2d::Valid,
-            dilation: [1, 1],
-        }
-    }
-}
-
 impl MaxPool2dConfig {
     /// Create a new MaxPool2dConfig
     pub fn new(kernel_size: [usize; 2]) -> Self {

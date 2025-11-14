@@ -20,7 +20,7 @@ use crate::processor::{
 };
 
 /// Configuration for ConvTranspose2d operations.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvTranspose2dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],

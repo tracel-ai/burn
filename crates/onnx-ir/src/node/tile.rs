@@ -43,7 +43,7 @@ impl Default for TileInput {
 }
 
 /// Configuration for the Tile operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
     pub repeats: TileInput,

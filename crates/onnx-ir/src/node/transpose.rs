@@ -22,7 +22,7 @@ use crate::processor::{
 };
 
 /// Configuration for Transpose operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TransposeConfig {
     /// Permutation of dimensions
     pub perm: Vec<i64>,

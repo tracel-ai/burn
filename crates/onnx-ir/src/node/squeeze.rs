@@ -33,7 +33,7 @@ impl Default for SqueezeInput {
 }
 
 /// Configuration for Squeeze operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SqueezeConfig {
     pub axes: Option<SqueezeInput>,
 }

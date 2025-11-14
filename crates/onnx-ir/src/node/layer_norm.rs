@@ -26,7 +26,7 @@ use crate::processor::{
 };
 
 /// Configuration for LayerNorm operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LayerNormConfig {
     /// Number of features/model dimension
     pub d_model: usize,

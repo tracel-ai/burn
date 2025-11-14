@@ -162,7 +162,7 @@ pub trait NodeProcessor: Send + Sync {
     /// Associated config type for this processor
     ///
     /// For operations without config, use `()` as the type.
-    type Config: Clone + Default;
+    type Config: Clone;
 
     /// Return the node specification for validation
     ///
@@ -201,15 +201,20 @@ pub trait NodeProcessor: Send + Sync {
     /// Extract config dynamically (not cached in NodeBuilder)
     ///
     /// This is called by `infer_types()` and `build_node()` as needed.
-    /// Processors with custom config must implement this method.
-    /// Processors with `type Config = ()` can use the default implementation.
+    /// Processors with non-trivial config must implement this method.
+    ///
+    /// # Default Implementation
+    ///
+    /// The default implementation panics. Only processors with `type Config = ()`
+    /// should rely on never calling this method.
     fn extract_config(
         &self,
         _node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Self::Config, ProcessError> {
-        // Default implementation for processors with Config = () or any Config that implements Default
-        Ok(Default::default())
+        panic!(
+            "extract_config not implemented - processors with non-unit Config type must implement this method"
+        )
     }
 
     /// Build the final Node enum from a NodeBuilder

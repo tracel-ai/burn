@@ -27,7 +27,7 @@ use crate::processor::{
 };
 
 /// Configuration for LeakyRelu operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LeakyReluConfig {
     /// Alpha value for negative slope
     pub alpha: f64,

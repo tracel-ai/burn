@@ -31,7 +31,7 @@ use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
 /// Configuration for RandomNormal operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RandomNormalConfig {
     pub mean: f64,
     pub scale: f64,
@@ -39,7 +39,7 @@ pub struct RandomNormalConfig {
 }
 
 /// Configuration for RandomUniform operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RandomUniformConfig {
     pub low: f64,
     pub high: f64,
@@ -51,12 +51,6 @@ pub struct RandomUniformConfig {
 pub enum RandomConfig {
     Normal(RandomNormalConfig),
     Uniform(RandomUniformConfig),
-}
-
-impl Default for RandomConfig {
-    fn default() -> Self {
-        RandomConfig::Normal(RandomNormalConfig::default())
-    }
 }
 
 pub(crate) struct RandomProcessor;

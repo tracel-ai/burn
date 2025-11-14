@@ -19,7 +19,7 @@ use crate::processor::{
 };
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ConvTranspose1dConfig {
     /// Input channels
     pub channels_in: usize,

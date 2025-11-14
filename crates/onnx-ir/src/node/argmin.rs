@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Configuration for ArgMin operations
-#[derive(Debug, Clone, Default, new)]
+#[derive(Debug, Clone, new)]
 pub struct ArgMinConfig {
     /// Axis along which to find the minimum
     pub axis: usize,

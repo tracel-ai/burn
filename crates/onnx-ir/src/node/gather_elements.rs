@@ -25,7 +25,7 @@ use crate::processor::{
 };
 
 /// Configuration for the GatherElements operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GatherElementsConfig {
     pub indices: GatherElementsInput,
     pub axis: usize,

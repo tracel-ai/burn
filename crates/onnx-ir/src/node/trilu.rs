@@ -24,7 +24,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Trilu operation.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TriluConfig {
     /// Whether to return the upper triangular matrix.
     pub upper: bool,

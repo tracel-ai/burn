@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Configuration for If operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,

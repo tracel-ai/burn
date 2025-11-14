@@ -36,7 +36,7 @@ impl Default for DropoutInput {
 }
 
 /// Configuration for Dropout operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DropoutConfig {
     /// Probability of dropping out a unit
     pub prob: DropoutInput,

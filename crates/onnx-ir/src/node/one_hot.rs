@@ -49,16 +49,6 @@ pub struct OneHotConfig {
     pub axis: i64,
 }
 
-impl Default for OneHotConfig {
-    fn default() -> Self {
-        Self {
-            depth: OneHotDepthInput::Static(0),
-            values: OneHotValuesInput::Static([0.0, 1.0]),
-            axis: -1,
-        }
-    }
-}
-
 /// Update output rank for OneHot (input rank + 1).
 pub(crate) fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> {
     let input_rank = match &node.inputs[0].ty {

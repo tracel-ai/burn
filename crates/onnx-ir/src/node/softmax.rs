@@ -20,7 +20,7 @@ use crate::processor::{
 };
 
 /// Configuration for Softmax operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SoftmaxConfig {
     /// Axis along which to apply softmax
     pub axis: usize,

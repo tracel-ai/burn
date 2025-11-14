@@ -30,7 +30,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Range operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RangeConfig {
     pub start: RangeInput,
     pub limit: RangeInput,

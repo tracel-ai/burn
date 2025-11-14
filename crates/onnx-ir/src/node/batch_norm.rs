@@ -17,7 +17,7 @@ use crate::processor::{
 };
 
 /// Configuration for BatchNorm operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct BatchNormConfig {
     /// Number of features (channels)
     pub num_features: usize,

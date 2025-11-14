@@ -27,7 +27,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Shape operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ShapeConfig {
     pub start: usize,
     pub end: usize,

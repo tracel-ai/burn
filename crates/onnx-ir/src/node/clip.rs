@@ -32,7 +32,7 @@ pub enum ClipInput {
 }
 
 /// Configuration for Clip operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ClipConfig {
     pub min: Option<ClipInput>,
     pub max: Option<ClipInput>,

@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Configuration for Conv3d operations.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Conv3dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],

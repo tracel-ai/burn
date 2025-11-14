@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Configuration for ArgMax operations
-#[derive(Debug, Clone, Default, new)]
+#[derive(Debug, Clone, new)]
 pub struct ArgMaxConfig {
     /// Axis along which to find the maximum
     pub axis: usize,

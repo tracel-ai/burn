@@ -14,7 +14,7 @@ use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ScanConfig {
     pub body: OnnxGraph,
     pub num_scan_inputs: i64,

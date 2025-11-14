@@ -40,7 +40,7 @@ impl DepthToSpaceMode {
 }
 
 /// Configuration for DepthToSpace operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DepthToSpaceConfig {
     pub mode: DepthToSpaceMode,
     pub block_size: usize,

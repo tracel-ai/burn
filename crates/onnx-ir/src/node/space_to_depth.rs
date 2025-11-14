@@ -21,7 +21,7 @@ use crate::processor::{
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 
 /// Configuration for SpaceToDepth operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SpaceToDepthConfig {
     /// Block size for space-to-depth transformation
     pub block_size: usize,

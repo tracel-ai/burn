@@ -23,14 +23,14 @@ use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
 /// Configuration for RandomNormalLike operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RandomNormalLikeConfig {
     pub mean: f64,
     pub scale: f64,
 }
 
 /// Configuration for RandomUniformLike operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RandomUniformLikeConfig {
     pub low: f64,
     pub high: f64,
@@ -41,12 +41,6 @@ pub struct RandomUniformLikeConfig {
 pub enum RandomLikeConfig {
     Normal(RandomNormalLikeConfig),
     Uniform(RandomUniformLikeConfig),
-}
-
-impl Default for RandomLikeConfig {
-    fn default() -> Self {
-        RandomLikeConfig::Normal(RandomNormalLikeConfig::default())
-    }
 }
 
 pub(crate) struct RandomLikeProcessor;

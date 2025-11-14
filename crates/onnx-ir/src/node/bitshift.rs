@@ -41,7 +41,7 @@ impl Direction {
 }
 
 /// Configuration for BitShift operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct BitShiftConfig {
     pub direction: Direction,
 }

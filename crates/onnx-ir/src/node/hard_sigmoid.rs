@@ -23,7 +23,7 @@ use crate::processor::{
 };
 
 /// Configuration for HardSigmoid operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct HardSigmoidConfig {
     pub alpha: f64,
     pub beta: f64,

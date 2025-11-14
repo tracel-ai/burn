@@ -11,7 +11,7 @@
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AttentionConfig {
     pub is_causal: bool,
     pub kv_num_heads: Option<usize>,

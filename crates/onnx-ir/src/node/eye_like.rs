@@ -14,7 +14,7 @@ use crate::processor::{
 use crate::proto_conversion::element_type_from_proto;
 
 /// Configuration for EyeLike operations
-#[derive(Debug, Clone, Default, new)]
+#[derive(Debug, Clone, new)]
 pub struct EyeLikeConfig {
     /// Data type of the output tensor (optional, defaults to input type)
     pub dtype: Option<DType>,

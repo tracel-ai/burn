@@ -38,7 +38,7 @@ use crate::processor::{
 use core::cmp::max;
 
 /// Configuration for Gemm operation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GemmConfig {
     pub alpha: f32,
     pub beta: f32,

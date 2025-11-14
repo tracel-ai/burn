@@ -15,7 +15,7 @@ use crate::processor::{
 };
 
 /// Configuration for ConvTranspose3d operations.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvTranspose3dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],

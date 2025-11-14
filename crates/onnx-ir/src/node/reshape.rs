@@ -33,7 +33,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Reshape operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ReshapeConfig {
     pub shape: ReshapeInput,
 }

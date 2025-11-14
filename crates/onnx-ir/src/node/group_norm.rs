@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Configuration for GroupNorm operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GroupNormConfig {
     /// Number of features (channels)
     pub num_features: usize,

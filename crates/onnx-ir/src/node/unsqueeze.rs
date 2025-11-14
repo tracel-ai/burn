@@ -42,12 +42,6 @@ pub enum UnsqueezeConfig {
     Runtime(RuntimeInputRef),
 }
 
-impl Default for UnsqueezeConfig {
-    fn default() -> Self {
-        UnsqueezeConfig::Static(Vec::new())
-    }
-}
-
 pub(crate) struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {

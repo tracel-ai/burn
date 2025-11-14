@@ -33,7 +33,7 @@ impl Default for SplitSizesInput {
 }
 
 /// Configuration for the Split operation.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct SplitConfig {
     /// The axis along which to split the input tensor.
     pub axis: usize,

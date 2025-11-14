@@ -23,7 +23,7 @@ use crate::processor::{
 };
 
 /// Configuration for Mod operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ModConfig {
     /// Determines the modulo operation behavior:
     /// false (default): Integer modulo - sign follows divisor (Python-style %)

@@ -24,7 +24,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,

@@ -17,7 +17,7 @@ use crate::processor::{
 };
 
 /// Configuration for AvgPool2d operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AvgPool2dConfig {
     /// Kernel size [height, width]
     pub kernel_size: [usize; 2],

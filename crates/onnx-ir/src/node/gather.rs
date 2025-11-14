@@ -32,7 +32,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Gather operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GatherConfig {
     pub axis: usize,
 }

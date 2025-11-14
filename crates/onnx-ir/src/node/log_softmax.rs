@@ -26,7 +26,7 @@ use crate::processor::{
 };
 
 /// Configuration for LogSoftmax operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LogSoftmaxConfig {
     /// Axis along which to apply log softmax
     pub axis: usize,

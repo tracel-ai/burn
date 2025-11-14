@@ -23,12 +23,6 @@ pub enum ExpandConfig {
     Runtime(RuntimeInputRef),
 }
 
-impl Default for ExpandConfig {
-    fn default() -> Self {
-        ExpandConfig::Static(Vec::new())
-    }
-}
-
 pub(crate) struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {

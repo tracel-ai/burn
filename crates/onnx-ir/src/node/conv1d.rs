@@ -16,7 +16,7 @@ use crate::processor::{
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
 /// Configuration for Conv1d operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Conv1dConfig {
     /// Input channels
     pub channels_in: usize,

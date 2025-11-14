@@ -24,7 +24,7 @@ use crate::processor::{
 };
 
 /// Configuration for Linear operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LinearConfig {
     /// Input dimension (features)
     pub d_input: usize,

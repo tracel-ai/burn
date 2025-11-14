@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Configuration for the ConstantOfShape operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ConstantOfShapeConfig {
     /// Shape information (static or runtime).
     pub shape: ConstantOfShapeShape,

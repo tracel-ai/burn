@@ -18,7 +18,7 @@ use crate::processor::{
 };
 
 /// Configuration for Flatten operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct FlattenConfig {
     /// Axis along which to flatten
     pub axis: usize,

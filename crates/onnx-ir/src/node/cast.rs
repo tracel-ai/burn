@@ -37,12 +37,6 @@ impl CastConfig {
     }
 }
 
-impl Default for CastConfig {
-    fn default() -> Self {
-        Self { to: DType::F32 }
-    }
-}
-
 pub(crate) struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {

@@ -23,7 +23,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Slice operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SliceConfig {
     pub starts: SliceInput,
     pub ends: SliceInput,

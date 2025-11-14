@@ -18,7 +18,7 @@ use crate::processor::{
 
 use crate::ir::{Node, NodeBuilder};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IsInfConfig {
     pub detect_negative: bool,
     pub detect_positive: bool,

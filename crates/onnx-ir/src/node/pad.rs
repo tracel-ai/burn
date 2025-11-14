@@ -96,16 +96,6 @@ pub struct PadConfig {
     pub mode: PadMode,
 }
 
-impl Default for PadConfig {
-    fn default() -> Self {
-        Self {
-            pads: PadInput::Static(vec![]),
-            constant_value: ConstantValueInput::Static(0.0),
-            mode: PadMode::default(),
-        }
-    }
-}
-
 pub(crate) struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {

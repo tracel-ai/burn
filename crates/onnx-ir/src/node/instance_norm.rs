@@ -27,7 +27,7 @@ use crate::processor::{
 };
 
 /// Configuration for InstanceNorm operations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct InstanceNormConfig {
     /// Number of features (channels)
     pub num_features: usize,

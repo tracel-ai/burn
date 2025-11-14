@@ -50,19 +50,6 @@ pub struct LoopConfig {
     pub body: OnnxGraph,
 }
 
-impl Default for LoopConfig {
-    fn default() -> Self {
-        Self {
-            body: OnnxGraph {
-                nodes: vec![],
-                inputs: vec![],
-                outputs: vec![],
-                _graph_data: None,
-            },
-        }
-    }
-}
-
 /// Loop node processor
 pub(crate) struct LoopProcessor;
 
