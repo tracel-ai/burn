@@ -162,7 +162,10 @@ where
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
-                tensor.to_device(&device)
+                log::info!("Move tensor to device.");
+                let t = tensor.to_device(&device);
+                log::info!("Move tensor to device Done.");
+                t
             } else {
                 tensor
             };
@@ -188,7 +191,12 @@ where
                 self.lr,
                 tensor.inner(),
                 clipped_grad,
-                record.map(|record| O::to_device(record.into_state(), &device)),
+                record.map(|record| {
+                    log::info!("Move record to device.");
+                    let t = O::to_device(record.into_state(), &device);
+                    log::info!("Move record to device Done.");
+                    t
+                }),
             );
 
             if let Some(state) = state {

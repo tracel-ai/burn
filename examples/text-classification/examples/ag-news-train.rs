@@ -30,7 +30,7 @@ pub fn launch_multi<B: AutodiffBackend>() {
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4)
+        TransformerEncoderConfig::new(256, 1024, 8, 1)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
@@ -100,10 +100,15 @@ mod tch_cpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, wgpu::Wgpu};
+    use burn::backend::{
+        Autodiff,
+        wgpu::{Wgpu, WgpuDevice},
+    };
 
     pub fn run() {
-        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![Default::default()]);
+        let device_1 = WgpuDevice::default();
+        let device_2 = WgpuDevice::Cpu;
+        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![device_1, device_2]);
     }
 }
 
@@ -135,6 +140,19 @@ mod remote {
 
     pub fn run() {
         launch::<Autodiff<RemoteBackend>>(vec![Default::default()]);
+    }
+}
+
+#[cfg(feature = "router")]
+mod router {
+    use crate::launch;
+    use burn::backend::{Autodiff, NdArray, Rocm, Router, router::duo::MultiDevice};
+
+    type Backend = Router<(NdArray, Rocm)>;
+    pub fn run() {
+        let device_1 = MultiDevice::B1(Default::default());
+        let device_2 = MultiDevice::B2(Default::default());
+        launch::<Autodiff<Backend>>(vec![device_1, device_2]);
     }
 }
 
@@ -182,4 +200,6 @@ fn main() {
     vulkan::run();
     #[cfg(feature = "metal")]
     metal::run();
+    #[cfg(feature = "router")]
+    router::run();
 }

@@ -26,6 +26,7 @@ cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]
 ddp = ["burn/collective"]
+router = ["burn/router", "burn/ndarray", "burn/rocm"]
 
 [dependencies]
 # Burn
@@ -39,6 +40,7 @@ burn = { path = "../../crates/burn", features = [
     "fusion",
     "std",
 ], default-features = false }
+log = { workspace = true }
 
 # Tokenizer
 tokenizers = { version = "0.22.1", default-features = false, features = [

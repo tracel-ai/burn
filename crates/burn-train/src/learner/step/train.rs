@@ -44,6 +44,7 @@ impl<LC: LearnerComponentTypes> Worker<LC> {
             loop {
                 match receiver_input.recv() {
                     Ok(item) => {
+                        log::info!("On new step {:?}", device);
                         let model = item.model.fork(&device);
                         let output = model.step(item.item);
                         let item = MultiTrainOutput {

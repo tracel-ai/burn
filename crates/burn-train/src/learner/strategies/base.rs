@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_collective::CollectiveConfig;
-use burn_core::{module::AutodiffModule, prelude::Backend, tensor::backend::AutodiffBackend};
+#[cfg(feature = "ddp")]
+use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
