@@ -28,10 +28,7 @@ impl MultiGradientsParams {
         &mut self,
         id: ParamId,
     ) -> Option<(Tensor<B, D>, Device<B>)> {
-        let (mut tensor, device, index) = match self.select(id) {
-            Some(val) => val,
-            None => return None,
-        };
+        let (mut tensor, device, index) = self.select(id)?;
 
         for (i, (grads, _)) in self.grads.iter_mut().enumerate() {
             if i == index {
@@ -54,13 +51,10 @@ impl MultiGradientsParams {
         for i in 0..self.grads.len() {
             let selected_device_index = (id_val + i) % self.grads.len();
 
-            match self.grads[selected_device_index].0.remove::<B, D>(id) {
-                Some(acc) => {
-                    let device_id = self.grads[selected_device_index].1.clone();
-                    let device = <B::Device as DeviceOps>::from_id(device_id);
-                    return Some((acc.to_device(&device), device, selected_device_index));
-                }
-                None => {}
+            if let Some(acc) = self.grads[selected_device_index].0.remove::<B, D>(id) {
+                let device_id = self.grads[selected_device_index].1;
+                let device = <B::Device as DeviceOps>::from_id(device_id);
+                return Some((acc.to_device(&device), device, selected_device_index));
             }
         }
 
