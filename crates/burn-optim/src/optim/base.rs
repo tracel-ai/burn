@@ -7,6 +7,7 @@ use burn_core::tensor::backend::DeviceId;
 
 use super::GradientsParams;
 use crate::LearningRate;
+use alloc::vec::Vec;
 use burn::module::AutodiffModule;
 use burn::record::Record;
 use burn::tensor::backend::AutodiffBackend;
