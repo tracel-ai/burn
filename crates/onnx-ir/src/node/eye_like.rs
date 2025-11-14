@@ -22,7 +22,7 @@ pub struct EyeLikeConfig {
     pub k: i64,
 }
 
-pub struct EyeLikeProcessor;
+pub(crate) struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
     type Config = EyeLikeConfig;

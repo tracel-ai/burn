@@ -46,7 +46,7 @@ pub struct GemmConfig {
     pub trans_b: i64,
 }
 
-pub struct GemmProcessor;
+pub(crate) struct GemmProcessor;
 
 impl NodeProcessor for GemmProcessor {
     type Config = GemmConfig;

@@ -57,7 +57,7 @@ impl Conv3dConfig {
     }
 }
 
-pub struct Conv3dProcessor;
+pub(crate) struct Conv3dProcessor;
 
 impl NodeProcessor for Conv3dProcessor {
     type Config = Conv3dConfig;

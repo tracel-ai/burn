@@ -52,7 +52,7 @@ impl Default for RangeInput {
     }
 }
 
-pub struct RangeProcessor;
+pub(crate) struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
     type Config = RangeConfig;
@@ -192,7 +192,7 @@ impl NodeProcessor for RangeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 

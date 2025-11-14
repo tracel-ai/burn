@@ -22,8 +22,6 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub use self::Direction as BitShiftDirection;
-
 /// Direction for BitShift operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Direction {
@@ -48,7 +46,7 @@ pub struct BitShiftConfig {
     pub direction: Direction,
 }
 
-pub struct BitShiftProcessor;
+pub(crate) struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
     type Config = BitShiftConfig;

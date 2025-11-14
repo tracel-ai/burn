@@ -18,11 +18,10 @@
 //!   - Positive k: Retains lower triangle including main diagonal and k diagonals above it
 //!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
 
+use crate::ir::{ArgType, Node, NodeBuilder, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use crate::{ArgType, Node, NodeBuilder, TensorDataExt};
 
 /// Configuration for the Trilu operation.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -40,7 +39,7 @@ impl TriluConfig {
     }
 }
 
-pub struct TriluProcessor;
+pub(crate) struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
     type Config = TriluConfig;

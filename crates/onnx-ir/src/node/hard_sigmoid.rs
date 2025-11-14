@@ -29,7 +29,7 @@ pub struct HardSigmoidConfig {
     pub beta: f64,
 }
 
-pub struct HardSigmoidProcessor;
+pub(crate) struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
     type Config = HardSigmoidConfig;

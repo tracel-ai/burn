@@ -16,7 +16,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{Node, NodeBuilder};
+use crate::ir::{Node, NodeBuilder};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct IsInfConfig {
@@ -33,7 +33,7 @@ impl IsInfConfig {
     }
 }
 
-pub struct IsInfProcessor;
+pub(crate) struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
     type Config = IsInfConfig;
@@ -110,7 +110,7 @@ impl NodeProcessor for IsInfProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::NodeType;
+    use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(detect_negative: Option<i64>, detect_positive: Option<i64>) -> NodeBuilder {

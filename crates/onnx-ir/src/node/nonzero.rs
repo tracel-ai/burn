@@ -23,7 +23,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct NonZeroProcessor;
+pub(crate) struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
     type Config = ();

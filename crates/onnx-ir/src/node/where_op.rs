@@ -49,7 +49,7 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 
 /// Update output type for Where operation.
 ///
-pub struct WhereProcessor;
+pub(crate) struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
     type Config = ();

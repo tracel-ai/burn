@@ -63,7 +63,7 @@ impl Conv1dConfig {
 }
 
 /// Node processor for Conv1d operation
-pub struct Conv1dProcessor;
+pub(crate) struct Conv1dProcessor;
 
 impl NodeProcessor for Conv1dProcessor {
     type Config = Conv1dConfig;

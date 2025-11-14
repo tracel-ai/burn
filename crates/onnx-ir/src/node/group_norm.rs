@@ -40,7 +40,7 @@ impl GroupNormConfig {
     }
 }
 
-pub struct GroupNormProcessor;
+pub(crate) struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
     type Config = GroupNormConfig;

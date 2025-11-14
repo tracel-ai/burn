@@ -8,12 +8,9 @@
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)
 
+use crate::ir::{ArgType, DType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
-};
-use crate::{
-    DType,
-    ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType},
 };
 
 /// Shape information for the Expand operation.
@@ -32,7 +29,7 @@ impl Default for ExpandConfig {
     }
 }
 
-pub struct ExpandProcessor;
+pub(crate) struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
     type Config = ExpandConfig;

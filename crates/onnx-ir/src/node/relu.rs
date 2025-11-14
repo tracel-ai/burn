@@ -19,7 +19,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct ReluProcessor;
+pub(crate) struct ReluProcessor;
 
 impl NodeProcessor for ReluProcessor {
     type Config = ();

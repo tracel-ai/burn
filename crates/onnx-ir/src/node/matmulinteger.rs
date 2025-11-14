@@ -17,7 +17,7 @@ use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
 
-pub struct MatMulIntegerProcessor;
+pub(crate) struct MatMulIntegerProcessor;
 
 impl NodeProcessor for MatMulIntegerProcessor {
     type Config = ();

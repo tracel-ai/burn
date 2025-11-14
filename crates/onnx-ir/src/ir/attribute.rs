@@ -7,18 +7,20 @@ use std::collections::HashMap;
 
 use burn_tensor::TensorData;
 
-use crate::{OnnxGraph, OnnxGraphBuilder};
+use crate::ir::{OnnxGraph, OnnxGraphBuilder};
 
 /// The type of an attribute.
 #[derive(Debug, Clone)]
-pub enum AttributeValue {
+pub(crate) enum AttributeValue {
     Float32(f32),
     Float32s(Vec<f32>),
     Int64(i64),
     Int64s(Vec<i64>),
     String(String),
+    #[allow(dead_code)]
     Strings(Vec<String>),
     Tensor(TensorData),
+    #[allow(dead_code)]
     Tensors(Vec<TensorData>),
     /// Graph attribute - holds OnnxGraphBuilder during processing, converts to OnnxGraph later
     GraphBuilder(OnnxGraphBuilder),
@@ -27,6 +29,7 @@ pub enum AttributeValue {
     /// Final graph after conversion (used in final Node enum)
     Graph(OnnxGraph),
     /// Final graphs after conversion (used in final Node enum)
+    #[allow(dead_code)]
     Graphs(Vec<OnnxGraph>),
 }
 
@@ -73,6 +76,7 @@ impl AttributeValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn into_f32s(self) -> Vec<f32> {
         if let AttributeValue::Float32s(elem) = self {
             elem
@@ -89,6 +93,7 @@ impl AttributeValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn into_strings(self) -> Vec<String> {
         if let AttributeValue::Strings(elem) = self {
             elem
@@ -97,6 +102,7 @@ impl AttributeValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn into_tensors(self) -> Vec<TensorData> {
         if let AttributeValue::Tensors(elem) = self {
             elem
@@ -105,6 +111,7 @@ impl AttributeValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn into_graph(self) -> OnnxGraph {
         if let AttributeValue::Graph(elem) = self {
             elem
@@ -113,6 +120,7 @@ impl AttributeValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn into_graphs(self) -> Vec<OnnxGraph> {
         if let AttributeValue::Graphs(elem) = self {
             elem

@@ -32,7 +32,7 @@ pub struct LogSoftmaxConfig {
     pub axis: usize,
 }
 
-pub struct LogSoftmaxProcessor;
+pub(crate) struct LogSoftmaxProcessor;
 
 impl NodeProcessor for LogSoftmaxProcessor {
     type Config = LogSoftmaxConfig;

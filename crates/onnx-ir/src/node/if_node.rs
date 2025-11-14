@@ -23,7 +23,7 @@ pub struct IfConfig {
 }
 
 /// If node processor
-pub struct IfProcessor;
+pub(crate) struct IfProcessor;
 
 impl NodeProcessor for IfProcessor {
     type Config = IfConfig;

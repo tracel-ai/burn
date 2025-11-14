@@ -47,7 +47,7 @@ impl fmt::Display for PaddingConfig1d {
 ///
 /// This function is used when the padding is specified as a list of integers,
 /// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-pub fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
+pub(crate) fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
     let [left, right] = [pads[0], pads[1]];
 
     if left < 0 || right < 0 {
@@ -127,7 +127,7 @@ impl fmt::Display for PaddingConfig3d {
 ///
 /// This function is used when the padding is specified as a list of integers,
 /// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-pub fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
+pub(crate) fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
     let [top, left, bottom, right] = [pads[0], pads[1], pads[2], pads[3]];
 
     if left < 0 || right < 0 || top < 0 || bottom < 0 {
@@ -163,7 +163,7 @@ pub fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
 ///
 /// This function is used when the padding is specified as a list of integers,
 /// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-pub fn padding_config_3d(pads: &[i64]) -> PaddingConfig3d {
+pub(crate) fn padding_config_3d(pads: &[i64]) -> PaddingConfig3d {
     let [front, top, left, back, bottom, right] =
         [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
 

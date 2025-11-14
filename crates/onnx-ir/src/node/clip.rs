@@ -38,7 +38,7 @@ pub struct ClipConfig {
     pub max: Option<ClipInput>,
 }
 
-pub struct ClipProcessor;
+pub(crate) struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
     type Config = ClipConfig;

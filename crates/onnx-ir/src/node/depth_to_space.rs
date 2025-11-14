@@ -19,24 +19,21 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{
-    ArgType, TensorType,
-    ir::{Node, NodeBuilder},
-};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 
 /// Mode for DepthToSpace operation
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DepthToSpaceMode {
     #[default]
-    DCR,
-    CRD,
+    Dcr,
+    Crd,
 }
 
 impl DepthToSpaceMode {
     fn from_str(val: &str) -> Result<Self, String> {
         match val {
-            "DCR" => Ok(Self::DCR),
-            "CRD" => Ok(Self::CRD),
+            "DCR" => Ok(Self::Dcr),
+            "CRD" => Ok(Self::Crd),
             _ => Err(format!("Unexpected value for DepthToSpace mode: {}", val)),
         }
     }
@@ -56,7 +53,7 @@ impl DepthToSpaceConfig {
     }
 }
 
-pub struct DepthToSpaceProcessor;
+pub(crate) struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
     type Config = DepthToSpaceConfig;
@@ -95,7 +92,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
             .expect("Config extraction failed");
 
         // Validate that if mode is CRD, we need opset 11+
-        if config.mode == DepthToSpaceMode::CRD && opset < 11 {
+        if config.mode == DepthToSpaceMode::Crd && opset < 11 {
             return Err(ProcessError::Custom(format!(
                 "DepthToSpace: CRD mode requires opset 11+, got opset {}",
                 opset
@@ -157,7 +154,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
         _opset: usize,
     ) -> Result<Self::Config, ProcessError> {
         let mut block_size: Option<usize> = None;
-        let mut mode = DepthToSpaceMode::DCR;
+        let mut mode = DepthToSpaceMode::Dcr;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -199,7 +196,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
@@ -233,7 +230,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.block_size, 2);
-        assert_eq!(config.mode, DepthToSpaceMode::DCR);
+        assert_eq!(config.mode, DepthToSpaceMode::Dcr);
     }
 
     #[test]
@@ -246,7 +243,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.block_size, 3);
-        assert_eq!(config.mode, DepthToSpaceMode::DCR);
+        assert_eq!(config.mode, DepthToSpaceMode::Dcr);
     }
 
     #[test]
@@ -259,7 +256,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.block_size, 3);
-        assert_eq!(config.mode, DepthToSpaceMode::CRD);
+        assert_eq!(config.mode, DepthToSpaceMode::Crd);
     }
 
     #[test]

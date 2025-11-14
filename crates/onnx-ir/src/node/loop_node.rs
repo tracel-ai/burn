@@ -64,7 +64,7 @@ impl Default for LoopConfig {
 }
 
 /// Loop node processor
-pub struct LoopProcessor;
+pub(crate) struct LoopProcessor;
 
 impl NodeProcessor for LoopProcessor {
     type Config = LoopConfig;

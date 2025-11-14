@@ -43,7 +43,7 @@ impl Default for CastConfig {
     }
 }
 
-pub struct CastProcessor;
+pub(crate) struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
     type Config = CastConfig;

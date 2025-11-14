@@ -57,7 +57,7 @@ impl AvgPool1dConfig {
     }
 }
 
-pub struct AvgPool1dProcessor;
+pub(crate) struct AvgPool1dProcessor;
 
 impl NodeProcessor for AvgPool1dProcessor {
     type Config = AvgPool1dConfig;

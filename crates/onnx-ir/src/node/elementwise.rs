@@ -80,7 +80,7 @@ use crate::processor::{
 ///
 /// These operations support standard ONNX broadcasting semantics without
 /// needing Shape or Scalar type propagation (unlike arithmetic operations).
-pub struct ElementwiseBinaryProcessor;
+pub(crate) struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
     type Config = ();
@@ -177,7 +177,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 
 /// Node processor for element-wise unary operations
 /// Used for: Neg, Abs, Ceil, Floor, Sqrt, Exp, Log, Sin, Cos, etc.
-pub struct ElementwiseUnaryProcessor;
+pub(crate) struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
     type Config = ();

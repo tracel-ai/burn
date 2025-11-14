@@ -43,7 +43,7 @@ pub struct SplitConfig {
     pub split_sizes: Option<SplitSizesInput>,
 }
 
-pub struct SplitProcessor;
+pub(crate) struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
     type Config = SplitConfig;

@@ -88,7 +88,7 @@ impl MaxPool1dConfig {
     }
 }
 
-pub struct MaxPool1dProcessor;
+pub(crate) struct MaxPool1dProcessor;
 
 impl NodeProcessor for MaxPool1dProcessor {
     type Config = MaxPool1dConfig;

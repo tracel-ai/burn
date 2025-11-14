@@ -42,7 +42,7 @@ pub struct DropoutConfig {
     pub prob: DropoutInput,
 }
 
-pub struct DropoutProcessor;
+pub(crate) struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
     type Config = DropoutConfig;

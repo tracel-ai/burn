@@ -106,7 +106,7 @@ impl Default for PadConfig {
     }
 }
 
-pub struct PadProcessor;
+pub(crate) struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {
     type Config = PadConfig;

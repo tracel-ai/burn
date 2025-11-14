@@ -60,7 +60,7 @@ impl Default for OneHotConfig {
 }
 
 /// Update output rank for OneHot (input rank + 1).
-pub fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> {
+pub(crate) fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> {
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => {
@@ -82,7 +82,7 @@ pub fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> 
     Ok(())
 }
 
-pub struct OneHotProcessor;
+pub(crate) struct OneHotProcessor;
 
 impl NodeProcessor for OneHotProcessor {
     type Config = OneHotConfig;

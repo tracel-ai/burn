@@ -31,7 +31,7 @@ use crate::processor::{
 };
 use core::cmp::max;
 
-pub struct MatMulProcessor;
+pub(crate) struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
     type Config = ();

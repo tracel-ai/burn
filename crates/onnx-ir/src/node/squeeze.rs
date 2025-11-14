@@ -38,7 +38,7 @@ pub struct SqueezeConfig {
     pub axes: Option<SqueezeInput>,
 }
 
-pub struct SqueezeProcessor;
+pub(crate) struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
     type Config = SqueezeConfig;

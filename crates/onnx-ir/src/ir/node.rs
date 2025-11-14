@@ -3,7 +3,6 @@
 //! This module contains types for representing ONNX nodes, including their types,
 //! configuration, inputs, outputs, and attributes.
 
-use std::any::Any;
 use strum::{Display, EnumString};
 
 use super::argument::Argument;
@@ -29,19 +28,9 @@ impl RuntimeInputRef {
     }
 }
 
-/// Trait for node-specific configuration
-/// Each node type can have its own configuration struct that implements this trait
-pub trait NodeConfig {
-    /// Downcast to Any for type-safe retrieval
-    fn as_any(&self) -> &dyn Any;
-
-    /// Clone the config into a boxed trait object
-    fn clone_box(&self) -> Box<dyn NodeConfig>;
-}
-
 /// Nodes produced by the ONNX parser
 #[derive(Clone, Debug)]
-pub struct NodeBuilder {
+pub(crate) struct NodeBuilder {
     /// The type of the node.
     /// This should be a valid ONNX operator.
     pub node_type: NodeType,
@@ -57,30 +46,6 @@ pub struct NodeBuilder {
 
     /// ONNX attributes (opset-specific parameters)
     pub(crate) attrs: Attributes,
-}
-
-impl NodeBuilder {
-    /// Create a new NodeBuilder
-    pub fn new(
-        node_type: NodeType,
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        attrs: Attributes,
-    ) -> Self {
-        Self {
-            node_type,
-            name,
-            inputs,
-            outputs,
-            attrs,
-        }
-    }
-
-    /// Get a reference to the node's attributes
-    pub fn attrs(&self) -> &Attributes {
-        &self.attrs
-    }
 }
 
 // ============================================================================
@@ -363,14 +328,14 @@ define_node_enum! {
     Conv,
     ConvInteger,
     ConvTranspose,
-    DFT,
+    Dft,
     DeformConv,
     DequantizeLinear,
     Det,
     DynamicQuantizeLinear,
     Einsum,
     GridSample,
-    GRU,
+    Gru,
     HammingWindow,
     HannWindow,
     Hardmax,
@@ -378,8 +343,8 @@ define_node_enum! {
     ImageDecoder,
     LpNormalization,
     LpPool,
-    LRN,
-    LSTM,
+    Lrn,
+    Lstm,
     MaxPool,
     MaxRoiPool,
     MaxUnpool,
@@ -395,7 +360,7 @@ define_node_enum! {
     QLinearMatMul,
     QuantizeLinear,
     RMSNormalization,
-    RNN,
+    Rnn,
     RegexFullMatch,
     ReverseSequence,
     RoiAlign,
@@ -410,7 +375,7 @@ define_node_enum! {
     Shrink,
     SoftmaxCrossEntropyLoss,
     SplitToSequence,
-    STFT,
+    Stft,
     StringConcat,
     StringNormalizer,
     StringSplit,

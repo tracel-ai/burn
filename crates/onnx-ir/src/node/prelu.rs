@@ -30,7 +30,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct PReluProcessor;
+pub(crate) struct PReluProcessor;
 
 impl NodeProcessor for PReluProcessor {
     type Config = ();

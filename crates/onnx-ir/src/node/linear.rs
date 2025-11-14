@@ -51,7 +51,7 @@ impl LinearConfig {
     }
 }
 
-pub struct LinearProcessor;
+pub(crate) struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
     type Config = LinearConfig;

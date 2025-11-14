@@ -19,10 +19,10 @@
 //! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{ArgType, Node, NodeBuilder, TensorType};
 
 #[derive(Debug, Clone, Default)]
 pub struct ReduceConfig {
@@ -36,7 +36,7 @@ impl ReduceConfig {
     }
 }
 
-pub struct ReduceProcessor;
+pub(crate) struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
     type Config = ReduceConfig;

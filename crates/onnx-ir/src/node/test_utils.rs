@@ -481,7 +481,7 @@ impl TestNodeBuilder {
     }
 
     /// Build the node and process it with the given processor.
-    pub fn process<P: crate::processor::NodeProcessor>(
+    pub(crate) fn process<P: crate::processor::NodeProcessor>(
         self,
         processor: P,
         opset: usize,
@@ -498,7 +498,7 @@ impl TestNodeBuilder {
     }
 
     /// Build the node
-    pub fn build(self) -> NodeBuilder {
+    pub(crate) fn build(self) -> NodeBuilder {
         NodeBuilder {
             node_type: self.node_type,
             name: self.name,
@@ -513,7 +513,7 @@ impl TestNodeBuilder {
     ///
     /// Note: After calling this method, the GraphState will be wrapped in Rc<RefCell<>>
     /// and attached to the node's arguments.
-    pub fn build_with_graph_data(self, _opset: usize) -> NodeBuilder {
+    pub(crate) fn build_with_graph_data(self, _opset: usize) -> NodeBuilder {
         use std::cell::RefCell;
         use std::rc::Rc;
 

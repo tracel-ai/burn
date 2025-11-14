@@ -41,7 +41,7 @@ use crate::processor::{
 ///
 /// This processor is used for Add, Sub, Mul, and Div operations as they all
 /// share the same type propagation semantics.
-pub struct ArithmeticBinaryProcessor;
+pub(crate) struct ArithmeticBinaryProcessor;
 
 impl NodeProcessor for ArithmeticBinaryProcessor {
     type Config = ();

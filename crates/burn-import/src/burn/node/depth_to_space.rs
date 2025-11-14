@@ -37,7 +37,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
         let block_size = self.config.block_size;
 
         let output_expr = match self.config.mode {
-            DepthToSpaceMode::DCR => {
+            DepthToSpaceMode::Dcr => {
                 quote! {
                     let [b, c, h, w] = #input.shape().dims();
                     #input
@@ -46,7 +46,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
                         .reshape([b, c / (#block_size * #block_size), h * #block_size, w * #block_size])
                 }
             }
-            DepthToSpaceMode::CRD => {
+            DepthToSpaceMode::Crd => {
                 quote! {
                     let [b, c, h, w] = #input.shape().dims();
                     #input
@@ -98,7 +98,7 @@ mod tests {
         graph.register(DepthToSpaceNode::new(
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            DepthToSpaceConfig::new(DepthToSpaceMode::DCR, 2),
+            DepthToSpaceConfig::new(DepthToSpaceMode::Dcr, 2),
         ));
 
         graph.register_input_output(
@@ -147,7 +147,7 @@ mod tests {
         graph.register(DepthToSpaceNode::new(
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            DepthToSpaceConfig::new(DepthToSpaceMode::CRD, 2),
+            DepthToSpaceConfig::new(DepthToSpaceMode::Crd, 2),
         ));
 
         graph.register_input_output(

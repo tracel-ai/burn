@@ -22,7 +22,7 @@ pub struct ConcatConfig {
     pub axis: usize,
 }
 
-pub struct ConcatProcessor;
+pub(crate) struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
     type Config = ConcatConfig;

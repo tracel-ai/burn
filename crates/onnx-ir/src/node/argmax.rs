@@ -24,7 +24,7 @@ pub struct ArgMaxConfig {
     pub keepdims: bool,
 }
 
-pub struct ArgMaxProcessor;
+pub(crate) struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
     type Config = ArgMaxConfig;

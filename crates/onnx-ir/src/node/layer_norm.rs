@@ -59,7 +59,7 @@ impl LayerNormConfig {
     }
 }
 
-pub struct LayerNormProcessor;
+pub(crate) struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
     type Config = LayerNormConfig;

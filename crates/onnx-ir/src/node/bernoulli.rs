@@ -16,7 +16,7 @@ use crate::processor::{
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
-pub struct BernoulliProcessor;
+pub(crate) struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
     type Config = ();

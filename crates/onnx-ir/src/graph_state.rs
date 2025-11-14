@@ -12,7 +12,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::ir::{ArgType, Argument, NodeBuilder, NodeType, TensorData, argument::DataId};
+use crate::ir::{ArgType, Argument, DataId, NodeBuilder, NodeType, TensorData};
 use crate::proto_conversion::argument_from_initializer;
 use crate::protos::{TensorProto, ValueInfoProto};
 

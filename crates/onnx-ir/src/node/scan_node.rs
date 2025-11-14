@@ -25,7 +25,7 @@ pub struct ScanConfig {
 }
 
 /// Scan node processor
-pub struct ScanProcessor;
+pub(crate) struct ScanProcessor;
 
 impl NodeProcessor for ScanProcessor {
     type Config = ScanConfig;

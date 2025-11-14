@@ -18,10 +18,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{
-    ArgType, TensorType,
-    ir::{Node, NodeBuilder},
-};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 
 /// Configuration for SpaceToDepth operations
 #[derive(Debug, Clone, Default)]
@@ -30,7 +27,7 @@ pub struct SpaceToDepthConfig {
     pub block_size: usize,
 }
 
-pub struct SpaceToDepthProcessor;
+pub(crate) struct SpaceToDepthProcessor;
 
 impl NodeProcessor for SpaceToDepthProcessor {
     type Config = SpaceToDepthConfig;
@@ -160,7 +157,7 @@ impl NodeProcessor for SpaceToDepthProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 

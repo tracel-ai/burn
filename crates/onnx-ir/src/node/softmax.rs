@@ -26,7 +26,7 @@ pub struct SoftmaxConfig {
     pub axis: usize,
 }
 
-pub struct SoftmaxProcessor;
+pub(crate) struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
     type Config = SoftmaxConfig;

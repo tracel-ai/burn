@@ -48,7 +48,7 @@ impl Default for UnsqueezeConfig {
     }
 }
 
-pub struct UnsqueezeProcessor;
+pub(crate) struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {
     type Config = UnsqueezeConfig;

@@ -46,7 +46,7 @@ impl Default for GatherElementsInput {
     }
 }
 
-pub struct GatherElementsProcessor;
+pub(crate) struct GatherElementsProcessor;
 
 impl NodeProcessor for GatherElementsProcessor {
     type Config = GatherElementsConfig;

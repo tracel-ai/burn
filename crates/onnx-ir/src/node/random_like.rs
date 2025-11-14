@@ -49,7 +49,7 @@ impl Default for RandomLikeConfig {
     }
 }
 
-pub struct RandomLikeProcessor;
+pub(crate) struct RandomLikeProcessor;
 
 impl NodeProcessor for RandomLikeProcessor {
     type Config = RandomLikeConfig;

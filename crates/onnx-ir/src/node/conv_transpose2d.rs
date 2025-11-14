@@ -66,7 +66,7 @@ impl ConvTranspose2dConfig {
     }
 }
 
-pub struct Convtranspose2dProcessor;
+pub(crate) struct Convtranspose2dProcessor;
 
 impl NodeProcessor for Convtranspose2dProcessor {
     type Config = ConvTranspose2dConfig;

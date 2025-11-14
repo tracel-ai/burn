@@ -23,7 +23,7 @@ use crate::processor::{
 };
 
 /// Node processor for Sum operation
-pub struct SumProcessor;
+pub(crate) struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {
     type Config = ();

@@ -50,7 +50,7 @@ use crate::processor::{
 };
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
-pub fn elementwise_comparison_outputs(node: &mut NodeBuilder) {
+pub(crate) fn elementwise_comparison_outputs(node: &mut NodeBuilder) {
     // Check if both inputs are Shape types
     let both_shapes = node.inputs.len() == 2
         && matches!(&node.inputs[0].ty, ArgType::Shape(_))
@@ -82,7 +82,7 @@ pub fn elementwise_comparison_outputs(node: &mut NodeBuilder) {
     }
 }
 
-pub struct ComparisonProcessor;
+pub(crate) struct ComparisonProcessor;
 
 impl NodeProcessor for ComparisonProcessor {
     type Config = ();

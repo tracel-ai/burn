@@ -24,7 +24,7 @@ pub struct FlattenConfig {
     pub axis: usize,
 }
 
-pub struct FlattenProcessor;
+pub(crate) struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
     type Config = FlattenConfig;

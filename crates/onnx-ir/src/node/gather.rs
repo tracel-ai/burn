@@ -37,7 +37,7 @@ pub struct GatherConfig {
     pub axis: usize,
 }
 
-pub struct GatherProcessor;
+pub(crate) struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
     type Config = GatherConfig;

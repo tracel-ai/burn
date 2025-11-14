@@ -8,9 +8,8 @@
 //!
 //! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
-use crate::ir::Node;
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::{ArgType, Argument, NodeBuilder, TensorType};
 
 #[derive(Debug, Clone, Default)]
 pub struct AttentionConfig {
@@ -69,7 +68,7 @@ fn extract_tensor<'a>(
     }
 }
 
-pub struct AttentionProcessor;
+pub(crate) struct AttentionProcessor;
 
 impl NodeProcessor for AttentionProcessor {
     type Config = AttentionConfig;
@@ -275,7 +274,7 @@ impl NodeProcessor for AttentionProcessor {
 #[allow(clippy::too_many_arguments)]
 mod tests {
     use super::*;
-    use crate::{DType, NodeType, node::test_utils::TestNodeBuilder};
+    use crate::{ir::DType, ir::NodeType, node::test_utils::TestNodeBuilder};
     use rstest::rstest;
 
     fn create_test_node(

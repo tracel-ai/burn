@@ -33,7 +33,7 @@ pub struct LeakyReluConfig {
     pub alpha: f64,
 }
 
-pub struct LeakyReluProcessor;
+pub(crate) struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
     type Config = LeakyReluConfig;

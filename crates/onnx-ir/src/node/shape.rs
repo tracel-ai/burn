@@ -33,7 +33,7 @@ pub struct ShapeConfig {
     pub end: usize,
 }
 
-pub struct ShapeProcessor;
+pub(crate) struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
     type Config = ShapeConfig;

@@ -45,7 +45,7 @@ impl InstanceNormConfig {
     }
 }
 
-pub struct InstanceNormProcessor;
+pub(crate) struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
     type Config = InstanceNormConfig;

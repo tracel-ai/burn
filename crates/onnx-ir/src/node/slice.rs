@@ -92,7 +92,7 @@ fn calculate_shape_slice_output_len(
     }
 }
 
-pub struct SliceProcessor;
+pub(crate) struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
     type Config = SliceConfig;

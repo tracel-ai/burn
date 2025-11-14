@@ -20,7 +20,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct ConstantProcessor;
+pub(crate) struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
     type Config = ();

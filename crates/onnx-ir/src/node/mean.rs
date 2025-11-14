@@ -19,7 +19,7 @@ use crate::processor::{
 };
 
 /// Node processor for Mean operation (variadic element-wise mean)
-pub struct MeanProcessor;
+pub(crate) struct MeanProcessor;
 
 impl NodeProcessor for MeanProcessor {
     type Config = ();

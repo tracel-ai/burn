@@ -38,7 +38,7 @@ impl ModConfig {
     }
 }
 
-pub struct ModuloProcessor;
+pub(crate) struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
     type Config = ModConfig;

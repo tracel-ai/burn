@@ -13,7 +13,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct SizeProcessor;
+pub(crate) struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
     type Config = ();

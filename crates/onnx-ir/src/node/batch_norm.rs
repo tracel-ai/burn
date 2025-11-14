@@ -38,7 +38,7 @@ impl BatchNormConfig {
     }
 }
 
-pub struct BatchNormProcessor;
+pub(crate) struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
     type Config = BatchNormConfig;

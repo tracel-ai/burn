@@ -48,7 +48,7 @@ pub struct TopKConfig {
     pub k: TopKInput,
 }
 
-pub struct TopKProcessor;
+pub(crate) struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
     type Config = TopKConfig;

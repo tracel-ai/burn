@@ -28,7 +28,7 @@ pub struct TransposeConfig {
     pub perm: Vec<i64>,
 }
 
-pub struct TransposeProcessor;
+pub(crate) struct TransposeProcessor;
 
 impl NodeProcessor for TransposeProcessor {
     type Config = TransposeConfig;

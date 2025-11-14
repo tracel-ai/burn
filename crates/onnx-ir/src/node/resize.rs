@@ -192,7 +192,7 @@ fn extract_sizes_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeSi
     }
 }
 
-pub struct ResizeProcessor;
+pub(crate) struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
     type Config = ResizeConfig;

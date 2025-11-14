@@ -24,7 +24,7 @@ pub struct ArgMinConfig {
     pub keepdims: bool,
 }
 
-pub struct ArgMinProcessor;
+pub(crate) struct ArgMinProcessor;
 
 impl NodeProcessor for ArgMinProcessor {
     type Config = ArgMinConfig;

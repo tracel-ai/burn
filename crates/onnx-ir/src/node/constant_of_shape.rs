@@ -39,7 +39,7 @@ impl Default for ConstantOfShapeShape {
     }
 }
 
-pub struct ConstantOfShapeProcessor;
+pub(crate) struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
     type Config = ConstantOfShapeConfig;
