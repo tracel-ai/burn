@@ -3,10 +3,7 @@ use core::any::TypeId;
 use crate::{Bytes, Element, quantization::unpack_q_to_i8s};
 use alloc::vec::Vec;
 
-use super::{
-    QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue, QuantizationStrategy,
-    SymmetricQuantization,
-};
+use super::{QParams, QuantLevel, QuantScheme, QuantStore, QuantValue};
 
 /// Quantized data bytes representation.
 ///
@@ -28,38 +25,26 @@ pub struct QuantizedBytes {
 
 impl QuantizedBytes {
     /// Creates a new quantized bytes representation.
-    pub fn new<E: Element>(
-        value: Vec<E>,
-        strategy: QuantizationStrategy,
-        scheme: QuantScheme,
-    ) -> Self {
-        let mut bytes: Bytes;
+    pub fn new<E: Element>(value: Vec<E>, scheme: QuantScheme, scales: &[f32]) -> Self {
         let num_elements = value.len();
+        // Only used for 8-bit quantization data comparison in tests
+        if TypeId::of::<E>() != TypeId::of::<i8>() {
+            panic!("Invalid quantized type");
+        }
 
-        match strategy {
-            QuantizationStrategy::PerTensorSymmetric(quant) => {
-                if TypeId::of::<E>() == TypeId::of::<i8>() {
-                    // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
-                    let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
-                    bytes = Bytes::from_elems(i8s);
-                } else {
-                    panic!("Invalid quantized type");
-                }
-                let scale_bytes = bytemuck::bytes_of(&quant.scale);
+        // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
+        let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
+        let mut bytes = Bytes::from_elems(i8s);
+
+        match scheme.level {
+            QuantLevel::Tensor => {
+                let scale_bytes = bytemuck::bytes_of(&scales[0]);
                 bytes.extend_from_byte_slice_aligned(scale_bytes, align_of::<f32>());
             }
-            QuantizationStrategy::PerBlockSymmetric(quant, _block_size) => {
-                if TypeId::of::<E>() == TypeId::of::<i8>() {
-                    // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
-                    let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
-                    bytes = Bytes::from_elems(i8s);
-                } else {
-                    panic!("Invalid quantized type");
-                }
-
-                let mut scale_bytes = Vec::with_capacity(quant.len() * size_of::<f32>());
-                for q in quant {
-                    scale_bytes.extend_from_slice(bytemuck::bytes_of(&q.scale));
+            QuantLevel::Block(_block_size) => {
+                let mut scale_bytes = Vec::with_capacity(scales.len() * size_of::<f32>());
+                for scale in scales {
+                    scale_bytes.extend_from_slice(bytemuck::bytes_of(scale));
                 }
                 bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), align_of::<f32>());
             }
@@ -153,63 +138,6 @@ impl QuantizedBytes {
 
         (values, (qparams, num_params))
     }
-
-    /// Dequantizes the data according to its quantization scheme.
-    pub fn dequantize(self) -> (Vec<f32>, QParams<Vec<f32>>) {
-        match self.scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8S
-                    | QuantValue::Q8F
-                    | QuantValue::Q4S
-                    | QuantValue::Q4F
-                    | QuantValue::Q2S
-                    | QuantValue::Q2F,
-                ..
-            } => {
-                let value = self.scheme.value;
-                let (values, qparams) = self.into_vec_i8();
-                let strategy = QuantizationStrategy::PerTensorSymmetric(
-                    SymmetricQuantization::init(qparams.scales[0], value),
-                );
-                (strategy.dequantize(&values), qparams)
-            }
-            QuantScheme {
-                level: QuantLevel::Block(block_size),
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8S
-                    | QuantValue::Q8F
-                    | QuantValue::Q4S
-                    | QuantValue::Q4F
-                    | QuantValue::Q2S
-                    | QuantValue::Q2F,
-                ..
-            } => {
-                let value = self.scheme.value;
-                let (values, qparams) = self.into_vec_i8();
-                assert_eq!(
-                    values.len() / qparams.scales.len(),
-                    block_size.num_elements()
-                );
-                let strategy = QuantizationStrategy::PerBlockSymmetric(
-                    qparams
-                        .scales
-                        .iter()
-                        .map(|&s| SymmetricQuantization::init(s, value))
-                        .collect(),
-                    block_size,
-                );
-                (strategy.dequantize(&values), qparams)
-            }
-            QuantScheme {
-                value: QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
-                ..
-            } => unimplemented!("Not yet supported"),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -226,11 +154,10 @@ mod tests {
 
         let q_bytes = QuantizedBytes::new(
             values.clone(),
-            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                scale,
-                QuantValue::Q8S,
-            )),
-            QuantScheme::default(),
+            QuantScheme::default()
+                .with_value(QuantValue::Q8S)
+                .with_store(QuantStore::Native),
+            &[scale],
         );
 
         let (q_values, qparams) = q_bytes.into_vec_i8();

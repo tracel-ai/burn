@@ -2,12 +2,10 @@ use core::mem;
 
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{
-        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue,
-        QuantizationStrategy, SymmetricQuantization,
-    },
+    quantization::{QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 
+use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
