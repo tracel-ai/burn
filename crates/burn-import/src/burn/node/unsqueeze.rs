@@ -138,9 +138,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
 
 impl OnnxIntoNode for UnsqueezeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::unsqueeze::UnsqueezeConfig>();
+        let (inputs, outputs, config) = match &node {
+            onnx_ir::Node::Unsqueeze {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
+            _ => panic!("Expected Unsqueeze node"),
+        };
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
 
         // Convert from onnx-ir config (with RuntimeInputRef) to burn-import config (with Argument)
         let axes = match config {
@@ -149,7 +157,7 @@ impl OnnxIntoNode for UnsqueezeNode {
             }
             onnx_ir::node::unsqueeze::UnsqueezeConfig::Runtime(axes_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let axes_arg = node.inputs[axes_ref.input_index].clone();
+                let axes_arg = inputs[axes_ref.input_index].clone();
                 UnsqueezeConfig::Runtime(axes_arg)
             }
         };

@@ -427,10 +427,6 @@ impl ModelGen {
 
         let graph = ParsedOnnxGraph(graph);
 
-        if self.development {
-            self.write_debug_file(&out_file, "graph.txt", &graph);
-        }
-
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
         let code = self.generate_code_with_precision(graph, &out_file, top_comment);
@@ -521,8 +517,8 @@ impl ParsedOnnxGraph {
             if let Some(burn_node) = try_convert_onnx_node::<PS>(node.clone()) {
                 graph.register(burn_node);
             } else {
-                // Unsupported node type
-                unsupported_ops.push(node.node_type);
+                // Unsupported node type - extract variant name from Debug output
+                unsupported_ops.push(format!("{:?}", node).to_string());
             }
         }
 

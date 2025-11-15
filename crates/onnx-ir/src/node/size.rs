@@ -8,14 +8,16 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use crate::ir::{ArgType, DType, Node};
+use crate::ir::{ArgType, DType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct SizeProcessor;
+pub(crate) struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -27,7 +29,7 @@ impl NodeProcessor for SizeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -35,16 +37,24 @@ impl NodeProcessor for SizeProcessor {
 
         Ok(())
     }
+
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+        Node::Size {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(rank: usize) -> Node {
-        let builder = NodeBuilder::new(NodeType::Size, "test_size")
+    fn create_test_node(rank: usize) -> NodeBuilder {
+        let builder = TestNodeBuilder::new(NodeType::Size, "test_size")
             .input_tensor_f32("data", rank, None)
             .output_scalar_i64("size");
 

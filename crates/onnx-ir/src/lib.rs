@@ -13,5 +13,7 @@ mod registry;
 mod tensor_store;
 mod util;
 
+// Public API - only expose essentials
 pub use ir::*;
+pub use node::*;
 pub use pipeline::{OnnxIrError, parse_onnx};

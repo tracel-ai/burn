@@ -192,10 +192,29 @@ pub fn build_graph_from_proto_with_registry(
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
 ) -> Result<OnnxGraph, OnnxIrError> {
+    let graph_builder = build_graph_builder_from_proto(graph, opset_version, name_registry)?;
+
+    log::debug!(" PHASE 6: Node Conversion (NodeBuilder -> Node) ");
+    Ok(graph_builder.convert_to_graph(opset_version))
+}
+
+/// Build IR graph as OnnxGraphBuilder (for subgraphs during processing)
+///
+/// This returns OnnxGraphBuilder which still contains NodeBuilder instances.
+/// Call convert_to_graph() to get the final OnnxGraph with Node enum instances.
+///
+/// # Errors
+///
+/// Returns an error if node conversion or type inference fails
+pub(crate) fn build_graph_builder_from_proto(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+    name_registry: Option<crate::graph_state::NameRegistry>,
+) -> Result<crate::ir::OnnxGraphBuilder, OnnxIrError> {
     log::debug!(" PHASE 1: Initialization ");
     let state_rc = initialization::initialize_from_graph_with_registry(graph, name_registry);
 
-    log::debug!(" PHASE 2: Node Conversion ");
+    log::debug!(" PHASE 2: Node Conversion (Proto -> NodeBuilder) ");
     node_conversion::convert_nodes_from_graph(graph, &state_rc, opset_version)?;
 
     log::debug!(" PHASE 3: Type Inference ");

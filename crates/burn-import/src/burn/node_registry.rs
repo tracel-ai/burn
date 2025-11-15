@@ -158,8 +158,8 @@ node_registry! {
 
     // Random ops
     RandomNormal => random_normal as RandomNormalNode,
-    RandomNormalLike => random_normal_like as RandomNormalLikeNode,
     RandomUniform => random_uniform as RandomUniformNode,
+    RandomNormalLike => random_normal_like as RandomNormalLikeNode,
     RandomUniformLike => random_uniform_like as RandomUniformLikeNode,
     Bernoulli => bernoulli as BernoulliNode,
 

@@ -75,10 +75,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
 
 impl OnnxIntoNode for SplitNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let outputs = node.outputs.iter().map(TensorType::from).collect();
-        let config = node.config::<onnx_ir::node::split::SplitConfig>().clone();
-        Self::new(input, outputs, config)
+        let (inputs, outputs, config) = match &node {
+            onnx_ir::Node::Split {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
+            _ => panic!("Expected Split node"),
+        };
+        let input = TensorType::from(inputs.first().unwrap());
+        let outputs = outputs.iter().map(TensorType::from).collect();
+        Self::new(input, outputs, config.clone())
     }
 }
 

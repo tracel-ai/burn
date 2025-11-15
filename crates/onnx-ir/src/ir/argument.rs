@@ -14,13 +14,13 @@ pub type Rank = usize;
 pub type Shape = Vec<usize>;
 
 /// Unique identifier for tensor data in the central store
-pub type TensorId = usize;
+pub type DataId = usize;
 
 /// Describes where an argument's value comes from
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueSource {
     /// Static constant value embedded in the argument (name="" with embedded data)
-    Static(TensorId),
+    Static(DataId),
     /// Points to a constant node output (name="constant1_out1")
     Constant,
     /// Points to a runtime node output (name="conv1_out1")

@@ -18,11 +18,10 @@
 //! - TODO: No test for zero-size dimensions - Edge case for empty matrices
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Linear operations
 #[derive(Debug, Clone)]
@@ -52,19 +51,11 @@ impl LinearConfig {
     }
 }
 
-impl NodeConfig for LinearConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct LinearProcessor;
+pub(crate) struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
+    type Config = LinearConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -74,7 +65,7 @@ impl NodeProcessor for LinearProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input 1) and bias (input 2) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -88,7 +79,7 @@ impl NodeProcessor for LinearProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -126,9 +117,9 @@ impl NodeProcessor for LinearProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -144,7 +135,20 @@ impl NodeProcessor for LinearProcessor {
         let bias = node.inputs.len() == 3 && !node.inputs[2].is_optional();
 
         let config = LinearConfig::new(in_size, out_size).with_bias(bias);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Linear {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 
@@ -152,14 +156,14 @@ impl NodeProcessor for LinearProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(has_bias: bool, weight_dims: Vec<usize>) -> NodeBuilder {
+    fn create_test_node(has_bias: bool, weight_dims: Vec<usize>) -> TestNodeBuilder {
         // Create weight tensor data
         let weight_data = vec![0.0; weight_dims.iter().product()]; // Not important for the test
 
         // Start building the node with input and weight
-        let mut builder = NodeBuilder::new(NodeType::Gemm, "test_linear")
+        let mut builder = TestNodeBuilder::new(NodeType::Gemm, "test_linear")
             .input_tensor_f32("input", 2, None)
             .input_tensor_f32_data("weight", weight_data, weight_dims.clone())
             .output_tensor_f32("output", 2, None);
@@ -176,7 +180,8 @@ mod tests {
     #[test]
     fn test_linear_config_basic() {
         let node = create_test_node(false, vec![10, 5]).process(LinearProcessor, 16);
-        let config = node.config::<LinearConfig>();
+        let processor = LinearProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -186,7 +191,8 @@ mod tests {
     #[test]
     fn test_linear_config_with_bias() {
         let node = create_test_node(true, vec![10, 5]).process(LinearProcessor, 16);
-        let config = node.config::<LinearConfig>();
+        let processor = LinearProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -196,8 +202,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "index out of bounds")]
     fn test_linear_config_invalid_weight_dims() {
-        let _node = create_test_node(false, vec![10]).process(LinearProcessor, 16);
-        // Error should occur in extract_config when accessing weight_shape[1]
+        let node = create_test_node(false, vec![10]).build_with_graph_data(16);
+        let processor = LinearProcessor;
+        // This should panic when accessing weight_shape[1] on a 1D weight tensor
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]

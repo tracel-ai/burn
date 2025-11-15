@@ -46,15 +46,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {
 
 impl OnnxIntoNode for FlattenNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+        let (inputs, outputs, config) = match node {
+            onnx_ir::Node::Flatten {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
+            _ => panic!("Expected Flatten node"),
+        };
+        let input = match crate::burn::Type::from(inputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Flatten expects tensor input"),
         };
-        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+        let output = match crate::burn::Type::from(outputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Flatten expects tensor output"),
         };
-        let config = node.config::<onnx_ir::node::flatten::FlattenConfig>();
         let axis = config.axis;
         Self::new(input, output, axis)
     }

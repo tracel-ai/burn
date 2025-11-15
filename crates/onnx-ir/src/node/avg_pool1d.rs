@@ -10,12 +10,11 @@
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::node::padding::padding_config_1d;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 use super::padding::PaddingConfig1d;
 
@@ -58,19 +57,11 @@ impl AvgPool1dConfig {
     }
 }
 
-impl NodeConfig for AvgPool1dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct AvgPool1dProcessor;
+pub(crate) struct AvgPool1dProcessor;
 
 impl NodeProcessor for AvgPool1dProcessor {
+    type Config = AvgPool1dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -82,7 +73,7 @@ impl NodeProcessor for AvgPool1dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -157,9 +148,9 @@ impl NodeProcessor for AvgPool1dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];
@@ -187,7 +178,20 @@ impl NodeProcessor for AvgPool1dProcessor {
             dilation: dilations[0] as usize,
         };
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::AveragePool1d {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 
@@ -195,7 +199,7 @@ impl NodeProcessor for AvgPool1dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -204,8 +208,8 @@ mod tests {
         count_include_pad: i64,
         ceil_mode: i64,
         dilations: Option<Vec<i64>>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::AveragePool1d, "test_avgpool1d")
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::AveragePool1d, "test_avgpool1d")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)
             .attr_ints("kernel_shape", kernel_shape)
@@ -228,9 +232,7 @@ mod tests {
         let processor = AvgPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -246,9 +248,7 @@ mod tests {
         let processor = AvgPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 2);
@@ -264,9 +264,7 @@ mod tests {
         let processor = AvgPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -282,9 +280,7 @@ mod tests {
         let processor = AvgPool1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -299,8 +295,7 @@ mod tests {
         let mut node = node;
         let processor = AvgPool1dProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }

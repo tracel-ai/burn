@@ -17,9 +17,9 @@ fn test_non_topological_order_handling() {
     println!("\nCorrect execution order should be: Relu → Abs → Add\n");
 
     // Find the nodes in the parsed graph
-    let relu_node = graph.nodes.iter().position(|n| n.name.contains("relu"));
-    let abs_node = graph.nodes.iter().position(|n| n.name.contains("abs"));
-    let add_node = graph.nodes.iter().position(|n| n.name.contains("add"));
+    let relu_node = graph.nodes.iter().position(|n| n.name().contains("relu"));
+    let abs_node = graph.nodes.iter().position(|n| n.name().contains("abs"));
+    let add_node = graph.nodes.iter().position(|n| n.name().contains("add"));
 
     if let (Some(relu_pos), Some(abs_pos), Some(add_pos)) = (relu_node, abs_node, add_node) {
         println!("Parsed IR node positions:");
@@ -32,9 +32,9 @@ fn test_non_topological_order_handling() {
         // We verify by checking that all nodes exist and can be executed
 
         for (i, node) in graph.nodes.iter().enumerate() {
-            println!("\nNode {}: {} '{}'", i, node.node_type.to_string(), node.name);
-            println!("  Inputs: {:?}", node.inputs.iter().map(|a| &a.name).collect::<Vec<_>>());
-            println!("  Outputs: {:?}", node.outputs.iter().map(|a| &a.name).collect::<Vec<_>>());
+            println!("\nNode {}: '{}'", i, node.name());
+            println!("  Inputs: {:?}", node.inputs().iter().map(|a| &a.name).collect::<Vec<_>>());
+            println!("  Outputs: {:?}", node.outputs().iter().map(|a| &a.name).collect::<Vec<_>>());
         }
 
         // The parser should have built a valid graph regardless of input order

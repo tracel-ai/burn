@@ -18,9 +18,18 @@ fn test_parse_basic_model() {
     assert!(!graph.outputs.is_empty(), "Graph should have outputs");
 
     // Verify we have the expected operation nodes
-    assert!(has_node_type(&graph, onnx_ir::ir::NodeType::Relu));
-    assert!(has_node_type(&graph, onnx_ir::ir::NodeType::PRelu));
-    assert!(has_node_type(&graph, onnx_ir::ir::NodeType::Add));
+    assert!(has_node_type(&graph, |n| matches!(
+        n,
+        onnx_ir::ir::Node::Relu { .. }
+    )));
+    assert!(has_node_type(&graph, |n| matches!(
+        n,
+        onnx_ir::ir::Node::PRelu { .. }
+    )));
+    assert!(has_node_type(&graph, |n| matches!(
+        n,
+        onnx_ir::ir::Node::Add { .. }
+    )));
 
     // Verify basic I/O counts
     assert_eq!(graph.inputs.len(), 1, "Expected 1 input");

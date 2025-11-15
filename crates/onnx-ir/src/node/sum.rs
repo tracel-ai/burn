@@ -16,16 +16,18 @@
 //! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
 //! - **Opset 13**: Extended type support including bfloat16
 
-use crate::ir::Node;
+use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     same_as_input_broadcast,
 };
 
 /// Node processor for Sum operation
-pub struct SumProcessor;
+pub(crate) struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 8,
@@ -37,7 +39,7 @@ impl NodeProcessor for SumProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -54,6 +56,14 @@ impl NodeProcessor for SumProcessor {
 
         Ok(())
     }
+
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+        Node::Sum {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -65,7 +75,7 @@ mod tests {
     fn test_sum_processor_two_inputs() {
         let processor = SumProcessor;
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Sum,
             name: "test_sum".to_string(),
             inputs: vec![
@@ -97,7 +107,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         let prefs = OutputPreferences::new();
@@ -113,7 +122,7 @@ mod tests {
     fn test_sum_processor_multiple_inputs() {
         let processor = SumProcessor;
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Sum,
             name: "test_sum".to_string(),
             inputs: vec![
@@ -155,7 +164,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         let prefs = OutputPreferences::new();

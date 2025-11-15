@@ -142,18 +142,26 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
 
 impl OnnxIntoNode for BatchNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let config = node.config::<onnx_ir::node::batch_norm::BatchNormConfig>();
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let (inputs, outputs, config, name) = match &node {
+            onnx_ir::Node::BatchNormalization {
+                inputs,
+                outputs,
+                config,
+                name,
+                ..
+            } => (inputs, outputs, config, name),
+            _ => panic!("Expected BatchNormalization node"),
+        };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
         let dim = input.rank - 2;
 
         // Extract data using f32 as the element type
-        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
-        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
-        let running_mean = extract_node_data::<f32>(&node, 3).expect("Running mean is required");
-        let running_var = extract_node_data::<f32>(&node, 4).expect("Running var is required");
+        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
+        let beta = extract_node_data(inputs, 2).expect("Beta is required");
+        let running_mean = extract_node_data(inputs, 3).expect("Running mean is required");
+        let running_var = extract_node_data(inputs, 4).expect("Running var is required");
 
-        let name = &node.name;
         Self::new(
             dim,
             name,

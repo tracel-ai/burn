@@ -91,11 +91,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool1dNode {
 
 impl OnnxIntoNode for MaxPool1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::max_pool1d::MaxPool1dConfig>();
-        let name = &node.name;
-        Self::new(name, input, output, config.clone())
+        let (name, inputs, outputs, config) = match node {
+            onnx_ir::Node::MaxPool1d {
+                name,
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (name, inputs, outputs, config),
+            _ => panic!("Expected MaxPool1d node"),
+        };
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
+        Self::new(&name, input, output, config.clone())
     }
 }
 

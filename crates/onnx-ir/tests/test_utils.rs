@@ -40,25 +40,29 @@ pub fn get_model_path(model_name: &str) -> PathBuf {
         .join(model_name)
 }
 
-/// Count nodes of a specific type in the graph
+/// Count nodes matching a predicate
 ///
 /// # Arguments
 /// * `graph` - The OnnxGraph to search
-/// * `node_type` - The NodeType to count
+/// * `predicate` - Function to test each node
 ///
 /// # Returns
-/// Number of nodes matching the type
-pub fn count_nodes(graph: &onnx_ir::ir::OnnxGraph, node_type: onnx_ir::ir::NodeType) -> usize {
-    graph
-        .nodes
-        .iter()
-        .filter(|n| n.node_type == node_type)
-        .count()
+/// Number of nodes matching the predicate
+///
+/// # Example
+/// ```ignore
+/// count_nodes(&graph, |n| matches!(n, Node::PRelu { .. }))
+/// ```
+pub fn count_nodes<F>(graph: &onnx_ir::ir::OnnxGraph, predicate: F) -> usize
+where
+    F: Fn(&onnx_ir::ir::Node) -> bool,
+{
+    graph.nodes.iter().filter(|n| predicate(n)).count()
 }
 
 /// Count Constant nodes in the graph
 pub fn count_constant_nodes(graph: &onnx_ir::ir::OnnxGraph) -> usize {
-    count_nodes(graph, onnx_ir::ir::NodeType::Constant)
+    count_nodes(graph, |n| matches!(n, onnx_ir::ir::Node::Constant { .. }))
 }
 
 /// Count operation nodes (non-Constant nodes) in the graph
@@ -66,13 +70,21 @@ pub fn count_operation_nodes(graph: &onnx_ir::ir::OnnxGraph) -> usize {
     graph
         .nodes
         .iter()
-        .filter(|n| !matches!(n.node_type, onnx_ir::ir::NodeType::Constant))
+        .filter(|n| !matches!(n, onnx_ir::ir::Node::Constant { .. }))
         .count()
 }
 
-/// Check if a graph contains a specific node type
-pub fn has_node_type(graph: &onnx_ir::ir::OnnxGraph, node_type: onnx_ir::ir::NodeType) -> bool {
-    graph.nodes.iter().any(|n| n.node_type == node_type)
+/// Check if a graph contains nodes matching a predicate
+///
+/// # Example
+/// ```ignore
+/// has_node_type(&graph, |n| matches!(n, Node::MatMul { .. }))
+/// ```
+pub fn has_node_type<F>(graph: &onnx_ir::ir::OnnxGraph, predicate: F) -> bool
+where
+    F: Fn(&onnx_ir::ir::Node) -> bool,
+{
+    graph.nodes.iter().any(predicate)
 }
 
 /// Get all unique data types from graph inputs

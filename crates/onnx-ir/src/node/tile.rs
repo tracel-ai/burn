@@ -22,12 +22,10 @@
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
 
-use crate::ir::RuntimeInputRef;
+use crate::ir::{Node, NodeBuilder, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{Node, NodeConfig};
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for tile repeats.
 #[derive(Debug, Clone)]
@@ -38,6 +36,12 @@ pub enum TileInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for TileInput {
+    fn default() -> Self {
+        TileInput::Static(vec![])
+    }
+}
+
 /// Configuration for the Tile operation.
 #[derive(Debug, Clone)]
 pub struct TileConfig {
@@ -45,19 +49,11 @@ pub struct TileConfig {
     pub repeats: TileInput,
 }
 
-impl NodeConfig for TileConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct TileProcessor;
+pub(crate) struct TileProcessor;
 
 impl NodeProcessor for TileProcessor {
+    type Config = TileConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -67,7 +63,7 @@ impl NodeProcessor for TileProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift repeats input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -78,7 +74,7 @@ impl NodeProcessor for TileProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -99,11 +95,11 @@ impl NodeProcessor for TileProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract repeats config
-        fn get_repeats(node: &Node) -> TileInput {
+        fn get_repeats(node: &NodeBuilder) -> TileInput {
             if let Some(input) = node.inputs.get(1) {
                 match input.value() {
                     None => {
@@ -124,7 +120,20 @@ impl NodeProcessor for TileProcessor {
 
         let repeats = get_repeats(node);
         let config = TileConfig { repeats };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Tile {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        }
     }
 }
 
@@ -132,11 +141,11 @@ impl NodeProcessor for TileProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
-    fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Tile, "test_tile")
+    fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Tile, "test_tile")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", input_rank, None); // Same rank as input initially
 
@@ -158,9 +167,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         // Should extract repeats correctly
         assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![2, 3, 4]));
@@ -176,9 +183,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![5]));
     }
@@ -193,9 +198,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![0, 1, 0]));
     }
@@ -210,9 +213,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![100, 200]));
     }
@@ -226,9 +227,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         // Should return empty repeats
         assert!(matches!(&config.repeats, TileInput::Static(r) if r.is_empty()));
@@ -244,9 +243,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         // Negative values get converted to very large positive values due to usize conversion
         // This is expected behavior for this function (though may cause issues elsewhere)
@@ -269,9 +266,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         assert!(matches!(&config.repeats, TileInput::Static(r) if r.is_empty()));
     }
@@ -283,7 +278,7 @@ mod tests {
 
         // Add repeats input with no value
         node.inputs.push(
-            NodeBuilder::new(NodeType::Identity, "temp")
+            TestNodeBuilder::new(NodeType::Identity, "temp")
                 .input_tensor_i64("repeats", 1, Some(vec![3]))
                 .build()
                 .inputs
@@ -295,9 +290,7 @@ mod tests {
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TileConfig>();
 
         // Should return Runtime repeats
         assert!(matches!(&config.repeats, TileInput::Runtime(arg) if arg.name == "repeats"));

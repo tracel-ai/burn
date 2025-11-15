@@ -46,10 +46,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherElementsNode {
 
 impl OnnxIntoNode for GatherElementsNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let index = TensorType::from(node.inputs.get(1).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::gather_elements::GatherElementsConfig>();
+        let (inputs, outputs, config) = match node {
+            onnx_ir::Node::GatherElements {
+                inputs,
+                outputs,
+                config,
+                ..
+            } => (inputs, outputs, config),
+            _ => panic!("Expected GatherElements node"),
+        };
+        let input = TensorType::from(inputs.first().unwrap());
+        let index = TensorType::from(inputs.get(1).unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
         Self::new(input, index, output, config.axis)
     }
 }
