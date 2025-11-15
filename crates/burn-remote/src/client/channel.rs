@@ -26,6 +26,8 @@ impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
 
     type BoolElem = u32;
 
+    //type ComplexElem = burn_tensor::Complex32;
+
     fn name(device: &Self::Device) -> String {
         format!("remote-{device:?}")
     }
