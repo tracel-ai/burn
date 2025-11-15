@@ -1,0 +1,47 @@
+[package]
+name = "burn-peft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+description = "Parameter-Efficient Fine-Tuning (PEFT) methods for Burn: LoRA, DoRA, QLoRA, QDoRA"
+repository = "https://github.com/tracel-ai/burn"
+keywords = ["burn", "deep-learning", "peft", "lora", "fine-tuning"]
+categories = ["science", "machine-learning"]
+
+[features]
+default = ["std"]
+std = [
+    "burn-core/std",
+    "burn-tensor/std",
+]
+
+# Test backends
+test-cuda = ["burn-cuda"]
+test-wgpu = ["burn-wgpu"]
+test-tch = []
+test-rocm = []
+
+[dependencies]
+burn-core = { path = "../burn-core", version = "0.20.0-pre.1", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.1", default-features = false }
+
+# Workspace dependencies
+derive-new = { workspace = true }
+libm = { workspace = true }
+num-traits = { workspace = true }
+
+# Optional test backends
+burn-cuda = { path = "../burn-cuda", version = "0.20.0-pre.1", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.20.0-pre.1", optional = true }
+
+[dev-dependencies]
+burn = { path = "../burn", version = "0.20.0-pre.1", features = ["ndarray", "train"] }
+burn-ndarray = { path = "../burn-ndarray", version = "0.20.0-pre.1", default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "0.20.0-pre.1", default-features = false }
+float-cmp = { workspace = true }
+
+[[bench]]
+name = "peft_comparison"
+harness = false
+required-features = []  # Requires test-cuda or test-wgpu at runtime
