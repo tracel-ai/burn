@@ -971,6 +971,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-peft"
+version = "0.20.0-pre.1"
+dependencies = [
+ "burn",
+ "burn-autodiff",
+ "burn-core",
+ "burn-cuda",
+ "burn-ndarray",
+ "burn-tensor",
+ "burn-wgpu",
+ "derive-new",
+ "float-cmp",
+ "libm",
+ "num-traits",
+]
+
+[[package]]
 name = "burn-remote"
 version = "0.20.0-pre.1"
 dependencies = [
@@ -5672,6 +5689,14 @@ checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest",
  "hmac",
+]
+
+[[package]]
+name = "peft-mnist"
+version = "0.20.0-pre.1"
+dependencies = [
+ "burn",
+ "burn-peft",
 ]
 
 [[package]]
