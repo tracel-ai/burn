@@ -17,8 +17,8 @@ use crate::TensorSnapshot;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a key remapper
 /// let remapper = KeyRemapper::new()
-///     .add_pattern(r"^pytorch\.(.*)", "burn.$1")?  // pytorch.layer -> burn.layer
-///     .add_pattern(r"\.gamma$", ".weight")?;       // layer.gamma -> layer.weight
+///     .add_pattern(r"^pytorch\.", "burn.")?  // pytorch.layer -> burn.layer
+///     .add_pattern(r"\.gamma$", ".weight")?; // layer.gamma -> layer.weight
 ///
 /// // Use remapper with stores
 /// // store.remap(remapper)
