@@ -250,11 +250,7 @@ where
             kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
-            execute_with_dtype!(
-                float(tensor.dtype),
-                E,
-                kernel::slice_with_steps::<R, E>(tensor, slices)
-            )
+            kernel::slice_with_steps::<R>(tensor, slices)
         }
     }
 

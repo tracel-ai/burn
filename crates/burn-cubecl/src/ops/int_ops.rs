@@ -85,11 +85,7 @@ where
             kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
-            execute_with_dtype!(
-                int(tensor.dtype),
-                I,
-                kernel::slice_with_steps::<R, I>(tensor, slices)
-            )
+            kernel::slice_with_steps::<R>(tensor, slices)
         }
     }
 

@@ -70,7 +70,7 @@ where
             kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
-            kernel::slice_with_steps::<R, BT>(tensor, slices)
+            kernel::slice_with_steps::<R>(tensor, slices)
         }
     }
 
