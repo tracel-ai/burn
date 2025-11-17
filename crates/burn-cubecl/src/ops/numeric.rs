@@ -106,20 +106,30 @@ pub fn zeros_device_dtype<R: CubeRuntime>(
     full_device_dtype::<R>(client, shape, device, input_scalar(0u32, dtype), dtype)
 }
 
-/// Create a tensor filled with ones
+/// Creates a tensor filled with ones
 pub fn ones<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
     let client = R::client(device);
 
     ones_device::<R, E>(client, device.clone(), shape)
 }
 
-/// Create a tensor filled with ones
+/// Creates a tensor filled with ones
 pub fn ones_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
     full_device::<R, E>(client, shape, device, 1.elem())
+}
+
+/// Creates a tensor filled with ones
+pub fn ones_device_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    full_device_dtype::<R>(client, shape, device, input_scalar(1u32, dtype), dtype)
 }
 
 /// Creates a tensor with uninitialized memory
@@ -143,7 +153,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
 }
 
-/// Create an [InputScalar] from the given element and dtype.
+/// Creates an [InputScalar] from the given element and dtype.
 pub fn input_scalar<E: CubeElement>(val: E, dtype: DType) -> InputScalar {
     match dtype {
         DType::F64 => InputScalar::F64(val.elem()),

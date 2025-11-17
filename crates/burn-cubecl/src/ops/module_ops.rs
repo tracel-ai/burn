@@ -46,11 +46,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: DeformConvOptions<2>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::conv::deform_conv2d::<R, E>(x, offset, weight, mask, bias, options).unwrap()
-        )
+        kernel::conv::deform_conv2d::<R>(x, offset, weight, mask, bias, options).unwrap()
     }
 
     fn deform_conv2d_backward(

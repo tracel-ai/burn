@@ -76,7 +76,7 @@ pub(crate) fn deform_conv2d_backward<
         (kernel_h, kernel_w),
     )?;
 
-    let weight_grad = compute_weight_grad::<R, E>(
+    let weight_grad = compute_weight_grad::<R>(
         input,
         offset,
         mask,
@@ -95,7 +95,7 @@ pub(crate) fn deform_conv2d_backward<
     ))
 }
 
-fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
+fn compute_weight_grad<R: CubeRuntime>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
@@ -108,11 +108,12 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     let [_, out_channels, _, _] = out_grad.shape.dims();
     let (kernel_h, kernel_w) = kernel_dims;
     let groups = options.weight_groups;
+    let dtype = input.dtype;
 
     let in_c_per_group = in_channels / groups;
     let out_c_per_group = out_channels / groups;
 
-    let columns = deform_im2col::<R, E>(input, offset, mask, options, out_dims, kernel_dims);
+    let columns = deform_im2col::<R>(input, offset, mask, options, out_dims, kernel_dims);
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
 
@@ -122,13 +123,7 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
     let columns = swap_dims(columns, 1, 2);
 
-    let grad_weight = matmul::<R>(
-        out_grad,
-        columns,
-        None,
-        MatmulStrategy::default(),
-        E::dtype(),
-    )?;
+    let grad_weight = matmul::<R>(out_grad, columns, None, MatmulStrategy::default(), dtype)?;
 
     Ok(reshape(
         grad_weight,
