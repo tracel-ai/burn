@@ -15,7 +15,7 @@ use cubecl::{
 };
 
 use crate::{
-    CubeRuntime, execute_with_dtype,
+    CubeRuntime,
     kernel::{
         AddOp,
         conv::index,
@@ -306,7 +306,7 @@ pub fn conv_im2col<R: CubeRuntime, const N: usize>(
         let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
         bias_shape.push(out_channels);
         let bias = reshape(bias, bias_shape.into());
-        out = execute_with_dtype!(float(out.dtype), E, launch_binop::<R, E, AddOp>(out, bias));
+        out = launch_binop::<R, AddOp>(out, bias);
     }
 
     Ok(out)
@@ -376,7 +376,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
         let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
         bias_shape.push(out_channels);
         let bias = reshape(bias, bias_shape.into());
-        out = execute_with_dtype!(float(out.dtype), E, launch_binop::<R, E, AddOp>(out, bias));
+        out = launch_binop::<R, AddOp>(out, bias);
     }
 
     Ok(out)

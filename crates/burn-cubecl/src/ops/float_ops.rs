@@ -4,6 +4,7 @@ use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
 use crate::kernel::{into_contiguous, unary_basic::BasicFloatUnaryKind};
+use crate::ops::numeric::input_scalar;
 use crate::{CubeBackend, execute_with_dtype};
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
@@ -73,19 +74,12 @@ where
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            numeric::add::<R, E>(lhs, rhs)
-        )
+        numeric::add::<R>(lhs, rhs)
     }
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            numeric::add_scalar::<R, E>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::add_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -113,67 +107,39 @@ where
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            numeric::sub::<R, E>(lhs, rhs)
-        )
+        numeric::sub::<R>(lhs, rhs)
     }
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            numeric::sub_scalar::<R, E>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::sub_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            numeric::mul::<R, E>(lhs, rhs)
-        )
+        numeric::mul::<R>(lhs, rhs)
     }
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            numeric::mul_scalar::<R, E>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::mul_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            numeric::div::<R, E>(lhs, rhs)
-        )
+        numeric::div::<R>(lhs, rhs)
     }
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            numeric::div_scalar::<R, E>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::div_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            numeric::remainder::<R, E>(lhs, rhs)
-        )
+        numeric::remainder::<R>(lhs, rhs)
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            numeric::remainder_scalar::<R, E>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::remainder_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

@@ -304,7 +304,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        Ok(launch_binop::<R, E, AddOp>(out, bias))
+        Ok(launch_binop::<R, AddOp>(out, bias))
     } else {
         Ok(out)
     }

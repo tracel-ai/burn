@@ -7,6 +7,7 @@ use crate::{
         self,
         matmul::{MatmulStrategy, matmul},
     },
+    ops::numeric::input_scalar,
 };
 use crate::{
     element::BoolElement,
@@ -225,63 +226,48 @@ where
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::add::<R, I>(lhs, rhs))
+        numeric::add::<R>(lhs, rhs)
     }
 
     fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::add_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::add_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::sub::<R, I>(lhs, rhs))
+        numeric::sub::<R>(lhs, rhs)
     }
 
     fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::sub_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::sub_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::mul::<R, I>(lhs, rhs))
+        numeric::mul::<R>(lhs, rhs)
     }
 
     fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::mul_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::mul_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::div::<R, I>(lhs, rhs))
+        numeric::div::<R>(lhs, rhs)
     }
 
     fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::div_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::div_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::remainder::<R, I>(lhs, rhs))
+        numeric::remainder::<R>(lhs, rhs)
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::remainder_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::remainder_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {

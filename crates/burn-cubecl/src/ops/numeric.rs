@@ -186,71 +186,53 @@ pub fn empty_device_optimized_dtype<R: CubeRuntime>(
 }
 
 /// Add two tensors
-pub fn add<R: CubeRuntime, E: CubeElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop::<R, E, AddOp>(lhs, rhs)
+pub fn add<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, AddOp>(lhs, rhs)
 }
 
 /// Add a tensor and a scalar
-pub fn add_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
-    launch_scalar_binop::<R, E, AddOp>(lhs, rhs)
+pub fn add_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop::<R, AddOp>(lhs, rhs)
 }
 
 /// Subtract two tensors
-pub fn sub<R: CubeRuntime, E: CubeElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop::<R, E, SubOp>(lhs, rhs)
+pub fn sub<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, SubOp>(lhs, rhs)
 }
 
 /// Subtract a tensor and a scalar
-pub fn sub_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
-    launch_scalar_binop::<R, E, SubOp>(lhs, rhs)
+pub fn sub_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop::<R, SubOp>(lhs, rhs)
 }
 
 /// Multiply two tensors
-pub fn mul<R: CubeRuntime, E: CubeElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop::<R, E, MulOp>(lhs, rhs)
+pub fn mul<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, MulOp>(lhs, rhs)
 }
 
 /// Multiply a tensor and a scalar
-pub fn mul_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
-    launch_scalar_binop::<R, E, MulOp>(lhs, rhs)
+pub fn mul_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop::<R, MulOp>(lhs, rhs)
 }
 
 /// Divide two tensors
-pub fn div<R: CubeRuntime, E: CubeElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop::<R, E, DivOp>(lhs, rhs)
+pub fn div<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, DivOp>(lhs, rhs)
 }
 
 /// Divide a tensor by a scalar
-pub fn div_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
-    launch_scalar_binop::<R, E, DivOp>(lhs, rhs)
+pub fn div_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop::<R, DivOp>(lhs, rhs)
 }
 
 /// Calculate remainder of two tensors
-pub fn remainder<R: CubeRuntime, E: CubeElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop::<R, E, RemainderOp>(lhs, rhs)
+pub fn remainder<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, RemainderOp>(lhs, rhs)
 }
 
 /// Calculate the remainder of a tensor with a scalar
-pub fn remainder_scalar<R: CubeRuntime, E: CubeElement>(
-    lhs: CubeTensor<R>,
-    rhs: E,
-) -> CubeTensor<R> {
-    launch_scalar_binop::<R, E, RemainderOp>(lhs, rhs)
+pub fn remainder_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop::<R, RemainderOp>(lhs, rhs)
 }
 
 /// Calculate the power of two tensors
@@ -258,7 +240,7 @@ pub fn pow<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    launch_binop::<R, E, PowOp<E>>(lhs, rhs)
+    launch_binop::<R, PowOp<E>>(lhs, rhs)
 }
 
 /// Bitwise and two tensors

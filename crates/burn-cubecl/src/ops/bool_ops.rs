@@ -91,11 +91,11 @@ where
     }
 
     fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::launch_binop::<R, BT, AndOp>(lhs, rhs)
+        kernel::launch_binop::<R, AndOp>(lhs, rhs)
     }
 
     fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::launch_binop::<R, BT, OrOp>(lhs, rhs)
+        kernel::launch_binop::<R, OrOp>(lhs, rhs)
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
