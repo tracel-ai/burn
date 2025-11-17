@@ -165,15 +165,7 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            E,
-            execute_with_dtype!(
-                int(indices.dtype),
-                I,
-                kernel::select_assign::<R, E, I>(tensor, dim, indices, value, false)
-            )
-        )
+        kernel::select_assign::<R>(tensor, dim, indices, value, false)
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {

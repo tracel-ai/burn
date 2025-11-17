@@ -135,7 +135,7 @@ where
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        kernel::select_assign::<R, BT, I>(tensor, dim, indices, value, true)
+        kernel::select_assign::<R>(tensor, dim, indices, value, true)
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {

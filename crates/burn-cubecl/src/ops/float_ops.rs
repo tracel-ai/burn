@@ -232,15 +232,7 @@ where
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            int(indices.dtype),
-            I,
-            execute_with_dtype!(
-                float(tensor.dtype, value.dtype),
-                E,
-                kernel::select_assign::<R, E, I>(tensor, dim, indices, value, false)
-            )
-        )
+        kernel::select_assign::<R>(tensor, dim, indices, value, false)
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
