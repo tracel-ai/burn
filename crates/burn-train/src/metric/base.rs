@@ -68,8 +68,6 @@ pub struct MetricDefinition {
     pub description: Option<String>,
     /// The attributes of the metric.
     pub attributes: MetricAttributes,
-    /// Tags linked to the metric.
-    pub tags: Vec<Arc<String>>,
 }
 
 impl MetricDefinition {
@@ -80,7 +78,6 @@ impl MetricDefinition {
             name: metric.name().to_string(),
             description: metric.description(),
             attributes: metric.attributes(),
-            tags: Vec::new(),
         }
     }
 }
@@ -187,8 +184,6 @@ pub struct MetricEntry {
     pub metric_id: MetricId,
     /// The serialized form of the entry.
     pub serialized_entry: SerializedEntry,
-    /// Tags linked to the metric.
-    pub tags: Vec<Arc<String>>,
 }
 
 impl MetricEntry {
@@ -197,7 +192,6 @@ impl MetricEntry {
         Self {
             metric_id,
             serialized_entry,
-            tags: Vec::new(),
         }
     }
 }

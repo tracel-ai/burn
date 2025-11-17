@@ -1,5 +1,6 @@
 use super::EventStore;
 use super::{Aggregate, Direction, Event, Split};
+use std::sync::Arc;
 use std::{sync::mpsc, thread::JoinHandle};
 
 /// Type that allows to communicate with an [event store](EventStore).
@@ -40,9 +41,9 @@ impl EventStoreClient {
     }
 
     /// Add a testing event to the [event store](EventStore).
-    pub(crate) fn add_event_test(&self, event: Event) {
+    pub(crate) fn add_event_test(&self, event: Event, tag: Arc<String>) {
         self.sender
-            .send(Message::OnEventTest(event))
+            .send(Message::OnEventTest(event, tag))
             .expect("Can send event to event store thread.");
     }
 
@@ -125,16 +126,18 @@ where
                         .send(response)
                         .expect("Can send response using callback channel.");
                 }
-                Message::OnEventTrain(event) => self.store.add_event(event, Split::Train),
-                Message::OnEventValid(event) => self.store.add_event(event, Split::Valid),
-                Message::OnEventTest(event) => self.store.add_event(event, Split::Test),
+                Message::OnEventTrain(event) => self.store.add_event(event, Split::Train, None),
+                Message::OnEventValid(event) => self.store.add_event(event, Split::Valid, None),
+                Message::OnEventTest(event, tag) => {
+                    self.store.add_event(event, Split::Test, Some(tag))
+                }
             }
         }
     }
 }
 
 enum Message {
-    OnEventTest(Event),
+    OnEventTest(Event, Arc<String>),
     OnEventTrain(Event),
     OnEventValid(Event),
     End,

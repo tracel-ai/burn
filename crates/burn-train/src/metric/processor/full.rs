@@ -70,11 +70,12 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 let progress = (&item).into();
                 let metadata = (&item).into();
 
-                let mut update = self.metrics.update_test(&item, &metadata);
-                update.tag(name.name.clone());
+                let update = self.metrics.update_test(&item, &metadata);
 
-                self.store
-                    .add_event_test(crate::metric::store::Event::MetricsUpdate(update.clone()));
+                self.store.add_event_test(
+                    crate::metric::store::Event::MetricsUpdate(update.clone()),
+                    name.name.clone(),
+                );
 
                 update.entries.into_iter().for_each(|entry| {
                     self.renderer

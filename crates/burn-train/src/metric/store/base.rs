@@ -21,18 +21,6 @@ pub struct MetricsUpdate {
     pub entries_numeric: Vec<(MetricEntry, NumericEntry)>,
 }
 
-impl MetricsUpdate {
-    /// Appends a tag to the config.
-    pub fn tag(&mut self, tag: Arc<String>) {
-        self.entries.iter_mut().for_each(|entry| {
-            entry.tags.push(tag.clone());
-        });
-        self.entries_numeric.iter_mut().for_each(|(entry, _)| {
-            entry.tags.push(tag.clone());
-        });
-    }
-}
-
 /// Summary information about a given epoch
 #[derive(new, Clone, Debug)]
 pub struct EpochSummary {
@@ -49,7 +37,7 @@ pub struct EpochSummary {
 /// This trait also exposes methods that uses the collected data to compute useful information.
 pub trait EventStore: Send {
     /// Collect a training/validation event.
-    fn add_event(&mut self, event: Event, split: Split);
+    fn add_event(&mut self, event: Event, split: Split, tag: Option<Arc<String>>);
 
     /// Find the epoch following the given criteria from the collected data.
     fn find_epoch(

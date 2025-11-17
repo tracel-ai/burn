@@ -23,7 +23,6 @@ pub(crate) struct MetricsEvaluation<T: ItemLazy> {
     test: Vec<Box<dyn MetricUpdater<T::ItemSync>>>,
     test_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
     metric_definitions: HashMap<MetricId, MetricDefinition>,
-    // tags ??
 }
 
 impl<T: ItemLazy> Default for MetricsEvaluation<T> {
