@@ -20,7 +20,7 @@
 //! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -57,6 +57,15 @@ impl LayerNormConfig {
         self.full_precision = full_precision;
         self
     }
+}
+
+/// Node representation for LayerNormalization operation
+#[derive(Debug, Clone)]
+pub struct LayerNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LayerNormConfig,
 }
 
 pub(crate) struct LayerNormProcessor;
@@ -174,12 +183,12 @@ impl NodeProcessor for LayerNormProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::LayerNormalization {
+        Node::LayerNormalization(LayerNormalizationNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

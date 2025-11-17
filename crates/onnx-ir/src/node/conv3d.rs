@@ -8,12 +8,21 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Conv3d operation
+#[derive(Debug, Clone)]
+pub struct Conv3dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: Conv3dConfig,
+}
 
 /// Configuration for Conv3d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -193,12 +202,12 @@ impl NodeProcessor for Conv3dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Conv3d {
+        Node::Conv3d(Conv3dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

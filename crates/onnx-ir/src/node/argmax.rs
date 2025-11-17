@@ -24,6 +24,15 @@ pub struct ArgMaxConfig {
     pub keepdims: bool,
 }
 
+/// Node representation for ArgMax operation
+#[derive(Debug, Clone)]
+pub struct ArgMaxNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ArgMaxConfig,
+}
+
 pub(crate) struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
@@ -150,12 +159,12 @@ impl NodeProcessor for ArgMaxProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::ArgMax {
+        Node::ArgMax(ArgMaxNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

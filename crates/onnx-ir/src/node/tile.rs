@@ -22,7 +22,7 @@
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
 
-use crate::ir::{Node, NodeBuilder, RuntimeInputRef};
+use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -47,6 +47,15 @@ impl Default for TileInput {
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
     pub repeats: TileInput,
+}
+
+/// Node representation for Tile operation
+#[derive(Debug, Clone)]
+pub struct TileNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: TileConfig,
 }
 
 pub(crate) struct TileProcessor;
@@ -128,12 +137,12 @@ impl NodeProcessor for TileProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Tile {
+        Node::Tile(TileNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -37,6 +37,15 @@ impl CastConfig {
     }
 }
 
+/// Node representation for Cast operation
+#[derive(Debug, Clone)]
+pub struct CastNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: CastConfig,
+}
+
 pub(crate) struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
@@ -147,12 +156,12 @@ impl NodeProcessor for CastProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Cast {
+        Node::Cast(CastNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

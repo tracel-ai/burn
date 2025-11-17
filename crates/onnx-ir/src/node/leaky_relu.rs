@@ -21,7 +21,7 @@
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 //! - TODO: No test for zero-size tensors - Empty tensor handling
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -31,6 +31,15 @@ use crate::processor::{
 pub struct LeakyReluConfig {
     /// Alpha value for negative slope
     pub alpha: f64,
+}
+
+/// Node representation for LeakyRelu operation
+#[derive(Debug, Clone)]
+pub struct LeakyReluNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LeakyReluConfig,
 }
 
 pub(crate) struct LeakyReluProcessor;
@@ -98,12 +107,12 @@ impl NodeProcessor for LeakyReluProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::LeakyRelu {
+        Node::LeakyRelu(LeakyReluNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

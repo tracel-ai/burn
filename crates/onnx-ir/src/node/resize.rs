@@ -95,6 +95,15 @@ impl Default for ResizeSizes {
     }
 }
 
+/// Node representation for Resize operation
+#[derive(Debug, Clone)]
+pub struct ResizeNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ResizeConfig,
+}
+
 /// Extract scales input as either static or runtime
 fn extract_scales_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
@@ -473,12 +482,12 @@ impl NodeProcessor for ResizeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Resize {
+        Node::Resize(ResizeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

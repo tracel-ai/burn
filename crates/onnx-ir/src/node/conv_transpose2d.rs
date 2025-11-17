@@ -13,11 +13,20 @@
 //!   (see FIXME at line 188 regarding ONNX spec clarification)
 //! - Padding order: See FIXME at line 163 regarding padding order verification
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for ConvTranspose2d operation
+#[derive(Debug, Clone)]
+pub struct ConvTranspose2dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConvTranspose2dConfig,
+}
 
 /// Configuration for ConvTranspose2d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,12 +228,12 @@ impl NodeProcessor for Convtranspose2dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::ConvTranspose2d {
+        Node::ConvTranspose2d(ConvTranspose2dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

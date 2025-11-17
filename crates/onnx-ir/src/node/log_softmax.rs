@@ -20,7 +20,7 @@
 //! - TODO: No test for all-zero or constant inputs - Edge cases for softmax normalization
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 
-use crate::ir::{ArgType, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -30,6 +30,15 @@ use crate::processor::{
 pub struct LogSoftmaxConfig {
     /// Axis along which to apply log softmax
     pub axis: usize,
+}
+
+/// Node representation for LogSoftmax operation
+#[derive(Debug, Clone)]
+pub struct LogSoftmaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LogSoftmaxConfig,
 }
 
 pub(crate) struct LogSoftmaxProcessor;
@@ -117,12 +126,12 @@ impl NodeProcessor for LogSoftmaxProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::LogSoftmax {
+        Node::LogSoftmax(LogSoftmaxNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

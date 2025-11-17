@@ -16,7 +16,7 @@
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
-use crate::ir::{ArgType, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -26,6 +26,15 @@ use crate::processor::{
 pub struct TransposeConfig {
     /// Permutation of dimensions
     pub perm: Vec<i64>,
+}
+
+/// Node representation for Transpose operation
+#[derive(Debug, Clone)]
+pub struct TransposeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: TransposeConfig,
 }
 
 pub(crate) struct TransposeProcessor;
@@ -120,12 +129,12 @@ impl NodeProcessor for TransposeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Transpose {
+        Node::Transpose(TransposeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -8,11 +8,20 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Conv2d operation
+#[derive(Debug, Clone)]
+pub struct Conv2dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: Conv2dConfig,
+}
 
 /// Configuration for Conv2d operations
 #[derive(Debug, Clone)]
@@ -273,12 +282,12 @@ impl NodeProcessor for Conv2dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Conv2d {
+        Node::Conv2d(Conv2dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

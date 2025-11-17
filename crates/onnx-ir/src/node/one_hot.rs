@@ -18,7 +18,7 @@
 //! Should reject non-integer types like float for indices/depth inputs.
 //! Location: infer_types method after validate_input_count
 
-use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -47,6 +47,15 @@ pub struct OneHotConfig {
     pub depth: OneHotDepthInput,
     pub values: OneHotValuesInput,
     pub axis: i64,
+}
+
+/// Node representation for OneHot operation
+#[derive(Debug, Clone)]
+pub struct OneHotNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: OneHotConfig,
 }
 
 /// Update output rank for OneHot (input rank + 1).
@@ -192,12 +201,12 @@ impl NodeProcessor for OneHotProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::OneHot {
+        Node::OneHot(OneHotNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

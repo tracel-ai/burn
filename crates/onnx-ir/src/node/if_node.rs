@@ -10,7 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, OnnxGraph};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -20,6 +20,15 @@ use crate::processor::{
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
+}
+
+/// Node representation for If operation
+#[derive(Debug, Clone)]
+pub struct IfNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: IfConfig,
 }
 
 /// If node processor
@@ -182,12 +191,12 @@ impl NodeProcessor for IfProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::If {
+        Node::If(IfNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

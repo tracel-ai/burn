@@ -24,6 +24,15 @@ pub struct ScanConfig {
     pub scan_output_axes: Vec<i64>,
 }
 
+/// Node representation for Scan operation
+#[derive(Debug, Clone)]
+pub struct ScanNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ScanConfig,
+}
+
 /// Scan node processor
 pub(crate) struct ScanProcessor;
 
@@ -216,12 +225,12 @@ impl NodeProcessor for ScanProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Scan {
+        Node::Scan(ScanNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -8,10 +8,18 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Size operation
+#[derive(Debug, Clone)]
+pub struct SizeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 pub(crate) struct SizeProcessor;
 
@@ -39,11 +47,11 @@ impl NodeProcessor for SizeProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Size {
+        Node::Size(SizeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

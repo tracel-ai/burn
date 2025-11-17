@@ -52,25 +52,14 @@ pub(crate) struct NodeBuilder {
 // Node enum - Type-safe representation with operation-specific config
 // ============================================================================
 
+use crate::node::*;
+
 /// Macro to define both NodeType and Node enums from a single source
-///
-/// This macro takes a list of variants and generates:
-/// 1. NodeType enum - simple enum of all operation types (for parsing/registry)
-/// 2. Node enum - full enum with name, inputs, outputs, and optional config
-/// 3. Accessor methods (name(), inputs(), outputs()) that work for all Node variants
-///
-/// Usage:
-/// ```ignore
-/// define_node_enum! {
-///     VariantName,              // No config
-///     VariantName { config: ConfigType },  // With config
-/// }
-/// ```
 macro_rules! define_node_enum {
     (
         $(
-            $(#[$meta:meta])*
-            $variant:ident $({ $($field:ident: $type:ty),* $(,)? })?
+            $(#[$variant_meta:meta])*
+            $variant:ident => $node_type:ty
         ),* $(,)?
     ) => {
         /// Supported ONNX operators (plus Burn-specific extensions for dimensional mapping)
@@ -79,13 +68,10 @@ macro_rules! define_node_enum {
         ///
         /// Note: Some operators have dimensional variants (e.g., Conv1d, Conv2d, Conv3d) that are
         /// Burn-specific extensions for better type safety and code generation.
-        ///
-        /// This enum is automatically generated from the Node enum definition to ensure
-        /// they stay in sync.
         #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
         pub enum NodeType {
             $(
-                $(#[$meta])*
+                $(#[$variant_meta])*
                 $variant,
             )*
         }
@@ -93,17 +79,12 @@ macro_rules! define_node_enum {
         /// Enum-based node representation
         ///
         /// Each ONNX operation is represented as a separate enum variant containing
-        /// the operation-specific configuration.
+        /// the operation-specific node struct.
         #[derive(Debug, Clone)]
         pub enum Node {
             $(
-                $(#[$meta])*
-                $variant {
-                    name: String,
-                    inputs: Vec<Argument>,
-                    outputs: Vec<Argument>,
-                    $($($field: $type),*)?
-                },
+                $(#[$variant_meta])*
+                $variant($node_type),
             )*
         }
 
@@ -111,276 +92,278 @@ macro_rules! define_node_enum {
             /// Get the node name
             pub fn name(&self) -> &str {
                 match self {
-                    $(Node::$variant { name, .. })|* => name,
+                    $(
+                        Node::$variant(inner) => &inner.name,
+                    )*
                 }
             }
 
             /// Get the node inputs
             pub fn inputs(&self) -> &[Argument] {
                 match self {
-                    $(Node::$variant { inputs, .. })|* => inputs,
+                    $(
+                        Node::$variant(inner) => &inner.inputs,
+                    )*
                 }
             }
 
             /// Get the node outputs
             pub fn outputs(&self) -> &[Argument] {
                 match self {
-                    $(Node::$variant { outputs, .. })|* => outputs,
+                    $(
+                        Node::$variant(inner) => &inner.outputs,
+                    )*
                 }
             }
         }
     };
 }
 
-use crate::node::*;
-
 define_node_enum! {
+    // ARITHMETIC & BASIC OPERATIONS
+    Add => arithmetic::AddNode,
+    Sub => arithmetic::SubNode,
+    Mul => arithmetic::MulNode,
+    Div => arithmetic::DivNode,
+    Neg => elementwise::ElementwiseUnaryNode,
+    Abs => elementwise::ElementwiseUnaryNode,
+    Pow => elementwise::ElementwiseBinaryNode,
+    Reciprocal => elementwise::ElementwiseUnaryNode,
+    Sqrt => elementwise::ElementwiseUnaryNode,
+    Exp => elementwise::ElementwiseUnaryNode,
+    Log => elementwise::ElementwiseUnaryNode,
+    Ceil => elementwise::ElementwiseUnaryNode,
+    Floor => elementwise::ElementwiseUnaryNode,
+    Round => elementwise::ElementwiseUnaryNode,
+    Sign => elementwise::ElementwiseUnaryNode,
+    Erf => elementwise::ElementwiseUnaryNode,
 
-    // ARITHMETIC & BASIC OPERATIONS (no config)
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Neg,
-    Abs,
-    Pow,
-    Reciprocal,
-    Sqrt,
-    Exp,
-    Log,
-    Ceil,
-    Floor,
-    Round,
-    Sign,
-    Erf,
-
-    // TRIGONOMETRIC OPERATIONS (no config)
-    Sin,
-    Cos,
-    Tan,
-    Asin,
-    Acos,
-    Atan,
-    Sinh,
-    Cosh,
-    Tanh,
-    Asinh,
-    Acosh,
-    Atanh,
+    // TRIGONOMETRIC OPERATIONS
+    Sin => elementwise::ElementwiseUnaryNode,
+    Cos => elementwise::ElementwiseUnaryNode,
+    Tan => elementwise::ElementwiseUnaryNode,
+    Asin => elementwise::ElementwiseUnaryNode,
+    Acos => elementwise::ElementwiseUnaryNode,
+    Atan => elementwise::ElementwiseUnaryNode,
+    Sinh => elementwise::ElementwiseUnaryNode,
+    Cosh => elementwise::ElementwiseUnaryNode,
+    Tanh => elementwise::ElementwiseUnaryNode,
+    Asinh => elementwise::ElementwiseUnaryNode,
+    Acosh => elementwise::ElementwiseUnaryNode,
+    Atanh => elementwise::ElementwiseUnaryNode,
 
     // ACTIVATION FUNCTIONS
-    Relu,
-    Sigmoid,
-    Softmax { config: softmax::SoftmaxConfig },
-    LogSoftmax { config: log_softmax::LogSoftmaxConfig },
-    LeakyRelu { config: leaky_relu::LeakyReluConfig },
-    HardSigmoid { config: hard_sigmoid::HardSigmoidConfig },
-    Elu,
-    Selu,
-    Celu,
-    Gelu,
-    Mish,
-    Softplus,
-    Softsign,
-    ThresholdedRelu,
-    HardSwish,
-    PRelu,
+    Relu => relu::ReluNode,
+    Sigmoid => elementwise::ElementwiseUnaryNode,
+    Softmax => softmax::SoftmaxNode,
+    LogSoftmax => log_softmax::LogSoftmaxNode,
+    LeakyRelu => leaky_relu::LeakyReluNode,
+    HardSigmoid => hard_sigmoid::HardSigmoidNode,
+    Elu => elementwise::ElementwiseUnaryNode,
+    Selu => elementwise::ElementwiseUnaryNode,
+    Celu => elementwise::ElementwiseUnaryNode,
+    Gelu => elementwise::ElementwiseUnaryNode,
+    Mish => elementwise::ElementwiseUnaryNode,
+    Softplus => elementwise::ElementwiseUnaryNode,
+    Softsign => elementwise::ElementwiseUnaryNode,
+    ThresholdedRelu => elementwise::ElementwiseUnaryNode,
+    HardSwish => elementwise::ElementwiseUnaryNode,
+    PRelu => prelu::PReluNode,
 
-    // COMPARISON & LOGICAL OPERATIONS (no config)
-    Equal,
-    Greater,
-    GreaterOrEqual,
-    Less,
-    LessOrEqual,
-    And,
-    Or,
-    Xor,
-    Not,
-    Where,
+    // COMPARISON & LOGICAL OPERATIONS
+    Equal => comparison::EqualNode,
+    Greater => comparison::GreaterNode,
+    GreaterOrEqual => comparison::GreaterOrEqualNode,
+    Less => comparison::LessNode,
+    LessOrEqual => comparison::LessOrEqualNode,
+    And => elementwise::ElementwiseBinaryNode,
+    Or => elementwise::ElementwiseBinaryNode,
+    Xor => elementwise::ElementwiseBinaryNode,
+    Not => elementwise::ElementwiseUnaryNode,
+    Where => where_op::WhereNode,
 
     // BITWISE OPERATIONS
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    BitwiseNot,
-    BitShift { config: bitshift::BitShiftConfig },
+    BitwiseAnd => elementwise::ElementwiseBinaryNode,
+    BitwiseOr => elementwise::ElementwiseBinaryNode,
+    BitwiseXor => elementwise::ElementwiseBinaryNode,
+    BitwiseNot => elementwise::ElementwiseUnaryNode,
+    BitShift => bitshift::BitShiftNode,
 
     // REDUCTION OPERATIONS
-    ArgMax { config: argmax::ArgMaxConfig },
-    ArgMin { config: argmin::ArgMinConfig },
-    ReduceMax { config: reduce::ReduceConfig },
-    ReduceMin { config: reduce::ReduceConfig },
-    ReduceMean { config: reduce::ReduceConfig },
-    ReduceSum { config: reduce::ReduceConfig },
-    ReduceProd { config: reduce::ReduceConfig },
-    ReduceL1 { config: reduce::ReduceConfig },
-    ReduceL2 { config: reduce::ReduceConfig },
-    ReduceLogSum { config: reduce::ReduceConfig },
-    ReduceLogSumExp { config: reduce::ReduceConfig },
-    ReduceSumSquare { config: reduce::ReduceConfig },
+    ArgMax => argmax::ArgMaxNode,
+    ArgMin => argmin::ArgMinNode,
+    ReduceMax => reduce::ReduceMaxNode,
+    ReduceMin => reduce::ReduceMinNode,
+    ReduceMean => reduce::ReduceMeanNode,
+    ReduceSum => reduce::ReduceSumNode,
+    ReduceProd => reduce::ReduceProdNode,
+    ReduceL1 => reduce::ReduceL1Node,
+    ReduceL2 => reduce::ReduceL2Node,
+    ReduceLogSum => reduce::ReduceLogSumNode,
+    ReduceLogSumExp => reduce::ReduceLogSumExpNode,
+    ReduceSumSquare => reduce::ReduceSumSquareNode,
 
-    // AGGREGATION OPERATIONS (no config)
-    Max,
-    Min,
-    Mean,
-    Sum,
+    // AGGREGATION OPERATIONS
+    Max => elementwise::ElementwiseBinaryNode,
+    Min => elementwise::ElementwiseBinaryNode,
+    Mean => mean::MeanNode,
+    Sum => sum::SumNode,
 
     // TENSOR MANIPULATION
-    Cast { config: cast::CastConfig },
-    Clip { config: clip::ClipConfig },
-    Concat { config: concat::ConcatConfig },
-    Expand { config: expand::ExpandConfig },
-    Flatten { config: flatten::FlattenConfig },
-    Gather { config: gather::GatherConfig },
-    GatherElements { config: gather_elements::GatherElementsConfig },
-    GatherND,
-    Identity,
-    Pad { config: pad::PadConfig },
-    Reshape { config: reshape::ReshapeConfig },
-    Resize { config: resize::ResizeConfig },
-    Scatter,
-    ScatterElements,
-    ScatterND,
-    Shape { config: shape::ShapeConfig },
-    Size,
-    Slice { config: slice::SliceConfig },
-    Split { config: split::SplitConfig },
-    Squeeze { config: squeeze::SqueezeConfig },
-    Tile { config: tile::TileConfig },
-    Transpose { config: transpose::TransposeConfig },
-    Unsqueeze { config: unsqueeze::UnsqueezeConfig },
-    DepthToSpace { config: depth_to_space::DepthToSpaceConfig },
-    SpaceToDepth { config: space_to_depth::SpaceToDepthConfig },
+    Cast => cast::CastNode,
+    Clip => clip::ClipNode,
+    Concat => concat::ConcatNode,
+    Expand => expand::ExpandNode,
+    Flatten => flatten::FlattenNode,
+    Gather => gather::GatherNode,
+    GatherElements => gather_elements::GatherElementsNode,
+    GatherND => unsupported::GatherNDNode,
+    Identity => unsupported::IdentityNode,
+    Pad => pad::PadNode,
+    Reshape => reshape::ReshapeNode,
+    Resize => resize::ResizeNode,
+    Scatter => unsupported::ScatterNode,
+    ScatterElements => unsupported::ScatterElementsNode,
+    ScatterND => unsupported::ScatterNDNode,
+    Shape => shape::ShapeNode,
+    Size => size::SizeNode,
+    Slice => slice::SliceNode,
+    Split => split::SplitNode,
+    Squeeze => squeeze::SqueezeNode,
+    Tile => tile::TileNode,
+    Transpose => transpose::TransposeNode,
+    Unsqueeze => unsqueeze::UnsqueezeNode,
+    DepthToSpace => depth_to_space::DepthToSpaceNode,
+    SpaceToDepth => space_to_depth::SpaceToDepthNode,
 
     // MATRIX OPERATIONS
-    MatMul,
-    MatMulInteger,
-    Gemm { config: gemm::GemmConfig },
+    MatMul => matmul::MatMulNode,
+    MatMulInteger => matmulinteger::MatMulIntegerNode,
+    Gemm => gemm::GemmNode,
 
     // CONVOLUTION & POOLING
-    Conv1d { config: conv1d::Conv1dConfig },
-    Conv2d { config: conv2d::Conv2dConfig },
-    Conv3d { config: conv3d::Conv3dConfig },
-    ConvTranspose1d { config: conv_transpose1d::ConvTranspose1dConfig },
-    ConvTranspose2d { config: conv_transpose2d::ConvTranspose2dConfig },
-    ConvTranspose3d { config: conv_transpose3d::ConvTranspose3dConfig },
-    AveragePool1d { config: avg_pool1d::AvgPool1dConfig },
-    AveragePool2d { config: avg_pool2d::AvgPool2dConfig },
-    MaxPool1d { config: max_pool1d::MaxPool1dConfig },
-    MaxPool2d { config: max_pool2d::MaxPool2dConfig },
-    GlobalAveragePool,
-    GlobalMaxPool,
+    Conv1d => conv1d::Conv1dNode,
+    Conv2d => conv2d::Conv2dNode,
+    Conv3d => conv3d::Conv3dNode,
+    ConvTranspose1d => conv_transpose1d::ConvTranspose1dNode,
+    ConvTranspose2d => conv_transpose2d::ConvTranspose2dNode,
+    ConvTranspose3d => conv_transpose3d::ConvTranspose3dNode,
+    AveragePool1d => avg_pool1d::AveragePool1dNode,
+    AveragePool2d => avg_pool2d::AveragePool2dNode,
+    MaxPool1d => max_pool1d::MaxPool1dNode,
+    MaxPool2d => max_pool2d::MaxPool2dNode,
+    GlobalAveragePool => unsupported::GlobalAveragePoolNode,
+    GlobalMaxPool => unsupported::GlobalMaxPoolNode,
 
     // NORMALIZATION
-    BatchNormalization { config: batch_norm::BatchNormConfig },
-    InstanceNormalization { config: instance_norm::InstanceNormConfig },
-    LayerNormalization { config: layer_norm::LayerNormConfig },
-    GroupNormalization { config: group_norm::GroupNormConfig },
+    BatchNormalization => batch_norm::BatchNormalizationNode,
+    InstanceNormalization => instance_norm::InstanceNormalizationNode,
+    LayerNormalization => layer_norm::LayerNormalizationNode,
+    GroupNormalization => group_norm::GroupNormalizationNode,
 
     // DROPOUT & REGULARIZATION
-    Dropout { config: dropout::DropoutConfig },
+    Dropout => dropout::DropoutNode,
 
     // LINEAR & SPECIAL LAYERS
-    Linear { config: linear::LinearConfig },
-    Attention { config: attention::AttentionConfig },
+    Linear => linear::LinearNode,
+    Attention => attention::AttentionNode,
 
     // CONSTANT GENERATION
-    Constant,
-    ConstantOfShape { config: constant_of_shape::ConstantOfShapeConfig },
-    EyeLike { config: eye_like::EyeLikeConfig },
+    Constant => constant::ConstantNode,
+    ConstantOfShape => constant_of_shape::ConstantOfShapeNode,
+    EyeLike => eye_like::EyeLikeNode,
 
     // RANDOM OPERATIONS
-    RandomNormal { config: random::RandomNormalConfig },
-    RandomUniform { config: random::RandomUniformConfig },
-    RandomNormalLike { config: random_like::RandomNormalLikeConfig },
-    RandomUniformLike { config: random_like::RandomUniformLikeConfig },
-    Bernoulli,
+    RandomNormal => random::RandomNormalNode,
+    RandomUniform => random::RandomUniformNode,
+    RandomNormalLike => random_like::RandomNormalLikeNode,
+    RandomUniformLike => random_like::RandomUniformLikeNode,
+    Bernoulli => bernoulli::BernoulliNode,
 
     // RANGE & SEQUENCE OPERATIONS
-    Range { config: range::RangeConfig },
-    OneHot { config: one_hot::OneHotConfig },
+    Range => range::RangeNode,
+    OneHot => one_hot::OneHotNode,
 
     // CONTROL FLOW
-    If { config: if_node::IfConfig },
-    Loop { config: loop_node::LoopConfig },
-    Scan { config: scan_node::ScanConfig },
+    If => if_node::IfNode,
+    Loop => loop_node::LoopNode,
+    Scan => scan_node::ScanNode,
 
     // SPECIAL OPERATIONS
-    IsInf { config: is_inf::IsInfConfig },
-    IsNaN,
-    NonZero,
-    TopK { config: topk::TopKConfig },
-    Unique,
-    Trilu { config: trilu::TriluConfig },
-    Mod { config: modulo::ModConfig },
-    CumSum,
+    IsInf => is_inf::IsInfNode,
+    IsNaN => is_nan::IsNaNNode,
+    NonZero => nonzero::NonZeroNode,
+    TopK => topk::TopKNode,
+    Unique => unsupported::UniqueNode,
+    Trilu => trilu::TriluNode,
+    Mod => modulo::ModNode,
+    CumSum => unsupported::CumSumNode,
 
     // UNSUPPORTED / PLACEHOLDER OPERATIONS (not yet implemented in burn-import)
-    // These are part of the ONNX spec but don't have full Node implementations yet
-    AffineGrid,
-    AveragePool,
-    BlackmanWindow,
-    CastLike,
-    CenterCropPad,
-    Col2Im,
-    Compress,
-    ConcatFromSequence,
-    Conv,
-    ConvInteger,
-    ConvTranspose,
-    Dft,
-    DeformConv,
-    DequantizeLinear,
-    Det,
-    DynamicQuantizeLinear,
-    Einsum,
-    GridSample,
-    Gru,
-    HammingWindow,
-    HannWindow,
-    Hardmax,
-    Im,
-    ImageDecoder,
-    LpNormalization,
-    LpPool,
-    Lrn,
-    Lstm,
-    MaxPool,
-    MaxRoiPool,
-    MaxUnpool,
-    MeanVarianceNormalization,
-    MelWeightMatrix,
-    Multinomial,
-    NegativeLogLikelihoodLoss,
-    NonMaxSuppression,
-    Optional,
-    OptionalGetElement,
-    OptionalHasElement,
-    QLinearConv,
-    QLinearMatMul,
-    QuantizeLinear,
-    RMSNormalization,
-    Rnn,
-    RegexFullMatch,
-    ReverseSequence,
-    RoiAlign,
-    RotaryEmbedding,
-    SequenceAt,
-    SequenceConstruct,
-    SequenceEmpty,
-    SequenceErase,
-    SequenceInsert,
-    SequenceLength,
-    SequenceMap,
-    Shrink,
-    SoftmaxCrossEntropyLoss,
-    SplitToSequence,
-    Stft,
-    StringConcat,
-    StringNormalizer,
-    StringSplit,
-    Swish,
-    TensorScatter,
-    TfIdfVectorizer,
-    Upsample,
+    AffineGrid => unsupported::AffineGridNode,
+    AveragePool => unsupported::AveragePoolNode,
+    BlackmanWindow => unsupported::BlackmanWindowNode,
+    CastLike => unsupported::CastLikeNode,
+    CenterCropPad => unsupported::CenterCropPadNode,
+    Col2Im => unsupported::Col2ImNode,
+    Compress => unsupported::CompressNode,
+    ConcatFromSequence => unsupported::ConcatFromSequenceNode,
+    Conv => unsupported::ConvNode,
+    ConvInteger => unsupported::ConvIntegerNode,
+    ConvTranspose => unsupported::ConvTransposeNode,
+    Dft => unsupported::DftNode,
+    DeformConv => unsupported::DeformConvNode,
+    DequantizeLinear => unsupported::DequantizeLinearNode,
+    Det => unsupported::DetNode,
+    DynamicQuantizeLinear => unsupported::DynamicQuantizeLinearNode,
+    Einsum => unsupported::EinsumNode,
+    GridSample => unsupported::GridSampleNode,
+    Gru => unsupported::GruNode,
+    HammingWindow => unsupported::HammingWindowNode,
+    HannWindow => unsupported::HannWindowNode,
+    Hardmax => unsupported::HardmaxNode,
+    Im => unsupported::ImNode,
+    ImageDecoder => unsupported::ImageDecoderNode,
+    LpNormalization => unsupported::LpNormalizationNode,
+    LpPool => unsupported::LpPoolNode,
+    Lrn => unsupported::LrnNode,
+    Lstm => unsupported::LstmNode,
+    MaxPool => unsupported::MaxPoolNode,
+    MaxRoiPool => unsupported::MaxRoiPoolNode,
+    MaxUnpool => unsupported::MaxUnpoolNode,
+    MeanVarianceNormalization => unsupported::MeanVarianceNormalizationNode,
+    MelWeightMatrix => unsupported::MelWeightMatrixNode,
+    Multinomial => unsupported::MultinomialNode,
+    NegativeLogLikelihoodLoss => unsupported::NegativeLogLikelihoodLossNode,
+    NonMaxSuppression => unsupported::NonMaxSuppressionNode,
+    Optional => unsupported::OptionalNode,
+    OptionalGetElement => unsupported::OptionalGetElementNode,
+    OptionalHasElement => unsupported::OptionalHasElementNode,
+    QLinearConv => unsupported::QLinearConvNode,
+    QLinearMatMul => unsupported::QLinearMatMulNode,
+    QuantizeLinear => unsupported::QuantizeLinearNode,
+    RMSNormalization => unsupported::RMSNormalizationNode,
+    Rnn => unsupported::RnnNode,
+    RegexFullMatch => unsupported::RegexFullMatchNode,
+    ReverseSequence => unsupported::ReverseSequenceNode,
+    RoiAlign => unsupported::RoiAlignNode,
+    RotaryEmbedding => unsupported::RotaryEmbeddingNode,
+    SequenceAt => unsupported::SequenceAtNode,
+    SequenceConstruct => unsupported::SequenceConstructNode,
+    SequenceEmpty => unsupported::SequenceEmptyNode,
+    SequenceErase => unsupported::SequenceEraseNode,
+    SequenceInsert => unsupported::SequenceInsertNode,
+    SequenceLength => unsupported::SequenceLengthNode,
+    SequenceMap => unsupported::SequenceMapNode,
+    Shrink => unsupported::ShrinkNode,
+    SoftmaxCrossEntropyLoss => unsupported::SoftmaxCrossEntropyLossNode,
+    SplitToSequence => unsupported::SplitToSequenceNode,
+    Stft => unsupported::StftNode,
+    StringConcat => unsupported::StringConcatNode,
+    StringNormalizer => unsupported::StringNormalizerNode,
+    StringSplit => unsupported::StringSplitNode,
+    Swish => unsupported::SwishNode,
+    TensorScatter => unsupported::TensorScatterNode,
+    TfIdfVectorizer => unsupported::TfIdfVectorizerNode,
+    Upsample => unsupported::UpsampleNode,
 }

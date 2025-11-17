@@ -38,6 +38,15 @@ impl BatchNormConfig {
     }
 }
 
+/// Node representation for BatchNormalization operation
+#[derive(Debug, Clone)]
+pub struct BatchNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: BatchNormConfig,
+}
+
 pub(crate) struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
@@ -138,12 +147,12 @@ impl NodeProcessor for BatchNormProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::BatchNormalization {
+        Node::BatchNormalization(BatchNormalizationNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

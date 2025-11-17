@@ -14,7 +14,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
-use crate::ir::{ArgType, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -24,6 +24,15 @@ use crate::processor::{
 pub struct SoftmaxConfig {
     /// Axis along which to apply softmax
     pub axis: usize,
+}
+
+/// Node representation for Softmax operation
+#[derive(Debug, Clone)]
+pub struct SoftmaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SoftmaxConfig,
 }
 
 pub(crate) struct SoftmaxProcessor;
@@ -100,12 +109,12 @@ impl NodeProcessor for SoftmaxProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Softmax {
+        Node::Softmax(SoftmaxNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

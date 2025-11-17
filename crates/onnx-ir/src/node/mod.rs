@@ -85,4 +85,5 @@ pub mod topk;
 pub mod transpose;
 pub mod trilu;
 pub mod unsqueeze;
+pub mod unsupported;
 pub mod where_op;

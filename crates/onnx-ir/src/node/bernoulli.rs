@@ -16,6 +16,14 @@ use crate::processor::{
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
+/// Node representation for Bernoulli operation
+#[derive(Debug, Clone)]
+pub struct BernoulliNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+}
+
 pub(crate) struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
@@ -77,11 +85,11 @@ impl NodeProcessor for BernoulliProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Bernoulli {
+        Node::Bernoulli(BernoulliNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

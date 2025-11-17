@@ -96,6 +96,15 @@ pub struct PadConfig {
     pub mode: PadMode,
 }
 
+/// Node representation for Pad operation
+#[derive(Debug, Clone)]
+pub struct PadNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: PadConfig,
+}
+
 pub(crate) struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {
@@ -401,12 +410,12 @@ impl NodeProcessor for PadProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Pad {
+        Node::Pad(PadNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -25,11 +25,19 @@
 //! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use core::cmp::max;
+
+/// Node representation for MatMul operation
+#[derive(Debug, Clone)]
+pub struct MatMulNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 pub(crate) struct MatMulProcessor;
 
@@ -117,11 +125,11 @@ impl NodeProcessor for MatMulProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::MatMul {
+        Node::MatMul(MatMulNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

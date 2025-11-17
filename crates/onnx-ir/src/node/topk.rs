@@ -19,7 +19,7 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -46,6 +46,15 @@ pub struct TopKConfig {
     pub axis: usize,
     /// The number of top elements to select.
     pub k: TopKInput,
+}
+
+/// Node representation for TopK operation
+#[derive(Debug, Clone)]
+pub struct TopKNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: TopKConfig,
 }
 
 pub(crate) struct TopKProcessor;
@@ -193,12 +202,12 @@ impl NodeProcessor for TopKProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::TopK {
+        Node::TopK(TopKNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

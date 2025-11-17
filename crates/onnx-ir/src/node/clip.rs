@@ -38,6 +38,15 @@ pub struct ClipConfig {
     pub max: Option<ClipInput>,
 }
 
+/// Node representation for Clip operation
+#[derive(Debug, Clone)]
+pub struct ClipNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ClipConfig,
+}
+
 pub(crate) struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
@@ -167,12 +176,12 @@ impl NodeProcessor for ClipProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Clip {
+        Node::Clip(ClipNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

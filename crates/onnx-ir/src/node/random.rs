@@ -53,6 +53,24 @@ pub enum RandomConfig {
     Uniform(RandomUniformConfig),
 }
 
+/// Node representation for RandomNormal operation
+#[derive(Debug, Clone)]
+pub struct RandomNormalNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: RandomNormalConfig,
+}
+
+/// Node representation for RandomUniform operation
+#[derive(Debug, Clone)]
+pub struct RandomUniformNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: RandomUniformConfig,
+}
+
 pub(crate) struct RandomProcessor;
 
 impl NodeProcessor for RandomProcessor {
@@ -196,18 +214,18 @@ impl NodeProcessor for RandomProcessor {
             .expect("Config extraction failed");
 
         match config {
-            RandomConfig::Normal(normal_config) => Node::RandomNormal {
+            RandomConfig::Normal(normal_config) => Node::RandomNormal(RandomNormalNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config: normal_config,
-            },
-            RandomConfig::Uniform(uniform_config) => Node::RandomUniform {
+            }),
+            RandomConfig::Uniform(uniform_config) => Node::RandomUniform(RandomUniformNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config: uniform_config,
-            },
+            }),
         }
     }
 }

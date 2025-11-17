@@ -8,11 +8,20 @@
 //! - **Opset 1**: Initial version with basic transposed convolution support
 //! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for ConvTranspose3d operation
+#[derive(Debug, Clone)]
+pub struct ConvTranspose3dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConvTranspose3dConfig,
+}
 
 /// Configuration for ConvTranspose3d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,12 +221,12 @@ impl NodeProcessor for Convtranspose3dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::ConvTranspose3d {
+        Node::ConvTranspose3d(ConvTranspose3dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

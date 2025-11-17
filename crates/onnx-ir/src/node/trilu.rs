@@ -18,7 +18,7 @@
 //!   - Positive k: Retains lower triangle including main diagonal and k diagonals above it
 //!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorDataExt};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -30,6 +30,15 @@ pub struct TriluConfig {
     pub upper: bool,
     /// The diagonal offset.
     pub diagonal: i64,
+}
+
+/// Node representation for Trilu operation
+#[derive(Debug, Clone)]
+pub struct TriluNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: TriluConfig,
 }
 
 impl TriluConfig {
@@ -139,12 +148,12 @@ impl NodeProcessor for TriluProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Trilu {
+        Node::Trilu(TriluNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -12,11 +12,19 @@
 //! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
 //! - **Opset 13**: Extended type support including bfloat16
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     same_as_input_broadcast,
 };
+
+/// Node representation for Mean operation
+#[derive(Debug, Clone)]
+pub struct MeanNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 /// Node processor for Mean operation (variadic element-wise mean)
 pub(crate) struct MeanProcessor;
@@ -44,10 +52,10 @@ impl NodeProcessor for MeanProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Mean {
+        Node::Mean(MeanNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }

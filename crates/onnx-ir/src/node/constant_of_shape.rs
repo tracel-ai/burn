@@ -9,11 +9,21 @@
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
 use crate::ir::{
-    ArgType, DType, Node, NodeBuilder, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
+    ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorData, TensorDataExt,
+    TensorType,
 };
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for ConstantOfShape operation
+#[derive(Debug, Clone)]
+pub struct ConstantOfShapeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConstantOfShapeConfig,
+}
 
 /// Configuration for the ConstantOfShape operation.
 #[derive(Debug, Clone)]
@@ -211,12 +221,12 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::ConstantOfShape {
+        Node::ConstantOfShape(ConstantOfShapeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

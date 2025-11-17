@@ -19,7 +19,7 @@
 //! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, NodeType, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -34,6 +34,96 @@ impl ReduceConfig {
     pub fn new(dims: Vec<usize>, keepdims: bool) -> Self {
         Self { dims, keepdims }
     }
+}
+
+/// Node representation for ReduceMax operation
+#[derive(Debug, Clone)]
+pub struct ReduceMaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceMin operation
+#[derive(Debug, Clone)]
+pub struct ReduceMinNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceMean operation
+#[derive(Debug, Clone)]
+pub struct ReduceMeanNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceSum operation
+#[derive(Debug, Clone)]
+pub struct ReduceSumNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceProd operation
+#[derive(Debug, Clone)]
+pub struct ReduceProdNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceSumSquare operation
+#[derive(Debug, Clone)]
+pub struct ReduceSumSquareNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceL1 operation
+#[derive(Debug, Clone)]
+pub struct ReduceL1Node {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceL2 operation
+#[derive(Debug, Clone)]
+pub struct ReduceL2Node {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceLogSum operation
+#[derive(Debug, Clone)]
+pub struct ReduceLogSumNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceLogSumExp operation
+#[derive(Debug, Clone)]
+pub struct ReduceLogSumExpNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
 }
 
 pub(crate) struct ReduceProcessor;
@@ -216,66 +306,66 @@ impl NodeProcessor for ReduceProcessor {
             .expect("Config extraction failed");
 
         match builder.node_type {
-            crate::ir::NodeType::ReduceMax => Node::ReduceMax {
+            NodeType::ReduceMax => Node::ReduceMax(ReduceMaxNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceMin => Node::ReduceMin {
+            }),
+            NodeType::ReduceMin => Node::ReduceMin(ReduceMinNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceMean => Node::ReduceMean {
+            }),
+            NodeType::ReduceMean => Node::ReduceMean(ReduceMeanNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceSum => Node::ReduceSum {
+            }),
+            NodeType::ReduceSum => Node::ReduceSum(ReduceSumNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceProd => Node::ReduceProd {
+            }),
+            NodeType::ReduceProd => Node::ReduceProd(ReduceProdNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceSumSquare => Node::ReduceSumSquare {
+            }),
+            NodeType::ReduceSumSquare => Node::ReduceSumSquare(ReduceSumSquareNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceL1 => Node::ReduceL1 {
+            }),
+            NodeType::ReduceL1 => Node::ReduceL1(ReduceL1Node {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceL2 => Node::ReduceL2 {
+            }),
+            NodeType::ReduceL2 => Node::ReduceL2(ReduceL2Node {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceLogSum => Node::ReduceLogSum {
+            }),
+            NodeType::ReduceLogSum => Node::ReduceLogSum(ReduceLogSumNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
-            crate::ir::NodeType::ReduceLogSumExp => Node::ReduceLogSumExp {
+            }),
+            NodeType::ReduceLogSumExp => Node::ReduceLogSumExp(ReduceLogSumExpNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
                 config,
-            },
+            }),
             _ => panic!("ReduceProcessor called with unsupported node type"),
         }
     }
@@ -286,8 +376,8 @@ mod tests {
     #![allow(clippy::bool_assert_comparison)]
 
     use super::*;
-    use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
+    use NodeType;
 
     fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> NodeBuilder {
         let mut builder = TestNodeBuilder::new(NodeType::ReduceMax, "test_reduce_max")

@@ -17,7 +17,7 @@
 //! - **Opset 1-5**: Earlier versions with different default values
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -27,6 +27,15 @@ use crate::processor::{
 pub struct HardSigmoidConfig {
     pub alpha: f64,
     pub beta: f64,
+}
+
+/// Node representation for HardSigmoid operation
+#[derive(Debug, Clone)]
+pub struct HardSigmoidNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: HardSigmoidConfig,
 }
 
 pub(crate) struct HardSigmoidProcessor;
@@ -95,12 +104,12 @@ impl NodeProcessor for HardSigmoidProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::HardSigmoid {
+        Node::HardSigmoid(HardSigmoidNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

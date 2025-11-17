@@ -44,10 +44,50 @@
 //! - When both inputs are scalars, the output is a scalar boolean
 //! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Equal operation
+#[derive(Debug, Clone)]
+pub struct EqualNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+/// Node representation for Greater operation
+#[derive(Debug, Clone)]
+pub struct GreaterNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+/// Node representation for GreaterOrEqual operation
+#[derive(Debug, Clone)]
+pub struct GreaterOrEqualNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+/// Node representation for Less operation
+#[derive(Debug, Clone)]
+pub struct LessNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+/// Node representation for LessOrEqual operation
+#[derive(Debug, Clone)]
+pub struct LessOrEqualNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub(crate) fn elementwise_comparison_outputs(node: &mut NodeBuilder) {
@@ -162,31 +202,31 @@ impl NodeProcessor for ComparisonProcessor {
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
         match builder.node_type {
-            crate::ir::NodeType::Equal => Node::Equal {
+            crate::ir::NodeType::Equal => Node::Equal(EqualNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
-            },
-            crate::ir::NodeType::Greater => Node::Greater {
+            }),
+            crate::ir::NodeType::Greater => Node::Greater(GreaterNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
-            },
-            crate::ir::NodeType::GreaterOrEqual => Node::GreaterOrEqual {
+            }),
+            crate::ir::NodeType::GreaterOrEqual => Node::GreaterOrEqual(GreaterOrEqualNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
-            },
-            crate::ir::NodeType::Less => Node::Less {
+            }),
+            crate::ir::NodeType::Less => Node::Less(LessNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
-            },
-            crate::ir::NodeType::LessOrEqual => Node::LessOrEqual {
+            }),
+            crate::ir::NodeType::LessOrEqual => Node::LessOrEqual(LessOrEqualNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
-            },
+            }),
             _ => panic!("ComparisonProcessor called with unsupported node type"),
         }
     }

@@ -16,7 +16,7 @@
 //! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
-use crate::ir::{AttributeValue, Node, NodeBuilder};
+use crate::ir::{Argument, AttributeValue, Node, NodeBuilder};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -29,6 +29,15 @@ pub struct ModConfig {
     /// false (default): Integer modulo - sign follows divisor (Python-style %)
     /// true: Floating-point modulo (C-style fmod) - sign follows dividend
     pub fmod: bool,
+}
+
+/// Node representation for Mod operation
+#[derive(Debug, Clone)]
+pub struct ModNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ModConfig,
 }
 
 impl ModConfig {
@@ -129,12 +138,12 @@ impl NodeProcessor for ModuloProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Mod {
+        Node::Mod(ModNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -10,7 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, OnnxGraph};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -48,6 +48,15 @@ fn add_concat_dimension(ty: ArgType) -> ArgType {
 #[derive(Debug, Clone)]
 pub struct LoopConfig {
     pub body: OnnxGraph,
+}
+
+/// Node representation for Loop operation
+#[derive(Debug, Clone)]
+pub struct LoopNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LoopConfig,
 }
 
 /// Loop node processor
@@ -274,12 +283,12 @@ impl NodeProcessor for LoopProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Loop {
+        Node::Loop(LoopNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

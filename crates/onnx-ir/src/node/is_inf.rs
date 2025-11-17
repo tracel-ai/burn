@@ -16,7 +16,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IsInfConfig {
@@ -31,6 +31,15 @@ impl IsInfConfig {
             detect_positive,
         }
     }
+}
+
+/// Node representation for IsInf operation
+#[derive(Debug, Clone)]
+pub struct IsInfNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: IsInfConfig,
 }
 
 pub(crate) struct IsInfProcessor;
@@ -98,12 +107,12 @@ impl NodeProcessor for IsInfProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::IsInf {
+        Node::IsInf(IsInfNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

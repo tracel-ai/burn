@@ -15,11 +15,19 @@
 //!
 //! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     compute_broadcast_rank, compute_broadcast_static_shape,
 };
+
+/// Node representation for Where operation
+#[derive(Debug, Clone)]
+pub struct WhereNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 /// Get element type from ArgType, handling Shape types specially
 fn get_elem_type(arg_type: &ArgType) -> DType {
@@ -123,11 +131,11 @@ impl NodeProcessor for WhereProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Where {
+        Node::Where(WhereNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

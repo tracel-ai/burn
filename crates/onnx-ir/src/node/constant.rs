@@ -15,10 +15,18 @@
 //! - **Opset 11-12**: Added sparse_value attribute for sparse tensor support
 //! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Constant operation
+#[derive(Debug, Clone)]
+pub struct ConstantNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 pub(crate) struct ConstantProcessor;
 
@@ -112,11 +120,11 @@ impl NodeProcessor for ConstantProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Constant {
+        Node::Constant(ConstantNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

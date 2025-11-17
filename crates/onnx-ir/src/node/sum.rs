@@ -16,11 +16,19 @@
 //! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
 //! - **Opset 13**: Extended type support including bfloat16
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     same_as_input_broadcast,
 };
+
+/// Node representation for Sum operation
+#[derive(Debug, Clone)]
+pub struct SumNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 /// Node processor for Sum operation
 pub(crate) struct SumProcessor;
@@ -58,11 +66,11 @@ impl NodeProcessor for SumProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Sum {
+        Node::Sum(SumNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

@@ -24,6 +24,15 @@ pub struct ArgMinConfig {
     pub keepdims: bool,
 }
 
+/// Node representation for ArgMin operation
+#[derive(Debug, Clone)]
+pub struct ArgMinNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ArgMinConfig,
+}
+
 pub(crate) struct ArgMinProcessor;
 
 impl NodeProcessor for ArgMinProcessor {
@@ -150,12 +159,12 @@ impl NodeProcessor for ArgMinProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::ArgMin {
+        Node::ArgMin(ArgMinNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

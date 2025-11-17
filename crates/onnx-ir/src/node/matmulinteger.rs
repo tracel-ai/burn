@@ -12,10 +12,18 @@
 //! The spec allows 2-4 inputs (optional zero-point tensors), but implementation only validates minimum
 //! of 2 inputs (see FIXME at line 44).
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
+
+/// Node representation for MatMulInteger operation
+#[derive(Debug, Clone)]
+pub struct MatMulIntegerNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 pub(crate) struct MatMulIntegerProcessor;
 
@@ -82,11 +90,11 @@ impl NodeProcessor for MatMulIntegerProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::MatMulInteger {
+        Node::MatMulInteger(MatMulIntegerNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

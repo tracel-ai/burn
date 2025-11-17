@@ -12,11 +12,20 @@
 //! - Weight tensor layout: Implementation expects [out_channels, in_channels, kernel_size]
 //!   (see FIXME at line 185 regarding ONNX spec clarification)
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for ConvTranspose1d operation
+#[derive(Debug, Clone)]
+pub struct ConvTranspose1dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConvTranspose1dConfig,
+}
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -216,12 +225,12 @@ impl NodeProcessor for Convtranspose1dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::ConvTranspose1d {
+        Node::ConvTranspose1d(ConvTranspose1dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

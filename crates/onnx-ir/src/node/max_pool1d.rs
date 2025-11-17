@@ -28,7 +28,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::{
-    ir::{Node, NodeBuilder},
+    ir::{Argument, Node, NodeBuilder},
     node::padding::padding_config_1d,
 };
 
@@ -45,6 +45,15 @@ pub struct MaxPool1dConfig {
     pub dilation: usize,
     /// Padding configuration
     pub padding: PaddingConfig1d,
+}
+
+/// Node representation for MaxPool1d operation
+#[derive(Debug, Clone)]
+pub struct MaxPool1dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: MaxPool1dConfig,
 }
 
 impl MaxPool1dConfig {
@@ -194,12 +203,12 @@ impl NodeProcessor for MaxPool1dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::MaxPool1d {
+        Node::MaxPool1d(MaxPool1dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

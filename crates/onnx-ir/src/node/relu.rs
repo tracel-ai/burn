@@ -14,10 +14,18 @@
 //! - **Opset 13**: Expanded type support
 //! - **Opset 14+**: Added bfloat16 support
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Relu operation
+#[derive(Debug, Clone)]
+pub struct ReluNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 pub(crate) struct ReluProcessor;
 
@@ -72,11 +80,11 @@ impl NodeProcessor for ReluProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::Relu {
+        Node::Relu(ReluNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

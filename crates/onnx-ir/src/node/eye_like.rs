@@ -7,7 +7,7 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -20,6 +20,15 @@ pub struct EyeLikeConfig {
     pub dtype: Option<DType>,
     /// Diagonal offset (0 = main diagonal, >0 = upper, <0 = lower)
     pub k: i64,
+}
+
+/// Node representation for EyeLike operation
+#[derive(Debug, Clone)]
+pub struct EyeLikeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: EyeLikeConfig,
 }
 
 pub(crate) struct EyeLikeProcessor;
@@ -119,12 +128,12 @@ impl NodeProcessor for EyeLikeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::EyeLike {
+        Node::EyeLike(EyeLikeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

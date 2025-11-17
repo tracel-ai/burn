@@ -22,10 +22,18 @@
 //! - TODO: No test for higher-rank tensors (3D, 4D) - Only 2D tensor tested
 //! - TODO: No test for positive/negative NaN variants - Some platforms distinguish signaling/quiet NaN
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for IsNaN operation
+#[derive(Debug, Clone)]
+pub struct IsNaNNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 pub(crate) struct IsNaNProcessor;
 
@@ -65,11 +73,11 @@ impl NodeProcessor for IsNaNProcessor {
     }
 
     fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        Node::IsNaN {
+        Node::IsNaN(IsNaNNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
-        }
+        })
     }
 }
 

@@ -33,6 +33,15 @@ pub struct ShapeConfig {
     pub end: usize,
 }
 
+/// Node representation for Shape operation
+#[derive(Debug, Clone)]
+pub struct ShapeNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ShapeConfig,
+}
+
 pub(crate) struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
@@ -135,12 +144,12 @@ impl NodeProcessor for ShapeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Shape {
+        Node::Shape(ShapeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

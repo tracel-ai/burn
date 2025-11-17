@@ -21,7 +21,7 @@
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -43,6 +43,15 @@ impl InstanceNormConfig {
             epsilon,
         }
     }
+}
+
+/// Node representation for InstanceNormalization operation
+#[derive(Debug, Clone)]
+pub struct InstanceNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: InstanceNormConfig,
 }
 
 pub(crate) struct InstanceNormProcessor;
@@ -132,12 +141,12 @@ impl NodeProcessor for InstanceNormProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::InstanceNormalization {
+        Node::InstanceNormalization(InstanceNormalizationNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

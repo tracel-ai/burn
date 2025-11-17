@@ -44,6 +44,15 @@ impl AttentionConfig {
     }
 }
 
+/// Node representation for Attention operation
+#[derive(Debug, Clone)]
+pub struct AttentionNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: AttentionConfig,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AttentionQkMatmulOutputMode {
     #[default]
@@ -261,12 +270,12 @@ impl NodeProcessor for AttentionProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Attention {
+        Node::Attention(AttentionNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

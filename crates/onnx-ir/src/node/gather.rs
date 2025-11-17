@@ -25,7 +25,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -35,6 +35,15 @@ use crate::processor::{
 #[derive(Debug, Clone)]
 pub struct GatherConfig {
     pub axis: usize,
+}
+
+/// Node representation for Gather operation
+#[derive(Debug, Clone)]
+pub struct GatherNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: GatherConfig,
 }
 
 pub(crate) struct GatherProcessor;
@@ -217,12 +226,12 @@ impl NodeProcessor for GatherProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Gather {
+        Node::Gather(GatherNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

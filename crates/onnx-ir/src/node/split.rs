@@ -12,7 +12,7 @@
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
 
-use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -41,6 +41,15 @@ pub struct SplitConfig {
     pub split_size: Option<usize>,
     /// Custom sizes for each split when splitting unevenly (Static or Runtime).
     pub split_sizes: Option<SplitSizesInput>,
+}
+
+/// Node representation for Split operation
+#[derive(Debug, Clone)]
+pub struct SplitNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SplitConfig,
 }
 
 pub(crate) struct SplitProcessor;
@@ -297,12 +306,12 @@ impl NodeProcessor for SplitProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Split {
+        Node::Split(SplitNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

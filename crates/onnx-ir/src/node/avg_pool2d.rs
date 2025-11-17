@@ -55,6 +55,15 @@ impl AvgPool2dConfig {
     }
 }
 
+/// Node representation for AveragePool2d operation
+#[derive(Debug, Clone)]
+pub struct AveragePool2dNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: AvgPool2dConfig,
+}
+
 pub(crate) struct AvgPool2dProcessor;
 
 impl NodeProcessor for AvgPool2dProcessor {
@@ -184,12 +193,12 @@ impl NodeProcessor for AvgPool2dProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::AveragePool2d {
+        Node::AveragePool2d(AveragePool2dNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

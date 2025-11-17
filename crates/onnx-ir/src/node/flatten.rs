@@ -12,7 +12,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -22,6 +22,15 @@ use crate::processor::{
 pub struct FlattenConfig {
     /// Axis along which to flatten
     pub axis: usize,
+}
+
+/// Node representation for Flatten operation
+#[derive(Debug, Clone)]
+pub struct FlattenNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: FlattenConfig,
 }
 
 pub(crate) struct FlattenProcessor;
@@ -124,12 +133,12 @@ impl NodeProcessor for FlattenProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Flatten {
+        Node::Flatten(FlattenNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

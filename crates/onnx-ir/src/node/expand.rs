@@ -8,10 +8,21 @@
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{
+    ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType,
+};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Node representation for Expand operation
+#[derive(Debug, Clone)]
+pub struct ExpandNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ExpandConfig,
+}
 
 /// Shape information for the Expand operation.
 #[derive(Debug, Clone)]
@@ -174,12 +185,12 @@ impl NodeProcessor for ExpandProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Expand {
+        Node::Expand(ExpandNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

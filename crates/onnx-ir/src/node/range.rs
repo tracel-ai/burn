@@ -52,6 +52,15 @@ impl Default for RangeInput {
     }
 }
 
+/// Node representation for Range operation
+#[derive(Debug, Clone)]
+pub struct RangeNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: RangeConfig,
+}
+
 pub(crate) struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
@@ -180,12 +189,12 @@ impl NodeProcessor for RangeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Range {
+        Node::Range(RangeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

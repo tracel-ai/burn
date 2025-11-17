@@ -28,7 +28,7 @@
 //! This module includes an important optimization for Int scalar to Shape conversion, which is the
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
-use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -40,6 +40,15 @@ pub enum UnsqueezeConfig {
     Static(Vec<i64>),
     /// Runtime axes determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
+}
+
+/// Node representation for Unsqueeze operation
+#[derive(Debug, Clone)]
+pub struct UnsqueezeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: UnsqueezeConfig,
 }
 
 pub(crate) struct UnsqueezeProcessor;
@@ -170,12 +179,12 @@ impl NodeProcessor for UnsqueezeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Unsqueeze {
+        Node::Unsqueeze(UnsqueezeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

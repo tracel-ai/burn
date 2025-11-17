@@ -43,6 +43,24 @@ pub enum RandomLikeConfig {
     Uniform(RandomUniformLikeConfig),
 }
 
+/// Node representation for RandomNormalLike operation
+#[derive(Debug, Clone)]
+pub struct RandomNormalLikeNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: RandomNormalLikeConfig,
+}
+
+/// Node representation for RandomUniformLike operation
+#[derive(Debug, Clone)]
+pub struct RandomUniformLikeNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: RandomUniformLikeConfig,
+}
+
 pub(crate) struct RandomLikeProcessor;
 
 impl NodeProcessor for RandomLikeProcessor {
@@ -150,18 +168,22 @@ impl NodeProcessor for RandomLikeProcessor {
             .expect("Config extraction failed");
 
         match config {
-            RandomLikeConfig::Normal(normal_like_config) => Node::RandomNormalLike {
-                name: builder.name,
-                inputs: builder.inputs,
-                outputs: builder.outputs,
-                config: normal_like_config,
-            },
-            RandomLikeConfig::Uniform(uniform_like_config) => Node::RandomUniformLike {
-                name: builder.name,
-                inputs: builder.inputs,
-                outputs: builder.outputs,
-                config: uniform_like_config,
-            },
+            RandomLikeConfig::Normal(normal_like_config) => {
+                Node::RandomNormalLike(RandomNormalLikeNode {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config: normal_like_config,
+                })
+            }
+            RandomLikeConfig::Uniform(uniform_like_config) => {
+                Node::RandomUniformLike(RandomUniformLikeNode {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config: uniform_like_config,
+                })
+            }
         }
     }
 }

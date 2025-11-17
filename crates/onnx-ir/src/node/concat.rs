@@ -22,6 +22,15 @@ pub struct ConcatConfig {
     pub axis: usize,
 }
 
+/// Node representation for Concat operation
+#[derive(Debug, Clone)]
+pub struct ConcatNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: ConcatConfig,
+}
+
 pub(crate) struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
@@ -246,12 +255,12 @@ impl NodeProcessor for ConcatProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Concat {
+        Node::Concat(ConcatNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

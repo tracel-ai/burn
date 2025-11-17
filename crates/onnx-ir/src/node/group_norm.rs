@@ -10,7 +10,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -38,6 +38,15 @@ impl GroupNormConfig {
             full_precision,
         }
     }
+}
+
+/// Node representation for GroupNormalization operation
+#[derive(Debug, Clone)]
+pub struct GroupNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: GroupNormConfig,
 }
 
 pub(crate) struct GroupNormProcessor;
@@ -151,12 +160,12 @@ impl NodeProcessor for GroupNormProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::GroupNormalization {
+        Node::GroupNormalization(GroupNormalizationNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -18,7 +18,7 @@
 //! - TODO: No test for zero-size dimensions - Edge case for empty matrices
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -32,6 +32,15 @@ pub struct LinearConfig {
     pub d_output: usize,
     /// Whether bias is used
     pub bias: bool,
+}
+
+/// Node representation for Linear operation
+#[derive(Debug, Clone)]
+pub struct LinearNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LinearConfig,
 }
 
 impl LinearConfig {
@@ -143,12 +152,12 @@ impl NodeProcessor for LinearProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Linear {
+        Node::Linear(LinearNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -19,7 +19,16 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+
+/// Node representation for DepthToSpace operation
+#[derive(Debug, Clone)]
+pub struct DepthToSpaceNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: DepthToSpaceConfig,
+}
 
 /// Mode for DepthToSpace operation
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -184,12 +193,12 @@ impl NodeProcessor for DepthToSpaceProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::DepthToSpace {
+        Node::DepthToSpace(DepthToSpaceNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

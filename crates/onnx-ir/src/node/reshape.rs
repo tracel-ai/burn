@@ -53,6 +53,15 @@ impl Default for ReshapeInput {
     }
 }
 
+/// Node representation for Reshape operation
+#[derive(Debug, Clone)]
+pub struct ReshapeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReshapeConfig,
+}
+
 /// Extract relevant information from input argument
 struct InputInfo {
     dtype: crate::ir::DType,
@@ -393,12 +402,12 @@ impl NodeProcessor for ReshapeProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Reshape {
+        Node::Reshape(ReshapeNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

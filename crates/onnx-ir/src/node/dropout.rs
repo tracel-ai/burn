@@ -15,10 +15,19 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
-use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
+
+/// Node representation for Dropout operation
+#[derive(Debug, Clone)]
+pub struct DropoutNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: DropoutConfig,
+}
 
 /// Represents either a static value or a runtime argument for dropout ratio.
 #[derive(Debug, Clone)]
@@ -152,12 +161,12 @@ impl NodeProcessor for DropoutProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::Dropout {
+        Node::Dropout(DropoutNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 

@@ -46,6 +46,15 @@ pub struct BitShiftConfig {
     pub direction: Direction,
 }
 
+/// Node representation for BitShift operation
+#[derive(Debug, Clone)]
+pub struct BitShiftNode {
+    pub name: String,
+    pub inputs: Vec<crate::ir::Argument>,
+    pub outputs: Vec<crate::ir::Argument>,
+    pub config: BitShiftConfig,
+}
+
 pub(crate) struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
@@ -104,12 +113,12 @@ impl NodeProcessor for BitShiftProcessor {
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
 
-        Node::BitShift {
+        Node::BitShift(BitShiftNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
             config,
-        }
+        })
     }
 }
 
