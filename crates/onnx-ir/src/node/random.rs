@@ -22,6 +22,7 @@
 //!
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -57,8 +58,8 @@ pub enum RandomConfig {
 #[derive(Debug, Clone)]
 pub struct RandomNormalNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: RandomNormalConfig,
 }
 
@@ -66,8 +67,8 @@ pub struct RandomNormalNode {
 #[derive(Debug, Clone)]
 pub struct RandomUniformNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: RandomUniformConfig,
 }
 

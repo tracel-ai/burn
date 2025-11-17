@@ -16,6 +16,7 @@
 //! - **Opset 11**: Changed min and max from attributes to optional inputs (allows runtime values)
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
+use crate::ir::Argument;
 
 use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
@@ -42,8 +43,8 @@ pub struct ClipConfig {
 #[derive(Debug, Clone)]
 pub struct ClipNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ClipConfig,
 }
 

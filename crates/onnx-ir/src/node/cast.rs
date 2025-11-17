@@ -16,6 +16,7 @@
 //! - Supports casting from string tensor in plain (e.g., "3.14", "1000") and scientific notation
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, AttributeValue, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -41,8 +42,8 @@ impl CastConfig {
 #[derive(Debug, Clone)]
 pub struct CastNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: CastConfig,
 }
 

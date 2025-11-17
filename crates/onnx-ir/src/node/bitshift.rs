@@ -16,6 +16,7 @@
 //! ## Examples
 //! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
 //! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
+use crate::ir::Argument;
 
 use crate::ir::{Node, NodeBuilder};
 use crate::processor::{
@@ -50,8 +51,8 @@ pub struct BitShiftConfig {
 #[derive(Debug, Clone)]
 pub struct BitShiftNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: BitShiftConfig,
 }
 

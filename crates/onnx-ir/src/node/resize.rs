@@ -12,6 +12,7 @@
 //! - **Opset 19**: Added antialiasing improvements and clarified coordinate transformation modes.
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef};
 use crate::processor::{
@@ -99,8 +100,8 @@ impl Default for ResizeSizes {
 #[derive(Debug, Clone)]
 pub struct ResizeNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ResizeConfig,
 }
 

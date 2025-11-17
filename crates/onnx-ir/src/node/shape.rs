@@ -20,8 +20,7 @@
 //!   allowing selection of a slice of dimensions from the input shape.
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
-
-use crate::ir::{ArgType, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -37,8 +36,8 @@ pub struct ShapeConfig {
 #[derive(Debug, Clone)]
 pub struct ShapeNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ShapeConfig,
 }
 
@@ -251,7 +250,7 @@ mod tests {
     fn test_shape_config_multiple_inputs() {
         let mut node = create_test_node(None, None, 4);
         // Add an extra input to cause error
-        node.inputs.push(crate::ir::Argument {
+        node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
                 dtype: crate::ir::DType::F32,

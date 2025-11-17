@@ -24,6 +24,7 @@
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
+use crate::ir::Argument;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -100,8 +101,8 @@ pub struct PadConfig {
 #[derive(Debug, Clone)]
 pub struct PadNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: PadConfig,
 }
 

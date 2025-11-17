@@ -7,6 +7,7 @@
 //! ## Opset Versions
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -20,8 +21,8 @@ use protobuf::Enum;
 #[derive(Debug, Clone)]
 pub struct BernoulliNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
 }
 
 pub(crate) struct BernoulliProcessor;

@@ -9,6 +9,7 @@
 //! - **Opset 13**: Added bfloat16 to type constraints
 //! - **Opset 12**: Added `select_last_index` attribute
 //! - **Opset 11**: Changed `axis` range to support negative indices [-r, r-1]
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -28,8 +29,8 @@ pub struct ArgMaxConfig {
 #[derive(Debug, Clone)]
 pub struct ArgMaxNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ArgMaxConfig,
 }
 

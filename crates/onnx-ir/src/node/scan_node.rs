@@ -9,6 +9,7 @@
 //! - **Opset 9**: Added scan_input_axes
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -28,8 +29,8 @@ pub struct ScanConfig {
 #[derive(Debug, Clone)]
 pub struct ScanNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ScanConfig,
 }
 

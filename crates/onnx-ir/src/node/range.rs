@@ -23,6 +23,7 @@
 //! ## Opset Versions
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
@@ -56,8 +57,8 @@ impl Default for RangeInput {
 #[derive(Debug, Clone)]
 pub struct RangeNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: RangeConfig,
 }
 

@@ -9,6 +9,7 @@
 //! - **Opset 11**: Initial supported version.
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -28,8 +29,8 @@ pub struct ArgMinConfig {
 #[derive(Debug, Clone)]
 pub struct ArgMinNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ArgMinConfig,
 }
 

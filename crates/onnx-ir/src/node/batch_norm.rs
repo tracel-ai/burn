@@ -10,6 +10,7 @@
 //! - **Opset 9-13**: Removed consumed_inputs attribute
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -42,8 +43,8 @@ impl BatchNormConfig {
 #[derive(Debug, Clone)]
 pub struct BatchNormalizationNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: BatchNormConfig,
 }
 

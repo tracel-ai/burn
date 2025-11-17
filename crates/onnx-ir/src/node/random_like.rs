@@ -14,6 +14,7 @@
 //! ## Opset Versions
 //! - Available since opset version 1
 //! - Current version: 22
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -47,8 +48,8 @@ pub enum RandomLikeConfig {
 #[derive(Debug, Clone)]
 pub struct RandomNormalLikeNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: RandomNormalLikeConfig,
 }
 
@@ -56,8 +57,8 @@ pub struct RandomNormalLikeNode {
 #[derive(Debug, Clone)]
 pub struct RandomUniformLikeNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: RandomUniformLikeConfig,
 }
 

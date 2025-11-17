@@ -9,6 +9,7 @@
 //! - **Opset 4-10**: Updated type support
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -26,8 +27,8 @@ pub struct ConcatConfig {
 #[derive(Debug, Clone)]
 pub struct ConcatNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: ConcatConfig,
 }
 

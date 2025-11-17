@@ -182,7 +182,7 @@ mod tests {
     fn test_transpose_config_multiple_inputs() {
         let mut node = create_test_node(None, 3);
         // Add an extra input to cause the expected error
-        node.inputs.push(crate::ir::Argument {
+        node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
                 dtype: crate::ir::DType::F32,

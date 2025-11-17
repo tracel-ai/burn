@@ -9,6 +9,7 @@
 //! - **Opset 10**: Added dilations attribute support
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
+use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
 use crate::node::padding::padding_config_1d;
@@ -61,8 +62,8 @@ impl AvgPool1dConfig {
 #[derive(Debug, Clone)]
 pub struct AveragePool1dNode {
     pub name: String,
-    pub inputs: Vec<crate::ir::Argument>,
-    pub outputs: Vec<crate::ir::Argument>,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
     pub config: AvgPool1dConfig,
 }
 
