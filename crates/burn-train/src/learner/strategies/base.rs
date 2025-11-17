@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_collective::CollectiveConfig;
-use burn_core::{module::AutodiffModule, prelude::Backend, tensor::backend::AutodiffBackend};
+#[cfg(feature = "ddp")]
+use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
@@ -16,6 +18,8 @@ use crate::{
     single::CustomSingleDeviceLearningStrategy,
 };
 
+pub use crate::multi::MultiDeviceOptim;
+
 type LearnerDevice<LC> = <<LC as LearnerComponentTypes>::Backend as Backend>::Device;
 
 /// How should the learner run the learning for the model
@@ -27,8 +31,9 @@ pub enum LearningStrategy<LC: LearnerComponentTypes> {
     /// Training on one device with a custom learning strategy
     CustomSingleDevice(CustomSingleDeviceLearningStrategy<LC>),
 
-    /// Legacy implementation of local multi-device training
-    MultiDeviceNaive(Vec<LearnerDevice<LC>>),
+    /// Performs data-parralel distributed training where the optimization is
+    /// done on an elected master device.
+    MultiDevice(Vec<LearnerDevice<LC>>, MultiDeviceOptim),
 
     /// Training on multiple devices with a custom learning strategy.
     CustomMultiDevice(CustomMultiDeviceLearningStrategy<LC>),
