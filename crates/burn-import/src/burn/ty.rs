@@ -50,7 +50,7 @@ pub struct ShapeType {
 }
 
 #[derive(Debug, Clone)]
-pub struct OtherType {
+pub struct Field {
     pub name: Ident,
     pub ty: TokenStream,
 }
@@ -67,7 +67,7 @@ pub enum Type {
     Shape(ShapeType),
 
     // Other type (more flexible type).
-    Other(OtherType),
+    Other(Field),
 }
 
 impl Type {
@@ -98,7 +98,7 @@ impl Type {
                 name: ident,
                 rank: shape.rank,
             }),
-            Type::Other(other) => Type::Other(OtherType {
+            Type::Other(other) => Type::Other(Field {
                 name: ident,
                 ty: other.ty.clone(),
             }),
@@ -264,7 +264,7 @@ impl TensorType {
     }
 }
 
-impl OtherType {
+impl Field {
     pub fn new<S: AsRef<str>>(name: S, tokens: TokenStream) -> Self {
         if name.as_ref().is_empty() {
             panic!("Other type with tokens {tokens:?} was passed with empty name");

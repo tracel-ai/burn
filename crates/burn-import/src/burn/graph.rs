@@ -395,7 +395,7 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
             for onnx_node in &subgraph.nodes {
                 if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
                     // Collect this node's field if it has one
-                    if let Some(mut field_type) = burn_node.field_type() {
+                    if let Some(mut field_type) = burn_node.field() {
                         let field_init = burn_node.field_init();
 
                         // Make field name unique by appending a counter if needed
@@ -480,7 +480,7 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
 
         for node in &self.nodes {
             // Collect this node's field if it has one
-            if let Some(field_type) = node.field_type() {
+            if let Some(field_type) = node.field() {
                 let field_init = node.field_init();
                 all_fields.push((field_type, field_init));
             }
@@ -761,7 +761,7 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructMap<'_, PS> {
         ) {
             for onnx_node in &subgraph.nodes {
                 if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
-                    if let Some(field_type) = burn_node.field_type() {
+                    if let Some(field_type) = burn_node.field() {
                         let base_name = field_type.name().to_string();
                         let count = field_name_counts.entry(base_name.clone()).or_insert(0);
                         *count += 1;
@@ -801,7 +801,7 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructMap<'_, PS> {
 
         // Add main graph nodes
         for node in self.0.nodes.iter() {
-            if let Some(field_type) = node.field_type() {
+            if let Some(field_type) = node.field() {
                 let field_name = field_type.name().to_string();
                 all_nodes.push((field_name, node.clone()));
             }
@@ -871,7 +871,7 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructTuple<'_, PS> {
         ) {
             for onnx_node in &subgraph.nodes {
                 if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
-                    if let Some(field_type) = burn_node.field_type() {
+                    if let Some(field_type) = burn_node.field() {
                         let base_name = field_type.name().to_string();
                         let count = field_name_counts.entry(base_name.clone()).or_insert(0);
                         *count += 1;
@@ -905,7 +905,7 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructTuple<'_, PS> {
 
         // Add main graph nodes
         for node in self.0.nodes.iter() {
-            if node.field_type().is_some() {
+            if node.field().is_some() {
                 all_nodes.push(node.clone());
             }
 

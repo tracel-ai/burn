@@ -32,10 +32,10 @@ macro_rules! node_registry {
     ) => {
         // Generate imports (from both single and grouped)
         $(
-            pub use super::node::$single_module::$single_node_type;
+            pub(crate) use super::node::$single_module::$single_node_type;
         )*
         $(
-            pub use super::node::$group_module::$group_node_type;
+            pub(crate) use super::node::$group_module::$group_node_type;
         )*
 
         // Generate Node enum (one variant per unique node type)
@@ -91,21 +91,18 @@ macro_rules! node_registry {
         pub(crate) fn try_convert_onnx_node<PS: burn::record::PrecisionSettings + 'static>(
             node: onnx_ir::Node,
         ) -> Option<Node<PS>> {
-            use super::node_traits::NodeCodegen;
-            use super::node_traits::OnnxIntoNode;
-
             match node {
-                // Single mappings
+                // Single mappings - directly extract onnx_ir node and wrap in Node<PS>
                 $(
-                    onnx_ir::Node::$single_onnx(_) => {
-                        Some(NodeCodegen::into_node($single_node_type::from_onnx(node)))
+                    onnx_ir::Node::$single_onnx(n) => {
+                        Some(Node::$single_onnx(n))
                     }
                 )*
                 // Grouped mappings (expands each ONNX op in the group)
                 $(
                     $(
-                        onnx_ir::Node::$group_onnx(_) => {
-                            Some(NodeCodegen::into_node($group_node_type::from_onnx(node)))
+                        onnx_ir::Node::$group_onnx(n) => {
+                            Some(Node::$group_variant(n))
                         }
                     )+
                 )*

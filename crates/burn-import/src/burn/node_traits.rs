@@ -5,8 +5,9 @@ use serde::Serialize;
 use super::node_registry::{Node, match_all};
 
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::{BurnImports, Field, Scope};
 
 pub type SerializationBackend = burn_ndarray::NdArray<f32>;
 
@@ -18,15 +19,8 @@ pub trait OnnxIntoNode: Sized {
 }
 
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
-    /// All types that are used as inputs during the forward pass.
-    ///
-    /// # Notes
-    /// The vec should not include types that are accessible with `self`.
-    /// See [field type](NodeCodegen::field_type).
-    fn input_types(&self) -> Vec<Type>;
-
-    /// All types that are produced during the forward pass.
-    fn output_types(&self) -> Vec<Type>;
+    fn inputs(&self) -> Vec<&Argument>;
+    fn outputs(&self) -> Vec<&Argument>;
 
     /// The forward pass implementation of the node.
     ///
@@ -37,12 +31,10 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// count and insert `clone` with necessary.
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
 
-    /// Convert the node implementation into a [node entry](Node).
-    fn into_node(self) -> Node<PS>;
-
     /// Register the necessary imports.
     fn register_imports(&self, _imports: &mut BurnImports) {}
 
+    // TODO Combine field and field_init
     /// (Optional) Declare the type of the field
     ///
     /// # Notes
@@ -54,7 +46,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// Other field functions should be implemented when this one returns something other than None.
     ///   * [field_init](NodeCodegen::field_init) to initialize parameters.
     ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
-    fn field_type(&self) -> Option<Type> {
+    fn field(&self) -> Option<Field> {
         None
     }
 
@@ -83,12 +75,12 @@ impl<PS: PrecisionSettings + 'static> Serialize for Node<PS> {
 }
 
 impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
-    fn output_types(&self) -> Vec<Type> {
-        match_all!(self, NodeCodegen::<PS>::output_types)
+    fn inputs(&self) -> Vec<&Argument> {
+        match_all!(self, NodeCodegen::<PS>::inputs)
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        match_all!(self, NodeCodegen::<PS>::input_types)
+    fn outputs(&self) -> Vec<&Argument> {
+        match_all!(self, NodeCodegen::<PS>::outputs)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -99,8 +91,8 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
         ))
     }
 
-    fn field_type(&self) -> Option<Type> {
-        match_all!(self, NodeCodegen::<PS>::field_type)
+    fn field(&self) -> Option<Field> {
+        match_all!(self, NodeCodegen::<PS>::field)
     }
 
     fn field_init(&self) -> Option<TokenStream> {
@@ -111,10 +103,6 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
         match_all!(self, |node| NodeCodegen::<PS>::register_imports(
             node, imports
         ))
-    }
-
-    fn into_node(self) -> Node<PS> {
-        self
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
