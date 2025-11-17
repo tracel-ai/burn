@@ -79,7 +79,7 @@ where
         ranges: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        kernel::slice_assign::<R, BT>(tensor, ranges, value)
+        kernel::slice_assign::<R>(tensor, ranges, value)
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {

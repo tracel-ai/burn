@@ -94,11 +94,7 @@ where
         ranges: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            kernel::slice_assign::<R, I>(tensor, ranges, value)
-        )
+        kernel::slice_assign::<R>(tensor, ranges, value)
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {

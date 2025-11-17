@@ -178,7 +178,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
             E::dtype(),
         )?;
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
-        columns = slice_assign::<R, E>(
+        columns = slice_assign::<R>(
             columns,
             &[
                 burn_tensor::Slice::from(group..group + 1),

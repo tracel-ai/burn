@@ -259,11 +259,7 @@ where
         ranges: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype, value.dtype),
-            E,
-            kernel::slice_assign::<R, E>(tensor, ranges, value)
-        )
+        kernel::slice_assign::<R>(tensor, ranges, value)
     }
 
     fn float_mask_where(
