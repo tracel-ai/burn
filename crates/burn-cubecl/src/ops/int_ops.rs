@@ -593,7 +593,7 @@ where
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, kernel::flip::<R, I, BT>(tensor, axes))
+        kernel::flip::<R>(tensor, axes, BT::dtype())
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {

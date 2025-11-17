@@ -139,7 +139,7 @@ where
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        kernel::flip::<R, BT, BT>(tensor, axes)
+        kernel::flip::<R>(tensor, axes, BT::dtype())
     }
 
     fn bool_unfold(

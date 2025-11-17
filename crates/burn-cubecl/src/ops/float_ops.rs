@@ -692,11 +692,7 @@ where
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::flip::<R, E, BT>(tensor, axes)
-        )
+        kernel::flip::<R>(tensor, axes, BT::dtype())
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
