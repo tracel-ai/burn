@@ -148,7 +148,7 @@ mod tests {
     fn test_codegen_expand_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let mut arg = Argument::new("shape1".to_string());
+        let mut arg = Argument::from_name("shape1".to_string());
         arg.ty = ArgType::Shape(4);
 
         graph.register(ExpandNode::new(
@@ -201,7 +201,7 @@ mod tests {
     fn test_codegen_expand_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let mut arg = Argument::new("tensor3".to_string());
+        let mut arg = Argument::from_name("tensor3".to_string());
         arg.ty = ArgType::Tensor(onnx_ir::TensorType {
             dtype: DType::I32,
             rank: 1,

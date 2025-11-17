@@ -213,6 +213,7 @@ fn test_scalar_representations() {
 }
 
 #[test]
+#[allow(clippy::approx_constant, clippy::bool_assert_comparison)]
 fn test_all_data_types_conversion() {
     // INFRASTRUCTURE TEST: Validates ALL data type conversions
     // Tests F32, F64, I32, I64, Bool, U8, I8, F16, U16 with non-empty and empty tensors
