@@ -549,7 +549,7 @@ where
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, kernel::cast::<R, I, F>(tensor))
+        kernel::cast::<R>(tensor, F::dtype())
     }
 
     fn int_swap_dims(mut tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
@@ -673,24 +673,7 @@ where
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        if tensor.dtype == dtype.into() {
-            return tensor;
-        }
-
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            match dtype {
-                IntDType::I64 => kernel::cast::<R, I, i64>(tensor),
-                IntDType::I32 => kernel::cast::<R, I, i32>(tensor),
-                IntDType::I16 => kernel::cast::<R, I, i16>(tensor),
-                IntDType::I8 => kernel::cast::<R, I, i8>(tensor),
-                IntDType::U64 => kernel::cast::<R, I, u64>(tensor),
-                IntDType::U32 => kernel::cast::<R, I, u32>(tensor),
-                IntDType::U16 => kernel::cast::<R, I, u16>(tensor),
-                IntDType::U8 => kernel::cast::<R, I, u8>(tensor),
-            }
-        )
+        kernel::cast::<R>(tensor, dtype.into())
     }
 
     fn int_unfold(

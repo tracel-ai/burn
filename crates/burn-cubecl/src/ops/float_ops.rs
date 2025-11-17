@@ -16,7 +16,6 @@ use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
 use cubecl::reduce::ReducePrecision;
 use cubecl::reduce::instructions::ReduceFnConfig;
-use half::{bf16, f16};
 use std::ops::Range;
 
 impl<R, F, I, BT> FloatTensorOps<Self> for CubeBackend<R, F, I, BT>
@@ -653,7 +652,7 @@ where
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, kernel::cast::<R, E, I>(tensor))
+        kernel::cast::<R>(tensor, I::dtype())
     }
 
     fn float_clamp(
@@ -700,37 +699,8 @@ where
         )
     }
 
-    fn float_cast(mut tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        match (tensor.dtype, dtype) {
-            (DType::F64, FloatDType::F64)
-            | (DType::F32, FloatDType::F32)
-            | (DType::Flex32, FloatDType::Flex32)
-            | (DType::BF16, FloatDType::BF16)
-            | (DType::F16, FloatDType::F16) => tensor,
-            (DType::F32, FloatDType::Flex32) | (DType::Flex32, FloatDType::F32) => {
-                tensor.dtype = dtype.into();
-                tensor
-            }
-            (DType::F64, FloatDType::F32) => kernel::cast::<R, f64, f32>(tensor),
-            (DType::F64, FloatDType::Flex32) => kernel::cast::<R, f64, flex32>(tensor),
-            (DType::F64, FloatDType::F16) => kernel::cast::<R, f64, f16>(tensor),
-            (DType::F64, FloatDType::BF16) => kernel::cast::<R, f64, bf16>(tensor),
-            (DType::F32, FloatDType::F64) => kernel::cast::<R, f32, f64>(tensor),
-            (DType::F32, FloatDType::F16) => kernel::cast::<R, f32, f16>(tensor),
-            (DType::F32, FloatDType::BF16) => kernel::cast::<R, f32, bf16>(tensor),
-            (DType::Flex32, FloatDType::F64) => kernel::cast::<R, flex32, f64>(tensor),
-            (DType::Flex32, FloatDType::F16) => kernel::cast::<R, flex32, f16>(tensor),
-            (DType::Flex32, FloatDType::BF16) => kernel::cast::<R, flex32, bf16>(tensor),
-            (DType::F16, FloatDType::F64) => kernel::cast::<R, f16, f64>(tensor),
-            (DType::F16, FloatDType::F32) => kernel::cast::<R, f16, f32>(tensor),
-            (DType::F16, FloatDType::Flex32) => kernel::cast::<R, f16, flex32>(tensor),
-            (DType::F16, FloatDType::BF16) => kernel::cast::<R, f16, bf16>(tensor),
-            (DType::BF16, FloatDType::F64) => kernel::cast::<R, bf16, f64>(tensor),
-            (DType::BF16, FloatDType::F32) => kernel::cast::<R, bf16, f32>(tensor),
-            (DType::BF16, FloatDType::Flex32) => kernel::cast::<R, bf16, flex32>(tensor),
-            (DType::BF16, FloatDType::F16) => kernel::cast::<R, bf16, f16>(tensor),
-            _ => unimplemented!("Unsupported floating point type cast"),
-        }
+    fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        kernel::cast::<R>(tensor, dtype.into())
     }
 
     fn float_unfold(

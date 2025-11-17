@@ -533,7 +533,7 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     };
 
     if !supports_same_type || !supports_fadd {
-        cast::<R, f32, E>(grad_in)
+        cast::<R>(grad_in, E::dtype())
     } else {
         grad_in
     }
