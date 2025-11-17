@@ -120,6 +120,3 @@ pub(crate) use super::node_registry::*;
 pub(crate) use super::node_traits::{
     NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data,
 };
-
-#[cfg(test)]
-pub(crate) use super::node_test as test;
