@@ -151,7 +151,7 @@ mod tests {
                 MetricId::new(Arc::new(NAME.into())),
                 SerializedEntry::new(num.to_string(), num.to_string()),
             );
-            let entries = Vec::from([&entry]);
+            let entries = Vec::from([entry]);
             self.logger.log(entries, self.epoch, Split::Train, None);
         }
         fn log_definition(&mut self) {
@@ -216,7 +216,7 @@ mod tests {
             metric_id.clone(),
             SerializedEntry::new(loss_1.to_string(), NumericEntry::Value(loss_1).serialize()),
         );
-        let entries = Vec::from([&entry]);
+        let entries = Vec::from([entry]);
         logger.log(entries, 1, Split::Train, None);
         let entry = MetricEntry::new(
             metric_id.clone(),
@@ -229,7 +229,7 @@ mod tests {
                 .serialize(),
             ),
         );
-        let entries = Vec::from([&entry]);
+        let entries = Vec::from([entry]);
         logger.log(entries, 1, Split::Train, None);
 
         let value = aggregate

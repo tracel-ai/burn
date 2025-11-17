@@ -27,6 +27,7 @@ impl EventStore for LogEventStore {
                     .entries
                     .iter()
                     .chain(update.entries_numeric.iter().map(|(entry, _value)| entry))
+                    .cloned()
                     .collect();
                 self.loggers
                     .iter_mut()

@@ -24,7 +24,7 @@ pub trait MetricLogger: Send {
     /// * `iteration` - Current iteration.
     fn log(
         &mut self,
-        items: Vec<&MetricEntry>,
+        items: Vec<MetricEntry>,
         epoch: usize,
         split: Split,
         tag: Option<Arc<String>>,
@@ -213,7 +213,7 @@ impl FileMetricLogger {
 impl MetricLogger for FileMetricLogger {
     fn log(
         &mut self,
-        items: Vec<&MetricEntry>,
+        items: Vec<MetricEntry>,
         epoch: usize,
         split: Split,
         tag: Option<Arc<String>>,
@@ -307,7 +307,7 @@ impl InMemoryMetricLogger {
 impl MetricLogger for InMemoryMetricLogger {
     fn log(
         &mut self,
-        items: Vec<&MetricEntry>,
+        items: Vec<MetricEntry>,
         epoch: usize,
         split: Split,
         _tag: Option<Arc<String>>,
