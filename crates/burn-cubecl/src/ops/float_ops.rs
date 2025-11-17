@@ -206,15 +206,7 @@ where
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            int(indices.dtype),
-            I,
-            execute_with_dtype!(
-                float(tensor.dtype),
-                E,
-                kernel::gather::<R, E, I>(dim, tensor, indices)
-            )
-        )
+        kernel::gather::<R>(dim, tensor, indices)
     }
 
     fn float_scatter(

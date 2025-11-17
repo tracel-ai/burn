@@ -139,15 +139,7 @@ where
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            E,
-            execute_with_dtype!(
-                int(tensor.dtype),
-                I,
-                kernel::gather::<R, E, I>(dim, tensor, indices)
-            )
-        )
+        kernel::gather::<R>(dim, tensor, indices)
     }
 
     fn int_scatter(
