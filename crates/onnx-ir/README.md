@@ -18,7 +18,8 @@ pipeline:
 
 The resulting IR provides:
 
-- **Enum-based node representation**: Each node is a variant of the `Node` enum with operation-specific configuration
+- **Enum-based node representation**: Each node is a variant of the `Node` enum with
+  operation-specific configuration
 - **Typed inputs/outputs**: All node arguments are validated with type information
 - **Pre-extracted configuration**: Attributes are parsed into strongly-typed config structs
 - **Static tensor data**: Constant values are available for constant folding
@@ -26,33 +27,28 @@ The resulting IR provides:
 
 ### Node Representation
 
-Nodes are represented using an enum where each variant corresponds to an ONNX operation:
+Nodes are represented using an enum where each variant wraps an operation-specific node struct:
 
 ```rust
 pub enum Node {
-    // Simple operations (no config)
-    Add { name: String, inputs: Vec<Argument>, outputs: Vec<Argument> },
+    Add(arithmetic::AddNode),
+    Softmax(softmax::SoftmaxNode),
+    Conv2d(conv2d::Conv2dNode),
+    // ... 200+ more variants
+}
 
-    // Operations with configuration
-    Softmax {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: SoftmaxConfig,
-    },
-
-    Conv2d {
-        name: String,
-        inputs: Vec<Argument>,
-        outputs: Vec<Argument>,
-        config: Conv2dConfig,
-    },
-
-    // ... 100+ more variants
+// Each node struct contains name, inputs, outputs, and optional config
+pub struct SoftmaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SoftmaxConfig,
 }
 ```
 
-This enum-based design provides type safety and makes it easy to pattern match on specific operations.
+This design provides type safety, enables trait implementations on specific node types, and uses a
+unified macro (`define_node_enum!`) to generate both `NodeType` and `Node` enums from a single
+source of truth.
 
 For detailed module documentation, see the inline docs in each module.
 
@@ -61,7 +57,8 @@ For detailed module documentation, see the inline docs in each module.
 ONNX-IR exposes a clean public API with three main components:
 
 - **`ir`** module - Core IR types (`OnnxGraph`, `Node`, `Argument`, `TensorType`, `DType`, etc.)
-- **`node`** module - Node configurations for all supported operations (e.g., `SoftmaxConfig`, `Conv2dConfig`)
+- **`node`** module - Node configurations for all supported operations (e.g., `SoftmaxConfig`,
+  `Conv2dConfig`)
 - **`parse_onnx`** - Main parsing function and error types
 
 ## Usage
@@ -81,16 +78,16 @@ for node in &graph.nodes {
 
     // Pattern match on node type to access operation-specific configuration
     match node {
-        Node::Softmax { config, inputs, outputs, .. } => {
-            println!("  Softmax on axis {}", config.axis);
-            println!("  Inputs: {:?}", inputs.iter().map(|i| &i.name).collect::<Vec<_>>());
+        Node::Softmax(softmax_node) => {
+            println!("  Softmax on axis {}", softmax_node.config.axis);
+            println!("  Inputs: {:?}", softmax_node.inputs.iter().map(|i| &i.name).collect::<Vec<_>>());
         }
-        Node::Conv2d { config, inputs, outputs, .. } => {
-            println!("  Conv2d with {} input channels", config.channels[0]);
-            println!("  Kernel size: {:?}", config.kernel_size);
+        Node::Conv2d(conv_node) => {
+            println!("  Conv2d with {} input channels", conv_node.config.channels[0]);
+            println!("  Kernel size: {:?}", conv_node.config.kernel_size);
         }
-        Node::Add { inputs, outputs, .. } => {
-            println!("  Add operation");
+        Node::Add(add_node) => {
+            println!("  Add operation with {} inputs", add_node.inputs.len());
         }
         _ => {
             println!("  Other operation");

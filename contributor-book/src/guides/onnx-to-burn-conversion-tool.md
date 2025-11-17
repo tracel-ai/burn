@@ -107,17 +107,33 @@ processor-based architecture. For each operation:
    pub mod squeeze;
    ```
 
-3. **Add to the Node enum** in `crates/onnx-ir/src/ir/node.rs` by adding a variant to the
-   `define_node_enum!` macro invocation:
+3. **Create a node struct** in your module file (e.g., `squeeze.rs`) with the standard fields:
+
+   ```rust
+   #[derive(Debug, Clone)]
+   pub struct SqueezeNode {
+       pub name: String,
+       pub inputs: Vec<Argument>,
+       pub outputs: Vec<Argument>,
+       pub config: SqueezeConfig,
+   }
+   ```
+
+4. **Add to the macro invocation** in `crates/onnx-ir/src/ir/node.rs` by adding a mapping to the
+   `define_node_enum!` macro:
 
    ```rust
    define_node_enum! {
        // ... other variants
-       Squeeze { config: squeeze::SqueezeConfig },
+       Squeeze => squeeze::SqueezeNode,
+       // ... more variants
    }
    ```
 
-4. **Register your processor** in `crates/onnx-ir/src/registry.rs` by adding it to the
+   This single macro invocation generates both the `NodeType` enum (for parsing) and the `Node` enum
+   (with tuple variants wrapping node structs) from a single source of truth.
+
+5. **Register your processor** in `crates/onnx-ir/src/registry.rs` by adding it to the
    `with_standard_processors()` function:
    ```rust
    registry.register("Squeeze", Box::new(squeeze::SqueezeProcessor));
@@ -140,24 +156,22 @@ For example, the squeeze operation in `crates/onnx-ir/src/node/squeeze.rs` conta
    for the operation.
 
 2. Implement the `OnnxIntoNode` trait for your node. This trait has a single method `from_onnx` that
-   converts an ONNX IR node into your Burn node type. Use pattern matching with destructuring to
-   extract the config and inputs/outputs:
+   converts an ONNX IR node into your Burn node type. Use pattern matching to extract the node
+   struct:
 
    ```rust
    impl OnnxIntoNode for SqueezeNode {
        fn from_onnx(node: onnx_ir::ir::Node) -> Self {
-           // Pattern match on the Node enum variant
-           let (inputs, outputs, config) = match node {
-               onnx_ir::ir::Node::Squeeze { inputs, outputs, config, .. } => {
-                   (inputs, outputs, config)
-               }
+           // Pattern match on the Node enum variant to extract the node struct
+           let squeeze_node = match node {
+               onnx_ir::ir::Node::Squeeze(node) => node,
                _ => panic!("Expected Squeeze node"),
            };
 
-           let input = TensorType::from(inputs.first().unwrap());
-           let output = TensorType::from(outputs.first().unwrap());
+           let input = TensorType::from(squeeze_node.inputs.first().unwrap());
+           let output = TensorType::from(squeeze_node.outputs.first().unwrap());
 
-           SqueezeNode::new(input, output, config.axes)
+           SqueezeNode::new(input, output, squeeze_node.config.axes)
        }
    }
    ```
@@ -267,10 +281,24 @@ implement:
 
 1. **Associated type**: `type Config` - Define your configuration struct (use `()` if no config)
 2. **`infer_types()`** - Infer output types from inputs and config (required)
-3. **`build_node()`** - Construct the `Node` enum variant (required)
+3. **`build_node()`** - Construct the node struct and wrap it in the `Node` enum variant (required)
 4. **`extract_config()`** - Extract config from attributes/inputs (override if Config != `()`)
 5. **`spec()`** - Define opset and input/output requirements (optional)
 6. **`lift_constants()`** - Request constant lifting for inputs (optional)
+
+Example `build_node()` implementation:
+
+```rust
+fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    let config = self.extract_config(&builder, opset).expect("Config extraction failed");
+    Node::Squeeze(SqueezeNode {
+        name: builder.name,
+        inputs: builder.inputs,
+        outputs: builder.outputs,
+        config,
+    })
+}
+```
 
 For complete examples, see existing processors:
 
@@ -403,11 +431,36 @@ incorrect results.
 ## Node Enum Architecture
 
 The ONNX-IR uses an enum-based node representation where each ONNX operation is a variant of the
-`Node` enum (defined in `crates/onnx-ir/src/ir/node.rs`). Each variant contains `name`, `inputs`,
-`outputs`, and optionally an operation-specific `config` struct. The `define_node_enum!` macro
-generates both the `NodeType` (simple enum for parsing) and `Node` (enum with configs) from a single
-source, ensuring they stay in sync. This provides type safety and makes it easy to pattern match on
-specific operations to access their configuration.
+`Node` enum (defined in `crates/onnx-ir/src/ir/node.rs`). Each variant wraps an operation-specific
+node struct (e.g., `SoftmaxNode`, `Conv2dNode`) that contains `name`, `inputs`, `outputs`, and
+optionally a `config` field.
+
+The `define_node_enum!` macro generates both enums from a single source using the syntax
+`VariantName => module::NodeStructType`:
+
+```rust
+define_node_enum! {
+    Softmax => softmax::SoftmaxNode,
+    Conv2d => conv2d::Conv2dNode,
+    Squeeze => squeeze::SqueezeNode,
+    // ... 200+ more variants
+}
+```
+
+This macro generates:
+
+1. **`NodeType` enum**: Simple unit variants for ONNX parsing (`Softmax`, `Conv2d`, etc.)
+2. **`Node` enum**: Tuple variants wrapping node structs (`Softmax(SoftmaxNode)`,
+   `Conv2d(Conv2dNode)`, etc.)
+3. **Accessor methods**: `name()`, `inputs()`, `outputs()` automatically generated for the `Node`
+   enum
+
+This design provides:
+
+- **Type safety**: Each operation has its own struct type
+- **Trait implementations**: Operations can implement specific traits on their node structs
+- **Single source of truth**: Both enums are guaranteed to stay in sync
+- **Pattern matching**: Easy to match on specific operations and access their configuration
 
 ## Resources
 
