@@ -126,7 +126,7 @@ where
         dim: usize,
         indices: IntTensor<Self>,
     ) -> BoolTensor<Self> {
-        kernel::select::<R, BT, I>(tensor, dim, indices)
+        kernel::select::<R>(tensor, dim, indices)
     }
 
     fn bool_select_assign(

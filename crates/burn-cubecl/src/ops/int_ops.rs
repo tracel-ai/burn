@@ -156,15 +156,7 @@ where
         dim: usize,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            E,
-            execute_with_dtype!(
-                int(indices.dtype),
-                I,
-                kernel::select::<R, E, I>(tensor, dim, indices)
-            )
-        )
+        kernel::select::<R>(tensor, dim, indices)
     }
 
     fn int_select_assign(

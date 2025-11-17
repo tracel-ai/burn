@@ -223,15 +223,7 @@ where
         dim: usize,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            int(indices.dtype),
-            I,
-            execute_with_dtype!(
-                float(tensor.dtype),
-                E,
-                kernel::select::<R, E, I>(tensor, dim, indices)
-            )
-        )
+        kernel::select::<R>(tensor, dim, indices)
     }
 
     fn float_select_assign(
