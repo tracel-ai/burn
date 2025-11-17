@@ -64,18 +64,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IsInfNode {
 
 impl OnnxIntoNode for IsInfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::IsInf {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected IsInf node"),
+        let onnx_ir::Node::IsInf(n) = node else {
+            panic!("Expected IsInf node");
         };
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
-        Self::new(input, output, config.clone())
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.clone())
     }
 }
 

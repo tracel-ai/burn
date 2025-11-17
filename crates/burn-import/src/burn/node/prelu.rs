@@ -102,18 +102,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 
 impl OnnxIntoNode for PReluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, name) = match &node {
-            onnx_ir::Node::PRelu {
-                inputs,
-                outputs,
-                name,
-                ..
-            } => (inputs, outputs, name),
-            _ => panic!("Expected PRelu node"),
+        let onnx_ir::Node::PRelu(n) = &node else {
+            panic!("Expected PRelu node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-        let mut weight = extract_node_data(inputs, 1).expect("PRelu weight is required");
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        let mut weight = extract_node_data(&n.inputs, 1).expect("PRelu weight is required");
 
         // Determine weight shape and flatten if necessary
         let weight_shape = if weight.shape.len() > 1 {
@@ -146,7 +140,7 @@ impl OnnxIntoNode for PReluNode {
             .with_num_parameters(weight_shape)
             .with_alpha(alpha_value);
 
-        Self::new(name, input, output, weight, config)
+        Self::new(&n.name, input, output, weight, config)
     }
 }
 

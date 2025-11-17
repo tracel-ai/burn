@@ -79,18 +79,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
 
 impl OnnxIntoNode for ArgMaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::ArgMax {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected ArgMax node"),
+        let onnx_ir::Node::ArgMax(n) = node else {
+            panic!("Expected ArgMax node");
         };
-        let input = crate::burn::TensorType::from(inputs.first().unwrap());
-        let output = crate::burn::Type::from(outputs.first().unwrap());
-        Self::new(input, output, config.axis, config.keepdims)
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::Type::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.axis, n.config.keepdims)
     }
 }
 

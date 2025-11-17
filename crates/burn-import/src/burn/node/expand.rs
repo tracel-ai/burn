@@ -68,24 +68,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
 
 impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::Expand {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Expand node"),
+        let onnx_ir::Node::Expand(n) = node else {
+            panic!("Expected Expand node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
 
         // Convert from onnx-ir ExpandConfig (with RuntimeInputRef) to burn-import ExpandConfig (with Argument)
-        let shape = match config {
+        let shape = match n.config {
             onnx_ir::node::expand::ExpandConfig::Static(s) => ExpandConfig::Static(s),
             onnx_ir::node::expand::ExpandConfig::Runtime(shape_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let shape_arg = inputs[shape_ref.input_index].clone();
+                let shape_arg = n.inputs[shape_ref.input_index].clone();
                 ExpandConfig::Runtime(shape_arg)
             }
         };

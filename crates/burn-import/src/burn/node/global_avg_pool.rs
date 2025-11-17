@@ -107,18 +107,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
 
 impl OnnxIntoNode for GlobalAvgPoolNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, name) = match node {
-            onnx_ir::Node::GlobalAveragePool {
-                inputs,
-                outputs,
-                name,
-                ..
-            } => (inputs, outputs, name),
-            _ => panic!("Expected GlobalAveragePool node"),
+        let onnx_ir::Node::GlobalAveragePool(n) = node else {
+            panic!("Expected GlobalAveragePool node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-        Self::new(name, input, output)
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(n.name, input, output)
     }
 }
 

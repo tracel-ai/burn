@@ -119,16 +119,13 @@ impl OnnxIntoNode for LinearNode {
         use burn::tensor::TensorData;
         use onnx_ir::ir::ArgType;
 
-        let (inputs, outputs, config, name) = match &node {
-            onnx_ir::Node::Linear {
-                inputs,
-                outputs,
-                config,
-                name,
-                ..
-            } => (inputs, outputs, config, name),
-            _ => panic!("Expected Linear node"),
+        let onnx_ir::Node::Linear(n) = &node else {
+            panic!("Expected Linear node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
 

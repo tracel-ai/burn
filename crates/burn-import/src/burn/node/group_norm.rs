@@ -126,16 +126,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
 
 impl OnnxIntoNode for GroupNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config, name) = match &node {
-            onnx_ir::Node::GroupNormalization {
-                inputs,
-                outputs,
-                config,
-                name,
-                ..
-            } => (inputs, outputs, config, name),
-            _ => panic!("Expected GroupNormalization node"),
+        let onnx_ir::Node::GroupNormalization(n) = &node else {
+            panic!("Expected GroupNormalization node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
 

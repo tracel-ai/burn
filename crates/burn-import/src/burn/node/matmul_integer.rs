@@ -156,17 +156,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
 
 impl OnnxIntoNode for MatMulIntegerNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::MatMulInteger {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected MatMulInteger node"),
+        let onnx_ir::Node::MatMulInteger(n) = node else {
+            panic!("Expected MatMulInteger node");
         };
-        let lhs = TensorType::from(inputs.first().unwrap());
-        let rhs = TensorType::from(inputs.get(1).unwrap());
-        let lhs_zp = inputs.get(2).map(TensorType::from);
-        let rhs_zp = inputs.get(3).map(TensorType::from);
-        let mut output = TensorType::from(outputs.first().unwrap());
+        let lhs = TensorType::from(n.inputs.first().unwrap());
+        let rhs = TensorType::from(n.inputs.get(1).unwrap());
+        let lhs_zp = n.inputs.get(2).map(TensorType::from);
+        let rhs_zp = n.inputs.get(3).map(TensorType::from);
+        let mut output = TensorType::from(n.outputs.first().unwrap());
         output.kind = TensorKind::Int;
 
         Self::new(lhs, rhs, lhs_zp, rhs_zp, output)

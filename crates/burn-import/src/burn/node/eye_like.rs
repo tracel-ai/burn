@@ -48,18 +48,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
 
 impl OnnxIntoNode for EyeLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::EyeLike {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected EyeLike node"),
+        let onnx_ir::Node::EyeLike(n) = node else {
+            panic!("Expected EyeLike node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-        Self::new(input, output, config.clone())
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.clone())
     }
 }
 

@@ -214,24 +214,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
 
 impl OnnxIntoNode for ReshapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match &node {
-            onnx_ir::Node::Reshape {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Reshape node"),
+        let onnx_ir::Node::Reshape(n) = &node else {
+            panic!("Expected Reshape node");
         };
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
-        match &config.shape {
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
+        match &n.config.shape {
             onnx_ir::node::reshape::ReshapeInput::Static(shape) => {
                 Self::new(input, output, shape.clone())
             }
             onnx_ir::node::reshape::ReshapeInput::Runtime(shape_ref) => {
                 // Get the actual argument using the RuntimeInputRef
-                let shape_arg = &inputs[shape_ref.input_index];
+                let shape_arg = &n.inputs[shape_ref.input_index];
                 let shape_input = Type::from(shape_arg);
                 Self::new(input, output, shape_input)
             }

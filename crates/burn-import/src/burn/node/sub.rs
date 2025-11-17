@@ -123,15 +123,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
 
 impl OnnxIntoNode for SubNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Sub {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Sub node"),
+        let onnx_ir::Node::Sub(n) = node else {
+            panic!("Expected Sub node");
         };
-        let lhs = Type::from(inputs.first().unwrap());
-        let rhs = Type::from(inputs.get(1).unwrap());
-        let output = Type::from(outputs.first().unwrap());
+        let lhs = Type::from(n.inputs.first().unwrap());
+        let rhs = Type::from(n.inputs.get(1).unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
 
         Self::new(lhs, rhs, output)
     }

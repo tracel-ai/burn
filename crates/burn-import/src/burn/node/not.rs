@@ -36,17 +36,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NotNode {
 
 impl OnnxIntoNode for NotNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Not {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Not node"),
+        let onnx_ir::Node::Not(n) = node else {
+            panic!("Expected Not node");
         };
-        let input = match Type::from(inputs.first().unwrap()) {
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("NotNode expects tensor input"),
         };
-        let output = match Type::from(outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("NotNode expects tensor output"),
         };

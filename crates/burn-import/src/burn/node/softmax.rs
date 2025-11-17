@@ -37,24 +37,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SoftmaxNode {
 
 impl OnnxIntoNode for SoftmaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::Softmax {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Softmax node"),
+        let onnx_ir::Node::Softmax(n) = node else {
+            panic!("Expected Softmax node");
         };
-        let input = match Type::from(inputs.first().unwrap()) {
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("Softmax expects tensor input"),
         };
-        let output = match Type::from(outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("Softmax expects tensor output"),
         };
-        Self::new(input, output, config.axis)
+        Self::new(input, output, n.config.axis)
     }
 }
 

@@ -43,14 +43,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseNotNode {
 
 impl OnnxIntoNode for BitwiseNotNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::BitwiseNot {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected BitwiseNot node"),
+        let onnx_ir::Node::BitwiseNot(n) = node else {
+            panic!("Expected BitwiseNot node");
         };
-        let input = crate::burn::TensorType::from(inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(outputs.first().unwrap());
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

@@ -215,15 +215,12 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for IfNode {
 impl OnnxIntoNode for IfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Get then_branch and else_branch from config
-        let (node_inputs, node_outputs, config) = match &node {
-            onnx_ir::Node::If {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected If node"),
+        let onnx_ir::Node::If(n) = &node else {
+            panic!("Expected If node");
         };
+        let node_inputs = &n.inputs;
+        let node_outputs = &n.outputs;
+        let config = &n.config;
 
         // Extract condition input (always first input)
         let condition = Type::from(node_inputs.first().unwrap());

@@ -45,14 +45,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BernoulliNode {
 
 impl OnnxIntoNode for BernoulliNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Bernoulli {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Bernoulli node"),
+        let onnx_ir::Node::Bernoulli(n) = node else {
+            panic!("Expected Bernoulli node");
         };
-        let input = crate::burn::TensorType::from(inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(outputs.first().unwrap());
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

@@ -55,18 +55,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
 
 impl OnnxIntoNode for PadNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::Pad {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Pad node"),
+        let onnx_ir::Node::Pad(n) = node else {
+            panic!("Expected Pad node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-        Self::new(input, output, config.clone())
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.clone())
     }
 }
 

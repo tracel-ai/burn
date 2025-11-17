@@ -46,15 +46,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TileNode {
 
 impl OnnxIntoNode for TileNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match &node {
-            onnx_ir::Node::Tile {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Tile node"),
+        let onnx_ir::Node::Tile(n) = &node else {
+            panic!("Expected Tile node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
         Self::new(input, output, config.clone())

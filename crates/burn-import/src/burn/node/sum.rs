@@ -43,14 +43,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SumNode {
 
 impl OnnxIntoNode for SumNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Sum {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Sum node"),
+        let onnx_ir::Node::Sum(n) = node else {
+            panic!("Expected Sum node");
         };
-        let inputs = inputs.iter().map(TensorType::from).collect();
-        let output = TensorType::from(outputs.first().unwrap());
+        let inputs = n.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(n.outputs.first().unwrap());
         Self::new(inputs, output)
     }
 }

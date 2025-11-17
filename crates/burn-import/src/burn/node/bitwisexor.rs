@@ -75,14 +75,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseXorNode {
 
 impl OnnxIntoNode for BitwiseXorNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (node_inputs, outputs) = match node {
-            onnx_ir::Node::BitwiseXor {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected BitwiseXor node"),
+        let onnx_ir::Node::BitwiseXor(n) = node else {
+            panic!("Expected BitwiseXor node");
         };
-        let inputs = node_inputs.iter().map(Type::from).collect();
-        let output = Type::from(outputs.first().unwrap());
+        let inputs = n.inputs.iter().map(Type::from).collect();
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(inputs, output)
     }
 }

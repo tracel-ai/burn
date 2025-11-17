@@ -52,14 +52,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NonZeroNode {
 
 impl OnnxIntoNode for NonZeroNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::NonZero {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected NonZero node"),
+        let onnx_ir::Node::NonZero(n) = node else {
+            panic!("Expected NonZero node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

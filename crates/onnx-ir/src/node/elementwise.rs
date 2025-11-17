@@ -220,7 +220,6 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             // Other unary operations (need proper opset validation)
             crate::ir::NodeType::Sigmoid => 6,
             crate::ir::NodeType::Gelu => 20, // TODO: Verify Gelu opset requirement - may need custom processor for 'approximate' attribute
-            crate::ir::NodeType::GlobalAveragePool => 1, // TODO: GlobalAveragePool should not be in elementwise processor - has specific pooling semantics - Should have dedicated processor
             // Other unary operations
             _ => 1, // FIXME: Default case should not be needed - all unary ops should be explicitly listed
         };

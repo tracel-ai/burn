@@ -273,9 +273,47 @@ impl ProcessorRegistry {
             NodeType::MaxPool2d,
             Box::new(crate::node::max_pool2d::MaxPool2dProcessor),
         );
+
+        // Global pooling operations
         registry.register(
             NodeType::GlobalAveragePool,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::global_avg_pool::GlobalAveragePoolProcessor),
+        );
+
+        // Identity operation (typically eliminated during post-processing)
+        registry.register(
+            NodeType::Identity,
+            Box::new(crate::node::identity::IdentityProcessor),
+        );
+
+        // Unsupported/placeholder operations
+        registry.register(
+            NodeType::GlobalMaxPool,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::GatherND,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::Scatter,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::ScatterElements,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::ScatterND,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::Unique,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::CumSum,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
         );
 
         // Convolution operations

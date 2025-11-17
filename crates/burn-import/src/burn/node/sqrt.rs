@@ -42,14 +42,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqrtNode {
 
 impl OnnxIntoNode for SqrtNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Sqrt {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Sqrt node"),
+        let onnx_ir::Node::Sqrt(n) = node else {
+            panic!("Expected Sqrt node");
         };
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

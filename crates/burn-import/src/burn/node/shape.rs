@@ -65,22 +65,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
 
 impl OnnxIntoNode for ShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::Shape {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Shape node"),
+        let onnx_ir::Node::Shape(n) = node else {
+            panic!("Expected Shape node");
         };
-        let input = Type::from(inputs.first().unwrap());
-        let output = match Type::from(outputs.first().unwrap()) {
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Shape(s) => s,
             _ => panic!("Shape expects shape output"),
         };
-        let start_dim = config.start;
-        let end_dim = config.end;
+        let start_dim = n.config.start;
+        let end_dim = n.config.end;
         Self::new(input, output, start_dim, end_dim)
     }
 }

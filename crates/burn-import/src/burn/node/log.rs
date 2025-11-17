@@ -42,14 +42,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LogNode {
 
 impl OnnxIntoNode for LogNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Log {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Log node"),
+        let onnx_ir::Node::Log(n) = node else {
+            panic!("Expected Log node");
         };
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

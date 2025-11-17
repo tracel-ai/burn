@@ -84,18 +84,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
 
 impl OnnxIntoNode for BitShiftNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (node_inputs, outputs, config) = match node {
-            onnx_ir::Node::BitShift {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected BitShift node"),
+        let onnx_ir::Node::BitShift(n) = node else {
+            panic!("Expected BitShift node");
         };
-        let inputs = node_inputs.iter().map(Type::from).collect();
-        let output = Type::from(outputs.first().unwrap());
-        let direction = match config.direction {
+        let inputs = n.inputs.iter().map(Type::from).collect();
+        let output = Type::from(n.outputs.first().unwrap());
+        let direction = match n.config.direction {
             onnx_ir::node::bitshift::Direction::Left => Direction::Left,
             onnx_ir::node::bitshift::Direction::Right => Direction::Right,
         };

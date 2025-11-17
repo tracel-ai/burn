@@ -354,66 +354,22 @@ impl OnnxIntoNode for ReduceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Extract reduction type, inputs, outputs, and config from node variant
         let (inputs, outputs, reduction_type, config) = match &node {
-            onnx_ir::Node::ReduceMax {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::Max, config),
-            onnx_ir::Node::ReduceMin {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::Min, config),
-            onnx_ir::Node::ReduceSum {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::Sum, config),
-            onnx_ir::Node::ReduceProd {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::Prod, config),
-            onnx_ir::Node::ReduceMean {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::Mean, config),
-            onnx_ir::Node::ReduceL1 {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::L1, config),
-            onnx_ir::Node::ReduceL2 {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::L2, config),
-            onnx_ir::Node::ReduceLogSum {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::LogSum, config),
-            onnx_ir::Node::ReduceLogSumExp {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::LogSumExp, config),
-            onnx_ir::Node::ReduceSumSquare {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, ReductionType::SumSquare, config),
+            onnx_ir::Node::ReduceMax(n) => (&n.inputs, &n.outputs, ReductionType::Max, &n.config),
+            onnx_ir::Node::ReduceMin(n) => (&n.inputs, &n.outputs, ReductionType::Min, &n.config),
+            onnx_ir::Node::ReduceSum(n) => (&n.inputs, &n.outputs, ReductionType::Sum, &n.config),
+            onnx_ir::Node::ReduceProd(n) => (&n.inputs, &n.outputs, ReductionType::Prod, &n.config),
+            onnx_ir::Node::ReduceMean(n) => (&n.inputs, &n.outputs, ReductionType::Mean, &n.config),
+            onnx_ir::Node::ReduceL1(n) => (&n.inputs, &n.outputs, ReductionType::L1, &n.config),
+            onnx_ir::Node::ReduceL2(n) => (&n.inputs, &n.outputs, ReductionType::L2, &n.config),
+            onnx_ir::Node::ReduceLogSum(n) => {
+                (&n.inputs, &n.outputs, ReductionType::LogSum, &n.config)
+            }
+            onnx_ir::Node::ReduceLogSumExp(n) => {
+                (&n.inputs, &n.outputs, ReductionType::LogSumExp, &n.config)
+            }
+            onnx_ir::Node::ReduceSumSquare(n) => {
+                (&n.inputs, &n.outputs, ReductionType::SumSquare, &n.config)
+            }
             _ => panic!("Unsupported reduction type: {}", node.name()),
         };
 

@@ -97,14 +97,14 @@ macro_rules! node_registry {
             match node {
                 // Single mappings
                 $(
-                    onnx_ir::Node::$single_onnx { .. } => {
+                    onnx_ir::Node::$single_onnx(_) => {
                         Some(NodeCodegen::into_node($single_node_type::from_onnx(node)))
                     }
                 )*
                 // Grouped mappings (expands each ONNX op in the group)
                 $(
                     $(
-                        onnx_ir::Node::$group_onnx { .. } => {
+                        onnx_ir::Node::$group_onnx(_) => {
                             Some(NodeCodegen::into_node($group_node_type::from_onnx(node)))
                         }
                     )+

@@ -126,16 +126,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
 
 impl OnnxIntoNode for LayerNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config, name) = match &node {
-            onnx_ir::Node::LayerNormalization {
-                inputs,
-                outputs,
-                config,
-                name,
-                ..
-            } => (inputs, outputs, config, name),
-            _ => panic!("Expected LayerNormalization node"),
+        let onnx_ir::Node::LayerNormalization(n) = &node else {
+            panic!("Expected LayerNormalization node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
 

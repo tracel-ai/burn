@@ -218,7 +218,6 @@ define_node_enum! {
     Gather => gather::GatherNode,
     GatherElements => gather_elements::GatherElementsNode,
     GatherND => unsupported::GatherNDNode,
-    Identity => unsupported::IdentityNode,
     Pad => pad::PadNode,
     Reshape => reshape::ReshapeNode,
     Resize => resize::ResizeNode,
@@ -252,7 +251,7 @@ define_node_enum! {
     AveragePool2d => avg_pool2d::AveragePool2dNode,
     MaxPool1d => max_pool1d::MaxPool1dNode,
     MaxPool2d => max_pool2d::MaxPool2dNode,
-    GlobalAveragePool => unsupported::GlobalAveragePoolNode,
+    GlobalAveragePool => global_avg_pool::GlobalAveragePoolNode,
     GlobalMaxPool => unsupported::GlobalMaxPoolNode,
 
     // NORMALIZATION
@@ -272,6 +271,7 @@ define_node_enum! {
     Constant => constant::ConstantNode,
     ConstantOfShape => constant_of_shape::ConstantOfShapeNode,
     EyeLike => eye_like::EyeLikeNode,
+    Identity => identity::IdentityNode,
 
     // RANDOM OPERATIONS
     RandomNormal => random::RandomNormalNode,

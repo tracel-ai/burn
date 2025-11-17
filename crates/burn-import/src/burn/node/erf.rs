@@ -42,14 +42,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ErfNode {
 
 impl OnnxIntoNode for ErfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Erf {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Erf node"),
+        let onnx_ir::Node::Erf(n) = node else {
+            panic!("Expected Erf node");
         };
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

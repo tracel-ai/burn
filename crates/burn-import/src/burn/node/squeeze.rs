@@ -112,15 +112,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
 
 impl OnnxIntoNode for SqueezeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match &node {
-            onnx_ir::Node::Squeeze {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Squeeze node"),
+        let onnx_ir::Node::Squeeze(n) = &node else {
+            panic!("Expected Squeeze node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
         let input = Type::from(inputs.first().unwrap());
         let output = Type::from(outputs.first().unwrap());
         let axes = config.axes.as_ref().map(|a| match a {

@@ -142,16 +142,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
 
 impl OnnxIntoNode for BatchNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config, name) = match &node {
-            onnx_ir::Node::BatchNormalization {
-                inputs,
-                outputs,
-                config,
-                name,
-                ..
-            } => (inputs, outputs, config, name),
-            _ => panic!("Expected BatchNormalization node"),
+        let onnx_ir::Node::BatchNormalization(n) = &node else {
+            panic!("Expected BatchNormalization node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
+
         let input = TensorType::from(inputs.first().unwrap());
         let output = TensorType::from(outputs.first().unwrap());
         let dim = input.rank - 2;

@@ -79,15 +79,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PowNode {
 
 impl OnnxIntoNode for PowNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Pow {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Pow node"),
+        let onnx_ir::Node::Pow(n) = node else {
+            panic!("Expected Pow node");
         };
-        let lhs = Type::from(inputs.first().unwrap());
-        let rhs = Type::from(inputs.get(1).unwrap());
-        let output = Type::from(outputs.first().unwrap());
+        let lhs = Type::from(n.inputs.first().unwrap());
+        let rhs = Type::from(n.inputs.get(1).unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
 
         // Determine power type based on RHS type
         let power_type = match &rhs {

@@ -130,26 +130,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv1dNode {
 
 impl OnnxIntoNode for Conv1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config, name) = match &node {
-            onnx_ir::Node::Conv1d {
-                inputs,
-                outputs,
-                config,
-                name,
-                ..
-            } => (inputs, outputs, config, name),
-            _ => panic!("Expected Conv1d node"),
+        let onnx_ir::Node::Conv1d(n) = &node else {
+            panic!("Expected Conv1d node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-        let has_bias = inputs.len() == 3;
-        let weight = extract_node_data(inputs, 1).unwrap();
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        let has_bias = n.inputs.len() == 3;
+        let weight = extract_node_data(&n.inputs, 1).unwrap();
         let bias = if has_bias {
-            extract_node_data(inputs, 2)
+            extract_node_data(&n.inputs, 2)
         } else {
             None
         };
-        Self::new(name, input, output, weight, bias, config.clone())
+        Self::new(&n.name, input, output, weight, bias, n.config.clone())
     }
 }
 

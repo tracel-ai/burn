@@ -39,24 +39,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for HardSigmoidNode {
 
 impl OnnxIntoNode for HardSigmoidNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::HardSigmoid {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected HardSigmoid node"),
+        let onnx_ir::Node::HardSigmoid(n) = node else {
+            panic!("Expected HardSigmoid node");
         };
-        let input = match crate::burn::Type::from(inputs.first().unwrap()) {
+        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("HardSigmoid expects tensor input"),
         };
-        let output = match crate::burn::Type::from(outputs.first().unwrap()) {
+        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("HardSigmoid expects tensor output"),
         };
-        Self::new(input, output, config.alpha, config.beta)
+        Self::new(input, output, n.config.alpha, n.config.beta)
     }
 }
 

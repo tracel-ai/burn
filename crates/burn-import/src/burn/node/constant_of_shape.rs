@@ -192,32 +192,27 @@ impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::ConstantOfShape {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected ConstantOfShape node"),
+        let onnx_ir::Node::ConstantOfShape(n) = node else {
+            panic!("Expected ConstantOfShape node");
         };
 
         // Convert from onnx-ir enum to codegen enum
-        let shape = match &config.shape {
+        let shape = match &n.config.shape {
             ConstantOfShapeShape::Static(values) => {
                 ConstantOfShapeShapeParam::Static(values.clone())
             }
             ConstantOfShapeShape::Runtime(runtime_ref) => {
-                let arg = &inputs[runtime_ref.input_index];
+                let arg = &n.inputs[runtime_ref.input_index];
                 ConstantOfShapeShapeParam::Runtime(Type::from(arg))
             }
         };
 
-        let output = Type::from(outputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
 
         // The value of the output elements. Should be a one-element tensor.
         // If not specified, it defaults to a tensor of value 0 and datatype float32
-        let value = config
+        let value = n
+            .config
             .value
             .as_ref()
             .map(|tensor_data| match tensor_data.dtype {

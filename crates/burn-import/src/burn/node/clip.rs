@@ -51,27 +51,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
 
 impl OnnxIntoNode for ClipNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match node {
-            onnx_ir::Node::Clip {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Clip node"),
+        let onnx_ir::Node::Clip(n) = node else {
+            panic!("Expected Clip node");
         };
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
 
         // Extract static values from ClipInput enum
-        let min = match &config.min {
+        let min = match &n.config.min {
             Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
             Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
                 panic!("Clip: runtime min values are not supported in burn-import")
             }
             None => None,
         };
-        let max = match &config.max {
+        let max = match &n.config.max {
             Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
             Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
                 panic!("Clip: runtime max values are not supported in burn-import")

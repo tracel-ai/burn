@@ -595,15 +595,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
 
 impl OnnxIntoNode for SliceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs, config) = match &node {
-            onnx_ir::Node::Slice {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Slice node"),
+        let onnx_ir::Node::Slice(n) = &node else {
+            panic!("Expected Slice node");
         };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
         let input = Type::from(inputs.first().unwrap());
         let output = Type::from(outputs.first().unwrap());
         use onnx_ir::node::slice::SliceInput;

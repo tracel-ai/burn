@@ -404,32 +404,34 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for ScanNode {
 impl OnnxIntoNode for ScanNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         // Get body graph and config from node
-        let (inputs, outputs, config) = match &node {
-            onnx_ir::Node::Scan {
-                inputs,
-                outputs,
-                config,
-                ..
-            } => (inputs, outputs, config),
-            _ => panic!("Expected Scan node"),
+        let onnx_ir::Node::Scan(n) = &node else {
+            panic!("Expected Scan node");
         };
-        let body = config.body.clone();
-        let num_scan_inputs = config.num_scan_inputs as usize;
-        let scan_input_directions = config.scan_input_directions.clone();
-        let scan_output_directions = config.scan_output_directions.clone();
-        let scan_input_axes = config.scan_input_axes.clone();
-        let scan_output_axes = config.scan_output_axes.clone();
+        let body = n.config.body.clone();
+        let num_scan_inputs = n.config.num_scan_inputs as usize;
+        let scan_input_directions = n.config.scan_input_directions.clone();
+        let scan_output_directions = n.config.scan_output_directions.clone();
+        let scan_input_axes = n.config.scan_input_axes.clone();
+        let scan_output_axes = n.config.scan_output_axes.clone();
 
         // Split inputs into state variables and scan inputs
-        let num_state_vars = inputs.len() - num_scan_inputs;
-        let initial_state_vars: Vec<Type> =
-            inputs.iter().take(num_state_vars).map(Type::from).collect();
+        let num_state_vars = n.inputs.len() - num_scan_inputs;
+        let initial_state_vars: Vec<Type> = n
+            .inputs
+            .iter()
+            .take(num_state_vars)
+            .map(Type::from)
+            .collect();
 
-        let scan_input_sequences: Vec<Type> =
-            inputs.iter().skip(num_state_vars).map(Type::from).collect();
+        let scan_input_sequences: Vec<Type> = n
+            .inputs
+            .iter()
+            .skip(num_state_vars)
+            .map(Type::from)
+            .collect();
 
         // Outputs are final state vars + scan output sequences
-        let outputs: Vec<Type> = outputs.iter().map(Type::from).collect();
+        let outputs: Vec<Type> = n.outputs.iter().map(Type::from).collect();
 
         Self::new(
             initial_state_vars,

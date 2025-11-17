@@ -35,17 +35,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SignNode {
 
 impl OnnxIntoNode for SignNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (inputs, outputs) = match node {
-            onnx_ir::Node::Sign {
-                inputs, outputs, ..
-            } => (inputs, outputs),
-            _ => panic!("Expected Sign node"),
+        let onnx_ir::Node::Sign(n) = node else {
+            panic!("Expected Sign node");
         };
-        let input = match Type::from(inputs.first().unwrap()) {
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("SignNode expects tensor input"),
         };
-        let output = match Type::from(outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("SignNode expects tensor output"),
         };

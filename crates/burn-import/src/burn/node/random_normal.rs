@@ -63,14 +63,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalNode {
 
 impl OnnxIntoNode for RandomNormalNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (outputs, config) = match node {
-            onnx_ir::Node::RandomNormal {
-                outputs, config, ..
-            } => (outputs, config),
-            _ => panic!("Expected RandomNormal node"),
+        let onnx_ir::Node::RandomNormal(n) = node else {
+            panic!("Expected RandomNormal node");
         };
-        let output_type = TensorType::from(outputs.first().unwrap());
-        Self::new(output_type, config.mean, config.scale, config.shape.clone())
+        let output_type = TensorType::from(n.outputs.first().unwrap());
+        Self::new(
+            output_type,
+            n.config.mean,
+            n.config.scale,
+            n.config.shape.clone(),
+        )
     }
 }
 
