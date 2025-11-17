@@ -1,11 +1,13 @@
 use alloc::vec::Vec;
 use num_traits::{Float, PrimInt};
-use serde::{Deserialize, Serialize};
 
-use super::{BlockSize, QuantValue};
+use burn_tensor::quantization::{BlockSize, QuantValue};
+
+// NOTE: this mainly serves as a simple reference implementation.
+// The de/quantization ops should be refactored to use ndarray.
 
 /// Quantization strategy.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuantizationStrategy {
     /// Per-tensor symmetric quantization.
     PerTensorSymmetric(SymmetricQuantization<f32>),
@@ -84,7 +86,7 @@ fn valid_scale<E: Float>(mut scale: E) -> E {
 }
 
 /// Symmetric quantization scheme.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct SymmetricQuantization<E: Float + Send + Sync> {
     /// The scaling factor.
     pub scale: E,
@@ -154,6 +156,8 @@ impl<E: Float + Send + Sync> Eq for SymmetricQuantization<E> {}
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::TensorData;
+
     use super::*;
     use alloc::vec;
 
@@ -193,5 +197,22 @@ mod tests {
         let d = symmetric.dequantize(&expected_q);
 
         assert_eq!(d, expected_d);
+    }
+
+    #[test]
+    fn should_support_dequantize() {
+        let strategy = QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization {
+            scale: 0.1,
+            value: QuantValue::Q8S,
+        });
+
+        let output = strategy.dequantize(&[-127i8, -77, -26, 25, 76, 127]);
+
+        let output = TensorData::new(output, [2, 3]);
+
+        output.assert_approx_eq::<f32>(
+            &TensorData::from([[-12.7, -7.7, -2.6], [2.5, 7.6, 12.7]]),
+            Default::default(),
+        );
     }
 }

@@ -11,7 +11,7 @@ use num_traits::{Float, ToPrimitive};
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
-    quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
+    quantization::{QuantValue, QuantizedBytes},
     tensor::Bytes,
 };
 
@@ -50,13 +50,13 @@ impl TensorData {
     pub fn quantized<E: Element, S: Into<Vec<usize>>>(
         value: Vec<E>,
         shape: S,
-        strategy: QuantizationStrategy,
         scheme: QuantScheme,
+        qparams: &[f32],
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, strategy, scheme);
+        let q_bytes = QuantizedBytes::new(value, scheme, qparams);
 
         Self {
             bytes: q_bytes.bytes,
@@ -508,26 +508,6 @@ impl TensorData {
     /// Returns the bytes representation of the data.
     pub fn into_bytes(self) -> Bytes {
         self.bytes
-    }
-
-    /// Dequantizes the data according to its quantization scheme.
-    pub fn dequantize(self) -> Result<Self, DataError> {
-        if let DType::QFloat(scheme) = self.dtype {
-            let num_elements = self.num_elements();
-            let q_bytes = QuantizedBytes {
-                bytes: self.bytes,
-                scheme,
-                num_elements,
-            };
-
-            let values = q_bytes.dequantize().0;
-            Ok(Self::new(values, self.shape))
-        } else {
-            Err(DataError::TypeMismatch(format!(
-                "Expected quantized data, got {:?}",
-                self.dtype
-            )))
-        }
     }
 
     /// Asserts the data is equal to another data.
@@ -1087,7 +1067,7 @@ impl<F: Float> Tolerance<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Shape, quantization::SymmetricQuantization};
+    use crate::Shape;
 
     use super::*;
     use alloc::vec;
@@ -1217,43 +1197,6 @@ mod tests {
         test_precision::<f16>();
         test_precision::<i64>();
         test_precision::<i32>();
-    }
-
-    #[test]
-    #[should_panic = "Expected quantized data"]
-    fn should_not_dequantize() {
-        let data = TensorData::from([[3.0, 5.0, 6.0, 7.0]]);
-        data.dequantize().unwrap();
-    }
-
-    #[test]
-    fn should_support_dequantize() {
-        let data = TensorData::quantized(
-            vec![-127i8, -77, -26, 25, 76, 127],
-            [2, 3],
-            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                0.1,
-                QuantValue::Q8S,
-            )),
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                value: QuantValue::Q8S,
-                mode: QuantMode::Symmetric,
-                ..Default::default()
-            },
-        );
-
-        let output = data.dequantize().unwrap();
-
-        output.assert_approx_eq::<f32>(
-            &TensorData::from([[-12.7, -7.7, -2.6], [2.5, 7.6, 12.7]]),
-            Tolerance::default(),
-        );
-
-        output.assert_approx_eq::<f16>(
-            &TensorData::from([[-12.7, -7.7, -2.6], [2.5, 7.6, 12.7]]),
-            Tolerance::default(),
-        );
     }
 
     macro_rules! test_dtypes {
