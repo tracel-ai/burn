@@ -128,7 +128,7 @@ mod tests {
 
     use crate::{
         logger::{FileMetricLogger, InMemoryMetricLogger},
-        metric::MetricEntry,
+        metric::{MetricEntry, MetricId, SerializedEntry},
     };
 
     use super::*;
@@ -147,7 +147,10 @@ mod tests {
             }
         }
         fn log(&mut self, num: f64) {
-            let entry = MetricEntry::new(Arc::new(NAME.into()), num.to_string(), num.to_string());
+            let entry = MetricEntry::new(
+                MetricId::new(Arc::new(NAME.into())),
+                SerializedEntry::new(num.to_string(), num.to_string()),
+            );
             let entries = Vec::from([&entry]);
             self.logger.log(entries, self.epoch, Split::Train);
         }
@@ -192,20 +195,21 @@ mod tests {
         let loss_1 = 0.5;
         let loss_2 = 1.25; // (1.5 + 1.0) / 2 = 2.5 / 2
         let entry = MetricEntry::new(
-            metric_name.clone(),
-            loss_1.to_string(),
-            NumericEntry::Value(loss_1).serialize(),
+            MetricId::new(metric_name.clone()),
+            SerializedEntry::new(loss_1.to_string(), NumericEntry::Value(loss_1).serialize()),
         );
         let entries = Vec::from([&entry]);
         logger.log(entries, 1, Split::Train);
         let entry = MetricEntry::new(
-            metric_name.clone(),
-            loss_2.to_string(),
-            NumericEntry::Aggregated {
-                aggregated_value: loss_2,
-                count: 2,
-            }
-            .serialize(),
+            MetricId::new(metric_name.clone()),
+            SerializedEntry::new(
+                loss_2.to_string(),
+                NumericEntry::Aggregated {
+                    aggregated_value: loss_2,
+                    count: 2,
+                }
+                .serialize(),
+            ),
         );
         let entries = Vec::from([&entry]);
         logger.log(entries, 1, Split::Train);

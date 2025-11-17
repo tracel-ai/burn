@@ -55,6 +55,16 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
         match event {
+            EvaluatorEvent::Start => {
+                let definitions = self.metrics.metric_definitions();
+                self.store
+                    .add_event_train(crate::metric::store::Event::MetricsInit(
+                        definitions.clone(),
+                    ));
+                definitions
+                    .iter()
+                    .for_each(|definition| self.renderer.register_metric(definition.clone()));
+            }
             EvaluatorEvent::ProcessedItem(name, item) => {
                 let item = item.sync();
                 let progress = (&item).into();
@@ -101,7 +111,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
             LearnerEvent::Start => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
-                    .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
+                    .add_event_train(crate::metric::store::Event::MetricsInit(
+                        definitions.clone(),
+                    ));
+                definitions
+                    .iter()
+                    .for_each(|definition| self.renderer.register_metric(definition.clone()));
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();

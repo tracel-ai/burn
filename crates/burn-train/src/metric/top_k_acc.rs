@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
+use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
@@ -52,7 +52,11 @@ impl<B: Backend> TopKAccuracyMetric<B> {
 impl<B: Backend> Metric for TopKAccuracyMetric<B> {
     type Input = TopKAccuracyInput<B>;
 
-    fn update(&mut self, input: &TopKAccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(
+        &mut self,
+        input: &TopKAccuracyInput<B>,
+        _metadata: &MetricMetadata,
+    ) -> SerializedEntry {
         let [batch_size, _n_classes] = input.outputs.dims();
 
         let targets = input.targets.clone().to_device(&B::Device::default());

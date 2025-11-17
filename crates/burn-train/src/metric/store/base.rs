@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::metric::{MetricDefinition, MetricEntry, NumericEntry};
 
@@ -41,7 +41,7 @@ pub struct EpochSummary {
     /// Dataset split (train, valid, test).
     pub split: Split,
     /// Contains the best MetricEntry reached during this epoch for each metric, for each split.
-    pub best_metric_values: HashMap<String, Option<NumericEntry>>,
+    pub best_metric_values: Vec<MetricEntry>,
 }
 
 /// Defines how training and validation events are collected and searched.

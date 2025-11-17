@@ -1,6 +1,6 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
 use crate::metric::{
-    MetricDefinition, MetricEntry, NumericEntry,
+    MetricDefinition, MetricEntry, MetricId, NumericEntry,
     store::{EpochSummary, Split},
 };
 use std::{
@@ -32,7 +32,7 @@ pub trait MetricLogger: Send {
     ) -> Result<Vec<NumericEntry>, String>;
 
     /// Logs the metric definition information (name, description, unit, etc.)
-    fn log_metric_definition(&self, definition: MetricDefinition);
+    fn log_metric_definition(&mut self, definition: MetricDefinition);
 
     /// Logs summary of the epoch (duration, highest metric values reached, etc.)
     fn log_epoch_summary(&mut self, summary: EpochSummary);
@@ -42,6 +42,7 @@ pub trait MetricLogger: Send {
 pub struct FileMetricLogger {
     loggers: HashMap<String, AsyncLogger<String>>,
     directory: PathBuf,
+    metric_definitions: HashMap<MetricId, MetricDefinition>,
     is_eval: bool,
     last_epoch: Option<usize>,
 }
@@ -60,6 +61,7 @@ impl FileMetricLogger {
         Self {
             loggers: HashMap::new(),
             directory: directory.as_ref().to_path_buf(),
+            metric_definitions: HashMap::default(),
             is_eval: false,
             last_epoch: None,
         }
@@ -78,6 +80,7 @@ impl FileMetricLogger {
         Self {
             loggers: HashMap::new(),
             directory: directory.as_ref().to_path_buf(),
+            metric_definitions: HashMap::default(),
             is_eval: true,
             last_epoch: None,
         }
@@ -176,15 +179,16 @@ impl FileMetricLogger {
         epoch: Option<usize>,
         split: Split,
     ) {
-        let key = logger_key(&item.name, split);
-        let value = &item.serialize;
+        let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
+        let key = logger_key(name, split);
+        let value = &item.serialized_entry.serialized;
 
         let logger = match self.loggers.get_mut(&key) {
             Some(val) => val,
             None => {
                 self.create_directory(tags, epoch, split);
 
-                let file_path = self.file_path(tags, &item.name, epoch, split);
+                let file_path = self.file_path(tags, name, epoch, split);
                 let logger = FileLogger::new(file_path);
                 let logger = AsyncLogger::new(logger);
 
@@ -260,7 +264,10 @@ impl MetricLogger for FileMetricLogger {
         }
     }
 
-    fn log_metric_definition(&self, _definition: MetricDefinition) {}
+    fn log_metric_definition(&mut self, definition: MetricDefinition) {
+        self.metric_definitions
+            .insert(definition.metric_id.clone(), definition);
+    }
 
     fn log_epoch_summary(&mut self, _summary: EpochSummary) {
         if !self.is_eval {
@@ -278,6 +285,7 @@ fn logger_key(name: &str, split: Split) -> String {
 pub struct InMemoryMetricLogger {
     values: HashMap<String, Vec<InMemoryLogger>>,
     last_epoch: Option<usize>,
+    metric_definitions: HashMap<MetricId, MetricDefinition>,
 }
 
 impl InMemoryMetricLogger {
@@ -296,7 +304,8 @@ impl MetricLogger for InMemoryMetricLogger {
             self.last_epoch = Some(epoch);
         }
         for item in items.iter() {
-            let key = logger_key(&item.name, split);
+            let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
+            let key = logger_key(name, split);
 
             if !self.values.contains_key(&key) {
                 self.values
@@ -305,7 +314,10 @@ impl MetricLogger for InMemoryMetricLogger {
 
             let values = self.values.get_mut(&key).unwrap();
 
-            values.last_mut().unwrap().log(item.serialize.clone());
+            values
+                .last_mut()
+                .unwrap()
+                .log(item.serialized_entry.serialized.clone());
         }
     }
 
@@ -331,7 +343,10 @@ impl MetricLogger for InMemoryMetricLogger {
         }
     }
 
-    fn log_metric_definition(&self, _definition: MetricDefinition) {}
+    fn log_metric_definition(&mut self, definition: MetricDefinition) {
+        self.metric_definitions
+            .insert(definition.metric_id.clone(), definition);
+    }
 
     fn log_epoch_summary(&mut self, _summary: EpochSummary) {}
 }
