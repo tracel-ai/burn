@@ -186,7 +186,7 @@ impl GraphState {
             self.processed_nodes[node_idx].outputs[output_idx].clone()
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
-            Argument::new(sanitized)
+            Argument::from_name(sanitized)
         }
     }
 
