@@ -15,7 +15,7 @@ use cubecl::std::{FastDivmod, scalar::InputScalar, tensor::layout::linear::Linea
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
 
-/// Create a tensor filled with `value`
+/// Creates a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
     shape: Shape,
     device: &R::Device,
@@ -26,22 +26,38 @@ pub fn full<R: CubeRuntime, E: CubeElement>(
     full_device::<R, E>(client, shape, device.clone(), value)
 }
 
-/// Create a tensor filled with `value`
+/// Creates a tensor filled with `value`
 pub fn full_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     shape: Shape,
     device: R::Device,
     value: E,
 ) -> CubeTensor<R> {
-    let empty = empty_device::<R, E>(client, device, shape);
+    let dtype = E::dtype();
+    full_device_dtype(client, shape, device, input_scalar(value, dtype), dtype)
+}
 
-    #[cube(launch)]
-    pub fn full_kernel<C: Numeric>(tensor: &mut LinearView<C, ReadWrite>, value: C) {
+/// Creates a tensor filled with `value`
+pub fn full_device_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    shape: Shape,
+    device: R::Device,
+    value: InputScalar,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let empty = empty_device_dtype::<R>(client, device, shape, dtype);
+
+    #[cube(launch_unchecked)]
+    pub fn full_kernel<C: Numeric>(
+        tensor: &mut LinearView<C, ReadWrite>,
+        value: InputScalar,
+        #[define(C)] _dtype: StorageType,
+    ) {
         if !tensor.is_in_bounds(ABSOLUTE_POS) {
             terminate!();
         }
 
-        tensor[ABSOLUTE_POS] = value;
+        tensor[ABSOLUTE_POS] = value.get::<C>();
     }
 
     let num_elems = empty.shape.num_elements();
@@ -50,31 +66,44 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    full_kernel::launch::<E, R>(
-        &empty.client,
-        cube_count,
-        cube_dim,
-        linear_view(&empty, line_size),
-        ScalarArg::new(value),
-    );
+    unsafe {
+        full_kernel::launch_unchecked::<R>(
+            &empty.client,
+            cube_count,
+            cube_dim,
+            linear_view(&empty, line_size),
+            value,
+            dtype.into(),
+        );
+    }
 
     empty
 }
 
-/// Create a tensor filled with zeros
+/// Creates a tensor filled with zeros
 pub fn zeros<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
     let client = R::client(device);
 
     zeros_device::<R, E>(client, device.clone(), shape)
 }
 
-/// Create a tensor filled with zeros
+/// Creates a tensor filled with zeros
 pub fn zeros_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
     full_device::<R, E>(client, shape, device, 0.elem())
+}
+
+/// Creates a tensor filled with zeros
+pub fn zeros_device_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    full_device_dtype::<R>(client, shape, device, input_scalar(0u32, dtype), dtype)
 }
 
 /// Create a tensor filled with ones

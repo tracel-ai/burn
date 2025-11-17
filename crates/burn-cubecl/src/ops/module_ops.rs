@@ -92,18 +92,14 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::conv::conv_transpose2d::<R, E, I>(
-                x,
-                weight,
-                bias,
-                options,
-                ConvTranspose2dStrategy::default(),
-            )
-            .unwrap()
+        kernel::conv::conv_transpose2d::<R>(
+            x,
+            weight,
+            bias,
+            options,
+            ConvTranspose2dStrategy::default(),
         )
+        .unwrap()
     }
 
     fn conv_transpose3d(
