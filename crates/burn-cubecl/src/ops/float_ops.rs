@@ -215,15 +215,7 @@ where
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            int(indices.dtype),
-            I,
-            execute_with_dtype!(
-                float(tensor.dtype, value.dtype),
-                E,
-                kernel::scatter::<R, E, I>(dim, tensor, indices, value)
-            )
-        )
+        kernel::scatter::<R>(dim, tensor, indices, value)
     }
 
     fn float_select(

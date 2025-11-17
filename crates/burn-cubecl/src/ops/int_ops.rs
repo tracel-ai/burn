@@ -148,15 +148,7 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            E,
-            execute_with_dtype!(
-                int(indices.dtype),
-                I,
-                kernel::scatter::<R, E, I>(dim, tensor, indices, value)
-            )
-        )
+        kernel::scatter::<R>(dim, tensor, indices, value)
     }
 
     fn int_select(
