@@ -1,9 +1,6 @@
 use proc_macro2::TokenStream;
 use serde::Serialize;
 
-// Import the generated Node enum and match_all! macro from registry
-use super::node_registry::{Node, match_all};
-
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 
@@ -62,53 +59,6 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// The function should be implemented along [field_type](NodeCodegen::field_type).
     fn field_serialize<S: serde::Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
         panic!("Serialization should be implemented when field_type is not None.");
-    }
-}
-
-impl<PS: PrecisionSettings + 'static> Serialize for Node<PS> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.field_serialize(serializer)
-    }
-}
-
-impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node<PS> {
-    fn inputs(&self) -> Vec<&Argument> {
-        match_all!(self, NodeCodegen::<PS>::inputs)
-    }
-
-    fn outputs(&self) -> Vec<&Argument> {
-        match_all!(self, NodeCodegen::<PS>::outputs)
-    }
-
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        match_all!(self, |node| NodeCodegen::<PS>::forward(
-            node,
-            scope,
-            node_position
-        ))
-    }
-
-    fn field(&self) -> Option<Field> {
-        match_all!(self, NodeCodegen::<PS>::field)
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        match_all!(self, |node| NodeCodegen::<PS>::field_init(node,))
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        match_all!(self, |node| NodeCodegen::<PS>::register_imports(
-            node, imports
-        ))
-    }
-
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match_all!(self, |node| NodeCodegen::<PS>::field_serialize(
-            node, serializer
-        ))
     }
 }
 

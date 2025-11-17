@@ -11,10 +11,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
 
-// Re-export the onnx_ir node type for the registry
-pub(crate) use onnx_ir::conv1d::Conv1dNode;
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv1dNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv1d::Conv1dNode {
     fn inputs(&self) -> Vec<&Argument> {
         // Filter inputs only dynamic and constant
         self.inputs

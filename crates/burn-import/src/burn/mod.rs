@@ -1,11 +1,8 @@
 /// The graph module.
 pub mod graph;
 
-#[macro_use]
-mod registry_macro;
-
 mod codegen;
-mod node_registry;
+mod node_codegen;  // Implements NodeCodegen<PS> for onnx_ir::Node
 #[cfg(test)]
 pub(crate) mod node_test;
 mod node_traits;

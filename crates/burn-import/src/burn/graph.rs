@@ -1,8 +1,9 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
     TensorType,
-    node::{Node, NodeCodegen},
+    node::NodeCodegen,
 };
+use onnx_ir::Node;
 use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
     PrecisionSettings, PrettyJsonFileRecorder, Recorder,
@@ -38,7 +39,7 @@ pub enum RecordType {
 /// Burn graph intermediate representation of modules and tensor operations.
 #[derive(Default, Debug)]
 pub struct BurnGraph<PS: PrecisionSettings> {
-    nodes: Vec<Node<PS>>,
+    nodes: Vec<Node>,
     scope: Scope,
     imports: BurnImports,
     top_comment: Option<String>,
@@ -378,7 +379,6 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
 
     /// Recursively collect all fields from nodes, including subgraph nodes in If/Loop/Scan
     fn collect_all_fields(&self) -> Vec<(Type, Option<TokenStream>)> {
-        use super::node::try_convert_onnx_node;
         use std::collections::HashMap;
 
         // Track field name usage to make them unique
@@ -393,7 +393,7 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
             all_fields: &mut Vec<(Type, Option<TokenStream>)>,
         ) {
             for onnx_node in &subgraph.nodes {
-                if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                let burn_node = onnx_node;
                     // Collect this node's field if it has one
                     if let Some(mut field_type) = burn_node.field() {
                         let field_init = burn_node.field_init();
@@ -474,7 +474,6 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
                             all_fields,
                         );
                     }
-                }
             }
         }
 
@@ -723,7 +722,7 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
 
 #[derive(new, Debug)]
 struct BurnGraphState<'a, PS: PrecisionSettings> {
-    nodes: &'a Vec<Node<PS>>,
+    nodes: &'a Vec<Node>,
 }
 
 /// Represents a custom serialization strategy for the graph state in the module struct.
@@ -745,22 +744,21 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructMap<'_, PS> {
     where
         S: serde::Serializer,
     {
-        use super::node::try_convert_onnx_node;
         use std::collections::HashMap;
 
         // Track field name usage to make them unique (same logic as collect_all_fields)
         let mut field_name_counts: HashMap<String, usize> = HashMap::new();
-        let mut all_nodes: Vec<(String, Node<PS>)> = Vec::new();
+        let mut all_nodes: Vec<(String, Node)> = Vec::new();
 
         // Helper to recursively collect nodes from subgraphs
         // Used by both If and Loop nodes
         fn collect_subgraph_nodes_recursive<PS: PrecisionSettings + 'static>(
             subgraph: &onnx_ir::OnnxGraph,
             field_name_counts: &mut HashMap<String, usize>,
-            all_nodes: &mut Vec<(String, Node<PS>)>,
+            all_nodes: &mut Vec<(String, Node)>,
         ) {
             for onnx_node in &subgraph.nodes {
-                if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                let burn_node = onnx_node;
                     if let Some(field_type) = burn_node.field() {
                         let base_name = field_type.name().to_string();
                         let count = field_name_counts.entry(base_name.clone()).or_insert(0);
@@ -795,7 +793,6 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructMap<'_, PS> {
                             all_nodes,
                         );
                     }
-                }
             }
         }
 
@@ -855,22 +852,21 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructTuple<'_, PS> {
     where
         S: serde::Serializer,
     {
-        use super::node::try_convert_onnx_node;
         use std::collections::HashMap;
 
         // Track field name usage (same as other methods, for consistency)
         let mut field_name_counts: HashMap<String, usize> = HashMap::new();
-        let mut all_nodes: Vec<Node<PS>> = Vec::new();
+        let mut all_nodes: Vec<Node> = Vec::new();
 
         // Helper to recursively collect nodes from subgraphs
         // Used by both If and Loop nodes
         fn collect_subgraph_nodes_recursive<PS: PrecisionSettings + 'static>(
             subgraph: &onnx_ir::OnnxGraph,
             field_name_counts: &mut HashMap<String, usize>,
-            all_nodes: &mut Vec<Node<PS>>,
+            all_nodes: &mut Vec<Node>,
         ) {
             for onnx_node in &subgraph.nodes {
-                if let Some(burn_node) = try_convert_onnx_node::<PS>(onnx_node.clone()) {
+                let burn_node = onnx_node;
                     if let Some(field_type) = burn_node.field() {
                         let base_name = field_type.name().to_string();
                         let count = field_name_counts.entry(base_name.clone()).or_insert(0);
@@ -899,7 +895,6 @@ impl<PS: PrecisionSettings + 'static> Serialize for StructTuple<'_, PS> {
                             all_nodes,
                         );
                     }
-                }
             }
         }
 
