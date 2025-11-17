@@ -196,13 +196,11 @@ mod tests {
         // Input 1: min (optional)
         // Input 2: max (optional)
         // We need to maintain the correct positions even if values are None
-        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        NodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", min)
             .input_scalar_tensor_f32("max", max)
-            .output_tensor_f32("Y", 4, None);
-
-        builder
+            .output_tensor_f32("Y", 4, None)
     }
 
     #[test]

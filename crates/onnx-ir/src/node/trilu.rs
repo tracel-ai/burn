@@ -152,7 +152,8 @@ mod tests {
     use crate::node::test_utils::NodeBuilder;
 
     #[test]
-    #[ignore] // Manual test
+    #[ignore] // Manual
+    #[allow(clippy::bool_assert_comparison)]
     fn test_parse_actual_trilu_onnx() {
         use crate::pipeline::parse_onnx;
         use std::path::Path;
