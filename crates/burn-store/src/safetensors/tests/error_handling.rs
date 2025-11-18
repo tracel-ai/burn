@@ -22,7 +22,8 @@ fn shape_mismatch_errors() {
         .init::<TestBackend>(&device);
 
     // Load without validation - should return errors in the result
-    let mut load_store = SafetensorsStore::from_bytes(None).validate(false); // Disable validation to get errors in result
+    let mut load_store = SafetensorsStore::from_bytes(None)
+        .validate(false); // Disable validation to get errors in result
     if let SafetensorsStore::Memory(ref mut p) = load_store
         && let SafetensorsStore::Memory(ref p_save) = save_store
     {

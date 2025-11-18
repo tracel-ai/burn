@@ -35,6 +35,26 @@ pub trait ModuleAdapter: Send + Sync {
     /// Adapt a tensor snapshot based on its container type and parameter name
     fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot;
 
+    /// Get alternative parameter name to try during matching
+    ///
+    /// When looking for a parameter in a module, this method provides an alternative
+    /// name to try if the direct name doesn't match. This enables matching parameters
+    /// with different naming conventions (e.g., PyTorch's "weight" vs Burn's "gamma").
+    ///
+    /// # Arguments
+    /// * `param_name` - The parameter name we're looking for
+    /// * `container_type` - The type of container module (e.g., "BatchNorm")
+    ///
+    /// # Returns
+    /// Alternative parameter name to try, or None if no alternative exists
+    fn get_alternative_param_name(
+        &self,
+        _param_name: &str,
+        _container_type: &str,
+    ) -> Option<String> {
+        None
+    }
+
     /// Clone the adapter into a boxed trait object
     fn clone_box(&self) -> Box<dyn ModuleAdapter>;
 }
@@ -72,6 +92,19 @@ impl ModuleAdapter for PyTorchToBurnAdapter {
         adapt_pytorch_tensor(snapshot, PyTorchConversionDirection::PyTorchToBurn)
     }
 
+    fn get_alternative_param_name(
+        &self,
+        param_name: &str,
+        container_type: &str,
+    ) -> Option<String> {
+        // For PyTorch->Burn: When looking for Burn names (gamma/beta), try PyTorch names (weight/bias)
+        if is_normalization_layer(container_type) {
+            burn_norm_param_to_pytorch(param_name).map(|s| s.to_string())
+        } else {
+            None
+        }
+    }
+
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
         Box::new(self.clone())
     }
@@ -90,6 +123,19 @@ impl ModuleAdapter for BurnToPyTorchAdapter {
         adapt_pytorch_tensor(snapshot, PyTorchConversionDirection::BurnToPyTorch)
     }
 
+    fn get_alternative_param_name(
+        &self,
+        param_name: &str,
+        container_type: &str,
+    ) -> Option<String> {
+        // For Burn->PyTorch: When looking for PyTorch names (weight/bias), try Burn names (gamma/beta)
+        if is_normalization_layer(container_type) {
+            pytorch_norm_param_to_burn(param_name).map(|s| s.to_string())
+        } else {
+            None
+        }
+    }
+
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
         Box::new(self.clone())
     }
@@ -100,6 +146,32 @@ impl ModuleAdapter for BurnToPyTorchAdapter {
 enum PyTorchConversionDirection {
     PyTorchToBurn,
     BurnToPyTorch,
+}
+
+/// Check if container type is a normalization layer
+fn is_normalization_layer(container_type: &str) -> bool {
+    matches!(
+        container_type,
+        module_names::BATCH_NORM | module_names::LAYER_NORM | module_names::GROUP_NORM
+    )
+}
+
+/// Map PyTorch normalization parameter name to Burn
+fn pytorch_norm_param_to_burn(param_name: &str) -> Option<&'static str> {
+    match param_name {
+        "weight" => Some("gamma"),
+        "bias" => Some("beta"),
+        _ => None,
+    }
+}
+
+/// Map Burn normalization parameter name to PyTorch
+fn burn_norm_param_to_pytorch(param_name: &str) -> Option<&'static str> {
+    match param_name {
+        "gamma" => Some("weight"),
+        "beta" => Some("bias"),
+        _ => None,
+    }
 }
 
 /// Core tensor adaptation logic for PyTorch format conversions
@@ -113,35 +185,32 @@ fn adapt_pytorch_tensor(
         None => return snapshot.clone(),
     };
 
-    // Get container type
-    let container_type = match snapshot.container_stack.as_ref().and_then(|s| s.last()) {
-        Some(ct) => ct,
-        None => return snapshot.clone(),
-    };
+    // Get container type (may be None when loading from PyTorch files)
+    let container_type = snapshot.container_stack.as_ref().and_then(|s| s.last());
 
-    match container_type.as_str() {
+    // If we have container type info, use it for precise matching
+    if let Some(ct) = container_type {
+        let ct_str = ct.as_str();
+
         // Linear: transpose weight (bidirectional - same operation both ways)
-        module_names::LINEAR if param_name == "weight" && snapshot.shape.len() == 2 => {
-            transpose_2d_tensor(snapshot)
+        if ct_str == module_names::LINEAR && param_name == "weight" && snapshot.shape.len() == 2 {
+            return transpose_2d_tensor(snapshot);
         }
+
         // Normalization layers: rename parameters based on direction
-        module_names::BATCH_NORM | module_names::LAYER_NORM | module_names::GROUP_NORM => {
+        if is_normalization_layer(ct_str) {
             let new_name = match direction {
-                PyTorchConversionDirection::PyTorchToBurn => match param_name {
-                    "weight" => "gamma",
-                    "bias" => "beta",
-                    _ => return snapshot.clone(),
-                },
-                PyTorchConversionDirection::BurnToPyTorch => match param_name {
-                    "gamma" => "weight",
-                    "beta" => "bias",
-                    _ => return snapshot.clone(),
-                },
+                PyTorchConversionDirection::PyTorchToBurn => pytorch_norm_param_to_burn(param_name),
+                PyTorchConversionDirection::BurnToPyTorch => burn_norm_param_to_pytorch(param_name),
             };
-            rename_parameter(snapshot, path_stack, new_name)
+
+            if let Some(new_name) = new_name {
+                return rename_parameter(snapshot, path_stack, new_name);
+            }
         }
-        _ => snapshot.clone(),
     }
+
+    snapshot.clone()
 }
 
 /// Extract path stack and parameter name from snapshot
@@ -332,11 +401,11 @@ mod tests {
     fn test_no_container_info() {
         let adapter = PyTorchToBurnAdapter;
 
-        // Without container info, adapter returns unchanged
+        // Without container info, adapter returns unchanged for non-norm parameters
         let mut snapshot = create_test_snapshot("fc.weight", vec![10, 5], module_names::LINEAR);
         snapshot.container_stack = None;
 
-        // Without container info, no transformation occurs
+        // Without container info, no transformation occurs for linear layers
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.shape, vec![10, 5]); // No transposition without container info
 
@@ -346,4 +415,5 @@ mod tests {
         let adapted2 = adapter.adapt(&snapshot2);
         assert_eq!(adapted2.shape, vec![10, 5]); // No transposition
     }
+
 }

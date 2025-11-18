@@ -208,10 +208,28 @@ impl<B: Backend> Applier<B> {
             .cloned()
             .collect();
 
+        // Create a set of successfully applied paths for efficient lookup
+        let applied_set: HashSet<String> = self.applied.iter().cloned().collect();
+
+        // Extract paths that have errors - these are not "missing", they were found but had issues
+        let errored_paths: HashSet<String> = self
+            .errors
+            .iter()
+            .map(|e| match e {
+                ApplyError::ShapeMismatch { path, .. } => path.clone(),
+                ApplyError::DTypeMismatch { path, .. } => path.clone(),
+                ApplyError::AdapterError { path, .. } => path.clone(),
+                ApplyError::LoadError { path, .. } => path.clone(),
+            })
+            .collect();
+
+        // A path is missing if it was visited but not successfully applied, not skipped, and didn't have an error
         let missing: Vec<String> = self
             .visited_paths
             .into_iter()
-            .filter(|p| !self.snapshots.contains_key(p) && !self.skipped.contains(p))
+            .filter(|p| {
+                !applied_set.contains(p) && !self.skipped.contains(p) && !errored_paths.contains(p)
+            })
             .collect();
 
         ApplyResult {
@@ -237,14 +255,16 @@ impl<B: Backend> Applier<B> {
         let path = self.current_path();
         self.visited_paths.insert(path.clone());
 
-        // Check if we have a snapshot for this path
-        let snapshot = match self.snapshots.get(&path) {
-            Some(s) => s,
-            None => {
-                // No snapshot available - signal caller not to apply
-                return None;
-            }
-        };
+        // Find snapshot: try direct match first, then alternative names via adapter
+        let snapshot = self.snapshots.get(&path).or_else(|| {
+            let adapter = self.adapter.as_ref()?;
+            let container_type = self.container_stack.last()?;
+            let param_name = self.path_stack.last()?;
+            let alt_name = adapter.get_alternative_param_name(param_name, container_type)?;
+            let mut alt_path = self.path_stack.clone();
+            *alt_path.last_mut().unwrap() = alt_name;
+            self.snapshots.get(&alt_path.join("."))
+        })?;
 
         // Check if we should apply based on filter
         if !self.should_apply() {
