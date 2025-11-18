@@ -17,6 +17,7 @@ use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
 use cubecl::reduce::ReducePrecision;
 use cubecl::reduce::instructions::ReduceFnConfig;
+use cubecl::std::scalar::InputScalar;
 use std::ops::Range;
 
 impl<R, F, I, BT> FloatTensorOps<Self> for CubeBackend<R, F, I, BT>
@@ -490,23 +491,20 @@ where
 
         #[cube]
         impl<F: Float> FloatUnaryOp<F> for Powf {
-            type Options = F;
+            type Options = InputScalar;
 
             fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
-                Line::powf(input, Line::new(*options))
+                Line::powf(input, Line::new(options.get::<F>()))
             }
         }
 
         impl FloatUnaryOpFamily for Powf {
-            type Options<F: Float> = F;
+            type Options = InputScalar;
             type Unary<F: Float> = Self;
         }
 
-        execute_with_dtype!(
-            float(lhs.dtype),
-            F,
-            launch_unary_float::<R, F, Powf, _>(lhs, |_| ScalarArg::new(rhs.elem::<F>()))
-        )
+        let dtype = lhs.dtype;
+        launch_unary_float::<R, Powf, _>(lhs, |_| input_scalar(rhs, dtype))
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
