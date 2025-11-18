@@ -606,6 +606,7 @@ where
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        // Terrible, but necessary here for now.
         execute_with_dtype!(float(lhs.dtype), E, numeric::pow::<R, E>(lhs, rhs))
     }
 

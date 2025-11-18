@@ -543,39 +543,30 @@ where
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::bitwise_and::<R, I>(lhs, rhs))
+        numeric::bitwise_and::<R>(lhs, rhs)
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::bitwise_and_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::bitwise_and_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::bitwise_or::<R, I>(lhs, rhs))
+        numeric::bitwise_or::<R>(lhs, rhs)
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::bitwise_or_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::bitwise_or_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, numeric::bitwise_xor::<R, I>(lhs, rhs))
+        numeric::bitwise_xor::<R>(lhs, rhs)
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            numeric::bitwise_xor_scalar::<R, I>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        numeric::bitwise_xor_scalar::<R>(lhs, input_scalar(rhs, dtype))
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -587,35 +578,21 @@ where
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            launch_binop_int::<R, I, kernel::BitwiseShlOp>(lhs, rhs)
-        )
+        launch_binop_int::<R, kernel::BitwiseShlOp>(lhs, rhs)
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            launch_scalar_binop_int::<R, I, BitwiseShlOp>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        launch_scalar_binop_int::<R, BitwiseShlOp>(lhs, input_scalar(rhs, dtype))
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            launch_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
-        )
+        launch_binop_int::<R, BitwiseShrOp>(lhs, rhs)
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            launch_scalar_binop_int::<R, I, BitwiseShrOp>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        launch_scalar_binop_int::<R, BitwiseShrOp>(lhs, input_scalar(rhs, dtype))
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {

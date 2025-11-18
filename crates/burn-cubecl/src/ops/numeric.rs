@@ -1,5 +1,5 @@
 use crate::{
-    CubeRuntime, FloatElement, IntElement,
+    CubeRuntime,
     kernel::utils::{linear_view, shape_divmod},
 };
 use crate::{element::CubeElement, tensor::CubeTensor};
@@ -246,59 +246,38 @@ pub fn remainder_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) ->
 }
 
 /// Calculate the power of two tensors
-pub fn pow<R: CubeRuntime, E: FloatElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop::<R, PowOp<E>>(lhs, rhs)
+pub fn pow<R: CubeRuntime, F: Float>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, PowOp<F>>(lhs, rhs)
 }
 
 /// Bitwise and two tensors
-pub fn bitwise_and<R: CubeRuntime, E: IntElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
+pub fn bitwise_and<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop_int::<R, BitwiseAndOp>(lhs, rhs)
 }
 
 /// Bitwise and with a scalar
-pub fn bitwise_and_scalar<R: CubeRuntime, E: IntElement>(
-    lhs: CubeTensor<R>,
-    rhs: E,
-) -> CubeTensor<R> {
-    launch_scalar_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
+pub fn bitwise_and_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop_int::<R, BitwiseAndOp>(lhs, rhs)
 }
 
 /// Bitwise or two tensors
-pub fn bitwise_or<R: CubeRuntime, E: IntElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
+pub fn bitwise_or<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop_int::<R, BitwiseOrOp>(lhs, rhs)
 }
 
 /// Bitwise or with a scalar
-pub fn bitwise_or_scalar<R: CubeRuntime, E: IntElement>(
-    lhs: CubeTensor<R>,
-    rhs: E,
-) -> CubeTensor<R> {
-    launch_scalar_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
+pub fn bitwise_or_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop_int::<R, BitwiseOrOp>(lhs, rhs)
 }
 
 /// Bitwise xor two tensors
-pub fn bitwise_xor<R: CubeRuntime, E: IntElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
-    launch_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
+pub fn bitwise_xor<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop_int::<R, BitwiseXorOp>(lhs, rhs)
 }
 
 /// Bitwise xor with a scalar
-pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
-    lhs: CubeTensor<R>,
-    rhs: E,
-) -> CubeTensor<R> {
-    launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
+pub fn bitwise_xor_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) -> CubeTensor<R> {
+    launch_scalar_binop_int::<R, BitwiseXorOp>(lhs, rhs)
 }
 
 /// Operation family trait for cumulative operations
@@ -397,12 +376,13 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 /// # TODO
 ///
 /// Implement an efficient GPU-optimized parallel scan algorithm.
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
     output: &mut LinearView<C, ReadWrite>,
     shape: Sequence<FastDivmod>,
     #[comptime] dim: u32,
+    #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -476,15 +456,18 @@ fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    cumulative_kernel::launch::<E, O, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        input.as_tensor_arg(1),
-        linear_view(&output, 1),
-        shape_divmod(&input),
-        dim as u32,
-    );
+    unsafe {
+        cumulative_kernel::launch_unchecked::<O, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            input.as_tensor_arg(1),
+            linear_view(&output, 1),
+            shape_divmod(&input),
+            dim as u32,
+            output.dtype.into(),
+        );
+    }
 
     output
 }
