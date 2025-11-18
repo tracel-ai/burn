@@ -483,15 +483,11 @@ where
         }
 
         impl NumericUnaryOpFamily for Abs {
-            type Options<N: Numeric> = ();
+            type Options = ();
             type Unary<N: Numeric> = Self;
         }
 
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            launch_unary_numeric::<R, I, Abs, _>(tensor, |_| ())
-        )
+        launch_unary_numeric::<R, Abs, _>(tensor, |_| ())
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {

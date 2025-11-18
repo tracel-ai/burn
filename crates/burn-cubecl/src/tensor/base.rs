@@ -481,17 +481,12 @@ where
         }
 
         impl NumericUnaryOpFamily for Copy {
-            type Options<N: Numeric> = ();
+            type Options = ();
             type Unary<N: Numeric> = Self;
         }
 
         let tensor = self.clone();
-
-        execute_with_dtype!(
-            tensor.dtype,
-            E,
-            launch_unary_numeric::<R, E, Copy, _>(tensor, |_| ())
-        )
+        launch_unary_numeric::<R, Copy, _>(tensor, |_| ())
     }
 
     /// Check if the tensor is safe to mutate.
