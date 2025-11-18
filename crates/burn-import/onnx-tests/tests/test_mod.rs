@@ -109,10 +109,11 @@ pub mod sqrt;
 pub mod squeeze;
 pub mod sub;
 // Control flow operators
-pub mod if_op;
-pub mod r#loop;
-pub mod scan;
-pub mod subgraph;
+// Temporarily disabled - If/Loop/Scan nodes not yet implemented in refactor
+// pub mod if_op;
+// pub mod r#loop;
+// pub mod scan;
+// pub mod subgraph;
 pub mod sum;
 pub mod tan;
 pub mod tanh;

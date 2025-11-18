@@ -107,6 +107,9 @@ pub(super) fn iterative_type_inference_with_preferences(
             // Run type inference on this node
             processor.infer_types(&mut nodes[i], opset, &prefs)?;
 
+            // Validate that no rank-0 tensors were created (invariant: should be Scalars)
+            crate::processor::validate_no_rank_zero_tensors(&nodes[i])?;
+
             // Immediately sync this node's output types to downstream nodes' inputs
             // This allows downstream nodes to see correct types in the same iteration
             let current_outputs: Vec<(String, ArgType)> = nodes[i]

@@ -19,7 +19,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::sigmoid::SigmoidN
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
-            let #output = #input.sigmoid();
+            let #output = burn::tensor::activation::sigmoid(#input);
         }
     }
 }

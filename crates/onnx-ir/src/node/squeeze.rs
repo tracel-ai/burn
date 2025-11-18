@@ -130,11 +130,17 @@ impl NodeProcessor for SqueezeProcessor {
                     }
                 };
 
-                node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    dtype: tensor.dtype,
-                    rank: output_rank,
-                    static_shape: None,
-                });
+                // When all dimensions are squeezed (rank=0), represent as Scalar not Tensor
+                // This maintains consistency with proto conversion which converts 0-dim tensors to Scalar
+                node.outputs[0].ty = if output_rank == 0 {
+                    ArgType::Scalar(tensor.dtype)
+                } else {
+                    ArgType::Tensor(TensorType {
+                        dtype: tensor.dtype,
+                        rank: output_rank,
+                        static_shape: None,
+                    })
+                };
             }
             ArgType::Shape(shape_rank) => {
                 if let Some(ref axes_vec) = axes_vec
@@ -291,6 +297,30 @@ mod tests {
     // TODO: Missing test for opset < 13 behavior - axes as attribute vs input.
     // Implementation requires opset 13+ but this transition isn't tested.
 
-    // TODO: Missing test for squeezing all dimensions to create rank-0 tensor (scalar).
-    // E.g., input shape [1, 1, 1] with no axes should result in scalar.
+    #[test]
+    fn test_squeeze_all_dims_to_scalar() {
+        // Test squeezing all dimensions produces Scalar, not Tensor(rank=0)
+        // This maintains consistency with proto conversion
+        let node = create_test_node(Some(vec![0]), 1).build_with_graph_data(16);
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let prefs = OutputPreferences::new();
+
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Verify output is Scalar, not Tensor(rank=0)
+        match &node.outputs[0].ty {
+            ArgType::Scalar(dtype) => {
+                assert_eq!(*dtype, crate::ir::DType::F32);
+            }
+            ArgType::Tensor(tensor) => {
+                panic!(
+                    "Expected Scalar output, but got Tensor with rank {}. \
+                     Squeezing all dimensions should produce Scalar, not Tensor(rank=0).",
+                    tensor.rank
+                );
+            }
+            other => panic!("Unexpected output type: {:?}", other),
+        }
+    }
 }

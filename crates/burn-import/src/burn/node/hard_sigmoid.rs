@@ -1,5 +1,5 @@
 use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope, ToTokens};
+use crate::burn::{Scope, ToTokens};
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 use proc_macro2::TokenStream;
@@ -28,7 +28,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::hard_sigmoid::HardSigmo
         }
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::activation::hard_sigmoid");
-    }
+    // No need to register imports since we use the fully qualified path
 }

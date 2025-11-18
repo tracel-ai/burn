@@ -57,5 +57,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::avg_pool1d::Avera
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::pool::AvgPool1d");
         imports.register("burn::nn::pool::AvgPool1dConfig");
+        imports.register("burn::nn::PaddingConfig1d");
     }
 }

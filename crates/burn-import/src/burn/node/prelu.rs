@@ -35,12 +35,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {
     fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
 
-        // Get alpha from the second input to determine num_parameters
-        let alpha_data = extract_node_data(&self.inputs, 1).expect("PRelu weight is required");
-        let num_parameters = alpha_data.shape[0];
-
         let tokens = quote! {
-            let #name = PReluConfig::new(#num_parameters)
+            let #name = PReluConfig::new()
                 .init(device);
         };
 

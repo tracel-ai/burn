@@ -1,5 +1,5 @@
 use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 use proc_macro2::TokenStream;
@@ -26,7 +26,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::relu::ReluNode {
         }
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::activation::relu");
-    }
+    // No need to register imports since we use the fully qualified path
 }

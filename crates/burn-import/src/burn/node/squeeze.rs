@@ -32,8 +32,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
                     Some(onnx_ir::squeeze::SqueezeInput::Static(axes_vec)) => {
                         // Use squeeze_dims with specific axes
                         let axes_arg = axes_vec.to_tokens();
+                        let output_rank = output_tensor.rank.to_tokens();
                         quote! {
-                            let #output = #input.squeeze_dims(&#axes_arg);
+                            let #output = #input.squeeze_dims::<#output_rank>(&#axes_arg);
                         }
                     }
                     Some(onnx_ir::squeeze::SqueezeInput::Runtime(_)) => {

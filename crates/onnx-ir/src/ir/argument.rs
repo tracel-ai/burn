@@ -136,6 +136,8 @@ impl ArgType {
         }
     }
 
+    //TODO Element kind
+
     /// Get the data type
     pub fn elem_type(&self) -> DType {
         match self {

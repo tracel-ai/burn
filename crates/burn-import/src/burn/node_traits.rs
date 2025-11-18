@@ -99,8 +99,11 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// (Optional) Declare how the parameters are serialized in a record.
     ///
     /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    fn field_serialize<S: serde::Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
-        panic!("Serialization should be implemented when field_type is not None.");
+    /// For nodes with fields but no learned parameters (e.g., pooling, dropout),
+    /// the default implementation serializes unit.
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::Serialize;
+        ().serialize(serializer)
     }
 }
 

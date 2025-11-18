@@ -123,14 +123,8 @@ impl ProcessorRegistry {
 
         // Element-wise binary operations (simple broadcasting, no special type handling)
         registry.register(NodeType::Pow, Box::new(crate::node::pow::PowProcessor));
-        registry.register(
-            NodeType::Max,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(
-            NodeType::Min,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
+        registry.register(NodeType::Max, Box::new(crate::node::max::MaxProcessor));
+        registry.register(NodeType::Min, Box::new(crate::node::min::MinProcessor));
 
         // Logical operations
         registry.register(NodeType::And, Box::new(crate::node::and::AndProcessor));
@@ -143,7 +137,10 @@ impl ProcessorRegistry {
         registry.register(NodeType::Abs, Box::new(crate::node::abs::AbsProcessor));
         registry.register(NodeType::Neg, Box::new(crate::node::neg::NegProcessor));
         registry.register(NodeType::Ceil, Box::new(crate::node::ceil::CeilProcessor));
-        registry.register(NodeType::Floor, Box::new(crate::node::floor::FloorProcessor));
+        registry.register(
+            NodeType::Floor,
+            Box::new(crate::node::floor::FloorProcessor),
+        );
         registry.register(NodeType::Sqrt, Box::new(crate::node::sqrt::SqrtProcessor));
         registry.register(NodeType::Exp, Box::new(crate::node::exp::ExpProcessor));
         registry.register(NodeType::Log, Box::new(crate::node::log::LogProcessor));
@@ -151,7 +148,10 @@ impl ProcessorRegistry {
             NodeType::Reciprocal,
             Box::new(crate::node::reciprocal::ReciprocalProcessor),
         );
-        registry.register(NodeType::Round, Box::new(crate::node::round::RoundProcessor));
+        registry.register(
+            NodeType::Round,
+            Box::new(crate::node::round::RoundProcessor),
+        );
         registry.register(NodeType::Sign, Box::new(crate::node::sign::SignProcessor));
 
         // Trigonometric operations

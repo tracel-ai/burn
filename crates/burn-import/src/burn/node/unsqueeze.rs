@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
         };
 
         match (&input_arg.ty, &output_arg.ty) {
-            (ArgType::Tensor(input_tensor), ArgType::Tensor(output_tensor)) => {
+            (ArgType::Tensor(_input_tensor), ArgType::Tensor(output_tensor)) => {
                 let input = scope.tensor_use_owned(input_arg, node_position);
                 let output_rank = output_tensor.rank.to_tokens();
 
@@ -67,10 +67,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
                 };
 
                 quote! {
-                    let #output: #output_type = #input.unsqueeze_dims(&#axes);
+                    let #output: #output_type = #input.unsqueeze_dims::<#output_rank>(&#axes);
                 }
             }
-            (ArgType::Scalar(scalar_type), ArgType::Tensor(output_tensor)) => {
+            (ArgType::Scalar(_scalar_type), ArgType::Tensor(output_tensor)) => {
                 let scalar_name = arg_to_ident(input_arg);
                 let output_rank = output_tensor.rank.to_tokens();
 

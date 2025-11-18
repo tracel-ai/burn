@@ -50,11 +50,10 @@ fn generate_tensor_slice(
     match (&node.config.starts, &node.config.ends) {
         // Both static: simple case
         (onnx_ir::slice::SliceInput::Static(starts), onnx_ir::slice::SliceInput::Static(ends)) => {
-            // Get steps if provided
-            let steps = if let Some(onnx_ir::slice::SliceInput::Static(ref s)) = node.config.steps {
-                Some(s)
-            } else {
-                None
+            // Get steps (provided by onnx-ir with ONNX spec defaults)
+            let steps = match &node.config.steps {
+                Some(onnx_ir::slice::SliceInput::Static(s)) => s,
+                _ => panic!("Steps must be Static for static slice"),
             };
 
             // Check if axes are provided
@@ -65,7 +64,7 @@ fn generate_tensor_slice(
                         let axis_idx = axis as usize;
                         if axis_idx < rank {
                             let start = start.to_tokens();
-                            let step = steps.and_then(|s| s.get(idx)).copied().unwrap_or(1);
+                            let step = *steps.get(idx).expect("Step value missing for axis");
 
                             // Check for i64::MAX which means "to the end"
                             // Slice indices are i32
@@ -95,7 +94,7 @@ fn generate_tensor_slice(
                 let limit = starts.len().min(ends.len()).min(rank);
                 for (i, range) in ranges.iter_mut().enumerate().take(limit) {
                     let start = starts[i].to_tokens();
-                    let step = steps.and_then(|s| s.get(i)).copied().unwrap_or(1);
+                    let step = *steps.get(i).expect("Step value missing for dimension");
 
                     // Check for i64::MAX which means "to the end"
                     // Slice indices are i32
@@ -169,24 +168,145 @@ fn generate_tensor_slice(
                 let end_data_var = quote! { end_data };
                 let end_vec_var = quote! { end_vec };
 
-                // Build ranges for each dimension
-                let range_exprs: Vec<_> = (0..rank).map(|i| {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    quote! {
-                        #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                // Check if axes are provided (from onnx-ir with ONNX spec defaults)
+                if let Some(onnx_ir::slice::SliceInput::Static(ref axes)) = node.config.axes {
+                    // Build ranges respecting the axes
+                    let mut ranges = vec![quote! { .. }; rank];
+                    for (idx, &axis) in axes.iter().enumerate() {
+                        let axis_idx = axis as usize;
+                        if axis_idx < rank {
+                            let vec_idx = proc_macro2::Literal::usize_unsuffixed(idx);
+                            ranges[axis_idx] = quote! {
+                                #start_vec_var[#vec_idx] as usize..#end_vec_var[#vec_idx] as usize
+                            };
+                        }
                     }
-                }).collect();
 
-                return quote! {
-                    let #input_dims_var = #input.dims();
-                    let #start_data_var = #start_name.to_data();
-                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
-                    let #end_data_var = #end_name.to_data();
-                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
-                    let #output = #input.slice(s![#(#range_exprs),*]);
+                    return quote! {
+                        let #input_dims_var = #input.dims();
+                        let #start_data_var = #start_name.to_data();
+                        let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                        let #end_data_var = #end_name.to_data();
+                        let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                        let #output = #input.slice(s![#(#ranges),*]);
+                    };
+                } else {
+                    // No axes - slice all dimensions (ONNX spec default would have provided axes)
+                    panic!("Axes must be provided by onnx-ir for tensor slice");
+                }
+            } else if matches!(
+                (&start_arg.ty, &end_arg.ty),
+                (ArgType::Scalar(_), ArgType::Scalar(_))
+            ) {
+                // Both scalars: use as single axis slice
+                let start_name = arg_to_ident(start_arg);
+                let end_name = arg_to_ident(end_arg);
+
+                // Get the axis to slice (provided by onnx-ir with ONNX spec defaults)
+                let axis_idx = match &node.config.axes {
+                    Some(onnx_ir::slice::SliceInput::Static(axes)) => {
+                        *axes.first().expect("Axes array is empty for scalar slice") as usize
+                    }
+                    _ => panic!("Axes must be Static for scalar slice"),
                 };
+
+                if axis_idx < rank {
+                    ranges[axis_idx] = quote! { (#start_name as usize)..(#end_name as usize) };
+                }
             } else {
-                panic!("Unsupported runtime slice input combination");
+                // Mixed types: Shape/Tensor combination
+                let start_name = arg_to_ident(start_arg);
+                let end_name = arg_to_ident(end_arg);
+
+                // Determine the number of dims we can safely index
+                let start_rank = start_arg.ty.rank();
+                let end_rank = end_arg.ty.rank();
+                let num_slice_dims = start_rank.min(end_rank);
+
+                // Need to extract tensor values at runtime
+                let start_is_tensor = start_arg.ty.is_tensor();
+                let end_is_tensor = end_arg.ty.is_tensor();
+
+                let input_dims_var = quote! { input_dims };
+                let start_vec_var = quote! { start_vec };
+                let end_vec_var = quote! { end_vec };
+
+                // Build the extraction code
+                let mut extraction_code = quote! {
+                    let #input_dims_var = #input.dims();
+                };
+
+                if start_is_tensor {
+                    extraction_code = quote! {
+                        #extraction_code
+                        let start_data = #start_name.to_data();
+                        let #start_vec_var: alloc::vec::Vec<i64> = start_data.iter::<i64>().collect();
+                    };
+                }
+
+                if end_is_tensor {
+                    extraction_code = quote! {
+                        #extraction_code
+                        let end_data = #end_name.to_data();
+                        let #end_vec_var: alloc::vec::Vec<i64> = end_data.iter::<i64>().collect();
+                    };
+                }
+
+                // Check if axes are provided
+                if let Some(onnx_ir::slice::SliceInput::Static(ref axes)) = node.config.axes {
+                    // Apply slicing to specified axes only
+                    let mut ranges = vec![quote! { .. }; rank];
+
+                    for (i, &axis) in axes.iter().enumerate() {
+                        let axis_idx = axis as usize;
+                        if axis_idx < rank {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            let start_expr = if start_is_tensor {
+                                quote! { #start_vec_var[#idx] as usize }
+                            } else {
+                                quote! { #start_name[#idx] as usize }
+                            };
+                            let end_expr = if end_is_tensor {
+                                quote! { #end_vec_var[#idx] as usize }
+                            } else {
+                                quote! { #end_name[#idx] as usize }
+                            };
+                            ranges[axis_idx] = quote! { #start_expr..#end_expr };
+                        }
+                    }
+
+                    return quote! {
+                        #extraction_code
+                        let #output = #input.slice(s![#(#ranges),*]);
+                    };
+                } else {
+                    // No axes provided - apply to first N dimensions
+                    let range_exprs: Vec<_> = (0..rank)
+                        .map(|i| {
+                            if i < num_slice_dims {
+                                let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                                let start_expr = if start_is_tensor {
+                                    quote! { #start_vec_var[#idx] as usize }
+                                } else {
+                                    quote! { #start_name[#idx] as usize }
+                                };
+                                let end_expr = if end_is_tensor {
+                                    quote! { #end_vec_var[#idx] as usize }
+                                } else {
+                                    quote! { #end_name[#idx] as usize }
+                                };
+                                quote! { #start_expr..#end_expr }
+                            } else {
+                                quote! { .. }
+                            }
+                        })
+                        .collect();
+
+                    return quote! {
+                        #extraction_code
+                        let #output = #input.slice(s![#(#range_exprs),*]);
+                    };
+                }
             }
         }
 
@@ -233,17 +353,19 @@ fn generate_tensor_slice(
                     let end_vec_var = quote! { end_vec };
 
                     // Build ranges for each dimension
-                    let range_exprs: Vec<_> = (0..rank).map(|i| {
-                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                        if i < starts.len() {
-                            let start = Literal::i64_suffixed(starts[i]);
-                            quote! {
-                                #start as usize..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                    let range_exprs: Vec<_> = (0..rank)
+                        .map(|i| {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            if i < starts.len() {
+                                let start = Literal::i64_suffixed(starts[i]);
+                                quote! {
+                                    #start as usize..#end_vec_var[#idx] as usize
+                                }
+                            } else {
+                                quote! { .. }
                             }
-                        } else {
-                            quote! { .. }
-                        }
-                    }).collect();
+                        })
+                        .collect();
 
                     return quote! {
                         let #input_dims_var = #input.dims();
@@ -252,7 +374,23 @@ fn generate_tensor_slice(
                         let #output = #input.slice(s![#(#range_exprs),*]);
                     };
                 }
-                _ => panic!("Unsupported runtime end type for slice"),
+                ArgType::Scalar(_) => {
+                    // Static start, scalar end
+                    let end_name = arg_to_ident(end_arg);
+
+                    // Get the axis to slice (provided by onnx-ir with ONNX spec defaults)
+                    let axis_idx = match &node.config.axes {
+                        Some(onnx_ir::slice::SliceInput::Static(axes)) => {
+                            *axes.first().expect("Axes array is empty for scalar slice") as usize
+                        }
+                        _ => panic!("Axes must be Static for scalar slice"),
+                    };
+
+                    if axis_idx < rank && axis_idx < starts.len() {
+                        let start = starts[axis_idx].to_tokens();
+                        ranges[axis_idx] = quote! { #start..(#end_name as usize) };
+                    }
+                }
             }
         }
 
@@ -300,17 +438,19 @@ fn generate_tensor_slice(
                     let start_vec_var = quote! { start_vec };
 
                     // Build ranges for each dimension
-                    let range_exprs: Vec<_> = (0..rank).map(|i| {
-                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                        if i < ends.len() {
-                            let end = Literal::i64_suffixed(ends[i]);
-                            quote! {
-                                #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end as usize
+                    let range_exprs: Vec<_> = (0..rank)
+                        .map(|i| {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            if i < ends.len() {
+                                let end = Literal::i64_suffixed(ends[i]);
+                                quote! {
+                                    #start_vec_var[#idx] as usize..#end as usize
+                                }
+                            } else {
+                                quote! { .. }
                             }
-                        } else {
-                            quote! { .. }
-                        }
-                    }).collect();
+                        })
+                        .collect();
 
                     return quote! {
                         let #input_dims_var = #input.dims();
@@ -351,13 +491,13 @@ fn generate_shape_slice(
             let start_val = starts[0];
             let end_val = ends[0];
 
-            // Get step value if provided
-            let step_val =
-                if let Some(onnx_ir::slice::SliceInput::Static(ref steps)) = node.config.steps {
-                    steps.first().copied().unwrap_or(1)
-                } else {
-                    1
-                };
+            // Get step value (provided by onnx-ir with ONNX spec defaults)
+            let step_val = match &node.config.steps {
+                Some(onnx_ir::slice::SliceInput::Static(steps)) => {
+                    *steps.first().expect("Steps array is empty")
+                }
+                _ => panic!("Steps must be Static for shape slice"),
+            };
 
             // Always clamp start/end values
             let shape_len = shape_rank as i64;

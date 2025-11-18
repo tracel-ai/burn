@@ -1,181 +1,90 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{OtherType, Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{Field, Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::{ArgType, Argument};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-/// Interpolation mode for resize operation
-#[derive(Debug, Clone, PartialEq)]
-pub enum ResizeMode {
-    /// Nearest neighbor interpolation
-    Nearest,
-    /// Linear interpolation (bilinear for 2D, trilinear for 3D)
-    Linear,
-    /// Cubic interpolation
-    Cubic,
-}
-
-impl ResizeMode {
-    /// Convert to InterpolateMode token for code generation
-    pub fn to_interpolate_mode_token(&self) -> TokenStream {
-        match self {
-            ResizeMode::Nearest => quote! { InterpolateMode::Nearest },
-            ResizeMode::Linear => quote! { InterpolateMode::Linear },
-            ResizeMode::Cubic => quote! { InterpolateMode::Cubic },
-        }
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    /// Convert to tensor ops InterpolateMode token for runtime resize
-    pub fn to_tensor_interpolate_mode_token(&self) -> TokenStream {
-        match self {
-            ResizeMode::Nearest => quote! { burn::tensor::ops::InterpolateMode::Nearest },
-            ResizeMode::Linear => quote! { burn::tensor::ops::InterpolateMode::Bilinear },
-            ResizeMode::Cubic => quote! { burn::tensor::ops::InterpolateMode::Bicubic },
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum ResizeScales {
-    Static(Vec<f32>),
-    Runtime(Type),
-}
+    fn field(&self) -> Option<Field> {
+        use onnx_ir::node::resize::{ResizeScales, ResizeSizes};
 
-#[derive(Debug, Clone)]
-pub enum ResizeSizes {
-    Static(Vec<usize>),
-    Runtime(Type),
-}
+        // Only create a field for static resize (no runtime inputs)
+        let has_runtime_scales = matches!(&self.config.scales, Some(ResizeScales::Runtime(_)));
+        let has_runtime_sizes = matches!(&self.config.sizes, Some(ResizeSizes::Runtime(_)));
 
-#[derive(Debug, Clone)]
-pub struct ResizeNode {
-    pub field: Option<OtherType>,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub mode: ResizeMode,
-    pub scales: Option<ResizeScales>,
-    pub sizes: Option<ResizeSizes>,
-}
+        if has_runtime_scales || has_runtime_sizes {
+            return None; // Runtime resize doesn't need a field
+        }
 
-impl ResizeNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        mode: ResizeMode,
-        scales: Option<ResizeScales>,
-        sizes: Option<ResizeSizes>,
-    ) -> Self {
-        // Only create a field if we have static scales/sizes
-        // Runtime inputs mean we don't need a static interpolation field
-        let field = match (&scales, &sizes) {
-            (Some(ResizeScales::Runtime(_)), _) | (_, Some(ResizeSizes::Runtime(_))) => {
-                None // Runtime inputs, no field needed
-            }
-            (Some(ResizeScales::Static(_)), _) | (_, Some(ResizeSizes::Static(_))) => {
-                let ty = if input.rank == 3 {
-                    quote! { Interpolate1d }
-                } else if input.rank == 4 {
-                    quote! { Interpolate2d }
-                } else {
-                    panic!("Unsupported input rank for resize node");
-                };
-                Some(OtherType::new(name, ty))
-            }
-            _ => None, // No scales or sizes provided
+        // Check if we have static scales or sizes
+        let has_static = matches!(&self.config.scales, Some(ResizeScales::Static(_)))
+            || matches!(&self.config.sizes, Some(ResizeSizes::Static(_)));
+
+        if !has_static {
+            return None;
+        }
+
+        // Determine field type based on input rank
+        let input_arg = self.inputs.first().unwrap();
+        let input_rank = match &input_arg.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("Resize input must be a tensor"),
         };
 
-        Self {
-            field,
-            input,
-            output,
-            mode,
-            scales,
-            sizes,
-        }
-    }
+        let ty = if input_rank == 3 {
+            quote! { burn::nn::interpolate::Interpolate1d }
+        } else if input_rank == 4 {
+            quote! { burn::nn::interpolate::Interpolate2d }
+        } else {
+            panic!("Unsupported input rank for resize node");
+        };
 
-    fn forward_runtime(&self, input: TokenStream, output: &proc_macro2::Ident) -> TokenStream {
-        // Handle runtime resize with Shape inputs
-        match &self.sizes {
-            Some(ResizeSizes::Runtime(Type::Shape(shape))) => {
-                let shape_name = &shape.name;
-                // Extract the last 2 dimensions from the shape (H, W for 2D resize)
-                if self.input.rank == 4 {
-                    let mode_token = self.mode.to_tensor_interpolate_mode_token();
-
-                    quote! {
-                        // Shape contains the full output shape [N, C, H, W]
-                        // We need to extract H and W for the resize operation
-                        let target_height = #shape_name[2] as usize;
-                        let target_width = #shape_name[3] as usize;
-
-                        // Use interpolate function directly
-                        let #output = burn::tensor::module::interpolate(
-                            #input,
-                            [target_height, target_width],
-                            burn::tensor::ops::InterpolateOptions::new(#mode_token)
-                        );
-                    }
-                } else {
-                    panic!(
-                        "Runtime resize with Shape input only supported for 4D tensors currently"
-                    );
-                }
-            }
-            Some(ResizeSizes::Runtime(Type::Tensor(tensor))) => {
-                let sizes_name = &tensor.name;
-                let mode_token = self.mode.to_tensor_interpolate_mode_token();
-                quote! {
-                    // Convert tensor to shape array, forcing conversion to i64
-                    let sizes_data = #sizes_name.to_data().convert::<i64>();
-                    let sizes_array = sizes_data.as_slice::<i64>().unwrap();
-                    let target_height = sizes_array[2] as usize;
-                    let target_width = sizes_array[3] as usize;
-
-                    let #output = burn::tensor::module::interpolate(
-                        #input,
-                        [target_height, target_width],
-                        burn::tensor::ops::InterpolateOptions::new(#mode_token)
-                    );
-                }
-            }
-            _ => panic!("Runtime resize requires Shape or Tensor sizes input"),
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-
-    fn input_types(&self) -> Vec<Type> {
-        let mut types = vec![Type::Tensor(self.input.clone())];
-
-        // Add runtime shape inputs if present
-        if let Some(ResizeScales::Runtime(ty)) = &self.scales {
-            types.push(ty.clone());
-        }
-        if let Some(ResizeSizes::Runtime(ty)) = &self.sizes {
-            types.push(ty.clone());
-        }
-
-        types
-    }
-
-    fn field_type(&self) -> Option<Type> {
-        self.field.as_ref().map(|f| Type::Other(f.clone()))
+        Some(Field::new(&self.name, ty))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let field = self.field.as_ref()?;
-        let name = &field.name;
+        use onnx_ir::node::resize::{ResizeMode, ResizeScales, ResizeSizes};
 
-        let mode = self.mode.to_interpolate_mode_token();
+        // Only static resize needs field init
+        let has_runtime_scales = matches!(&self.config.scales, Some(ResizeScales::Runtime(_)));
+        let has_runtime_sizes = matches!(&self.config.sizes, Some(ResizeSizes::Runtime(_)));
+        if has_runtime_scales || has_runtime_sizes {
+            return None;
+        }
 
-        let tokens = if self.input.rank == 3 {
-            let size = match &self.sizes {
+        let has_static = matches!(&self.config.scales, Some(ResizeScales::Static(_)))
+            || matches!(&self.config.sizes, Some(ResizeSizes::Static(_)));
+        if !has_static {
+            return None;
+        }
+
+        let name = syn::Ident::new(&self.name, proc_macro2::Span::call_site());
+        let mode = match self.config.mode {
+            ResizeMode::Nearest => quote! { burn::nn::interpolate::InterpolateMode::Nearest },
+            ResizeMode::Linear => quote! { burn::nn::interpolate::InterpolateMode::Linear },
+            ResizeMode::Cubic => quote! { burn::nn::interpolate::InterpolateMode::Cubic },
+        };
+
+        let input_arg = self.inputs.first().unwrap();
+        let input_rank = match &input_arg.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("Resize input must be a tensor"),
+        };
+
+        if input_rank == 3 {
+            let size = match &self.config.sizes {
                 Some(ResizeSizes::Static(sizes)) if !sizes.is_empty() => {
                     let size = sizes[0].to_tokens();
                     quote! { Some(#size) }
@@ -183,7 +92,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                 _ => quote! { None },
             };
 
-            let scale_factor = match &self.scales {
+            let scale_factor = match &self.config.scales {
                 Some(ResizeScales::Static(scales)) if !scales.is_empty() => {
                     let scale = scales[0].to_tokens();
                     quote! { Some(#scale) }
@@ -191,16 +100,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                 _ => quote! { None },
             };
 
-            quote! {
-                let #name = Interpolate1dConfig::new()
+            Some(quote! {
+                let #name = burn::nn::interpolate::Interpolate1dConfig::new()
                     .with_output_size(#size)
                     .with_scale_factor(#scale_factor)
                     .with_mode(#mode)
                     .init();
-            }
-        } else if self.input.rank == 4 {
-            let size = match &self.sizes {
-                Some(ResizeSizes::Static(sizes)) if sizes.len() == 2 => {
+            })
+        } else if input_rank == 4 {
+            let size = match &self.config.sizes {
+                Some(ResizeSizes::Static(sizes)) if sizes.len() >= 2 => {
                     let h = sizes[0].to_tokens();
                     let w = sizes[1].to_tokens();
                     quote! { Some([#h, #w]) }
@@ -208,8 +117,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                 _ => quote! { None },
             };
 
-            let scale_factor = match &self.scales {
-                Some(ResizeScales::Static(scales)) if scales.len() == 2 => {
+            let scale_factor = match &self.config.scales {
+                Some(ResizeScales::Static(scales)) if scales.len() >= 2 => {
                     let h = scales[0].to_tokens();
                     let w = scales[1].to_tokens();
                     quote! { Some([#h, #w]) }
@@ -217,33 +126,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                 _ => quote! { None },
             };
 
-            quote! {
-                let #name = Interpolate2dConfig::new()
+            Some(quote! {
+                let #name = burn::nn::interpolate::Interpolate2dConfig::new()
                     .with_output_size(#size)
                     .with_scale_factor(#scale_factor)
                     .with_mode(#mode)
                     .init();
-            }
+            })
         } else {
-            panic!("Unsupported input rank for resize node");
-        };
-
-        Some(tokens)
-    }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        if self.field.is_some() {
-            // Static resize - need the interpolate config and types
-            imports.register("burn::nn::interpolate::InterpolateMode");
-            if self.input.rank == 3 {
-                imports.register("burn::nn::interpolate::Interpolate1dConfig");
-                imports.register("burn::nn::interpolate::Interpolate1d");
-            } else if self.input.rank == 4 {
-                imports.register("burn::nn::interpolate::Interpolate2dConfig");
-                imports.register("burn::nn::interpolate::Interpolate2d");
-            } else {
-                panic!("Unsupported input rank for resize node");
-            }
+            None
         }
     }
 
@@ -252,65 +143,72 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+        use onnx_ir::node::resize::{ResizeMode, ResizeScales, ResizeSizes};
 
-        if let Some(field) = &self.field {
-            let field_name = &field.name;
+        let input_arg = self.inputs.first().unwrap();
+        let input = scope.tensor_use_owned(input_arg, node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        // Check if this is static (has field) or runtime resize
+        let has_runtime = matches!(&self.config.scales, Some(ResizeScales::Runtime(_)))
+            || matches!(&self.config.sizes, Some(ResizeSizes::Runtime(_)));
+        let has_static = matches!(&self.config.scales, Some(ResizeScales::Static(_)))
+            || matches!(&self.config.sizes, Some(ResizeSizes::Static(_)));
+
+        if !has_runtime && has_static {
+            // Static resize - use the field
+            let field_name = syn::Ident::new(&self.name, proc_macro2::Span::call_site());
             quote! {
                 let #output = self.#field_name.forward(#input);
             }
         } else {
-            // Handle runtime resize - we need to use tensor operations directly
-            self.forward_runtime(input, output)
+            // Runtime resize - use tensor operations directly
+            let mode = match self.config.mode {
+                ResizeMode::Nearest => quote! { burn::tensor::ops::InterpolateMode::Nearest },
+                ResizeMode::Linear => quote! { burn::tensor::ops::InterpolateMode::Bilinear },
+                ResizeMode::Cubic => quote! { burn::tensor::ops::InterpolateMode::Bicubic },
+            };
+
+            // Handle runtime sizes input
+            match &self.config.sizes {
+                Some(ResizeSizes::Runtime(sizes_ref)) => {
+                    let sizes_arg = &self.inputs[sizes_ref.input_index];
+
+                    match &sizes_arg.ty {
+                        ArgType::Shape(_) => {
+                            let sizes_name = arg_to_ident(sizes_arg);
+                            // Extract the last 2 dimensions from the shape (H, W for 2D resize)
+                            quote! {
+                                let target_height = #sizes_name[2] as usize;
+                                let target_width = #sizes_name[3] as usize;
+
+                                let #output = burn::tensor::module::interpolate(
+                                    #input,
+                                    [target_height, target_width],
+                                    burn::tensor::ops::InterpolateOptions::new(#mode)
+                                );
+                            }
+                        }
+                        ArgType::Tensor(_) => {
+                            let sizes_name = scope.tensor_use_owned(sizes_arg, node_position);
+                            quote! {
+                                let sizes_data = #sizes_name.to_data().convert::<i64>();
+                                let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                                let target_height = sizes_array[2] as usize;
+                                let target_width = sizes_array[3] as usize;
+
+                                let #output = burn::tensor::module::interpolate(
+                                    #input,
+                                    [target_height, target_width],
+                                    burn::tensor::ops::InterpolateOptions::new(#mode)
+                                );
+                            }
+                        }
+                        _ => panic!("Runtime resize sizes must be Shape or Tensor"),
+                    }
+                }
+                _ => panic!("Runtime resize requires sizes input"),
+            }
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Resize(self)
-    }
-}
-
-impl OnnxIntoNode for ResizeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Resize(n) = &node else {
-            panic!("Expected Resize node");
-        };
-
-        let input = TensorType::from(&n.inputs[0]);
-        let output = TensorType::from(n.outputs.first().unwrap());
-
-        // Convert from onnx-ir types to burn types
-        let mode = match n.config.mode {
-            onnx_ir::node::resize::ResizeMode::Nearest => ResizeMode::Nearest,
-            onnx_ir::node::resize::ResizeMode::Linear => ResizeMode::Linear,
-            onnx_ir::node::resize::ResizeMode::Cubic => ResizeMode::Cubic,
-        };
-
-        let scales = match &n.config.scales {
-            Some(onnx_ir::node::resize::ResizeScales::Static(s)) => {
-                Some(ResizeScales::Static(s.clone()))
-            }
-            Some(onnx_ir::node::resize::ResizeScales::Runtime(scales_ref)) => {
-                // Get the actual argument using the RuntimeInputRef
-                let scales_arg = &n.inputs[scales_ref.input_index];
-                Some(ResizeScales::Runtime(Type::from(scales_arg)))
-            }
-            None => None,
-        };
-
-        let sizes = match &n.config.sizes {
-            Some(onnx_ir::node::resize::ResizeSizes::Static(s)) => {
-                Some(ResizeSizes::Static(s.clone()))
-            }
-            Some(onnx_ir::node::resize::ResizeSizes::Runtime(sizes_ref)) => {
-                // Get the actual argument using the RuntimeInputRef
-                let sizes_arg = &n.inputs[sizes_ref.input_index];
-                Some(ResizeSizes::Runtime(Type::from(sizes_arg)))
-            }
-            None => None,
-        };
-
-        ResizeNode::new(&n.name, input, output, mode, scales, sizes)
     }
 }

@@ -277,6 +277,29 @@ pub fn validate_opset(opset: usize, min_version: usize) -> Result<(), ProcessErr
     }
 }
 
+/// Validate that no rank-0 tensors exist in the node
+///
+/// Rank-0 tensors should be represented as Scalars instead.
+/// This is an invariant of the ONNX IR - there should never be Tensor(rank=0) in the graph.
+pub fn validate_no_rank_zero_tensors(node: &NodeBuilder) -> Result<(), ProcessError> {
+    use crate::ir::ArgType;
+
+    // Check all outputs for rank-0 tensors
+    for output in &node.outputs {
+        if let ArgType::Tensor(tensor) = &output.ty
+            && tensor.rank == 0
+        {
+            return Err(ProcessError::Custom(format!(
+                "Invalid type inference: Node '{}' output '{}' has rank-0 tensor. \
+                 Rank-0 tensors should be Scalar type instead.",
+                node.name, output.name
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // NodeSpec Validation
 // ============================================================================

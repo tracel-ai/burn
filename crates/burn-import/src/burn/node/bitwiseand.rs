@@ -22,7 +22,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwiseand::Bitwi
         let lhs_value = match &lhs.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(lhs, node_position),
             ArgType::Scalar(_) => {
-                let name = &lhs.name;
+                let name = arg_to_ident(lhs);
                 quote! { #name }
             }
             _ => panic!("lhs must be a tensor or scalar"),
@@ -31,7 +31,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwiseand::Bitwi
         let rhs_value = match &rhs.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(rhs, node_position),
             ArgType::Scalar(_) => {
-                let name = &rhs.name;
+                let name = arg_to_ident(rhs);
                 quote! { #name }
             }
             _ => panic!("rhs must be a tensor or scalar"),
@@ -53,6 +53,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwiseand::Bitwi
                     let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
                     quote! { #lhs_value.unsqueeze_dims(&[#(#dims),*]).bitwise_and(#rhs_value) }
                 }
+            }
+            (ArgType::Tensor(_), ArgType::Scalar(_)) => {
+                quote! { #lhs_value.bitwise_and_scalar((#rhs_value as i64).elem()) }
+            }
+            (ArgType::Scalar(_), ArgType::Tensor(_)) => {
+                quote! { #rhs_value.bitwise_and_scalar((#lhs_value as i64).elem()) }
             }
             (ArgType::Scalar(_), ArgType::Scalar(_)) => {
                 quote! { #lhs_value & #rhs_value }

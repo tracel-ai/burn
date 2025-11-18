@@ -93,7 +93,7 @@ fn forward_shape_gather(node: &onnx_ir::gather::GatherNode) -> proc_macro2::Toke
                         );
                     }
                 }
-                ArgType::Shape(idx_rank) => {
+                ArgType::Shape(_idx_rank) => {
                     // Shape indices for gathering from Shape
                     let index_name = arg_to_ident(index_arg);
                     let output_rank = out_rank;
@@ -210,10 +210,6 @@ fn forward_tensor_gather(
                         let #output = Tensor::select(#input, #dim, indices);
                     }
                 }
-                _ => panic!(
-                    "Gather needs Scalar, Tensor, or Shape index, got {:?}!",
-                    index_arg.ty
-                ),
             }
         }
         _ => panic!("Gather needs Tensor output, got {:?}!", output_arg.ty),

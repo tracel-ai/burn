@@ -51,7 +51,7 @@ pub(crate) mod greater_equal;
 pub(crate) mod group_norm;
 pub(crate) mod hard_sigmoid;
 pub(crate) mod identity;
-pub(crate) mod if_node;
+// pub(crate) mod if_node; // TODO: Needs Type abstraction removal
 pub(crate) mod instance_norm;
 pub(crate) mod is_inf;
 pub(crate) mod is_nan;
@@ -60,16 +60,16 @@ pub(crate) mod leaky_relu;
 pub(crate) mod linear;
 pub(crate) mod log;
 pub(crate) mod log_softmax;
-pub(crate) mod loop_node;
+// pub(crate) mod loop_node; // TODO: Needs Type abstraction removal
 pub(crate) mod lower;
 pub(crate) mod lower_equal;
 pub(crate) mod matmul;
 pub(crate) mod matmul_integer;
-pub(crate) mod max_pair;
+pub(crate) mod max;
 pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
 pub(crate) mod mean;
-pub(crate) mod min_pair;
+pub(crate) mod min;
 pub(crate) mod modulo;
 pub(crate) mod mul;
 pub(crate) mod neg;
@@ -90,7 +90,7 @@ pub(crate) mod relu;
 pub(crate) mod reshape;
 pub(crate) mod resize;
 pub(crate) mod round;
-pub(crate) mod scan_node;
+// pub(crate) mod scan_node; // TODO: Needs Type abstraction removal
 pub(crate) mod shape;
 pub(crate) mod sigmoid;
 pub(crate) mod sign;

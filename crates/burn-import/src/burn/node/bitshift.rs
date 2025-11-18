@@ -1,5 +1,5 @@
 use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
 use onnx_ir::{ArgType, Argument};
 use proc_macro2::TokenStream;
@@ -86,9 +86,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::bitshift::BitShiftNode 
         quote! {
             let #output = #operation;
         }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::Tensor");
     }
 }

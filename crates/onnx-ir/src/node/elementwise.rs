@@ -56,7 +56,6 @@
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
-    same_as_input_broadcast,
 };
 
 /// Node representation for element-wise binary operations
@@ -77,63 +76,7 @@ pub struct ElementwiseUnaryNode {
     pub node_type: crate::ir::NodeType,
 }
 
-/// Node processor for element-wise binary operations with broadcasting
-///
-/// Used for simple binary operations that don't require special type propagation:
-/// - **Max**: Element-wise maximum
-/// - **Min**: Element-wise minimum
-///
-/// These operations support standard ONNX broadcasting semantics without
-/// needing Shape or Scalar type propagation (unlike arithmetic operations).
-pub(crate) struct ElementwiseBinaryProcessor;
-
-impl NodeProcessor for ElementwiseBinaryProcessor {
-    type Config = ();
-
-    fn spec(&self) -> NodeSpec {
-        NodeSpec {
-            min_opset: 1,
-            max_opset: None,
-            inputs: InputSpec::Exact(2),
-            outputs: OutputSpec::Exact(1),
-        }
-    }
-
-    fn infer_types(
-        &self,
-        node: &mut NodeBuilder,
-        _opset: usize,
-        _output_preferences: &OutputPreferences,
-    ) -> Result<(), ProcessError> {
-        // TODO: No opset validation - Max and Min have different minimum opsets
-        // TODO: Validate no unexpected attributes for binary operations - Per spec, these ops have no attributes - Missing attribute validation
-        // TODO: Max and Min support variadic inputs (2+ inputs) per ONNX spec, not just 2 - Missing support for multiple inputs - Should use validate_min_inputs instead
-
-        same_as_input_broadcast(node);
-        Ok(())
-    }
-
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        use crate::ir::NodeType;
-
-        let node = ElementwiseBinaryNode {
-            name: builder.name,
-            inputs: builder.inputs,
-            outputs: builder.outputs,
-            node_type: builder.node_type.clone(),
-        };
-
-        match builder.node_type {
-            NodeType::Max => Node::Max(node),
-            NodeType::Min => Node::Min(node),
-            _ => panic!(
-                "Unsupported node type for ElementwiseBinaryProcessor: {:?}",
-                builder.node_type
-            ),
-        }
-    }
-}
-
+/// Node processor for element-wise binary
 /// Node processor for element-wise unary operations
 /// Used for: Neg, Abs, Ceil, Floor, Sqrt, Exp, Log, Sin, Cos, etc.
 pub(crate) struct ElementwiseUnaryProcessor;
@@ -232,53 +175,6 @@ mod tests {
     use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
 
     #[test]
-    fn test_elementwise_binary_processor() {
-        let processor = ElementwiseBinaryProcessor;
-        let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::NodeBuilder {
-            node_type: NodeType::Max,
-            name: "test_max".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-        };
-
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        match &node.outputs[0].ty {
-            ArgType::Tensor(t) => assert_eq!(t.rank, 2),
-            _ => panic!("Expected tensor output"),
-        }
-    }
-
-    #[test]
     fn test_elementwise_unary_processor() {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
@@ -353,21 +249,4 @@ mod tests {
             })
         ));
     }
-
-    // TODO: Add test for Max/Min with more than 2 inputs - Spec supports variadic inputs - Missing test for variadic input support
-    // TODO: Add test for Round with mode attribute - Round supports 'mode' attribute (default="nearest_round_half_to_even") - Missing attribute test
-    // TODO: Add test for broadcasting behavior - Binary ops should support standard ONNX broadcasting - Missing broadcast test
-    // TODO: Add test for type constraints - Different ops have different allowed types (e.g., Max/Min support numeric types) - Missing type validation test
-    // TODO: Add test for zero-size tensors - Edge case where tensor has 0 elements - Missing edge case test
-    // TODO: Add test for all unary operations listed - Only testing Neg and Round, missing Abs, Ceil, Floor, Sqrt, Exp, Log, trig functions, etc. - Incomplete test coverage
-    // TODO: Add test for unexpected attributes on ops without attributes - Should reject unknown attributes per spec - Missing attribute validation test
-    // TODO: Missing test coverage for inverse trig functions - No tests for Asin, Acos, Atan in onnx-tests - Need test cases
-    // TODO: Missing test coverage for inverse hyperbolic functions - No tests for Asinh, Acosh, Atanh in onnx-tests - Need test cases
-    // TODO: Missing test coverage for Reciprocal edge cases - No tests for division by zero behavior - Need edge case tests
-    // TODO: Missing test for Reciprocal with different dtypes - Test only covers basic case, need float64, int types
-    // TODO: Missing test for Reciprocal boundary conditions - Very small values (near zero), very large values, +/-Inf
-    // TODO: Missing test coverage for Sqrt of negative values - No tests validate NaN behavior - Need edge case tests
-    // TODO: Missing test coverage for Log of negative/zero values - No tests validate NaN/-Inf behavior - Need edge case tests
-    // TODO: Missing test coverage for Pow edge cases - No tests for 0^0, negative^non-integer, Inf^0, etc. - Need edge case tests
-    // TODO: Missing test coverage for Gelu approximate mode - Gelu has 'approximate' attribute but no tests - Need tests for both modes
 }

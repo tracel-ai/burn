@@ -100,9 +100,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
                                     }
                                 }
                             }
-                            ArgType::Tensor(output_tensor) => {
+                            ArgType::Tensor(_) => {
                                 // Convert Shape to Tensor first, then reshape
-                                let output_rank = output_tensor.rank;
                                 let shape_values = shape_values.to_tokens();
                                 quote! {
                                     let #output = {
@@ -135,7 +134,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
                             let #output = #input.reshape(#shape_name);
                         }
                     }
-                    ArgType::Tensor(shape_tensor) => {
+                    ArgType::Tensor(_) => {
                         let shape_name = arg_to_ident(shape_arg);
                         let output_rank = match &output_arg.ty {
                             ArgType::Tensor(t) => t.rank,

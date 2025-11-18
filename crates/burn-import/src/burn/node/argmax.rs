@@ -1,5 +1,5 @@
 use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope, ToTokens};
+use crate::burn::{Scope, ToTokens};
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 use proc_macro2::TokenStream;

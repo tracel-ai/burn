@@ -3,8 +3,6 @@ pub mod graph;
 
 mod codegen;
 mod node_codegen; // Implements NodeCodegen<PS> for onnx_ir::Node
-#[cfg(test)]
-pub(crate) mod node_test;
 mod node_traits;
 
 mod imports;

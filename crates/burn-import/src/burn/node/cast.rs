@@ -33,16 +33,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
                 let output = arg_ident(output_arg);
 
                 // Check if the cast is a no-op within the same dtype "family"
-                let is_noop = match (input_dtype, &self.config.to) {
-                    (DType::F64, DType::F64) => true,
-                    (DType::F32 | DType::F16, DType::F32 | DType::F16) => true,
-                    (
-                        DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8,
-                        DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8,
-                    ) => true,
-                    (DType::Bool, DType::Bool) => true,
-                    _ => false,
-                };
+                let is_noop = matches!(
+                    (input_dtype, &self.config.to),
+                    (DType::F64, DType::F64)
+                        | (DType::F32 | DType::F16, DType::F32 | DType::F16)
+                        | (
+                            DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8,
+                            DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8,
+                        )
+                        | (DType::Bool, DType::Bool)
+                );
 
                 if is_noop {
                     // No-op cast within same scalar "family".
@@ -170,7 +170,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::TensorData");
-        imports.register("burn::tensor::Bool");
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+
+        // Only register imports when actually needed
+        match (&input_arg.ty, &output_arg.ty) {
+            // Shape -> Tensor casts need TensorData
+            (ArgType::Shape(_), ArgType::Tensor(_)) => {
+                imports.register("burn::tensor::TensorData");
+                // Bool is only needed for Shape -> Bool tensor
+                if matches!(self.config.to, DType::Bool) {
+                    imports.register("burn::tensor::Bool");
+                }
+            }
+            _ => {
+                // Other cast types don't need these imports
+            }
+        }
     }
 }

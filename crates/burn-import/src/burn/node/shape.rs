@@ -60,9 +60,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::shape::ShapeNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        use onnx_ir::ir::ArgType;
         // Only register Vec if we're extracting shape from a tensor
-        if matches!(&self.inputs.first().unwrap().ty, ArgType::Tensor(_)) {
+        if self.inputs.first().unwrap().ty.is_tensor() {
             imports.register("alloc::vec::Vec");
         }
     }

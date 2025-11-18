@@ -136,7 +136,7 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
 
                 Recorder::<Backend>::save_item(
                     &recorder,
-                    BurnRecord::<_, Backend>::new::<NamedMpkGzFileRecorder<PS>>(StructMap(
+                    BurnRecord::<_, Backend>::new::<NamedMpkFileRecorder<PS>>(StructMap(
                         BurnGraphState::<PS>::new(&self.nodes),
                     )),
                     out_file.clone(),

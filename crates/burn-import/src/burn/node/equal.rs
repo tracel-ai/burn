@@ -21,24 +21,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::comparison::EqualNode {
 
         let lhs_value = match &lhs.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(lhs, node_position),
-            ArgType::Scalar(_) => {
-                let name = &lhs.name;
-                quote! { #name }
-            }
-            ArgType::Shape(_) => {
-                let name = &lhs.name;
+            ArgType::Scalar(_) | ArgType::Shape(_) => {
+                let name = arg_to_ident(lhs);
                 quote! { #name }
             }
         };
 
         let rhs_value = match &rhs.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(rhs, node_position),
-            ArgType::Scalar(_) => {
-                let name = &rhs.name;
-                quote! { #name }
-            }
-            ArgType::Shape(_) => {
-                let name = &rhs.name;
+            ArgType::Scalar(_) | ArgType::Shape(_) => {
+                let name = arg_to_ident(rhs);
                 quote! { #name }
             }
         };

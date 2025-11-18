@@ -1,7 +1,7 @@
-use super::NodeCodegen;
+use super::{NodeCodegen, arg_to_ident};
 use crate::burn::Scope;
 use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
+use onnx_ir::{ArgType, Argument};
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -18,143 +18,138 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::where_op::WhereNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        // Convert Arguments to Types for pattern matching
-        let condition = Type::from(&self.inputs[0]);
-        let x = Type::from(&self.inputs[1]);
-        let y = Type::from(&self.inputs[2]);
-        let output = Type::from(self.outputs.first().unwrap());
+        let condition_arg = &self.inputs[0];
+        let x_arg = &self.inputs[1];
+        let y_arg = &self.inputs[2];
+        let output_arg = self.outputs.first().unwrap();
+        let output = arg_to_ident(output_arg);
 
-        match &output {
-            Type::Tensor(out) => {
-                let cond = where_input_as_tensor(&condition, out.rank, scope, node_position);
-                let y_tensor = where_input_as_tensor(&y, out.rank, scope, node_position);
-                let out_id = &out.name;
+        match &output_arg.ty {
+            ArgType::Tensor(out_tensor) => {
+                let broadcast_rank = out_tensor.rank;
 
-                if let Type::Scalar(x_scalar) = &x {
-                    let x_name = &x_scalar.name;
+                // Get condition as tensor
+                let cond =
+                    where_input_as_tensor(condition_arg, broadcast_rank, scope, node_position);
+
+                // Get y as tensor
+                let y_tensor = where_input_as_tensor(y_arg, broadcast_rank, scope, node_position);
+
+                // Check if x is a scalar - if so, use mask_fill
+                if let ArgType::Scalar(_) = &x_arg.ty {
+                    let x_name = arg_to_ident(x_arg);
                     quote! {
-                        let #out_id = #y_tensor.mask_fill(#cond, #x_name);
+                        let #output = #y_tensor.mask_fill(#cond, #x_name);
                     }
                 } else {
-                    let x_tensor = where_input_as_tensor(&x, out.rank, scope, node_position);
+                    // x is tensor or shape - use mask_where
+                    let x_tensor =
+                        where_input_as_tensor(x_arg, broadcast_rank, scope, node_position);
                     quote! {
-                        let #out_id = #y_tensor.mask_where(#cond, #x_tensor);
+                        let #output = #y_tensor.mask_where(#cond, #x_tensor);
                     }
                 }
             }
-            Type::Scalar(out) => {
-                // Scalar out means all inputs are scalars as well:
-                let cond = condition.as_scalar();
-                let x_scalar = x.as_scalar();
-                let y_scalar = y.as_scalar();
-                where_forward_scalar(out, cond, x_scalar, y_scalar)
+            ArgType::Scalar(_) => {
+                // Scalar output means all inputs are scalars
+                let cond_name = arg_to_ident(condition_arg);
+                let x_name = arg_to_ident(x_arg);
+                let y_name = arg_to_ident(y_arg);
+
+                quote! {
+                    let #output = if #cond_name {
+                        #x_name
+                    } else {
+                        #y_name
+                    };
+                }
             }
-            Type::Shape(out) => {
-                // Shape output - all inputs should be shapes or compatible types
-                where_forward_shape(out, &condition, &x, &y)
-            }
-            Type::Other(_) => panic!("Where cannot handle Other type"),
-        }
-    }
-}
+            ArgType::Shape(_) => {
+                // Shape output - handle element-wise or whole shape selection
+                match (&condition_arg.ty, &x_arg.ty, &y_arg.ty) {
+                    (ArgType::Shape(_), ArgType::Shape(_), ArgType::Shape(_)) => {
+                        // Element-wise selection between shape dimensions
+                        let cond_name = arg_to_ident(condition_arg);
+                        let x_name = arg_to_ident(x_arg);
+                        let y_name = arg_to_ident(y_arg);
 
-// Helper functions for Where operation
-fn where_forward_scalar(
-    out: &ScalarType,
-    cond: &ScalarType,
-    x: &ScalarType,
-    y: &ScalarType,
-) -> TokenStream {
-    let out_name = &out.name;
-    let out_type = out.ty();
-    let cond_name = &cond.name;
-    let x_name = &x.name;
-    let y_name = &y.name;
-
-    quote! {
-        let #out_name : #out_type = if #cond_name {
-            #x_name
-        }
-        else {
-            #y_name
-        };
-    }
-}
-
-fn where_forward_shape(out: &ShapeType, condition: &Type, x: &Type, y: &Type) -> TokenStream {
-    let out_name = &out.name;
-
-    // Generate code based on input types - only semantically valid combinations
-    match (condition, x, y) {
-        (Type::Shape(cond), Type::Shape(x_shape), Type::Shape(y_shape)) => {
-            // All shapes: element-wise selection between shape dimensions
-            // Each element of condition determines whether to take from x or y
-            let cond_name = &cond.name;
-            let x_name = &x_shape.name;
-            let y_name = &y_shape.name;
-
-            quote! {
-                let #out_name = {
-                    let mut result = #y_name;
-                    for (i, (cond_item, x_item)) in #cond_name.iter().zip(#x_name.iter()).enumerate() {
-                        if *cond_item != 0 {
-                            result[i] = *x_item;
+                        quote! {
+                            let #output = {
+                                let mut result = #y_name;
+                                for (i, (cond_item, x_item)) in #cond_name.iter().zip(#x_name.iter()).enumerate() {
+                                    if *cond_item != 0 {
+                                        result[i] = *x_item;
+                                    }
+                                }
+                                result
+                            };
                         }
                     }
-                    result
-                };
-            }
-        }
-        (Type::Scalar(cond), Type::Shape(x_shape), Type::Shape(y_shape)) => {
-            // Scalar condition: select entire shape x or y
-            let cond_name = &cond.name;
-            let x_name = &x_shape.name;
-            let y_name = &y_shape.name;
+                    (ArgType::Scalar(_), ArgType::Shape(_), ArgType::Shape(_)) => {
+                        // Scalar condition: select entire shape x or y
+                        let cond_name = arg_to_ident(condition_arg);
+                        let x_name = arg_to_ident(x_arg);
+                        let y_name = arg_to_ident(y_arg);
 
-            quote! {
-                let #out_name = if #cond_name { #x_name } else { #y_name };
+                        quote! {
+                            let #output = if #cond_name { #x_name } else { #y_name };
+                        }
+                    }
+                    _ => panic!(
+                        "Where with Shape output only supports: \
+                         (Shape, Shape, Shape) for element-wise selection or \
+                         (Scalar, Shape, Shape) for whole shape selection"
+                    ),
+                }
             }
         }
-        _ => panic!(
-            "Where with Shape output only supports: \
-                 (Shape, Shape, Shape) for element-wise selection or \
-                 (Scalar, Shape, Shape) for whole shape selection"
-        ),
     }
 }
 
+// Helper function to convert an input to a tensor for broadcasting
 fn where_input_as_tensor(
-    input: &Type,
+    arg: &Argument,
     broadcast_rank: usize,
     scope: &mut Scope,
     node_position: usize,
 ) -> TokenStream {
-    let (tensor, rank) = match input {
-        Type::Tensor(t) => {
-            let arg_type = onnx_ir::ir::ArgType::Tensor(onnx_ir::ir::TensorType {
-                dtype: match t.kind {
-                    crate::burn::TensorKind::Float => onnx_ir::ir::DType::F32,
-                    crate::burn::TensorKind::Int => onnx_ir::ir::DType::I64,
-                    crate::burn::TensorKind::Bool => onnx_ir::ir::DType::Bool,
-                },
-                rank: t.rank,
-                static_shape: None,
-            });
-            let arg = onnx_ir::Argument::new(t.name.to_string(), arg_type);
-            (scope.tensor_use_owned(&arg, node_position), t.rank)
-        }
-        Type::Scalar(s) => (s.to_full_tensor(&vec![1; broadcast_rank]), broadcast_rank),
-        Type::Shape(s) => (s.to_tensor(), 1),
-        Type::Other(_) => panic!("Where op: Other input not implemented"),
-    };
+    match &arg.ty {
+        ArgType::Tensor(t) => {
+            let tensor = scope.tensor_use_owned(arg, node_position);
+            let rank = t.rank;
 
-    if rank < broadcast_rank {
-        // Generate unsqueeze_dims to add trailing dimensions for broadcasting
-        // Create a vector of dimension indices to unsqueeze at the end
-        let dims_to_unsqueeze: Vec<isize> = (rank..broadcast_rank).map(|d| d as isize).collect();
-        let dims = quote! { &[#(#dims_to_unsqueeze),*] };
-        quote! { #tensor.unsqueeze_dims(#dims) }
-    } else {
-        tensor
+            if rank < broadcast_rank {
+                // Unsqueeze to match broadcast rank
+                let dims_to_unsqueeze: Vec<isize> =
+                    (rank..broadcast_rank).map(|d| d as isize).collect();
+                quote! { #tensor.unsqueeze_dims(&[#(#dims_to_unsqueeze),*]) }
+            } else {
+                tensor
+            }
+        }
+        ArgType::Scalar(_) => {
+            // Convert scalar to full tensor with broadcast_rank dimensions
+            let name = arg_to_ident(arg);
+            let shape_vec: Vec<_> = (0..broadcast_rank).map(|_| quote! { 1 }).collect();
+            quote! {
+                Tensor::from_data([[#(#shape_vec),*]; 1], &*self.device).mul_scalar(#name)
+            }
+        }
+        ArgType::Shape(_) => {
+            // Convert shape to tensor (rank 1)
+            let name = arg_to_ident(arg);
+            let tensor = quote! {
+                Tensor::<B, 1, burn::tensor::Int>::from_data(&#name as &[_], &*self.device)
+            };
+
+            if broadcast_rank > 1 {
+                // Unsqueeze to match broadcast rank
+                let dims_to_unsqueeze: Vec<isize> =
+                    (1..broadcast_rank).map(|d| d as isize).collect();
+                quote! { #tensor.unsqueeze_dims(&[#(#dims_to_unsqueeze),*]) }
+            } else {
+                tensor
+            }
+        }
     }
 }

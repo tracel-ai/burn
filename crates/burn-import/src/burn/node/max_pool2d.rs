@@ -57,5 +57,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool2d::MaxPool2dNo
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::pool::MaxPool2d");
         imports.register("burn::nn::pool::MaxPool2dConfig");
+        imports.register("burn::nn::PaddingConfig2d");
     }
 }

@@ -1,5 +1,5 @@
 use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
 use onnx_ir::{ArgType, Argument};
 use proc_macro2::TokenStream;
@@ -112,9 +112,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::DivNo
         quote! {
             let #output = #function;
         }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::Tensor");
     }
 }

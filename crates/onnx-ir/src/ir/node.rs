@@ -204,8 +204,8 @@ define_node_enum! {
     ReduceSumSquare => reduce::ReduceSumSquareNode,
 
     // AGGREGATION OPERATIONS
-    Max => elementwise::ElementwiseBinaryNode,
-    Min => elementwise::ElementwiseBinaryNode,
+    Max => max::MaxNode,
+    Min => min::MinNode,
     Mean => mean::MeanNode,
     Sum => sum::SumNode,
 

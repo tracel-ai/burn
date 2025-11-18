@@ -22,7 +22,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::and::AndNode {
         let lhs_value = match &lhs.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(lhs, node_position),
             ArgType::Scalar(_) => {
-                let name = &lhs.name;
+                let name = arg_to_ident(lhs);
                 quote! { #name }
             }
             _ => panic!("lhs must be a tensor or scalar"),
@@ -31,7 +31,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::and::AndNode {
         let rhs_value = match &rhs.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(rhs, node_position),
             ArgType::Scalar(_) => {
-                let name = &rhs.name;
+                let name = arg_to_ident(rhs);
                 quote! { #name }
             }
             _ => panic!("rhs must be a tensor or scalar"),

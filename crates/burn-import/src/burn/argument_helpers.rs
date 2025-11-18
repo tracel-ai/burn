@@ -46,42 +46,6 @@ pub fn scalar_type_tokens(dtype: &DType) -> TokenStream {
     }
 }
 
-/// Convert a shape argument to a tensor on the device
-/// Uploads the Shape to the device as a rank 1 Int tensor
-pub fn shape_to_tensor(arg: &Argument) -> TokenStream {
-    let shape_name = Ident::new(&arg.name, Span::call_site());
-    quote! { Tensor::<B, 1, burn::tensor::Int>::from_data(&#shape_name as &[_], &*self.device) }
-}
-
-/// Convert a scalar argument to a full tensor with the given shape
-/// Uploads the Scalar to the device as a full tensor using the given shape definition
-pub fn scalar_to_full_tensor(arg: &Argument, shape: &[usize]) -> TokenStream {
-    if let ArgType::Scalar(dtype) = &arg.ty {
-        let name = Ident::new(&arg.name, Span::call_site());
-        let shape_tokens = shape
-            .iter()
-            .map(ToTokens::to_tokens)
-            .map(|s| quote! {#s, })
-            .collect::<TokenStream>();
-        let rank = shape.len();
-        let rank_tokens = rank.to_tokens();
-        let tensor_kind = match dtype {
-            DType::I32 | DType::I64 => quote! { burn::tensor::Int },
-            DType::F32 | DType::F64 => quote! { burn::tensor::Float },
-            DType::Bool => quote! { burn::tensor::Bool },
-            _ => panic!("Unsupported scalar dtype for full tensor: {:?}", dtype),
-        };
-        quote! {
-            Tensor::<B, #rank_tokens, #tensor_kind>::full([#shape_tokens], #name, &*self.device)
-        }
-    } else {
-        panic!(
-            "scalar_to_full_tensor called on non-scalar argument: {:?}",
-            arg
-        );
-    }
-}
-
 /// Get the argument identifier
 pub fn arg_ident(arg: &Argument) -> Ident {
     Ident::new(&arg.name, Span::call_site())

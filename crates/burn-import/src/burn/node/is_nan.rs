@@ -24,7 +24,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::is_nan::IsNaNNode {
         let input = match &input_arg.ty {
             ArgType::Tensor(_) => scope.tensor_use_owned(input_arg, node_position),
             ArgType::Scalar(_) => {
-                let name = &input_arg.name;
+                let name = arg_to_ident(input_arg);
                 quote! { #name }
             }
             _ => panic!("Input must be a tensor or scalar"),

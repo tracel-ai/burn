@@ -105,7 +105,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PaddingConfig1d");
         imports.register("burn::nn::conv::ConvTranspose1d");
         imports.register("burn::nn::conv::ConvTranspose1dConfig");
     }

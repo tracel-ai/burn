@@ -1,4 +1,4 @@
-use super::{NodeCodegen, SerializationBackend, arg_to_ident};
+use super::{NodeCodegen, arg_to_ident};
 use crate::burn::{Field, Scope, ToTokens};
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
@@ -92,7 +92,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device: <SerializationBackend as burn::prelude::Backend>::Device = Default::default();
+        use burn::module::ParamId;
+        use burn::record::ParamSerde;
+        use serde::Serialize;
+
         let output = self.outputs.first().unwrap();
 
         match &output.ty {
@@ -101,23 +104,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
                 let input = self.inputs.first().unwrap();
                 let tensor_data = input.value().expect("Constant node must have tensor data");
 
-                // Convert to appropriate element type and create Param
-                match t.dtype {
+                // Convert to appropriate element type based on dtype
+                let data = match t.dtype {
                     onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => {
-                        // TODO: Fix serialization for dynamic rank tensors
-                        // For now, serialize as none to unblock ty.rs removal
-                        S::serialize_none(serializer)
+                        tensor_data.clone().convert::<PS::IntElem>()
                     }
                     onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
-                        // TODO: Fix serialization for dynamic rank tensors
-                        S::serialize_none(serializer)
+                        tensor_data.clone().convert::<PS::FloatElem>()
                     }
-                    onnx_ir::ir::DType::Bool => {
-                        // TODO: Fix serialization for dynamic rank tensors
-                        S::serialize_none(serializer)
-                    }
-                    _ => S::serialize_none(serializer),
-                }
+                    onnx_ir::ir::DType::Bool => tensor_data.clone(),
+                    _ => return S::serialize_none(serializer),
+                };
+
+                // Serialize using ParamSerde which handles any rank
+                let param_serde = ParamSerde::new(ParamId::new().to_string(), data);
+                param_serde.serialize(serializer)
             }
             _ => S::serialize_none(serializer),
         }
