@@ -3,12 +3,11 @@ use super::pool2d::{
 };
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::into_contiguous,
-    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
+use burn_tensor::{DType, Shape, ops::conv::calculate_pool_output_size};
 use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
 
 struct MaxPoolStrategy;
@@ -97,7 +96,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     }
 }
 
-pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn max_pool2d<R: CubeRuntime>(
     x: CubeTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -126,13 +125,13 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
-    pool2d_direct::launch::<E, MaxPoolStrategy, R>(
+    pool2d_direct::launch::<MaxPoolStrategy, R>(
         &x.client,
         cube_count,
         cube_dim,
@@ -149,17 +148,19 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
+        output.dtype.into(),
     );
 
     permute_nhwc_to_nchw(output)
 }
 
-pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeElement>(
+pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
     x: CubeTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    dtype_indices: DType,
 ) -> (CubeTensor<R>, CubeTensor<R>) {
     let [batch_size, channels, _, _] = x.shape.dims();
 
@@ -182,14 +183,20 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out.clone());
-    let indices = empty_device::<R, I>(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device_dtype::<R>(
+        x.client.clone(),
+        x.device.clone(),
+        shape_out.clone(),
+        x.dtype,
+    );
+    let indices =
+        empty_device_dtype::<R>(x.client.clone(), x.device.clone(), shape_out, dtype_indices);
 
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
-    pool2d_direct::launch::<E, MaxPoolWithIndicesStrategy, R>(
+    pool2d_direct::launch::<MaxPoolWithIndicesStrategy, R>(
         &x.client,
         cube_count,
         cube_dim,
@@ -206,6 +213,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
+        output.dtype.into(),
     );
 
     let output = permute_nhwc_to_nchw(output);
