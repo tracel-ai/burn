@@ -233,11 +233,7 @@ where
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::interpolate::interpolate::<R, E>(x, output_size, options)
-        )
+        kernel::interpolate::interpolate::<R>(x, output_size, options)
     }
 
     fn interpolate_backward(
@@ -246,10 +242,6 @@ where
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::interpolate::interpolate_backward::<R, E>(x, grad, output_size, options)
-        )
+        kernel::interpolate::interpolate_backward::<R>(x, grad, output_size, options)
     }
 }
