@@ -154,11 +154,7 @@ where
         rhs: FloatTensor<Self>,
         dim: usize,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            kernel::cross::<R, E>(lhs, rhs, dim)
-        )
+        kernel::cross::<R>(lhs, rhs, dim)
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
