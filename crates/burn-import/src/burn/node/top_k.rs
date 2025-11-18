@@ -52,10 +52,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
 
 impl OnnxIntoNode for TopKNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let outputs = node.outputs.iter().map(TensorType::from).collect();
-        let config = node.config::<onnx_ir::node::topk::TopKConfig>().clone();
-        Self::new(input, outputs, config)
+        let onnx_ir::Node::TopK(n) = &node else {
+            panic!("Expected TopK node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let input = TensorType::from(inputs.first().unwrap());
+        let outputs = outputs.iter().map(TensorType::from).collect();
+        Self::new(input, outputs, config.clone())
     }
 }
 

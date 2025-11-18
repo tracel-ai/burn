@@ -50,10 +50,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
 
 impl OnnxIntoNode for RandomUniformLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::random_like::RandomUniformLikeConfig>();
-        Self::new(config.low, config.high, input, output)
+        let onnx_ir::Node::RandomUniformLike(n) = node else {
+            panic!("Expected RandomUniformLike node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(n.config.low, n.config.high, input, output)
     }
 }
 

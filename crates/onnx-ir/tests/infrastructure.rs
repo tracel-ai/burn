@@ -110,7 +110,7 @@ fn test_graph_branching() {
 
     // Should have Relu as the branch point
     assert!(
-        has_node_type(&graph, onnx_ir::ir::NodeType::Relu),
+        has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Relu { .. })),
         "Should have Relu node as branch point"
     );
 
@@ -146,7 +146,7 @@ fn test_identity_elimination() {
     // Test Phase 4: Identity nodes should be eliminated
     let graph = load_onnx("identity.onnx");
 
-    let identity_count = count_nodes(&graph, onnx_ir::ir::NodeType::Identity);
+    let identity_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Identity { .. }));
 
     println!(
         "Identity nodes after Phase 4: {} (should be 0)",
@@ -175,15 +175,15 @@ fn test_transitive_rewiring() {
     // After rewiring: relu → add → output
 
     assert!(
-        has_node_type(&graph, onnx_ir::ir::NodeType::Relu),
+        has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Relu { .. })),
         "Relu should remain"
     );
     assert!(
-        has_node_type(&graph, onnx_ir::ir::NodeType::Add),
+        has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Add { .. })),
         "Add should remain"
     );
     assert!(
-        !has_node_type(&graph, onnx_ir::ir::NodeType::Identity),
+        !has_node_type(&graph, |n| matches!(n, onnx_ir::ir::Node::Identity { .. })),
         "Identity should be eliminated"
     );
 
@@ -236,53 +236,60 @@ fn test_all_data_types_conversion() {
 
     // Find all constant nodes
     for node in &graph.nodes {
-        if !matches!(node.node_type, onnx_ir::ir::NodeType::Constant) {
+        if !matches!(node, onnx_ir::ir::Node::Constant { .. }) {
             continue;
         }
 
         // After constant lifting, Constant nodes MUST have their data in the first input
         assert!(
-            !node.inputs.is_empty(),
+            !node.inputs().is_empty(),
             "Constant node '{}' has no inputs - should have tensor data in first input after lifting",
-            node.name
+            node.name()
         );
 
         // Constant nodes MUST have exactly one output
         assert_eq!(
-            node.outputs.len(),
+            node.outputs().len(),
             1,
             "Constant node '{}' should have exactly 1 output, found {}",
-            node.name,
-            node.outputs.len()
+            node.name(),
+            node.outputs().len()
         );
 
-        let input_arg = &node.inputs[0];
+        let input_arg = &node.inputs()[0];
         if let Some(tensor_data) = input_arg.value() {
             let dtype = tensor_data.dtype;
             let shape = &tensor_data.shape;
             let num_elems: usize = shape.iter().product();
 
             // Verify output type matches tensor data type
-            let output_arg = &node.outputs[0];
+            let output_arg = &node.outputs()[0];
             match &output_arg.ty {
                 onnx_ir::ir::ArgType::Tensor(tensor_type) => {
                     assert_eq!(
-                        tensor_type.dtype, dtype,
+                        tensor_type.dtype,
+                        dtype,
                         "Constant node '{}' tensor output dtype {:?} doesn't match tensor data dtype {:?}",
-                        node.name, tensor_type.dtype, dtype
+                        node.name(),
+                        tensor_type.dtype,
+                        dtype
                     );
                 }
                 onnx_ir::ir::ArgType::Scalar(scalar_dtype) => {
                     assert_eq!(
-                        scalar_dtype, &dtype,
+                        scalar_dtype,
+                        &dtype,
                         "Constant node '{}' scalar output dtype {:?} doesn't match tensor data dtype {:?}",
-                        node.name, scalar_dtype, dtype
+                        node.name(),
+                        scalar_dtype,
+                        dtype
                     );
                 }
                 onnx_ir::ir::ArgType::Shape(_) => {
                     panic!(
                         "Constant node '{}' has Shape output type, but contains tensor data with dtype {:?}",
-                        node.name, dtype
+                        node.name(),
+                        dtype
                     );
                 }
             }
@@ -293,7 +300,9 @@ fn test_all_data_types_conversion() {
                 empty_count += 1;
                 println!(
                     "Empty {:?} tensor '{}' validated (shape: {:?})",
-                    dtype, node.name, shape
+                    dtype,
+                    node.name(),
+                    shape
                 );
             } else {
                 non_empty_count += 1;
@@ -421,7 +430,8 @@ fn test_all_data_types_conversion() {
             // The first input exists but doesn't have tensor data - this is invalid for Constant nodes
             panic!(
                 "Constant node '{}' first input has no tensor data (input type: {:?})",
-                node.name, input_arg.ty
+                node.name(),
+                input_arg.ty
             );
         }
     }
@@ -509,9 +519,9 @@ fn test_value_info_initialization() {
     assert_eq!(graph.outputs.len(), 1, "Expected 1 output");
 
     // Count nodes by type
-    let reshape_count = count_nodes(&graph, onnx_ir::ir::NodeType::Reshape);
-    let transpose_count = count_nodes(&graph, onnx_ir::ir::NodeType::Transpose);
-    let add_count = count_nodes(&graph, onnx_ir::ir::NodeType::Add);
+    let reshape_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Reshape { .. }));
+    let transpose_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Transpose { .. }));
+    let add_count = count_nodes(&graph, |n| matches!(n, onnx_ir::ir::Node::Add { .. }));
 
     println!("Reshape nodes: {}", reshape_count);
     println!("Transpose nodes: {}", transpose_count);
@@ -527,16 +537,16 @@ fn test_value_info_initialization() {
     let transpose_node = graph
         .nodes
         .iter()
-        .find(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Transpose))
+        .find(|n| matches!(n, onnx_ir::ir::Node::Transpose { .. }))
         .expect("Should have Transpose node");
 
     assert_eq!(
-        transpose_node.inputs.len(),
+        transpose_node.inputs().len(),
         1,
         "Transpose should have 1 input"
     );
 
-    let transpose_input = &transpose_node.inputs[0];
+    let transpose_input = &transpose_node.inputs()[0];
 
     // The transpose input should be a Tensor with rank 3, NOT a Scalar
     match &transpose_input.ty {
@@ -571,18 +581,18 @@ fn test_value_info_initialization() {
     let reshape_nodes: Vec<_> = graph
         .nodes
         .iter()
-        .filter(|n| matches!(n.node_type, onnx_ir::ir::NodeType::Reshape))
+        .filter(|n| matches!(n, onnx_ir::ir::Node::Reshape { .. }))
         .collect();
 
     for (i, reshape) in reshape_nodes.iter().enumerate() {
         assert_eq!(
-            reshape.outputs.len(),
+            reshape.outputs().len(),
             1,
             "Reshape {} should have 1 output",
             i
         );
 
-        match &reshape.outputs[0].ty {
+        match &reshape.outputs()[0].ty {
             onnx_ir::ir::ArgType::Tensor(tensor_type) => {
                 // First reshape: [batch, 784] → [batch, 28, 28] (rank 3)
                 // Second reshape: [batch, 28, 28] → [batch, 784] (rank 2)

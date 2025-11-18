@@ -352,26 +352,29 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
 
 impl OnnxIntoNode for ReduceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::NodeType;
-
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::reduce::ReduceConfig>();
-
-        // Determine reduction type from node type
-        let reduction_type = match node.node_type {
-            NodeType::ReduceMax => ReductionType::Max,
-            NodeType::ReduceMin => ReductionType::Min,
-            NodeType::ReduceSum => ReductionType::Sum,
-            NodeType::ReduceProd => ReductionType::Prod,
-            NodeType::ReduceMean => ReductionType::Mean,
-            NodeType::ReduceL1 => ReductionType::L1,
-            NodeType::ReduceL2 => ReductionType::L2,
-            NodeType::ReduceLogSum => ReductionType::LogSum,
-            NodeType::ReduceLogSumExp => ReductionType::LogSumExp,
-            NodeType::ReduceSumSquare => ReductionType::SumSquare,
-            _ => panic!("Unsupported reduction type: {:?}", node.node_type),
+        // Extract reduction type, inputs, outputs, and config from node variant
+        let (inputs, outputs, reduction_type, config) = match &node {
+            onnx_ir::Node::ReduceMax(n) => (&n.inputs, &n.outputs, ReductionType::Max, &n.config),
+            onnx_ir::Node::ReduceMin(n) => (&n.inputs, &n.outputs, ReductionType::Min, &n.config),
+            onnx_ir::Node::ReduceSum(n) => (&n.inputs, &n.outputs, ReductionType::Sum, &n.config),
+            onnx_ir::Node::ReduceProd(n) => (&n.inputs, &n.outputs, ReductionType::Prod, &n.config),
+            onnx_ir::Node::ReduceMean(n) => (&n.inputs, &n.outputs, ReductionType::Mean, &n.config),
+            onnx_ir::Node::ReduceL1(n) => (&n.inputs, &n.outputs, ReductionType::L1, &n.config),
+            onnx_ir::Node::ReduceL2(n) => (&n.inputs, &n.outputs, ReductionType::L2, &n.config),
+            onnx_ir::Node::ReduceLogSum(n) => {
+                (&n.inputs, &n.outputs, ReductionType::LogSum, &n.config)
+            }
+            onnx_ir::Node::ReduceLogSumExp(n) => {
+                (&n.inputs, &n.outputs, ReductionType::LogSumExp, &n.config)
+            }
+            onnx_ir::Node::ReduceSumSquare(n) => {
+                (&n.inputs, &n.outputs, ReductionType::SumSquare, &n.config)
+            }
+            _ => panic!("Unsupported reduction type: {}", node.name()),
         };
+
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
 
         ReduceNode::new(input, output, reduction_type, config.clone())
     }

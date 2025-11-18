@@ -18,14 +18,24 @@
 //! unsupported types like string, complex64, complex128 should be explicitly rejected.
 //! Location: infer_types method after line 38
 
-use crate::ir::{ArgType, DType, Node, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-pub struct NonZeroProcessor;
+/// Node representation for NonZero operation
+#[derive(Debug, Clone)]
+pub struct NonZeroNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+pub(crate) struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -37,7 +47,7 @@ impl NodeProcessor for NonZeroProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -70,17 +80,25 @@ impl NodeProcessor for NonZeroProcessor {
 
         Ok(())
     }
+
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+        Node::NonZero(NonZeroNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     fn test_nonzero_update_output() {
-        let mut node = NodeBuilder::new(NodeType::NonZero, "test_nonzero")
+        let mut node = TestNodeBuilder::new(NodeType::NonZero, "test_nonzero")
             .input_tensor_f32("input", 3, Some(vec![2, 3, 4]))
             .output_tensor_i64("output", 2, None) // rank will be updated
             .build();
@@ -101,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_nonzero_update_output_1d() {
-        let mut node = NodeBuilder::new(NodeType::NonZero, "test_nonzero_1d")
+        let mut node = TestNodeBuilder::new(NodeType::NonZero, "test_nonzero_1d")
             .input_tensor_i32("input", 1, Some(vec![5]))
             .output_tensor_i64("output", 2, None)
             .build();
@@ -122,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_nonzero_update_output_4d() {
-        let mut node = NodeBuilder::new(NodeType::NonZero, "test_nonzero_4d")
+        let mut node = TestNodeBuilder::new(NodeType::NonZero, "test_nonzero_4d")
             .input_tensor_f64("input", 4, Some(vec![2, 3, 4, 5]))
             .output_tensor_i64("output", 2, None)
             .build();

@@ -102,9 +102,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
 
 impl OnnxIntoNode for MatmulNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let rhs = crate::burn::TensorType::from(node.inputs.get(1).unwrap());
-        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::MatMul(n) = node else {
+            panic!("Expected MatMul node");
+        };
+        let lhs = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let rhs = crate::burn::TensorType::from(n.inputs.get(1).unwrap());
+        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
         Self::new(lhs, rhs, output)
     }
 }

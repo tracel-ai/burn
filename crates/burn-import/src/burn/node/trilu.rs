@@ -40,10 +40,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
 
 impl OnnxIntoNode for TriluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::trilu::TriluConfig>().clone();
-        Self::new(input, output, config)
+        let onnx_ir::Node::Trilu(n) = node else {
+            panic!("Expected Trilu node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.clone())
     }
 }
 

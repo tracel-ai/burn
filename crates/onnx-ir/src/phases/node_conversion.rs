@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, AttributeValue, Node, NodeType, TensorData, TensorDataExt},
+    ir::{ArgType, AttributeValue, NodeBuilder, NodeType, TensorData, TensorDataExt},
     pipeline::OnnxIrError,
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
@@ -148,15 +148,8 @@ fn convert_nodes_impl(
                 )
             });
 
-        let config = processor
-            .extract_config(&node, opset_version)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Failed to extract config for node {} (type: {:?}): {:?}",
-                    node.name, node.node_type, e
-                )
-            });
-        node.config = config;
+        // Config extraction is now done in infer_types instead of here
+        // This allows processors to call extract_config during type inference
 
         // Add to graph state
         state_rc.borrow_mut().add_node(node);
@@ -166,7 +159,7 @@ fn convert_nodes_impl(
 }
 
 /// Extract constant data from node attributes and move to tensor store
-fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<GraphState>>) {
+fn extract_constant_from_attributes(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>>) {
     let keys = [
         "value",
         "value_float",
@@ -228,7 +221,7 @@ fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<Graph
 }
 
 /// Attach value_store references to all node arguments
-fn attach_value_stores(node: &mut Node, state_rc: &Rc<RefCell<GraphState>>) {
+fn attach_value_stores(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>>) {
     for arg in &mut node.inputs {
         arg.value_store = Some(state_rc.clone());
     }
@@ -239,7 +232,7 @@ fn attach_value_stores(node: &mut Node, state_rc: &Rc<RefCell<GraphState>>) {
 
 /// Rename node with type-based counter
 fn rename_node(
-    node: &mut Node,
+    node: &mut NodeBuilder,
     counters: &mut HashMap<NodeType, usize>,
     name_registry: Option<&crate::graph_state::NameRegistry>,
 ) {
@@ -266,7 +259,7 @@ fn rename_node(
 }
 
 /// Remap node type using kernel shape
-fn remap_node_with_kernel_shape<F>(node: &mut Node, new_node_type: F)
+fn remap_node_with_kernel_shape<F>(node: &mut NodeBuilder, new_node_type: F)
 where
     F: FnOnce(usize) -> NodeType,
 {
@@ -288,7 +281,7 @@ where
 }
 
 /// Remap node type to a more specific one
-fn remap_node_type(node: &mut Node) {
+fn remap_node_type(node: &mut NodeBuilder) {
     match node.node_type {
         NodeType::Conv => remap_node_with_kernel_shape(node, |spatial_dims| match spatial_dims {
             1 => NodeType::Conv1d,
@@ -324,7 +317,7 @@ fn remap_node_type(node: &mut Node) {
 
 /// Coalesce adjacent nodes into a single node (Gemm→Linear, MatMul+Add→Linear)
 fn coalesce(
-    node: &mut Node,
+    node: &mut NodeBuilder,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
     graph_data: &mut GraphState,
 ) {
@@ -339,7 +332,7 @@ fn coalesce(
 }
 
 /// Convert Gemm to Linear (when alpha=1, beta=1, transB=1)
-fn convert_gemm_to_linear(node: &mut Node, graph_data: &mut GraphState) {
+fn convert_gemm_to_linear(node: &mut NodeBuilder, graph_data: &mut GraphState) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -377,7 +370,7 @@ fn convert_gemm_to_linear(node: &mut Node, graph_data: &mut GraphState) {
 }
 
 /// Transpose linear weights (required for Gemm → Linear conversion)
-fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
+fn transpose_linear_node_weights(node: &mut NodeBuilder, graph_data: &mut GraphState) {
     assert!(
         node.inputs.len() > 1,
         "Linear node must have at least 2 input"
@@ -459,7 +452,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 
 /// Convert MatMul to Linear, fusing the following Add node as bias if present
 fn convert_matmul_to_linear(
-    node: &mut Node,
+    node: &mut NodeBuilder,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
     graph_data: &mut GraphState,
 ) {
@@ -501,7 +494,11 @@ fn convert_matmul_to_linear(
 }
 
 /// Check if the peeked node is an Add with bias for the current MatMul
-fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &GraphState) -> bool {
+fn is_add_node_with_bias(
+    peek_node: &NodeBuilder,
+    current_node: &NodeBuilder,
+    graph_data: &GraphState,
+) -> bool {
     // Check structural requirements first
     if peek_node.node_type != NodeType::Add || peek_node.inputs.len() != 2 {
         return false;
@@ -515,7 +512,7 @@ fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &Gra
 }
 
 /// Merge the Add node's bias into the MatMul node
-fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
+fn convert_and_remove_add_node(bias_node: &NodeBuilder, current_node: &mut NodeBuilder) {
     // The bias is whichever input is NOT the matmul output
     let bias_input = if bias_node.inputs[0].name == current_node.outputs[0].name {
         bias_node.inputs[1].clone()
@@ -535,17 +532,17 @@ fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
 /// When onnx-ir processes nodes, it renames outputs (e.g., var2 -> add3_out1).
 /// Subgraph inputs reference original ONNX names, so we need to update them
 /// to use the renamed names from the parent scope.
-fn update_subgraph_inputs(node: &mut Node, graph_state: &GraphState) {
+fn update_subgraph_inputs(node: &mut NodeBuilder, graph_state: &GraphState) {
     // Get the node_output_map which maps original ONNX names to (node_idx, output_idx)
     let node_output_map = graph_state.node_output_map();
 
     // Update inputs for each graph attribute
     for attr_value in node.attrs.values_mut() {
         match attr_value {
-            AttributeValue::Graph(subgraph) => {
+            AttributeValue::GraphBuilder(subgraph) => {
                 update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
             }
-            AttributeValue::Graphs(subgraphs) => {
+            AttributeValue::GraphBuilders(subgraphs) => {
                 for subgraph in subgraphs {
                     update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
                 }
@@ -557,7 +554,7 @@ fn update_subgraph_inputs(node: &mut Node, graph_state: &GraphState) {
 
 /// Update inputs for a single subgraph
 fn update_single_subgraph_inputs(
-    subgraph: &mut crate::ir::OnnxGraph,
+    subgraph: &mut crate::ir::OnnxGraphBuilder,
     node_output_map: &HashMap<String, (usize, usize)>,
     graph_state: &GraphState,
 ) {
@@ -603,7 +600,7 @@ fn update_single_subgraph_inputs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     fn should_infer_conv2d_node_from_weights_rank() {
@@ -612,7 +609,7 @@ mod tests {
         // [out_channels, in_channels, k_h, k_w] = [2, 2, 2, 2] = 16 elements
         let weight_shape = vec![2, 2, 2, 2];
 
-        let mut node = NodeBuilder::new(NodeType::Conv, "test_conv2d")
+        let mut node = TestNodeBuilder::new(NodeType::Conv, "test_conv2d")
             .input_tensor_f32("data", 4, None)
             .input_tensor_f32_data("weight", weight_data.clone(), weight_shape)
             .output_tensor_f32("output", 4, None)
@@ -635,7 +632,7 @@ mod tests {
         // [.., kernel_size]
         let weight_shape = vec![2, 2, 4];
 
-        let mut node = NodeBuilder::new(NodeType::ConvTranspose, "test_conv2d")
+        let mut node = TestNodeBuilder::new(NodeType::ConvTranspose, "test_conv2d")
             .input_tensor_f32("data", 3, None)
             .input_tensor_f32_data("weight", weight_data, weight_shape)
             .output_tensor_f32("output", 3, None)

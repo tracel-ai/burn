@@ -18,11 +18,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{
-    ArgType, TensorType,
-    ir::{Node, NodeConfig},
-};
-use std::any::Any;
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 
 /// Configuration for SpaceToDepth operations
 #[derive(Debug, Clone)]
@@ -31,19 +27,20 @@ pub struct SpaceToDepthConfig {
     pub block_size: usize,
 }
 
-impl NodeConfig for SpaceToDepthConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for SpaceToDepth operation
+#[derive(Debug, Clone)]
+pub struct SpaceToDepthNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SpaceToDepthConfig,
 }
 
-pub struct SpaceToDepthProcessor;
+pub(crate) struct SpaceToDepthProcessor;
 
 impl NodeProcessor for SpaceToDepthProcessor {
+    type Config = SpaceToDepthConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -55,8 +52,8 @@ impl NodeProcessor for SpaceToDepthProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate unexpected attributes before config extraction
@@ -73,7 +70,9 @@ impl NodeProcessor for SpaceToDepthProcessor {
         }
 
         // Get reference to config for type inference
-        let config = node.config::<SpaceToDepthConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let block_size = config.block_size;
 
         // Validate block_size
@@ -132,9 +131,9 @@ impl NodeProcessor for SpaceToDepthProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut block_size: Option<usize> = None;
 
         for (key, value) in node.attrs.iter() {
@@ -147,20 +146,37 @@ impl NodeProcessor for SpaceToDepthProcessor {
             block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         let config = SpaceToDepthConfig { block_size };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::SpaceToDepth(SpaceToDepthNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
-    fn create_test_node(rank: usize, static_shape: Option<Vec<usize>>, block_size: i64) -> Node {
-        let builder = NodeBuilder::new(NodeType::DepthToSpace, "test_space_to_depth")
+    fn create_test_node(
+        rank: usize,
+        static_shape: Option<Vec<usize>>,
+        block_size: i64,
+    ) -> NodeBuilder {
+        let builder = TestNodeBuilder::new(NodeType::DepthToSpace, "test_space_to_depth")
             .input_tensor_f32("input", rank, static_shape)
             .output_tensor_f32("output", rank, None) // Same rank as input
             .attr_int("blocksize", block_size);
@@ -174,9 +190,7 @@ mod tests {
         let processor = SpaceToDepthProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SpaceToDepthConfig>();
 
         assert_eq!(config.block_size, 2);
     }
@@ -186,8 +200,7 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
         let processor = SpaceToDepthProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

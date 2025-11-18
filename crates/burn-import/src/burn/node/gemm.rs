@@ -107,20 +107,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
 
 impl OnnxIntoNode for GemmNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let a = TensorType::from(node.inputs.first().unwrap());
-        let b = TensorType::from(node.inputs.get(1).unwrap());
-        let c = node.inputs.get(2).map(Type::from);
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::gemm::GemmConfig>();
+        let onnx_ir::Node::Gemm(n) = node else {
+            panic!("Expected Gemm node");
+        };
+        let a = TensorType::from(n.inputs.first().unwrap());
+        let b = TensorType::from(n.inputs.get(1).unwrap());
+        let c = n.inputs.get(2).map(Type::from);
+        let output = TensorType::from(n.outputs.first().unwrap());
         Self::new(
             a,
             b,
             c,
             output,
-            config.alpha,
-            config.beta,
-            config.trans_a,
-            config.trans_b,
+            n.config.alpha,
+            n.config.beta,
+            n.config.trans_a,
+            n.config.trans_b,
         )
     }
 }

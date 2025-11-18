@@ -230,14 +230,17 @@ impl OnnxIntoNode for ConstantNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::ir::{ArgType, DType};
 
-        let input = node.inputs.first().unwrap();
-        let output = node.outputs.first().unwrap();
+        let onnx_ir::Node::Constant(n) = &node else {
+            panic!("Expected Constant node");
+        };
+        let input = n.inputs.first().unwrap();
+        let output = n.outputs.first().unwrap();
 
         // Get the tensor data from the central store via the input argument
         let tensor_data = if let Some(data) = input.value() {
             data
         } else {
-            panic!("Constant node '{}' input missing tensor data", node.name);
+            panic!("Constant node '{}' input missing tensor data", n.name);
         };
 
         // Helper to map elem type to ConstantValue (single scalar)
@@ -298,7 +301,6 @@ impl OnnxIntoNode for ConstantNode {
                 } else {
                     let kind: TensorKind = tensor.dtype.into();
                     let rank = tensor.rank;
-                    let name = node.name.clone();
 
                     let serialized_data = match &tensor.dtype {
                         DType::F32 | DType::F64 | DType::F16 => {
@@ -311,7 +313,10 @@ impl OnnxIntoNode for ConstantNode {
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };
 
-                    ConstantValue::Tensor(TensorType::new(name, rank, kind), serialized_data)
+                    ConstantValue::Tensor(
+                        TensorType::new(n.name.clone(), rank, kind),
+                        serialized_data,
+                    )
                 }
             }
 
@@ -343,7 +348,7 @@ impl OnnxIntoNode for ConstantNode {
             _ => Type::from(output),
         };
 
-        ConstantNode::new(node.name, const_value, out_ty)
+        ConstantNode::new(n.name.clone(), const_value, out_ty)
     }
 }
 

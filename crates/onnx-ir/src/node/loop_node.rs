@@ -10,9 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use std::any::Any;
-
-use crate::ir::{ArgType, DType, Node, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -52,23 +50,24 @@ pub struct LoopConfig {
     pub body: OnnxGraph,
 }
 
-impl NodeConfig for LoopConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Loop operation
+#[derive(Debug, Clone)]
+pub struct LoopNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LoopConfig,
 }
 
 /// Loop node processor
-pub struct LoopProcessor;
+pub(crate) struct LoopProcessor;
 
 impl NodeProcessor for LoopProcessor {
+    type Config = LoopConfig;
+
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -128,7 +127,9 @@ impl NodeProcessor for LoopProcessor {
         }
 
         // Get body graph from config
-        let config = node.config::<LoopConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let body_inputs = config.body.inputs.clone();
         let body_outputs = config.body.outputs.clone();
 
@@ -149,7 +150,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_in_type {
-            ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
                 // Valid
             }
             _ => {
@@ -176,7 +177,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_out_type {
-            ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
                 // Valid
             }
             _ => {
@@ -244,18 +245,50 @@ impl NodeProcessor for LoopProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
-        let body = node
+        let body_attr = node
             .attrs
             .get("body")
             .ok_or_else(|| ProcessError::MissingAttribute("body".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
 
-        Ok(Some(Box::new(LoopConfig { body })))
+        // Handle both Graph and GraphBuilder
+        let body = match body_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for body".to_string(),
+                ));
+            }
+        };
+
+        Ok(LoopConfig { body })
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Loop(LoopNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -264,7 +297,7 @@ mod tests {
     use super::*;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, NodeType, OnnxGraph, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_body(_num_loop_vars: usize) -> OnnxGraph {
@@ -329,7 +362,7 @@ mod tests {
             AttributeValue::Graph(create_test_body(1)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::Loop, "test_loop")
+        let mut node = TestNodeBuilder::new(NodeType::Loop, "test_loop")
             .input_scalar("M", DType::I64)
             .input_scalar("cond", DType::Bool)
             .input_tensor_f32("v_initial", 2, None)
@@ -339,8 +372,7 @@ mod tests {
         let processor = LoopProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -357,7 +389,7 @@ mod tests {
             AttributeValue::Graph(create_test_body(1)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::Loop, "test_loop")
+        let mut node = TestNodeBuilder::new(NodeType::Loop, "test_loop")
             .input_tensor_f32("M", 1, None) // Should be scalar, not tensor
             .input_scalar("cond", DType::Bool)
             .input_tensor_f32("v_initial", 2, None)
@@ -366,8 +398,7 @@ mod tests {
 
         let processor = LoopProcessor;
 
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

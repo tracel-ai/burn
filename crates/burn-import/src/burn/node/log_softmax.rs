@@ -37,16 +37,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LogSoftmaxNode {
 
 impl OnnxIntoNode for LogSoftmaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match Type::from(node.inputs.first().unwrap()) {
+        let onnx_ir::Node::LogSoftmax(n) = node else {
+            panic!("Expected LogSoftmax node");
+        };
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("LogSoftmax expects tensor input"),
         };
-        let output = match Type::from(node.outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("LogSoftmax expects tensor output"),
         };
-        let config = node.config::<onnx_ir::node::log_softmax::LogSoftmaxConfig>();
-        let dim = config.axis;
+        let dim = n.config.axis;
         Self::new(input, output, dim)
     }
 }

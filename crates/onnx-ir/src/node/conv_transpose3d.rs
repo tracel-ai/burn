@@ -8,12 +8,20 @@
 //! - **Opset 1**: Initial version with basic transposed convolution support
 //! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
+
+/// Node representation for ConvTranspose3d operation
+#[derive(Debug, Clone)]
+pub struct ConvTranspose3dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConvTranspose3dConfig,
+}
 
 /// Configuration for ConvTranspose3d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,19 +70,11 @@ impl ConvTranspose3dConfig {
     }
 }
 
-impl NodeConfig for ConvTranspose3dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct Convtranspose3dProcessor;
+pub(crate) struct Convtranspose3dProcessor;
 
 impl NodeProcessor for Convtranspose3dProcessor {
+    type Config = ConvTranspose3dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -84,7 +84,7 @@ impl NodeProcessor for Convtranspose3dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -98,7 +98,7 @@ impl NodeProcessor for Convtranspose3dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -110,9 +110,9 @@ impl NodeProcessor for Convtranspose3dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1, 1, 1]; // Default stride to 1
         let mut pads = vec![0, 0, 0, 0, 0, 0]; // Default padding to 0
@@ -213,7 +213,20 @@ impl NodeProcessor for Convtranspose3dProcessor {
             bias,
         );
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::ConvTranspose3d(ConvTranspose3dNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -221,7 +234,7 @@ impl NodeProcessor for Convtranspose3dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[allow(clippy::too_many_arguments)]
     fn create_test_node(
@@ -233,7 +246,7 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         // Create weight tensor data
         let weight_shape = vec![2, 4, 2, 2, 2]; // [out_channels, in_channels, k_d, k_h, k_w]
         let weight_data = vec![0.0; 64]; // 2*4*2*2*2 = 64
@@ -241,7 +254,7 @@ mod tests {
         let has_kernel_shape = !kernel_shape.is_empty();
 
         // Start building the node with input and weight
-        let mut builder = NodeBuilder::new(NodeType::ConvTranspose3d, "test_convtranspose3d")
+        let mut builder = TestNodeBuilder::new(NodeType::ConvTranspose3d, "test_convtranspose3d")
             .input_tensor_f32("data", 5, None)
             .input_tensor_f32_data("weight", weight_data, weight_shape)
             .output_tensor_f32("output", 5, None);
@@ -287,9 +300,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2, 2]);
@@ -318,9 +329,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.padding, [1, 1, 1]);
         assert_eq!(config.stride, [2, 2, 2]);
@@ -343,9 +352,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.padding_out, [1, 1, 1]);
     }
@@ -367,9 +374,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.groups, 2);
         assert_eq!(config.channels, [8, 2]); // channels_in is adjusted by groups
@@ -392,9 +397,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert!(config.bias);
     }
@@ -441,9 +444,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2, 2]);
@@ -495,9 +496,7 @@ mod tests {
         let processor = Convtranspose3dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2, 2]); // Inferred via weight tensor shape
     }
