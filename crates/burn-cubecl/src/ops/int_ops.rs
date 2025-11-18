@@ -22,10 +22,10 @@ use crate::{
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{DType, IntDType};
 use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
-use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use cubecl::reduce::ReducePrecision;
 use cubecl::reduce::instructions::ReduceFnConfig;
+use cubecl::{frontend::Numeric, std::scalar::InputScalar};
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>
@@ -107,11 +107,7 @@ where
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            kernel::mask_where_auto::<R, I, BT>(tensor, mask, value)
-        )
+        kernel::mask_where_auto::<R>(tensor, mask, value, BT::dtype())
     }
 
     fn int_mask_fill(

@@ -5,6 +5,7 @@ use crate::{
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor};
 use burn_tensor::{Shape, TensorData};
+use cubecl::std::scalar::InputScalar;
 use std::ops::Range;
 
 use super::{expand, numeric, permute, unfold};
@@ -89,11 +90,7 @@ where
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         kernel::equal_elem::<R>(
             tensor,
-            {
-                let val = BT::false_val();
-                let dtype = BT::dtype();
-                InputScalar::new(val, dtype)
-            },
+            InputScalar::new(BT::false_val(), BT::dtype()),
             BT::dtype(),
         )
     }

@@ -233,11 +233,7 @@ where
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype, value.dtype),
-            E,
-            kernel::mask_where_auto::<R, E, BT>(tensor, mask, value)
-        )
+        kernel::mask_where_auto::<R>(tensor, mask, value, BT::dtype())
     }
 
     fn float_mask_fill(
