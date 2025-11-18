@@ -15,7 +15,7 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
     },
     ops::{
-        numeric::{input_scalar, ones_device_dtype, zeros_device_dtype},
+        numeric::{ones_device_dtype, zeros_device_dtype},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -243,8 +243,14 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
             ScalarArg::new(options.stride[1] as u32),
             ScalarArg::new(options.dilation[0] as u32),
             ScalarArg::new(options.dilation[1] as u32),
-            input_scalar(options.padding[0] as f32, dtype),
-            input_scalar(options.padding[1] as f32, dtype),
+            {
+                let val = options.padding[0] as f32;
+                InputScalar::new(val, dtype)
+            },
+            {
+                let val = options.padding[1] as f32;
+                InputScalar::new(val, dtype)
+            },
             ScalarArg::new(options.offset_groups as u32),
             ScalarArg::new(kernel_height as u32),
             ScalarArg::new(kernel_width as u32),

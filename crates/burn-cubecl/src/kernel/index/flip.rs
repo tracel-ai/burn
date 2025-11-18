@@ -1,4 +1,3 @@
-use crate::ops::numeric::input_scalar;
 use crate::{
     CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
@@ -63,7 +62,10 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     let mut indices_sequence = SequenceArg::<'_, R, InputScalar>::new();
 
     for i in 0..ndims {
-        indices_sequence.push(input_scalar::<u8>(indices.contains(&i) as u8, dtype_bool));
+        indices_sequence.push({
+            let val = indices.contains(&i) as u8;
+            InputScalar::new(val, dtype_bool)
+        });
     }
 
     let cube_dim = CubeDim::default();

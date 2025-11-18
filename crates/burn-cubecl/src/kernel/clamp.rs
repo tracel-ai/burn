@@ -4,7 +4,6 @@ use crate::{
     CubeRuntime,
     element::CubeElement,
     kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric},
-    ops::numeric::input_scalar,
     tensor::CubeTensor,
 };
 
@@ -43,8 +42,8 @@ pub(crate) fn clamp<R: CubeRuntime, E: CubeElement>(
     let dtype = input.dtype;
     launch_unary_numeric::<R, ClampOp, _>(input, |_| {
         OptionsLaunch::new(
-            input_scalar(min_value, dtype),
-            input_scalar(max_value, dtype),
+            InputScalar::new(min_value, dtype),
+            InputScalar::new(max_value, dtype),
         )
     })
 }

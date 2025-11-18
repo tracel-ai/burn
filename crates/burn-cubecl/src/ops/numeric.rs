@@ -34,7 +34,7 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
     value: E,
 ) -> CubeTensor<R> {
     let dtype = E::dtype();
-    full_device_dtype(client, shape, device, input_scalar(value, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(value, dtype), dtype)
 }
 
 /// Creates a tensor filled with `value`
@@ -103,7 +103,7 @@ pub fn zeros_device_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    full_device_dtype::<R>(client, shape, device, input_scalar(0u32, dtype), dtype)
+    full_device_dtype::<R>(client, shape, device, InputScalar::new(0u32, dtype), dtype)
 }
 
 /// Creates a tensor filled with ones
@@ -129,7 +129,7 @@ pub fn ones_device_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    full_device_dtype::<R>(client, shape, device, input_scalar(1u32, dtype), dtype)
+    full_device_dtype::<R>(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
 /// Creates a tensor with uninitialized memory
@@ -151,25 +151,6 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     let buffer = client.empty(shape.num_elements() * dtype.size());
 
     CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
-}
-
-/// Creates an [InputScalar] from the given element and dtype.
-pub fn input_scalar<E: CubeElement>(val: E, dtype: DType) -> InputScalar {
-    match dtype {
-        DType::F64 => InputScalar::F64(val.elem()),
-        DType::F32 | DType::Flex32 => InputScalar::F32(val.elem()),
-        DType::F16 => InputScalar::F16(val.elem()),
-        DType::BF16 => InputScalar::BF16(val.elem()),
-        DType::I64 => InputScalar::I64(val.elem()),
-        DType::I32 => InputScalar::I32(val.elem()),
-        DType::I16 => InputScalar::I16(val.elem()),
-        DType::I8 => InputScalar::I8(val.elem()),
-        DType::U64 => InputScalar::U64(val.elem()),
-        DType::U32 => InputScalar::U32(val.elem()),
-        DType::U16 => InputScalar::U16(val.elem()),
-        DType::U8 => InputScalar::U8(val.elem()),
-        _ => panic!("Unsupported"),
-    }
 }
 
 /// Create a tensor with uninitialized memory
