@@ -1,57 +1,30 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{TensorType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{Scope, ToTokens};
 
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct GatherElementsNode {
-    pub input: TensorType,
-    pub index: TensorType,
-    pub output: TensorType,
-    pub dim: usize,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherElementsNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gather_elements::GatherElementsNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<crate::burn::Type> {
-        vec![
-            Type::Tensor(self.input.clone()),
-            Type::Tensor(self.index.clone()),
-        ]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
-    fn forward(
-        &self,
-        scope: &mut crate::burn::Scope,
-        node_position: usize,
-    ) -> proc_macro2::TokenStream {
-        let dim = self.dim.to_tokens();
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let index = scope.tensor_use_owned(&self.index, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> proc_macro2::TokenStream {
+        let dim = self.config.axis.to_tokens();
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let index = scope.tensor_use_owned(&self.inputs[1], node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = #input.gather(#dim, #index);
         }
-    }
-
-    fn into_node(self) -> super::Node<PS> {
-        Node::GatherElements(self)
-    }
-}
-
-impl OnnxIntoNode for GatherElementsNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::GatherElements(n) = node else {
-            panic!("Expected GatherElements node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let index = TensorType::from(n.inputs.get(1).unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(input, index, output, n.config.axis)
     }
 }

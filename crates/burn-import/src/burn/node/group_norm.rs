@@ -1,69 +1,41 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data};
+use crate::burn::{BurnImports, Field, Scope, ToTokens};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::GroupNormRecord,
     record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
+    tensor::Tensor,
 };
-use onnx_ir::node::group_norm::GroupNormConfig;
-use proc_macro2::TokenStream;
+use onnx_ir::Argument;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
 
-#[derive(Debug, Clone)]
-pub struct GroupNormNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub gamma: TensorData, // Scale
-    pub beta: TensorData,  // Bias (B)
-    pub config: GroupNormConfig,
-    pub full_precision: bool,
-}
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::group_norm::GroupNormalizationNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
+    }
 
-impl GroupNormNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        gamma: TensorData,
-        beta: TensorData,
-        config: GroupNormConfig,
-        full_precision: bool,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    GroupNorm<B>
-                },
-            ),
-            input,
-            output,
-            gamma,
-            beta,
-            config,
-            full_precision,
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
-}
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+    fn field(&self) -> Option<Field> {
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                GroupNorm<B>
+            },
+        ))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
-        let num_features = self.config.num_features.to_tokens();
+        let name = Ident::new(&self.name, Span::call_site());
         let num_groups = self.config.num_groups.to_tokens();
+        let num_features = self.config.num_features.to_tokens();
         let epsilon = self.config.epsilon;
 
         let tokens = quote! {
@@ -77,19 +49,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
+
+        let gamma = extract_node_data(&self.inputs, 1).expect("Gamma is required");
+        let beta = extract_node_data(&self.inputs, 2).expect("Beta is required");
+
         let record = GroupNormRecord::<SerializationBackend> {
             gamma: Some(Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.gamma.clone().convert::<PS::FloatElem>(), &device),
+                Tensor::from_data(gamma.clone().convert::<PS::FloatElem>(), &device),
             )),
             beta: Some(Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.beta.clone().convert::<PS::FloatElem>(), &device),
+                Tensor::from_data(beta.clone().convert::<PS::FloatElem>(), &device),
             )),
-            affine: ConstantRecord::new(),
+            epsilon: ConstantRecord::new(),
             num_groups: ConstantRecord::new(),
             num_channels: ConstantRecord::new(),
-            epsilon: ConstantRecord::new(),
+            affine: ConstantRecord::new(),
         };
 
         let item = Record::into_item::<PS>(record);
@@ -97,11 +73,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
-        if self.full_precision {
+        if self.config.full_precision {
             quote! {
                 let #output = {
                     let dtype = #input.dtype();
@@ -114,41 +90,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
             }
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::GroupNorm");
         imports.register("burn::nn::GroupNormConfig");
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::GroupNormalization(self)
-    }
-}
-
-impl OnnxIntoNode for GroupNormNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::GroupNormalization(n) = &node else {
-            panic!("Expected GroupNormalization node");
-        };
-        let inputs = &n.inputs;
-        let outputs = &n.outputs;
-        let config = &n.config;
-        let name = &n.name;
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-
-        // Scale tensor (aka gamma)
-        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
-        // Bias (B) tensor
-        let beta = extract_node_data(inputs, 2).expect("Beta is required");
-
-        Self::new(
-            name,
-            input,
-            output,
-            gamma,
-            beta,
-            config.clone(),
-            config.full_precision,
-        )
     }
 }

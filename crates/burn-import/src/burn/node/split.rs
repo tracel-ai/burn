@@ -1,38 +1,27 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::split::SplitConfig;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct SplitNode {
-    pub input: TensorType,
-    pub outputs: Vec<TensorType>,
-    pub config: SplitConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
-    fn output_types(&self) -> Vec<Type> {
-        self.outputs
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::split::SplitNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
             .iter()
-            .map(|t| Type::Tensor(t.clone()))
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
             .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
         let axis = self.config.axis.to_tokens();
 
-        let outputs = self
-            .outputs
-            .iter()
-            .map(|t| t.name.clone())
-            .collect::<Vec<_>>();
+        let outputs = self.outputs.iter().map(arg_to_ident).collect::<Vec<_>>();
 
         let unpack_outputs = quote! {
             let [#(#outputs),*] = split_tensors.try_into().unwrap();
@@ -41,8 +30,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         if let Some(split_sizes_input) = &self.config.split_sizes {
             // Extract static split sizes from the enum wrapper
             let split_sizes = match split_sizes_input {
-                onnx_ir::node::split::SplitSizesInput::Static(sizes) => sizes,
-                onnx_ir::node::split::SplitSizesInput::Runtime(_) => {
+                onnx_ir::split::SplitSizesInput::Static(sizes) => sizes,
+                onnx_ir::split::SplitSizesInput::Runtime(_) => {
                     panic!("Runtime split sizes are not supported in burn-import")
                 }
             };
@@ -61,28 +50,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Split(self)
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
         // When split_sizes is used, we generate vec![...] which needs the vec macro
         if self.config.split_sizes.is_some() {
             imports.register("alloc::vec");
         }
-    }
-}
-
-impl OnnxIntoNode for SplitNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Split(n) = &node else {
-            panic!("Expected Split node");
-        };
-        let inputs = &n.inputs;
-        let outputs = &n.outputs;
-        let config = &n.config;
-        let input = TensorType::from(inputs.first().unwrap());
-        let outputs = outputs.iter().map(TensorType::from).collect();
-        Self::new(input, outputs, config.clone())
     }
 }

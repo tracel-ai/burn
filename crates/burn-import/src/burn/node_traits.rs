@@ -1,10 +1,52 @@
-use proc_macro2::TokenStream;
-use serde::Serialize;
+use proc_macro2::{Ident, Span, TokenStream};
 
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 
-use crate::burn::{BurnImports, Field, Scope};
+use crate::burn::{BurnImports, Scope};
+
+/// A field in the generated model struct
+#[derive(Debug, Clone)]
+pub struct Field {
+    pub name: Ident,
+    pub ty: TokenStream,
+}
+
+impl Field {
+    pub fn new<S: AsRef<str>>(name: S, tokens: TokenStream) -> Self {
+        if name.as_ref().is_empty() {
+            panic!("Field with tokens {tokens:?} was passed with empty name");
+        }
+        Self {
+            name: Ident::new(name.as_ref(), Span::call_site()),
+            ty: tokens,
+        }
+    }
+}
+
+/// Tensor kind (Int, Float, Bool)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TensorKind {
+    Int,
+    Float,
+    Bool,
+}
+
+impl From<onnx_ir::ir::DType> for TensorKind {
+    fn from(dtype: onnx_ir::ir::DType) -> Self {
+        use onnx_ir::ir::DType;
+
+        match dtype {
+            DType::F32 => TensorKind::Float,
+            DType::F64 => TensorKind::Float,
+            DType::I32 => TensorKind::Int,
+            DType::I64 => TensorKind::Int,
+            DType::I8 | DType::U8 => TensorKind::Int,
+            DType::Bool => TensorKind::Bool,
+            _ => panic!("Unsupported tensor type"),
+        }
+    }
+}
 
 pub type SerializationBackend = burn_ndarray::NdArray<f32>;
 
@@ -85,4 +127,20 @@ pub fn extract_node_data(
 ) -> Option<burn::tensor::TensorData> {
     let input = inputs.get(input_index)?;
     input.value()
+}
+
+/// Helper function to convert an Argument's name to a proc_macro2::Ident.
+///
+/// This is commonly used in the forward() method to generate variable names
+/// for inputs and outputs.
+///
+/// # Arguments
+///
+/// * `arg` - The argument to convert
+///
+/// # Returns
+///
+/// A proc_macro2::Ident with the argument's name
+pub fn arg_to_ident(arg: &Argument) -> proc_macro2::Ident {
+    proc_macro2::Ident::new(&arg.name, proc_macro2::Span::call_site())
 }

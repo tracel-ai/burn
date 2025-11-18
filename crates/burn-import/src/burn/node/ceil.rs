@@ -1,51 +1,25 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct CeilNode {
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for CeilNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::ceil::CeilNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs.iter().collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = #input.ceil();
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Ceil(self)
-    }
-}
-
-impl OnnxIntoNode for CeilNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Ceil(n) = node else {
-            panic!("Expected Ceil node");
-        };
-        let input = match Type::from(n.inputs.first().unwrap()) {
-            Type::Tensor(t) => t,
-            _ => panic!("CeilNode expects tensor input"),
-        };
-        let output = match Type::from(n.outputs.first().unwrap()) {
-            Type::Tensor(t) => t,
-            _ => panic!("CeilNode expects tensor output"),
-        };
-        Self::new(input, output)
     }
 }

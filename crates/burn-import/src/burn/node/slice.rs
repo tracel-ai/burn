@@ -1,147 +1,144 @@
 #![allow(clippy::needless_range_loop)]
 
-use super::{NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::{ArgType, Argument};
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub struct SliceNode {
-    pub input: Type,
-    pub output: Type,
-    pub starts: SliceParam,
-    pub ends: SliceParam,
-    pub axes: Option<SliceParam>,
-    pub steps: Option<SliceParam>,
-}
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::slice::SliceNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
+    }
 
-#[derive(Debug, Clone)]
-pub enum SliceParam {
-    Static(Vec<i64>),
-    Runtime(Type),
-}
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
+    }
 
-impl SliceNode {
-    pub fn new(input: Type, output: Type, starts: SliceParam, ends: SliceParam) -> Self {
-        Self {
-            input,
-            output,
-            starts,
-            ends,
-            axes: None,
-            steps: None,
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let input_arg = self.inputs.first().unwrap();
+
+        match &input_arg.ty {
+            ArgType::Tensor(tensor) => {
+                generate_tensor_slice(self, input_arg, tensor.rank, scope, node_position, &output)
+            }
+            ArgType::Shape(shape_rank) => {
+                generate_shape_slice(self, input_arg, *shape_rank, &output)
+            }
+            _ => panic!("Unsupported input type for SliceNode"),
         }
     }
+}
 
-    pub fn with_axes(mut self, axes: SliceParam) -> Self {
-        self.axes = Some(axes);
-        self
-    }
+fn generate_tensor_slice(
+    node: &onnx_ir::slice::SliceNode,
+    input_arg: &Argument,
+    rank: usize,
+    scope: &mut Scope,
+    node_position: usize,
+    output: &proc_macro2::Ident,
+) -> TokenStream {
+    let input = scope.tensor_use_owned(input_arg, node_position);
+    let mut ranges = vec![quote! { .. }; rank];
 
-    pub fn with_steps(mut self, steps: SliceParam) -> Self {
-        self.steps = Some(steps);
-        self
-    }
+    // Build slice ranges based on parameter types
+    match (&node.config.starts, &node.config.ends) {
+        // Both static: simple case
+        (onnx_ir::slice::SliceInput::Static(starts), onnx_ir::slice::SliceInput::Static(ends)) => {
+            // Get steps if provided
+            let steps = if let Some(onnx_ir::slice::SliceInput::Static(ref s)) = node.config.steps {
+                Some(s)
+            } else {
+                None
+            };
 
-    fn generate_tensor_slice(
-        &self,
-        tensor: &crate::burn::TensorType,
-        scope: &mut Scope,
-        node_position: usize,
-        output: &proc_macro2::Ident,
-    ) -> TokenStream {
-        let input = scope.tensor_use_owned(tensor, node_position);
-        let rank = tensor.rank;
-        let mut ranges = vec![quote! { .. }; rank];
+            // Check if axes are provided
+            if let Some(onnx_ir::slice::SliceInput::Static(ref axes)) = node.config.axes {
+                // Apply slicing to specified axes (already normalized by onnx-ir)
+                for (idx, (start, end)) in starts.iter().zip(ends.iter()).enumerate() {
+                    if let Some(&axis) = axes.get(idx) {
+                        let axis_idx = axis as usize;
+                        if axis_idx < rank {
+                            let start = start.to_tokens();
+                            let step = steps.and_then(|s| s.get(idx)).copied().unwrap_or(1);
 
-        // Build slice ranges based on parameter types
-        match (&self.starts, &self.ends) {
-            // Both static: simple case
-            (SliceParam::Static(starts), SliceParam::Static(ends)) => {
-                // Get steps if provided
-                let steps = if let Some(SliceParam::Static(ref s)) = self.steps {
-                    Some(s)
-                } else {
-                    None
-                };
-
-                // Check if axes are provided
-                if let Some(SliceParam::Static(ref axes)) = self.axes {
-                    // Apply slicing to specified axes (already normalized by onnx-ir)
-                    for (idx, (start, end)) in starts.iter().zip(ends.iter()).enumerate() {
-                        if let Some(&axis) = axes.get(idx) {
-                            let axis_idx = axis as usize;
-                            if axis_idx < rank {
-                                let start = start.to_tokens();
-                                let step = steps.and_then(|s| s.get(idx)).copied().unwrap_or(1);
-
-                                // Check for i64::MAX which means "to the end"
-                                // Slice indices are i32
-                                if *end == i64::MAX {
-                                    if step == 1 {
-                                        ranges[axis_idx] = quote! { #start.. };
-                                    } else {
-                                        let step = step.to_tokens();
-                                        ranges[axis_idx] = quote! { #start..;#step };
-                                    }
-                                } else if *end > i32::MAX as i64 {
-                                    panic!("Slice end index {} exceeds i32::MAX", end);
+                            // Check for i64::MAX which means "to the end"
+                            // Slice indices are i32
+                            if *end == i64::MAX {
+                                if step == 1 {
+                                    ranges[axis_idx] = quote! { #start.. };
                                 } else {
-                                    let end = end.to_tokens();
-                                    if step == 1 {
-                                        ranges[axis_idx] = quote! { #start..#end };
-                                    } else {
-                                        let step = step.to_tokens();
-                                        ranges[axis_idx] = quote! { #start..#end;#step };
-                                    }
+                                    let step = step.to_tokens();
+                                    ranges[axis_idx] = quote! { #start..;#step };
+                                }
+                            } else if *end > i32::MAX as i64 {
+                                panic!("Slice end index {} exceeds i32::MAX", end);
+                            } else {
+                                let end = end.to_tokens();
+                                if step == 1 {
+                                    ranges[axis_idx] = quote! { #start..#end };
+                                } else {
+                                    let step = step.to_tokens();
+                                    ranges[axis_idx] = quote! { #start..#end;#step };
                                 }
                             }
                         }
                     }
-                } else {
-                    // No axes provided - use default behavior (slice first dimensions)
-                    let limit = starts.len().min(ends.len()).min(rank);
-                    for (i, range) in ranges.iter_mut().enumerate().take(limit) {
-                        let start = starts[i].to_tokens();
-                        let step = steps.and_then(|s| s.get(i)).copied().unwrap_or(1);
+                }
+            } else {
+                // No axes provided - use default behavior (slice first dimensions)
+                let limit = starts.len().min(ends.len()).min(rank);
+                for (i, range) in ranges.iter_mut().enumerate().take(limit) {
+                    let start = starts[i].to_tokens();
+                    let step = steps.and_then(|s| s.get(i)).copied().unwrap_or(1);
 
-                        // Check for i64::MAX which means "to the end"
-                        // Slice indices are i32
-                        if ends[i] == i64::MAX {
-                            if step == 1 {
-                                *range = quote! { #start.. };
-                            } else {
-                                let step = step.to_tokens();
-                                *range = quote! { #start..;#step };
-                            }
-                        } else if ends[i] > i32::MAX as i64 {
-                            panic!("Slice end index {} exceeds i32::MAX", ends[i]);
+                    // Check for i64::MAX which means "to the end"
+                    // Slice indices are i32
+                    if ends[i] == i64::MAX {
+                        if step == 1 {
+                            *range = quote! { #start.. };
                         } else {
-                            let end = ends[i].to_tokens();
-                            if step == 1 {
-                                *range = quote! { #start..#end };
-                            } else {
-                                let step = step.to_tokens();
-                                *range = quote! { #start..#end;#step };
-                            }
+                            let step = step.to_tokens();
+                            *range = quote! { #start..;#step };
+                        }
+                    } else if ends[i] > i32::MAX as i64 {
+                        panic!("Slice end index {} exceeds i32::MAX", ends[i]);
+                    } else {
+                        let end = ends[i].to_tokens();
+                        if step == 1 {
+                            *range = quote! { #start..#end };
+                        } else {
+                            let step = step.to_tokens();
+                            *range = quote! { #start..#end;#step };
                         }
                     }
                 }
             }
+        }
 
-            // Both runtime shapes: multi-dimensional slicing
-            (
-                SliceParam::Runtime(Type::Shape(start_shape)),
-                SliceParam::Runtime(Type::Shape(end_shape)),
-            ) => {
-                let start_name = &start_shape.name;
-                let end_name = &end_shape.name;
+        // Both runtime shapes: multi-dimensional slicing
+        (
+            onnx_ir::slice::SliceInput::Runtime(start_ref),
+            onnx_ir::slice::SliceInput::Runtime(end_ref),
+        ) => {
+            let start_arg = &node.inputs[start_ref.input_index];
+            let end_arg = &node.inputs[end_ref.input_index];
+
+            if let (ArgType::Shape(start_rank), ArgType::Shape(end_rank)) =
+                (&start_arg.ty, &end_arg.ty)
+            {
+                let start_name = arg_to_ident(start_arg);
+                let end_name = arg_to_ident(end_arg);
 
                 // Check if axes are provided
-                if let Some(SliceParam::Static(ref axes)) = self.axes {
+                if let Some(onnx_ir::slice::SliceInput::Static(ref axes)) = node.config.axes {
                     // Apply slicing to specified axes (already normalized by onnx-ir)
-                    let num_dims = axes.len().min(start_shape.rank).min(end_shape.rank);
+                    let num_dims = axes.len().min(*start_rank).min(*end_rank);
                     for i in 0..num_dims {
                         let axis_idx = axes[i] as usize;
                         if axis_idx < rank {
@@ -151,75 +148,19 @@ impl SliceNode {
                     }
                 } else {
                     // No axes provided - use default behavior
-                    let num_dims = start_shape.rank.min(end_shape.rank).min(rank);
-                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                    let num_dims = start_rank.min(end_rank).min(&rank);
+                    for (i, range) in ranges.iter_mut().enumerate().take(*num_dims) {
                         let idx = proc_macro2::Literal::usize_unsuffixed(i);
                         *range = quote! { #start_name[#idx]..#end_name[#idx] };
                     }
                 }
-            }
-
-            // Static start, runtime shape end
-            (SliceParam::Static(starts), SliceParam::Runtime(Type::Shape(end_shape))) => {
-                let end_name = &end_shape.name;
-
-                // Check if axes are provided
-                if let Some(SliceParam::Static(ref axes)) = self.axes {
-                    // Apply slicing to specified axes (already normalized by onnx-ir)
-                    let num_dims = axes.len().min(starts.len()).min(end_shape.rank);
-                    for i in 0..num_dims {
-                        let axis_idx = axes[i] as usize;
-                        if axis_idx < rank {
-                            let start = starts[i].to_tokens();
-                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                            ranges[axis_idx] = quote! { #start..#end_name[#idx] };
-                        }
-                    }
-                } else {
-                    // No axes provided - use default behavior
-                    let num_dims = starts.len().min(end_shape.rank).min(rank);
-                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
-                        let start = starts[i].to_tokens();
-                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                        *range = quote! { #start..#end_name[#idx] };
-                    }
-                }
-            }
-
-            // Runtime shape start, static end
-            (SliceParam::Runtime(Type::Shape(start_shape)), SliceParam::Static(ends)) => {
-                let start_name = &start_shape.name;
-
-                // Check if axes are provided
-                if let Some(SliceParam::Static(ref axes)) = self.axes {
-                    // Apply slicing to specified axes (already normalized by onnx-ir)
-                    let num_dims = axes.len().min(start_shape.rank).min(ends.len());
-                    for i in 0..num_dims {
-                        let axis_idx = axes[i] as usize;
-                        if axis_idx < rank {
-                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                            let end = ends[i].to_tokens();
-                            ranges[axis_idx] = quote! { #start_name[#idx]..#end };
-                        }
-                    }
-                } else {
-                    // No axes provided - use default behavior
-                    let num_dims = start_shape.rank.min(ends.len()).min(rank);
-                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
-                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                        let end = ends[i].to_tokens();
-                        *range = quote! { #start_name[#idx]..#end };
-                    }
-                }
-            }
-
-            // Both 1D tensors: extract values from tensors at runtime
-            (
-                SliceParam::Runtime(Type::Tensor(start_t)),
-                SliceParam::Runtime(Type::Tensor(end_t)),
-            ) if start_t.rank == 1 && end_t.rank == 1 => {
-                let start_name = &start_t.name;
-                let end_name = &end_t.name;
+            } else if matches!(
+                (&start_arg.ty, &end_arg.ty),
+                (ArgType::Tensor(_), ArgType::Tensor(_))
+            ) {
+                // Both 1D tensors: extract values from tensors at runtime
+                let start_name = arg_to_ident(start_arg);
+                let end_name = arg_to_ident(end_arg);
 
                 // Generate code to extract values from tensors
                 let input_dims_var = quote! { input_dims };
@@ -244,415 +185,294 @@ impl SliceNode {
                     let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
                     let #output = #input.slice(s![#(#range_exprs),*]);
                 };
+            } else {
+                panic!("Unsupported runtime slice input combination");
             }
+        }
 
-            // Static start, 1D tensor end
-            (SliceParam::Static(starts), SliceParam::Runtime(Type::Tensor(end_t)))
-                if end_t.rank == 1 =>
-            {
-                let end_name = &end_t.name;
+        // Static start, runtime end
+        (
+            onnx_ir::slice::SliceInput::Static(starts),
+            onnx_ir::slice::SliceInput::Runtime(end_ref),
+        ) => {
+            let end_arg = &node.inputs[end_ref.input_index];
 
-                // Generate code to extract values from end tensor
-                let input_dims_var = quote! { input_dims };
-                let end_data_var = quote! { end_data };
-                let end_vec_var = quote! { end_vec };
+            match &end_arg.ty {
+                ArgType::Shape(end_rank) => {
+                    let end_name = arg_to_ident(end_arg);
 
-                // Build ranges for each dimension
-                let range_exprs: Vec<_> = (0..rank).map(|i| {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    if i < starts.len() {
-                        let start = Literal::i64_suffixed(starts[i]);
-                        quote! {
-                            #start as usize..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                    // Check if axes are provided
+                    if let Some(onnx_ir::slice::SliceInput::Static(ref axes)) = node.config.axes {
+                        // Apply slicing to specified axes (already normalized by onnx-ir)
+                        let num_dims = axes.len().min(starts.len()).min(*end_rank);
+                        for i in 0..num_dims {
+                            let axis_idx = axes[i] as usize;
+                            if axis_idx < rank {
+                                let start = starts[i].to_tokens();
+                                let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                                ranges[axis_idx] = quote! { #start..#end_name[#idx] };
+                            }
                         }
                     } else {
-                        quote! { .. }
-                    }
-                }).collect();
-
-                return quote! {
-                    let #input_dims_var = #input.dims();
-                    let #end_data_var = #end_name.to_data();
-                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
-                    let #output = #input.slice(s![#(#range_exprs),*]);
-                };
-            }
-
-            // 1D tensor start, static end
-            (SliceParam::Runtime(Type::Tensor(start_t)), SliceParam::Static(ends))
-                if start_t.rank == 1 =>
-            {
-                let start_name = &start_t.name;
-
-                // Generate code to extract values from start tensor
-                let input_dims_var = quote! { input_dims };
-                let start_data_var = quote! { start_data };
-                let start_vec_var = quote! { start_vec };
-
-                // Build ranges for each dimension
-                let range_exprs: Vec<_> = (0..rank).map(|i| {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    if i < ends.len() {
-                        let end = Literal::i64_suffixed(ends[i]);
-                        quote! {
-                            #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end as usize
+                        // No axes provided - use default behavior
+                        let num_dims = starts.len().min(*end_rank).min(rank);
+                        for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                            let start = starts[i].to_tokens();
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            *range = quote! { #start..#end_name[#idx] };
                         }
-                    } else {
-                        quote! { .. }
                     }
-                }).collect();
-
-                return quote! {
-                    let #input_dims_var = #input.dims();
-                    let #start_data_var = #start_name.to_data();
-                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
-                    let #output = #input.slice(s![#(#range_exprs),*]);
-                };
-            }
-
-            // Shape start, 1D tensor end
-            (
-                SliceParam::Runtime(Type::Shape(start_shape)),
-                SliceParam::Runtime(Type::Tensor(end_t)),
-            ) if end_t.rank == 1 => {
-                let start_name = &start_shape.name;
-                let end_name = &end_t.name;
-
-                // Generate code to extract values from end tensor
-                let input_dims_var = quote! { input_dims };
-                let end_data_var = quote! { end_data };
-                let end_vec_var = quote! { end_vec };
-
-                // Build ranges for each dimension
-                let range_exprs: Vec<_> = (0..rank).map(|i| {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    if i < start_shape.rank {
-                        quote! {
-                            #start_name[#idx] as usize..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
-                        }
-                    } else {
-                        quote! { .. }
-                    }
-                }).collect();
-
-                return quote! {
-                    let #input_dims_var = #input.dims();
-                    let #end_data_var = #end_name.to_data();
-                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
-                    let #output = #input.slice(s![#(#range_exprs),*]);
-                };
-            }
-
-            // 1D tensor start, shape end
-            (
-                SliceParam::Runtime(Type::Tensor(start_t)),
-                SliceParam::Runtime(Type::Shape(end_shape)),
-            ) if start_t.rank == 1 => {
-                let start_name = &start_t.name;
-                let end_name = &end_shape.name;
-
-                // Generate code to extract values from start tensor
-                let start_data_var = quote! { start_data };
-                let start_vec_var = quote! { start_vec };
-
-                // Build ranges for each dimension
-                let range_exprs: Vec<_> = (0..rank).map(|i| {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    if i < end_shape.rank {
-                        quote! {
-                            #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end_name[#idx] as usize
-                        }
-                    } else {
-                        quote! { .. }
-                    }
-                }).collect();
-
-                return quote! {
-                    let #start_data_var = #start_name.to_data();
-                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
-                    let #output = #input.slice(s![#(#range_exprs),*]);
-                };
-            }
-
-            // Default: scalar slicing
-            _ => {
-                let (start_expr, end_expr) = self.get_slice_range_expressions();
-
-                // Check if axes are provided for scalar slicing
-                if let Some(SliceParam::Static(ref axes)) = self.axes {
-                    if !axes.is_empty() {
-                        // Axes are already normalized by onnx-ir
-                        let axis_idx = axes[0] as usize;
-                        if axis_idx < rank {
-                            ranges[axis_idx] = quote! { #start_expr..#end_expr };
-                        }
-                    } else {
-                        // Empty axes array - use first dimension
-                        ranges[0] = quote! { #start_expr..#end_expr };
-                    }
-                } else {
-                    // No axes provided - default to first dimension
-                    ranges[0] = quote! { #start_expr..#end_expr };
                 }
+                ArgType::Tensor(_) => {
+                    // Static start, 1D tensor end
+                    let end_name = arg_to_ident(end_arg);
+
+                    // Generate code to extract values from end tensor
+                    let input_dims_var = quote! { input_dims };
+                    let end_data_var = quote! { end_data };
+                    let end_vec_var = quote! { end_vec };
+
+                    // Build ranges for each dimension
+                    let range_exprs: Vec<_> = (0..rank).map(|i| {
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        if i < starts.len() {
+                            let start = Literal::i64_suffixed(starts[i]);
+                            quote! {
+                                #start as usize..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                            }
+                        } else {
+                            quote! { .. }
+                        }
+                    }).collect();
+
+                    return quote! {
+                        let #input_dims_var = #input.dims();
+                        let #end_data_var = #end_name.to_data();
+                        let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                        let #output = #input.slice(s![#(#range_exprs),*]);
+                    };
+                }
+                _ => panic!("Unsupported runtime end type for slice"),
             }
         }
 
-        quote! {
-            let #output = #input.slice(s![#(#ranges),*]);
+        // Runtime start, static end
+        (
+            onnx_ir::slice::SliceInput::Runtime(start_ref),
+            onnx_ir::slice::SliceInput::Static(ends),
+        ) => {
+            let start_arg = &node.inputs[start_ref.input_index];
+
+            match &start_arg.ty {
+                ArgType::Shape(start_rank) => {
+                    let start_name = arg_to_ident(start_arg);
+
+                    // Check if axes are provided
+                    if let Some(onnx_ir::slice::SliceInput::Static(ref axes)) = node.config.axes {
+                        // Apply slicing to specified axes (already normalized by onnx-ir)
+                        let num_dims = axes.len().min(*start_rank).min(ends.len());
+                        for i in 0..num_dims {
+                            let axis_idx = axes[i] as usize;
+                            if axis_idx < rank {
+                                let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                                let end = ends[i].to_tokens();
+                                ranges[axis_idx] = quote! { #start_name[#idx]..#end };
+                            }
+                        }
+                    } else {
+                        // No axes provided - use default behavior
+                        let ends_len = ends.len();
+                        let num_dims = start_rank.min(&ends_len).min(&rank);
+                        for (i, range) in ranges.iter_mut().enumerate().take(*num_dims) {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            let end = ends[i].to_tokens();
+                            *range = quote! { #start_name[#idx]..#end };
+                        }
+                    }
+                }
+                ArgType::Tensor(_) => {
+                    // 1D tensor start, static end
+                    let start_name = arg_to_ident(start_arg);
+
+                    // Generate code to extract values from start tensor
+                    let input_dims_var = quote! { input_dims };
+                    let start_data_var = quote! { start_data };
+                    let start_vec_var = quote! { start_vec };
+
+                    // Build ranges for each dimension
+                    let range_exprs: Vec<_> = (0..rank).map(|i| {
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        if i < ends.len() {
+                            let end = Literal::i64_suffixed(ends[i]);
+                            quote! {
+                                #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end as usize
+                            }
+                        } else {
+                            quote! { .. }
+                        }
+                    }).collect();
+
+                    return quote! {
+                        let #input_dims_var = #input.dims();
+                        let #start_data_var = #start_name.to_data();
+                        let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                        let #output = #input.slice(s![#(#range_exprs),*]);
+                    };
+                }
+                _ => panic!("Unsupported runtime start type for slice"),
+            }
         }
     }
 
-    fn get_slice_range_expressions(&self) -> (TokenStream, TokenStream) {
-        let start_expr = match &self.starts {
-            SliceParam::Static(starts) => starts[0].to_tokens(),
-            SliceParam::Runtime(start_type) => self.get_scalar_expr(start_type),
-        };
-
-        let end_expr = match &self.ends {
-            SliceParam::Static(ends) => ends[0].to_tokens(),
-            SliceParam::Runtime(end_type) => self.get_scalar_expr(end_type),
-        };
-
-        (start_expr, end_expr)
+    quote! {
+        let #output = #input.slice(s![#(#ranges),*]);
     }
+}
 
-    fn generate_shape_slice(
-        &self,
-        shape: &crate::burn::ShapeType,
-        output: &proc_macro2::Ident,
-    ) -> TokenStream {
-        let shape_name = &shape.name;
+fn generate_shape_slice(
+    node: &onnx_ir::slice::SliceNode,
+    input_arg: &Argument,
+    shape_rank: usize,
+    output: &proc_macro2::Ident,
+) -> TokenStream {
+    let shape_name = arg_to_ident(input_arg);
 
-        // Get the output rank from the output type
-        let output_rank = match &self.output {
-            Type::Shape(output_shape) => output_shape.rank,
-            _ => panic!("Expected Shape output type for shape slice operation"),
-        };
-        let output_rank_lit = Literal::usize_unsuffixed(output_rank);
+    // Get the output rank from the output type
+    let output_rank = match &node.outputs.first().unwrap().ty {
+        ArgType::Shape(rank) => rank,
+        _ => panic!("Expected Shape output type for shape slice operation"),
+    };
+    let output_rank_lit = Literal::usize_unsuffixed(*output_rank);
 
-        match (&self.starts, &self.ends) {
-            (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
-                let start_val = starts[0];
-                let end_val = ends[0];
+    match (&node.config.starts, &node.config.ends) {
+        (onnx_ir::slice::SliceInput::Static(starts), onnx_ir::slice::SliceInput::Static(ends))
+            if starts.len() == 1 =>
+        {
+            let start_val = starts[0];
+            let end_val = ends[0];
 
-                // Get step value if provided
-                let step_val = if let Some(SliceParam::Static(ref steps)) = self.steps {
+            // Get step value if provided
+            let step_val =
+                if let Some(onnx_ir::slice::SliceInput::Static(ref steps)) = node.config.steps {
                     steps.first().copied().unwrap_or(1)
                 } else {
                     1
                 };
 
-                // Always clamp start/end values
-                let shape_len = shape.rank as i64;
+            // Always clamp start/end values
+            let shape_len = shape_rank as i64;
 
-                // Handle negative indices and clamp
-                let actual_start = if start_val < 0 {
-                    (shape_len + start_val).max(0) as usize
-                } else {
-                    start_val.min(shape_len) as usize
-                };
+            // Handle negative indices and clamp
+            let actual_start = if start_val < 0 {
+                (shape_len + start_val).max(0) as usize
+            } else {
+                start_val.min(shape_len) as usize
+            };
 
-                let actual_end = if end_val == i64::MAX {
-                    shape.rank
-                } else if end_val < 0 {
-                    (shape_len + end_val).max(0) as usize
-                } else {
-                    end_val.min(shape_len) as usize
-                };
+            let actual_end = if end_val == i64::MAX {
+                shape_rank
+            } else if end_val < 0 {
+                (shape_len + end_val).max(0) as usize
+            } else {
+                end_val.min(shape_len) as usize
+            };
 
-                let start_lit = Literal::usize_unsuffixed(actual_start);
-                let end_lit = Literal::usize_unsuffixed(actual_end);
+            let start_lit = Literal::usize_unsuffixed(actual_start);
+            let end_lit = Literal::usize_unsuffixed(actual_end);
 
-                if step_val == 1 {
-                    quote! {
-                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
-                    }
-                } else if step_val == -1 {
-                    // For negative step, we need to reverse the slice
-                    quote! {
-                        let #output: [i64; #output_rank_lit] = {
-                            let mut slice = #shape_name[#start_lit..#end_lit].to_vec();
-                            slice.reverse();
-                            slice.try_into().unwrap()
-                        };
-                    }
-                } else {
-                    // For other step values, we need to collect with step
-                    let step_abs = step_val.abs();
-                    if step_val > 0 {
-                        quote! {
-                            let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
-                                .iter()
-                                .step_by(#step_abs as usize)
-                                .copied()
-                                .collect::<Vec<_>>()
-                                .try_into()
-                                .unwrap();
-                        }
-                    } else {
-                        quote! {
-                            let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
-                                .iter()
-                                .rev()
-                                .step_by(#step_abs as usize)
-                                .copied()
-                                .collect::<Vec<_>>()
-                                .try_into()
-                                .unwrap();
-                        }
-                    }
-                }
-            }
-            _ => {
-                // Check if we have 1D tensor inputs (not supported for shape slicing)
-                if let (
-                    SliceParam::Runtime(Type::Tensor(start_t)),
-                    SliceParam::Runtime(Type::Tensor(end_t)),
-                ) = (&self.starts, &self.ends)
-                    && start_t.rank == 1
-                    && end_t.rank == 1
-                {
-                    panic!(
-                        "1D tensor slicing is not supported for shape inputs - shapes must be sliced with scalar or static indices"
-                    );
-                }
-
-                // Runtime slicing with scalars
-                let (start_expr, end_expr) = self.get_slice_range_expressions();
-                let shape_len_lit = Literal::i64_suffixed(shape.rank as i64);
-
+            if step_val == 1 {
                 quote! {
-                    let start_val = #start_expr as i64;
-                    let end_val = #end_expr as i64;
-                    let start_idx = if start_val < 0 { (#shape_len_lit + start_val) as usize } else { start_val as usize };
-                    let end_idx = if end_val < 0 { (#shape_len_lit + end_val) as usize } else { end_val as usize };
-                    let #output: [i64; #output_rank_lit] = #shape_name[start_idx..end_idx].try_into().unwrap();
+                    let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
+                }
+            } else if step_val == -1 {
+                // For negative step, we need to reverse the slice
+                quote! {
+                    let #output: [i64; #output_rank_lit] = {
+                        let mut slice = #shape_name[#start_lit..#end_lit].to_vec();
+                        slice.reverse();
+                        slice.try_into().unwrap()
+                    };
+                }
+            } else {
+                // For other step values, we need to collect with step
+                let step_abs = step_val.abs();
+                if step_val > 0 {
+                    quote! {
+                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
+                            .iter()
+                            .step_by(#step_abs as usize)
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .try_into()
+                            .unwrap();
+                    }
+                } else {
+                    quote! {
+                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
+                            .iter()
+                            .rev()
+                            .step_by(#step_abs as usize)
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .try_into()
+                            .unwrap();
+                    }
                 }
             }
         }
-    }
+        _ => {
+            // Runtime slicing with scalars
+            let (start_expr, end_expr) = get_slice_range_expressions(node);
+            let shape_len_lit = Literal::i64_suffixed(shape_rank as i64);
 
-    fn get_scalar_expr(&self, scalar_type: &Type) -> TokenStream {
-        match scalar_type {
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
+            quote! {
+                let start_val = #start_expr as i64;
+                let end_val = #end_expr as i64;
+                let start_idx = if start_val < 0 { (#shape_len_lit + start_val) as usize } else { start_val as usize };
+                let end_idx = if end_val < 0 { (#shape_len_lit + end_val) as usize } else { end_val as usize };
+                let #output: [i64; #output_rank_lit] = #shape_name[start_idx..end_idx].try_into().unwrap();
             }
-            Type::Shape(shape) => {
-                let name = &shape.name;
-                // For single-dimension slicing, use the first element of the shape
-                quote! { #name[0] }
-            }
-            Type::Tensor(tensor) if tensor.rank == 1 => {
-                // For 1D tensor, we'll handle it specially in the calling code
-                // This shouldn't be called for 1D tensors as they use different logic
-                panic!(
-                    "1D tensor slice parameters should be handled separately, not through get_scalar_expr"
-                )
-            }
-            _ => panic!(
-                "Expected scalar, shape, or 1D tensor type for runtime slice parameter, got {scalar_type:?}"
-            ),
         }
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
-    }
-
-    fn input_types(&self) -> Vec<crate::burn::Type> {
-        let mut inputs = vec![self.input.clone()];
-
-        // Add runtime inputs if needed
-        if let SliceParam::Runtime(ref start_type) = self.starts {
-            inputs.push(start_type.clone());
+fn get_slice_range_expressions(node: &onnx_ir::slice::SliceNode) -> (TokenStream, TokenStream) {
+    let start_expr = match &node.config.starts {
+        onnx_ir::slice::SliceInput::Static(starts) => starts[0].to_tokens(),
+        onnx_ir::slice::SliceInput::Runtime(start_ref) => {
+            let start_arg = &node.inputs[start_ref.input_index];
+            get_scalar_expr(start_arg)
         }
-        if let SliceParam::Runtime(ref end_type) = self.ends {
-            inputs.push(end_type.clone());
+    };
+
+    let end_expr = match &node.config.ends {
+        onnx_ir::slice::SliceInput::Static(ends) => ends[0].to_tokens(),
+        onnx_ir::slice::SliceInput::Runtime(end_ref) => {
+            let end_arg = &node.inputs[end_ref.input_index];
+            get_scalar_expr(end_arg)
         }
+    };
 
-        inputs
-    }
-
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
-
-        match &self.input {
-            Type::Tensor(tensor) => {
-                self.generate_tensor_slice(tensor, scope, node_position, output)
-            }
-            Type::Shape(shape) => self.generate_shape_slice(shape, output),
-            _ => panic!("Unsupported input type for SliceNode"),
-        }
-    }
-
-    fn into_node(self) -> super::Node<PS> {
-        super::Node::Slice(self)
-    }
+    (start_expr, end_expr)
 }
 
-impl OnnxIntoNode for SliceNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Slice(n) = &node else {
-            panic!("Expected Slice node");
-        };
-        let inputs = &n.inputs;
-        let outputs = &n.outputs;
-        let config = &n.config;
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
-        use onnx_ir::node::slice::SliceInput;
-
-        // Convert starts parameter
-        let starts_param = match &config.starts {
-            SliceInput::Static(values) => SliceParam::Static(values.clone()),
-            SliceInput::Runtime(starts_ref) => {
-                // Get the actual argument using the RuntimeInputRef
-                let starts_arg = &node.inputs()[starts_ref.input_index];
-                SliceParam::Runtime(Type::from(starts_arg))
-            }
-        };
-
-        // Convert ends parameter
-        let ends_param = match &config.ends {
-            SliceInput::Static(values) => SliceParam::Static(values.clone()),
-            SliceInput::Runtime(ends_ref) => {
-                // Get the actual argument using the RuntimeInputRef
-                let ends_arg = &node.inputs()[ends_ref.input_index];
-                SliceParam::Runtime(Type::from(ends_arg))
-            }
-        };
-
-        let mut slice_node = Self::new(input, output, starts_param, ends_param);
-
-        // Convert axes parameter if present
-        if let Some(ref axes) = config.axes {
-            let axes_param = match axes {
-                SliceInput::Static(values) => SliceParam::Static(values.clone()),
-                SliceInput::Runtime(axes_ref) => {
-                    // Get the actual argument using the RuntimeInputRef
-                    let axes_arg = &node.inputs()[axes_ref.input_index];
-                    SliceParam::Runtime(Type::from(axes_arg))
-                }
-            };
-            slice_node = slice_node.with_axes(axes_param);
+fn get_scalar_expr(arg: &Argument) -> TokenStream {
+    match &arg.ty {
+        ArgType::Scalar(_) => {
+            let name = arg_to_ident(arg);
+            quote! { #name }
         }
-
-        // Convert steps parameter if present
-        if let Some(ref steps) = config.steps {
-            let steps_param = match steps {
-                SliceInput::Static(values) => SliceParam::Static(values.clone()),
-                SliceInput::Runtime(steps_ref) => {
-                    // Get the actual argument using the RuntimeInputRef
-                    let steps_arg = &node.inputs()[steps_ref.input_index];
-                    SliceParam::Runtime(Type::from(steps_arg))
-                }
-            };
-            slice_node = slice_node.with_steps(steps_param);
+        ArgType::Shape(_) => {
+            let name = arg_to_ident(arg);
+            // For single-dimension slicing, use the first element of the shape
+            quote! { #name[0] }
         }
-
-        slice_node
+        ArgType::Tensor(_) => {
+            // For 1D tensor, we'll handle it specially in the calling code
+            // This shouldn't be called for 1D tensors as they use different logic
+            panic!(
+                "1D tensor slice parameters should be handled separately, not through get_scalar_expr"
+            )
+        }
     }
 }

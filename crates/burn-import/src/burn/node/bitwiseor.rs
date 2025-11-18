@@ -1,85 +1,67 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
+use onnx_ir::{Argument, ir::ArgType};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct BitwiseOrNode {
-    pub inputs: Vec<Type>,
-    pub output: Type,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwiseor::BitwiseOrNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs.iter().collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        self.inputs.clone()
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
+        let lhs = self.inputs.first().unwrap();
+        let rhs = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let operation = match (&self.inputs[0], &self.inputs[1]) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
-                quote! { #lhs.bitwise_or(#rhs) }
+        let lhs_value = match &lhs.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(lhs, node_position),
+            ArgType::Scalar(_) => {
+                let name = &lhs.name;
+                quote! { #name }
             }
-            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = &rhs_scalar.name;
-                quote! { #lhs.bitwise_or_scalar(#rhs.elem()) }
+            _ => panic!("lhs must be a tensor or scalar"),
+        };
+
+        let rhs_value = match &rhs.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(rhs, node_position),
+            ArgType::Scalar(_) => {
+                let name = &rhs.name;
+                quote! { #name }
             }
-            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor)) => {
-                let lhs = &lhs_scalar.name;
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
-                // Bitwise OR is commutative, so we can swap the order
-                quote! { #rhs.bitwise_or_scalar(#lhs.elem()) }
+            _ => panic!("rhs must be a tensor or scalar"),
+        };
+
+        let function = match (&lhs.ty, &rhs.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+
+                if lhs_rank == rhs_rank {
+                    quote! { #lhs_value.bitwise_or(#rhs_value) }
+                } else if lhs_rank > rhs_rank {
+                    let num_dims = lhs_rank - rhs_rank;
+                    let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                    quote! { #lhs_value.bitwise_or(#rhs_value.unsqueeze_dims(&[#(#dims),*])) }
+                } else {
+                    let num_dims = rhs_rank - lhs_rank;
+                    let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                    quote! { #lhs_value.unsqueeze_dims(&[#(#dims),*]).bitwise_or(#rhs_value) }
+                }
             }
-            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
-                let lhs = &lhs_scalar.name;
-                let rhs = &rhs_scalar.name;
-                quote! { #lhs | #rhs }
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => {
+                quote! { #lhs_value | #rhs_value }
             }
-            _ => panic!("BitwiseOrNode only supports tensor and scalar inputs"),
+            _ => panic!("BitwiseOr operation requires tensor or scalar inputs"),
         };
 
         quote! {
-            let #output = #operation;
+            let #output = #function;
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        match &self.output {
-            Type::Tensor(tensor) => {
-                if tensor.kind != TensorKind::Int {
-                    panic!("BitwiseOrNode only supports Int tensor outputs");
-                }
-            }
-            Type::Scalar(scalar) => {
-                if !matches!(
-                    scalar.kind,
-                    crate::burn::ScalarKind::Int32 | crate::burn::ScalarKind::Int64
-                ) {
-                    panic!("BitwiseOrNode only supports Int scalar outputs");
-                }
-            }
-            _ => panic!("BitwiseOrNode only supports tensor and scalar outputs"),
-        }
-        Node::BitwiseOr(self)
-    }
-}
-
-impl OnnxIntoNode for BitwiseOrNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::BitwiseOr(n) = node else {
-            panic!("Expected BitwiseOr node");
-        };
-        let inputs = n.inputs.iter().map(Type::from).collect();
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(inputs, output)
     }
 }

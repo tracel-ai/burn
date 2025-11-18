@@ -1,39 +1,26 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub struct SpaceToDepthNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub block_size: usize,
-}
-
-impl SpaceToDepthNode {
-    pub fn new(input: TensorType, output: TensorType, block_size: usize) -> Self {
-        Self {
-            input,
-            output,
-            block_size,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SpaceToDepthNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::space_to_depth::SpaceToDepthNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let block_size = self.block_size;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let block_size = self.config.block_size;
 
         quote! {
             let #output = {
@@ -44,20 +31,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SpaceToDepthNode {
                     .reshape([b, c * #block_size * #block_size, h / #block_size, w / #block_size])
             };
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::SpaceToDepth(self)
-    }
-}
-
-impl OnnxIntoNode for SpaceToDepthNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::SpaceToDepth(n) = node else {
-            panic!("Expected SpaceToDepth node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(input, output, n.config.block_size)
     }
 }

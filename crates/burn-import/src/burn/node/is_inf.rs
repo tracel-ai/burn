@@ -1,54 +1,57 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::is_inf::IsInfConfig;
+use onnx_ir::{Argument, ir::ArgType};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct IsInfNode {
-    pub input: Type,
-    pub output: Type,
-    pub config: IsInfConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for IsInfNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::is_inf::IsInfNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = match &self.input {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+
+        let input = match &input_arg.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(input_arg, node_position),
+            ArgType::Scalar(_) => {
+                let name = &input_arg.name;
                 quote! { #name }
             }
             _ => panic!("Input must be a tensor or scalar"),
         };
-        let output = &self.output.name();
+        let output = arg_to_ident(output_arg);
 
-        let function = match &self.output {
-            Type::Scalar(_) => match (self.config.detect_negative, self.config.detect_positive) {
-                (true, true) => quote! { #input.is_infinite() },
-                (false, true) => quote! { #input.is_infinite() && #input.is_sign_positive() },
-                (true, false) => quote! { #input.is_infinite() && #input.is_sign_negative() },
-                (false, false) => quote! { false },
-            },
-            Type::Tensor(_) => match (self.config.detect_negative, self.config.detect_positive) {
-                (true, true) => quote! { #input.is_inf() },
-                (false, true) => {
-                    quote! { #input.clone().is_inf().bool_and(#input.greater_elem(0.0)) }
+        let function = match &output_arg.ty {
+            ArgType::Scalar(_) => {
+                match (self.config.detect_negative, self.config.detect_positive) {
+                    (true, true) => quote! { #input.is_infinite() },
+                    (false, true) => quote! { #input.is_infinite() && #input.is_sign_positive() },
+                    (true, false) => quote! { #input.is_infinite() && #input.is_sign_negative() },
+                    (false, false) => quote! { false },
                 }
-                (true, false) => {
-                    quote! { #input.clone().is_inf().bool_and(#input.lower_elem(0.0)) }
+            }
+            ArgType::Tensor(_) => {
+                match (self.config.detect_negative, self.config.detect_positive) {
+                    (true, true) => quote! { #input.is_inf() },
+                    (false, true) => {
+                        quote! { #input.clone().is_inf().bool_and(#input.greater_elem(0.0)) }
+                    }
+                    (true, false) => {
+                        quote! { #input.clone().is_inf().bool_and(#input.lower_elem(0.0)) }
+                    }
+                    (false, false) => quote! { #input.zeros_like().bool() },
                 }
-                (false, false) => quote! { #input.zeros_like().bool() },
-            },
+            }
             _ => panic!("IsInf only supports scalar or tensor outputs"),
         };
 
@@ -57,18 +60,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IsInfNode {
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::IsInf(self)
-    }
-}
-
-impl OnnxIntoNode for IsInfNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::IsInf(n) = node else {
-            panic!("Expected IsInf node");
-        };
-        let input = Type::from(n.inputs.first().unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(input, output, n.config.clone())
+    fn register_imports(&self, _imports: &mut BurnImports) {
+        // No special imports needed - is_inf() is a tensor method
     }
 }

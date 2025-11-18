@@ -1,234 +1,177 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub enum ReshapeShape {
-    Static(Vec<i64>),
-    Runtime(Type),
-}
-
-#[derive(Debug, Clone)]
-pub struct ReshapeNode {
-    pub input: Type,  // Changed to Type to support both Tensor and Shape inputs
-    pub output: Type, // Changed from TensorType to Type to support scalar outputs
-    pub shape: ReshapeShape,
-}
-
-impl ReshapeNode {
-    pub fn new<S: Into<ReshapeShape>>(input: Type, output: Type, shape: S) -> Self {
-        Self {
-            input,
-            output,
-            shape: shape.into(),
-        }
-    }
-}
-
-impl From<Vec<i64>> for ReshapeShape {
-    fn from(shape: Vec<i64>) -> Self {
-        ReshapeShape::Static(shape)
-    }
-}
-
-impl From<Type> for ReshapeShape {
-    fn from(shape: Type) -> Self {
-        ReshapeShape::Runtime(shape)
-    }
-}
-
-impl ReshapeNode {
-    // Helper for runtime shape reshaping
-    fn reshape_with_runtime_shape(
-        &self,
-        input: TokenStream,
-        output: &proc_macro2::Ident,
-        shape_type: &Type,
-        output_rank: usize,
-    ) -> TokenStream {
-        match shape_type {
-            Type::Shape(shape) => {
-                let shape_name = &shape.name;
-                quote! {
-                    let #output = #input.reshape(#shape_name);
-                }
-            }
-            Type::Tensor(tensor) => {
-                let shape_name = &tensor.name;
-                let array_init = (0..output_rank)
-                    .map(|i| {
-                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                        quote! { shape_array[#idx] as usize }
-                    })
-                    .collect::<Vec<_>>();
-
-                quote! {
-                    let shape_data = #shape_name.to_data();
-                    let shape_array = shape_data.as_slice::<i64>().unwrap();
-                    let #output = #input.reshape([#(#array_init),*]);
-                }
-            }
-            _ => panic!("Shape parameter must be a tensor or shape type"),
-        }
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        // Reshape has input tensor and shape argument
+        // Filter to include dynamic and constant inputs
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    // Handle reshaping when input is a Tensor
-    fn reshape_tensor_input(&self, input: TokenStream) -> TokenStream {
-        match &self.output {
-            Type::Scalar(scalar) => {
-                let output_name = &scalar.name;
-                let elem_type = scalar.ty();
-                quote! {
-                    let #output_name = #input.into_scalar().elem::<#elem_type>();
-                }
-            }
-            Type::Shape(_) => unimplemented!("Tensor to Shape is not supported"),
-            Type::Tensor(output_tensor) => {
-                let output = &output_tensor.name;
-                match &self.shape {
-                    ReshapeShape::Static(shape_values) => {
-                        let shape_values = shape_values.to_tokens();
-                        quote! {
-                            let #output = #input.reshape(#shape_values);
-                        }
-                    }
-                    ReshapeShape::Runtime(shape_type) => self.reshape_with_runtime_shape(
-                        input,
-                        output,
-                        shape_type,
-                        output_tensor.rank,
-                    ),
-                }
-            }
-            _ => panic!("Unexpected output type"),
-        }
-    }
-
-    // Handle reshaping when input is a Shape
-    fn reshape_shape_input(&self, input_shape: &crate::burn::ShapeType) -> TokenStream {
-        let shape_name = &input_shape.name;
-        let input_rank = input_shape.rank;
-
-        match &self.output {
-            Type::Scalar(scalar) => {
-                if input_rank != 1 {
-                    panic!(
-                        "Shape to scalar requires Shape(1), got Shape({})",
-                        input_rank
-                    );
-                }
-                let output_name = &scalar.name;
-                let elem_type = scalar.ty();
-                quote! {
-                    let #output_name = #shape_name[0] as #elem_type;
-                }
-            }
-            Type::Shape(output_shape) => {
-                let output_name = &output_shape.name;
-                let output_rank = output_shape.rank;
-
-                if input_rank == output_rank {
-                    quote! {
-                        let #output_name = #shape_name;
-                    }
-                } else {
-                    quote! {
-                        let #output_name: [i64; #output_rank] = {
-                            let mut result = [0i64; #output_rank];
-                            let copy_len = #input_rank.min(#output_rank);
-                            result[..copy_len].copy_from_slice(&#shape_name[..copy_len]);
-                            result
-                        };
-                    }
-                }
-            }
-            Type::Tensor(output_tensor) => {
-                // Convert Shape to Tensor first, then reshape
-                let shape_to_tensor = quote! {
-                    {
-                        let shape_array = #shape_name as [i64; #input_rank];
-                        Tensor::<B, 1, Int>::from_data(
-                            TensorData::from(shape_array),
-                            &self.device
-                        )
-                    }
-                };
-
-                let output = &output_tensor.name;
-                match &self.shape {
-                    ReshapeShape::Static(shape_values) => {
-                        let shape_values = shape_values.to_tokens();
-                        quote! {
-                            let #output = #shape_to_tensor.reshape(#shape_values);
-                        }
-                    }
-                    ReshapeShape::Runtime(shape_type) => self.reshape_with_runtime_shape(
-                        shape_to_tensor,
-                        output,
-                        shape_type,
-                        output_tensor.rank,
-                    ),
-                }
-            }
-            _ => panic!("Unexpected output type"),
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
-    }
-
-    fn input_types(&self) -> Vec<Type> {
-        match &self.shape {
-            ReshapeShape::Static(_) => vec![self.input.clone()],
-            ReshapeShape::Runtime(shape_type) => {
-                vec![self.input.clone(), shape_type.clone()]
-            }
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        // Simplified logic driven by input type
-        match &self.input {
-            Type::Tensor(input_tensor) => {
-                // Tensor input path
-                let input = scope.tensor_use_owned(input_tensor, node_position);
-                self.reshape_tensor_input(input)
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+        let output = arg_to_ident(output_arg);
+
+        // Determine if we have static or runtime shape
+        match &self.config.shape {
+            onnx_ir::reshape::ReshapeInput::Static(shape_values) => {
+                // Static shape - simple reshape
+                use onnx_ir::ir::ArgType;
+                match &input_arg.ty {
+                    ArgType::Tensor(_) => {
+                        let input = scope.tensor_use_owned(input_arg, node_position);
+
+                        // Check if output is a scalar
+                        match &output_arg.ty {
+                            ArgType::Scalar(elem_type) => {
+                                use onnx_ir::ir::DType;
+                                let elem_cast = match elem_type {
+                                    DType::F32 => quote! { .elem::<f32>() },
+                                    DType::F64 => quote! { .elem::<f64>() },
+                                    DType::I32 => quote! { .elem::<i32>() },
+                                    DType::I64 => quote! { .elem::<i64>() },
+                                    DType::Bool => quote! { .elem::<bool>() },
+                                    _ => panic!("Unsupported scalar type: {:?}", elem_type),
+                                };
+                                quote! {
+                                    let #output = #input.into_scalar()#elem_cast;
+                                }
+                            }
+                            ArgType::Tensor(_) => {
+                                let shape_values = shape_values.to_tokens();
+                                quote! {
+                                    let #output = #input.reshape(#shape_values);
+                                }
+                            }
+                            ArgType::Shape(_) => {
+                                panic!("Tensor to Shape reshape not supported")
+                            }
+                        }
+                    }
+                    ArgType::Shape(input_rank) => {
+                        // Shape input path
+                        let input_name = arg_to_ident(input_arg);
+
+                        match &output_arg.ty {
+                            ArgType::Scalar(elem_type) => {
+                                if *input_rank != 1 {
+                                    panic!(
+                                        "Shape to scalar requires Shape(1), got Shape({})",
+                                        input_rank
+                                    );
+                                }
+                                use onnx_ir::ir::DType;
+                                let cast_expr = match elem_type {
+                                    DType::I64 => quote! { #input_name[0] as i64 },
+                                    DType::I32 => quote! { #input_name[0] as i32 },
+                                    _ => panic!(
+                                        "Shape to Scalar only supports Int32/Int64 output types"
+                                    ),
+                                };
+                                quote! {
+                                    let #output = #cast_expr;
+                                }
+                            }
+                            ArgType::Shape(output_rank) => {
+                                if input_rank == output_rank {
+                                    quote! {
+                                        let #output = #input_name;
+                                    }
+                                } else {
+                                    quote! {
+                                        let #output: [i64; #output_rank] = {
+                                            let mut result = [0i64; #output_rank];
+                                            let copy_len = #input_rank.min(#output_rank);
+                                            result[..copy_len].copy_from_slice(&#input_name[..copy_len]);
+                                            result
+                                        };
+                                    }
+                                }
+                            }
+                            ArgType::Tensor(output_tensor) => {
+                                // Convert Shape to Tensor first, then reshape
+                                let output_rank = output_tensor.rank;
+                                let shape_values = shape_values.to_tokens();
+                                quote! {
+                                    let #output = {
+                                        let shape_array = #input_name as [i64; #input_rank];
+                                        Tensor::<B, 1, Int>::from_data(
+                                            TensorData::from(shape_array),
+                                            &self.device
+                                        )
+                                    }.reshape(#shape_values);
+                                }
+                            }
+                        }
+                    }
+                    ArgType::Scalar(_) => {
+                        panic!("Reshape: unexpected scalar input")
+                    }
+                }
             }
-            Type::Shape(input_shape) => {
-                // Shape input path
-                self.reshape_shape_input(input_shape)
+            onnx_ir::reshape::ReshapeInput::Runtime(shape_ref) => {
+                // Runtime shape - need to extract shape from second input
+                let shape_arg = &self.inputs[shape_ref.input_index];
+                use onnx_ir::ir::ArgType;
+
+                let input = scope.tensor_use_owned(input_arg, node_position);
+
+                match &shape_arg.ty {
+                    ArgType::Shape(_) => {
+                        let shape_name = arg_to_ident(shape_arg);
+                        quote! {
+                            let #output = #input.reshape(#shape_name);
+                        }
+                    }
+                    ArgType::Tensor(shape_tensor) => {
+                        let shape_name = arg_to_ident(shape_arg);
+                        let output_rank = match &output_arg.ty {
+                            ArgType::Tensor(t) => t.rank,
+                            _ => panic!("Runtime reshape with tensor shape expects tensor output"),
+                        };
+                        let array_init = (0..output_rank)
+                            .map(|i| {
+                                let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                                quote! { shape_array[#idx] as usize }
+                            })
+                            .collect::<Vec<_>>();
+
+                        quote! {
+                            let shape_data = #shape_name.to_data();
+                            let shape_array = shape_data.as_slice::<i64>().unwrap();
+                            let #output = #input.reshape([#(#array_init),*]);
+                        }
+                    }
+                    ArgType::Scalar(_) => {
+                        panic!("Reshape: shape argument cannot be scalar")
+                    }
+                }
             }
-            _ => panic!("Reshape: unexpected input type"),
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Reshape(self)
-    }
-}
-
-impl OnnxIntoNode for ReshapeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Reshape(n) = &node else {
-            panic!("Expected Reshape node");
-        };
-        let input = Type::from(n.inputs.first().unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-        match &n.config.shape {
-            onnx_ir::node::reshape::ReshapeInput::Static(shape) => {
-                Self::new(input, output, shape.clone())
-            }
-            onnx_ir::node::reshape::ReshapeInput::Runtime(shape_ref) => {
-                // Get the actual argument using the RuntimeInputRef
-                let shape_arg = &n.inputs[shape_ref.input_index];
-                let shape_input = Type::from(shape_arg);
-                Self::new(input, output, shape_input)
-            }
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Check if we need TensorData for shape-to-tensor conversion
+        match &self.inputs.first().unwrap().ty {
+            onnx_ir::ir::ArgType::Shape(_) => match &self.outputs.first().unwrap().ty {
+                onnx_ir::ir::ArgType::Tensor(_) => {
+                    imports.register("burn::tensor::TensorData");
+                }
+                _ => {}
+            },
+            _ => {}
         }
     }
 }

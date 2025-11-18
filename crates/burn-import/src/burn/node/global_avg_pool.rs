@@ -1,71 +1,58 @@
-use proc_macro2::TokenStream;
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Field, Scope};
+use burn::record::PrecisionSettings;
+use onnx_ir::{Argument, ir::ArgType};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use burn::record::PrecisionSettings;
+impl<PS: PrecisionSettings> NodeCodegen<PS>
+    for onnx_ir::node::global_avg_pool::GlobalAveragePoolNode
+{
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
+    }
 
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
+    }
 
-/// GlobalAvgPoolNode is a node that performs a global average pooling operation.
-///
-/// The node is implemented using the AdaptiveAvgPool1d or AdaptiveAvgPool2d module
-/// depending on the input dimension. AdaptiveAvgPool with output size 1 or size (1,1)
-/// is equivalent to global average pooling.
-#[derive(Debug, Clone)]
-pub struct GlobalAvgPoolNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-}
+    fn field(&self) -> Option<Field> {
+        // Determine field type based on input dimension
+        let input = self.inputs.first().unwrap();
+        let rank = match &input.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("Expected tensor input for GlobalAvgPool"),
+        };
 
-impl GlobalAvgPoolNode {
-    pub fn new<S: AsRef<str>>(name: S, input: TensorType, output: TensorType) -> Self {
-        // Depending on the input dimension, we need to use a different type nn module
-        let field_type = match input.rank {
-            3 => quote! {
-                AdaptiveAvgPool1d
-            },
-            4 => quote! {
-                AdaptiveAvgPool2d
-            },
+        let field_type = match rank {
+            3 => quote! { AdaptiveAvgPool1d },
+            4 => quote! { AdaptiveAvgPool2d },
             dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
         };
 
-        Self {
-            field: OtherType::new(name, field_type),
-            input,
-            output,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+        Some(Field::new(self.name.clone(), field_type))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+        let name = Ident::new(&self.name, Span::call_site());
+        let input = self.inputs.first().unwrap();
+        let rank = match &input.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("Expected tensor input for GlobalAvgPool"),
+        };
 
-        let tokens = match self.input.rank {
-            3 => {
-                quote! {
-                    let #name = AdaptiveAvgPool1dConfig::new(1)
-                        .init();
-                }
-            }
-            4 => {
-                quote! {
-                    let #name = AdaptiveAvgPool2dConfig::new([1,1])
-                        .init();
-                }
-            }
+        let tokens = match rank {
+            3 => quote! {
+                let #name = AdaptiveAvgPool1dConfig::new(1)
+                    .init();
+            },
+            4 => quote! {
+                let #name = AdaptiveAvgPool2dConfig::new([1, 1])
+                    .init();
+            },
             dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
         };
 
@@ -73,9 +60,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
@@ -83,35 +70,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        match self.input.rank {
-            3 => {
-                imports.register("burn::nn::pool::AdaptiveAvgPool1d");
-                imports.register("burn::nn::pool::AdaptiveAvgPool1dConfig");
-            }
-            4 => {
-                imports.register("burn::nn::pool::AdaptiveAvgPool2d");
-                imports.register("burn::nn::pool::AdaptiveAvgPool2dConfig");
-            }
-            dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
-        }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::GlobalAveragePool(self)
-    }
-
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        S::serialize_none(serializer)
-    }
-}
-
-impl OnnxIntoNode for GlobalAvgPoolNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::GlobalAveragePool(n) = node else {
-            panic!("Expected GlobalAveragePool node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(n.name, input, output)
+        // FIXME import depending on input rank
+        imports.register("burn::nn::pool::AdaptiveAvgPool1d");
+        imports.register("burn::nn::pool::AdaptiveAvgPool1dConfig");
+        imports.register("burn::nn::pool::AdaptiveAvgPool2d");
+        imports.register("burn::nn::pool::AdaptiveAvgPool2dConfig");
     }
 }

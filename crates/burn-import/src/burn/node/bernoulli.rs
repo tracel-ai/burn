@@ -1,55 +1,53 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
+use onnx_ir::ir::ArgType;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct BernoulliNode {
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BernoulliNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bernoulli::BernoulliNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        imports.register("burn::tensor::Distribution");
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
-        let input = scope.tensor_use_owned(&self.input, node_position);
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        // Use Default distribution for Bernoulli
         let dist = quote! { Distribution::Default };
 
+        // Generate random values and compare with input to get binary output
         let input_random = quote! { #input.random_like(#dist).lower(#input) };
-        let output_random = match self.output.kind {
-            TensorKind::Bool => input_random,
-            TensorKind::Int => quote! { #input_random.int() },
-            TensorKind::Float => quote! { #input_random.float() },
+
+        // Convert to the output type based on the output tensor kind
+        let output_ty = &self.outputs.first().unwrap().ty;
+        let output_random = match output_ty {
+            ArgType::Tensor(t) => match t.dtype {
+                onnx_ir::ir::DType::Bool => input_random,
+                onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => quote! { #input_random.int() },
+                onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
+                    quote! { #input_random.float() }
+                }
+                _ => input_random, // Fallback
+            },
+            _ => input_random,
         };
 
-        quote! { let #output = #output_random; }
+        quote! {
+            let #output = #output_random;
+        }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Bernoulli(self)
-    }
-}
-
-impl OnnxIntoNode for BernoulliNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Bernoulli(n) = node else {
-            panic!("Expected Bernoulli node");
-        };
-        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
-        Self::new(input, output)
+    fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::tensor::Distribution");
     }
 }

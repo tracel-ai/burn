@@ -1,6 +1,5 @@
 /// Implements NodeCodegen<PS> trait on onnx_ir::Node enum
 /// Uses a simple macro to generate match arms for all supported nodes
-
 use burn::record::PrecisionSettings;
 use onnx_ir::{Argument, Node};
 use proc_macro2::TokenStream;
@@ -14,35 +13,35 @@ macro_rules! impl_node_codegen_dispatch {
         impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node {
             fn inputs(&self) -> Vec<&Argument> {
                 match self {
-                    $(Node::$variant(n) => n.inputs(),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::inputs(n),)*
                     _ => panic!("Unsupported node type for inputs: {:?}", self),
                 }
             }
 
             fn outputs(&self) -> Vec<&Argument> {
                 match self {
-                    $(Node::$variant(n) => n.outputs(),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::outputs(n),)*
                     _ => panic!("Unsupported node type for outputs: {:?}", self),
                 }
             }
 
             fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
                 match self {
-                    $(Node::$variant(n) => n.forward(scope, node_position),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::forward(n, scope, node_position),)*
                     _ => panic!("Unsupported node type for forward: {:?}", self),
                 }
             }
 
             fn field(&self) -> Option<Field> {
                 match self {
-                    $(Node::$variant(n) => n.field(),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::field(n),)*
                     _ => None,
                 }
             }
 
             fn field_init(&self) -> Option<TokenStream> {
                 match self {
-                    $(Node::$variant(n) => n.field_init(),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::field_init(n),)*
                     _ => None,
                 }
             }
@@ -56,7 +55,7 @@ macro_rules! impl_node_codegen_dispatch {
 
             fn register_imports(&self, imports: &mut BurnImports) {
                 match self {
-                    $(Node::$variant(n) => n.register_imports(imports),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::register_imports(n, imports),)*
                     _ => {}
                 }
             }

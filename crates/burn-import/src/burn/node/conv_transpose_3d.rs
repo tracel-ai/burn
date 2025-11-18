@@ -1,64 +1,42 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data};
+use crate::burn::{BurnImports, Field, Scope, ToTokens};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::conv::ConvTranspose3dRecord,
     record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
+    tensor::Tensor,
 };
-use onnx_ir::node::conv_transpose3d::ConvTranspose3dConfig;
-use proc_macro2::TokenStream;
+use onnx_ir::Argument;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
 
-#[derive(Debug, Clone)]
-pub struct ConvTranspose3dNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub data_weights: TensorData,
-    pub data_bias: Option<TensorData>,
-    pub config: ConvTranspose3dConfig,
-}
+impl<PS: PrecisionSettings> NodeCodegen<PS>
+    for onnx_ir::node::conv_transpose3d::ConvTranspose3dNode
+{
+    fn inputs(&self) -> Vec<&Argument> {
+        // Filter inputs only dynamic and constant
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
+    }
 
-impl ConvTranspose3dNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        data_weights: TensorData,
-        data_bias: Option<TensorData>,
-        config: ConvTranspose3dConfig,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    ConvTranspose3d<B>
-                },
-            ),
-            input,
-            output,
-            data_weights,
-            data_bias,
-            config,
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
-}
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose3dNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+    fn field(&self) -> Option<Field> {
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                ConvTranspose3d<B>
+            },
+        ))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+        let name = Ident::new(&self.name, Span::call_site());
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
         let stride = self.config.stride.to_tokens();
@@ -84,15 +62,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose3dNode {
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
+
+        let data_weights = extract_node_data(&self.inputs, 1).unwrap();
+        let has_bias = self.inputs.len() == 3;
+        let data_bias = if has_bias {
+            extract_node_data(&self.inputs, 2)
+        } else {
+            None
+        };
         let record = ConvTranspose3dRecord::<SerializationBackend> {
             weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(
-                    self.data_weights.clone().convert::<PS::FloatElem>(),
-                    &device,
-                ),
+                Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device),
             ),
-            bias: self.data_bias.as_ref().map(|bias| {
+            bias: data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
                     Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
@@ -112,38 +95,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose3dNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::nn::PaddingConfig3d");
         imports.register("burn::nn::conv::ConvTranspose3d");
         imports.register("burn::nn::conv::ConvTranspose3dConfig");
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::ConvTranspose3d(self)
-    }
-}
-
-impl OnnxIntoNode for ConvTranspose3dNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::ConvTranspose3d(n) = &node else {
-            panic!("Expected ConvTranspose3d node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        let has_bias = n.inputs.len() == 3;
-        let weight = extract_node_data(&n.inputs, 1).unwrap();
-        let bias = if has_bias {
-            extract_node_data(&n.inputs, 2)
-        } else {
-            None
-        };
-        Self::new(&n.name, input, output, weight, bias, n.config.clone())
     }
 }

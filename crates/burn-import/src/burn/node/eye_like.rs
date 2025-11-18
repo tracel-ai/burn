@@ -1,36 +1,38 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
-use onnx_ir::node::eye_like::EyeLikeConfig;
+use onnx_ir::Argument;
+use onnx_ir::ir::ArgType;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 
-#[derive(Debug, Clone, new)]
-pub struct EyeLikeNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub config: EyeLikeConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLikeNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
         let k_offset = self.config.k.to_token_stream();
 
         // Convert mask to appropriate type based on output tensor kind
-        let conversion = match self.output.kind {
-            crate::burn::TensorKind::Int => quote! { .int() },
-            crate::burn::TensorKind::Float => quote! { .float() },
-            crate::burn::TensorKind::Bool => quote! {},
+        let output_ty = &self.outputs.first().unwrap().ty;
+        let conversion = match output_ty {
+            ArgType::Tensor(t) => match t.dtype {
+                onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => quote! { .int() },
+                onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => quote! { .float() },
+                onnx_ir::ir::DType::Bool => quote! {},
+                _ => quote! { .float() }, // Default to float
+            },
+            _ => quote! { .float() },
         };
 
         // Use diag_mask to create the diagonal matrix, then invert it
@@ -39,20 +41,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
         quote! {
             let #output = Tensor::diag_mask(#input.shape(), #k_offset, &*self.device).bool_not()#conversion;
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::EyeLike(self)
-    }
-}
-
-impl OnnxIntoNode for EyeLikeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::EyeLike(n) = node else {
-            panic!("Expected EyeLike node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(input, output, n.config.clone())
     }
 }

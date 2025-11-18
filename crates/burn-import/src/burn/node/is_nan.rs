@@ -1,52 +1,42 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::{Argument, ir::ArgType};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct IsNanNode {
-    pub input: Type,
-    pub output: Type,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for IsNanNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::is_nan::IsNaNNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = match &self.input {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+
+        let input = match &input_arg.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(input_arg, node_position),
+            ArgType::Scalar(_) => {
+                let name = &input_arg.name;
                 quote! { #name }
             }
             _ => panic!("Input must be a tensor or scalar"),
         };
-        let output = &self.output.name();
+        let output = arg_to_ident(output_arg);
 
         quote! {
             let #output = #input.is_nan();
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::IsNaN(self)
-    }
-}
-
-impl OnnxIntoNode for IsNanNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::IsNaN(n) = node else {
-            panic!("Expected IsNaN node");
-        };
-        let input = Type::from(n.inputs.first().unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(input, output)
+    fn register_imports(&self, _imports: &mut BurnImports) {
+        // No special imports needed - is_nan() is a tensor method
     }
 }

@@ -1,53 +1,29 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct TransposeNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub perm: Vec<i64>,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for TransposeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::transpose::TransposeNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let perm = self.perm.to_tokens();
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let perm = self.config.perm.to_tokens();
 
         quote! {
             let #output = #input.permute(#perm);
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Transpose(self)
-    }
-}
-
-impl OnnxIntoNode for TransposeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Transpose(n) = node else {
-            panic!("Expected Transpose node");
-        };
-        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("Transpose expects tensor input"),
-        };
-        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("Transpose expects tensor output"),
-        };
-        Self::new(input, output, n.config.perm.clone())
     }
 }

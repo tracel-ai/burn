@@ -114,9 +114,8 @@ pub(crate) mod trilu;
 pub(crate) mod unsqueeze;
 pub(crate) mod where_op;
 
-// Node registry, codegen traits, and utilities are in parent module
-// Re-export them here for backward compatibility
-pub(crate) use super::node_registry::*;
+// Node codegen traits and utilities are in parent module
+// Re-export them here for convenience
 pub(crate) use super::node_traits::{
-    NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data,
+    NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data,
 };

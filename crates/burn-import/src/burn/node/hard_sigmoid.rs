@@ -1,55 +1,34 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct HardSigmoidNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub alpha: f64,
-    pub beta: f64,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for HardSigmoidNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::hard_sigmoid::HardSigmoidNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let alpha = self.alpha.to_tokens();
-        let beta = self.beta.to_tokens();
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let alpha = self.config.alpha.to_tokens();
+        let beta = self.config.beta.to_tokens();
 
         quote! {
             let #output = burn::tensor::activation::hard_sigmoid(#input, #alpha, #beta);
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::HardSigmoid(self)
-    }
-}
-
-impl OnnxIntoNode for HardSigmoidNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::HardSigmoid(n) = node else {
-            panic!("Expected HardSigmoid node");
-        };
-        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("HardSigmoid expects tensor input"),
-        };
-        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("HardSigmoid expects tensor output"),
-        };
-        Self::new(input, output, n.config.alpha, n.config.beta)
+    fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::tensor::activation::hard_sigmoid");
     }
 }

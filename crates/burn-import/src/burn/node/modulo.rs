@@ -1,33 +1,33 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
+use onnx_ir::{Argument, ir::ArgType};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct ModNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: TensorType,
-    pub fmod: bool, // false: use remainder (Python %), true: use fmod (C-style)
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        // Filter inputs only dynamic and constant
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        match (&self.lhs, &self.rhs) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+        let lhs_arg = &self.inputs[0];
+        let rhs_arg = &self.inputs[1];
+
+        match (&lhs_arg.ty, &rhs_arg.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
+                let lhs = scope.tensor_use_owned(lhs_arg, node_position);
+                let rhs = scope.tensor_use_owned(rhs_arg, node_position);
 
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
@@ -50,7 +50,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
                         })
                         .collect::<Vec<_>>();
 
-                    let mod_op = if self.fmod {
+                    let mod_op = if self.config.fmod {
                         quote! { fmod }
                     } else {
                         quote! { remainder }
@@ -68,7 +68,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
                         }
                     }
                 } else {
-                    let mod_op = if self.fmod {
+                    let mod_op = if self.config.fmod {
                         quote! { fmod }
                     } else {
                         quote! { remainder }
@@ -78,11 +78,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
                     }
                 }
             }
-            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = rhs_scalar.name.clone();
+            (ArgType::Tensor(_), ArgType::Scalar(_)) => {
+                let lhs = scope.tensor_use_owned(lhs_arg, node_position);
+                let rhs = Ident::new(&rhs_arg.name, Span::call_site());
 
-                let mod_op = if self.fmod {
+                let mod_op = if self.config.fmod {
                     quote! { fmod_scalar }
                 } else {
                     quote! { remainder_scalar }
@@ -92,26 +92,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
                     let #output = #lhs.#mod_op(#rhs);
                 }
             }
-            (Type::Scalar(_), Type::Tensor(_)) => {
+            (ArgType::Scalar(_), ArgType::Tensor(_)) => {
                 panic!("Mod operation with scalar dividend and tensor divisor is not supported")
             }
             _ => panic!("Mod operation requires at least one tensor input"),
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Mod(self)
-    }
-}
-
-impl OnnxIntoNode for ModNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Mod(n) = node else {
-            panic!("Expected Mod node");
-        };
-        let lhs = Type::from(n.inputs.first().unwrap());
-        let rhs = Type::from(n.inputs.get(1).unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(lhs, rhs, output, n.config.fmod)
     }
 }

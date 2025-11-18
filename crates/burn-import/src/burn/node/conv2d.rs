@@ -1,64 +1,40 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, SerializationBackend, extract_node_data};
+use crate::burn::{BurnImports, Field, Scope, ToTokens};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::conv::Conv2dRecord,
     record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
+    tensor::Tensor,
 };
-use onnx_ir::node::conv2d::Conv2dConfig;
-use proc_macro2::TokenStream;
+use onnx_ir::Argument;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
 
-#[derive(Debug, Clone)]
-pub struct Conv2dNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub data_weights: TensorData,
-    pub data_bias: Option<TensorData>,
-    pub config: Conv2dConfig,
-}
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv2d::Conv2dNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        // Filter inputs only dynamic and constant
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
+    }
 
-impl Conv2dNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        data_weights: TensorData,
-        data_bias: Option<TensorData>,
-        config: Conv2dConfig,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    Conv2d<B>
-                },
-            ),
-            input,
-            output,
-            data_weights,
-            data_bias,
-            config,
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
-}
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+    fn field(&self) -> Option<Field> {
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                Conv2d<B>
+            },
+        ))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+        let name = Ident::new(&self.name, Span::call_site());
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
         let stride = self.config.stride.to_tokens();
@@ -82,15 +58,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
+
+        let data_weights = extract_node_data(&self.inputs, 1).unwrap();
+        let has_bias = self.inputs.len() == 3;
+        let data_bias = if has_bias {
+            extract_node_data(&self.inputs, 2)
+        } else {
+            None
+        };
         let record = Conv2dRecord::<SerializationBackend> {
             weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(
-                    self.data_weights.clone().convert::<PS::FloatElem>(),
-                    &device,
-                ),
+                Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device),
             ),
-            bias: self.data_bias.as_ref().map(|bias| {
+            bias: data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
                     Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
@@ -108,9 +89,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = Ident::new(&self.outputs.first().unwrap().name, Span::call_site());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
@@ -120,27 +101,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
         imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Conv2d(self)
-    }
-}
-
-impl OnnxIntoNode for Conv2dNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Conv2d(n) = &node else {
-            panic!("Expected Conv2d node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        let has_bias = n.inputs.len() == 3;
-        let weight = extract_node_data(&n.inputs, 1).unwrap();
-        let bias = if has_bias {
-            extract_node_data(&n.inputs, 2)
-        } else {
-            None
-        };
-        Self::new(&n.name, input, output, weight, bias, n.config.clone())
     }
 }

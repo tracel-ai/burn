@@ -1,6 +1,7 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{ScalarKind, Scope, TensorKind, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
+use onnx_ir::{ArgType, Argument, DType};
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -13,94 +14,66 @@ pub enum PowerType {
     Float,
 }
 
-/// Power node that handles both integer and float exponents
-#[derive(Debug, Clone)]
-pub struct PowNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-    pub power_type: PowerType,
-}
-
-impl PowNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type, power_type: PowerType) -> Self {
-        Self {
-            lhs,
-            rhs,
-            output,
-            power_type,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for PowNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pow::PowNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        let lhs = match &lhs_arg.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(lhs_arg, node_position),
             _ => panic!("lhs must be a tensor"),
         };
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
+        let rhs = match &rhs_arg.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(rhs_arg, node_position),
+            ArgType::Scalar(_) => {
+                let name = arg_to_ident(rhs_arg);
                 quote! { #name }
             }
             _ => panic!("rhs must be a tensor or scalar"),
         };
 
-        let output = &self.output.name();
+        // Determine power type based on RHS type
+        let power_type = match &rhs_arg.ty {
+            ArgType::Tensor(t) => match t.dtype {
+                DType::I64 | DType::I32 | DType::I16 | DType::I8 => PowerType::Int,
+                DType::F64 | DType::F32 | DType::F16 | DType::BF16 | DType::Flex32 => {
+                    PowerType::Float
+                }
+                _ => panic!("pow function requires RHS to be int or float type"),
+            },
+            ArgType::Scalar(dtype) => match dtype {
+                DType::I64 | DType::I32 | DType::I16 | DType::I8 => PowerType::Int,
+                DType::F64 | DType::F32 | DType::F16 | DType::BF16 | DType::Flex32 => {
+                    PowerType::Float
+                }
+                _ => panic!("pow function requires RHS to be int or float type"),
+            },
+            _ => panic!("pow function only supports RHS scalar or tensor types"),
+        };
 
-        let function = match (self.power_type, &self.rhs) {
-            (PowerType::Int, Type::Tensor(_)) => quote! { #lhs.powi(#rhs) },
-            (PowerType::Int, Type::Scalar(_)) => quote! { #lhs.powi_scalar(#rhs) },
-            (PowerType::Float, Type::Tensor(_)) => quote! { #lhs.powf(#rhs) },
-            (PowerType::Float, Type::Scalar(_)) => quote! { #lhs.powf_scalar(#rhs) },
+        let function = match (power_type, &rhs_arg.ty) {
+            (PowerType::Int, ArgType::Tensor(_)) => quote! { #lhs.powi(#rhs) },
+            (PowerType::Int, ArgType::Scalar(_)) => quote! { #lhs.powi_scalar(#rhs) },
+            (PowerType::Float, ArgType::Tensor(_)) => quote! { #lhs.powf(#rhs) },
+            (PowerType::Float, ArgType::Scalar(_)) => quote! { #lhs.powf_scalar(#rhs) },
             _ => panic!("Invalid power type combination"),
         };
 
         quote! {
             let #output = #function;
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Pow(self)
-    }
-}
-
-impl OnnxIntoNode for PowNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Pow(n) = node else {
-            panic!("Expected Pow node");
-        };
-        let lhs = Type::from(n.inputs.first().unwrap());
-        let rhs = Type::from(n.inputs.get(1).unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-
-        // Determine power type based on RHS type
-        let power_type = match &rhs {
-            Type::Tensor(x) => match x.kind {
-                TensorKind::Int => PowerType::Int,
-                TensorKind::Float => PowerType::Float,
-                _ => panic!("pow function requires RHS to be int or float type"),
-            },
-            Type::Scalar(x) => match x.kind {
-                ScalarKind::Int32 | ScalarKind::Int64 => PowerType::Int,
-                ScalarKind::Float32 | ScalarKind::Float64 => PowerType::Float,
-                _ => panic!("pow function requires RHS to be int or float type"),
-            },
-            _ => panic!("pow function only supports RHS scalar or tensor types"),
-        };
-
-        Self::new(lhs, rhs, output, power_type)
     }
 }

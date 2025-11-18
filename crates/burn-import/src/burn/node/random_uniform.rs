@@ -1,78 +1,38 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub struct RandomUniformNode {
-    pub low: f64,
-    pub high: f64,
-    pub output_ty: TensorType,
-    pub shape: Vec<usize>,
-}
-
-impl RandomUniformNode {
-    pub fn new(output_ty: TensorType, low: f64, high: f64, shape: Vec<usize>) -> Self {
-        Self {
-            low,
-            high,
-            output_ty,
-            shape,
-        }
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random::RandomUniformNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        // RandomUniform has no inputs - it generates a tensor from scratch
+        vec![]
     }
 
-    fn get_output_shape(&self) -> TokenStream {
-        let shape_it = self.shape.iter();
-        quote! { Shape::new([#(#shape_it),*]) }
-    }
-
-    fn get_distribution(&self) -> TokenStream {
-        let low = self.low;
-        let high = self.high;
-        quote! { Distribution::Uniform(#low, #high) }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
-    fn input_types(&self) -> Vec<Type> {
-        Vec::with_capacity(0)
-    }
-
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output_ty.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
-        let output = &self.output_ty.name;
-        let shape = self.get_output_shape();
-        let dist = self.get_distribution();
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        // Build shape expression
+        let shape_values = self.config.shape.iter();
+        let shape = quote! { Shape::new([#(#shape_values),*]) };
+
+        // Build distribution with low and high bounds
+        let low = self.config.low;
+        let high = self.config.high;
+        let dist = quote! { Distribution::Uniform(#low, #high) };
+
         quote! {
             let #output = Tensor::random(#shape, #dist, &*self.device);
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::RandomUniform(self)
-    }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+    fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::tensor::Distribution");
-    }
-}
-
-impl OnnxIntoNode for RandomUniformNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::RandomUniform(n) = node else {
-            panic!("Expected RandomUniform node");
-        };
-        let output_type = TensorType::from(n.outputs.first().unwrap());
-
-        Self::new(
-            output_type,
-            n.config.low,
-            n.config.high,
-            n.config.shape.clone(),
-        )
     }
 }

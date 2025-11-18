@@ -1,164 +1,134 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, Scope, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-/// Burn-import version of UnsqueezeConfig that stores Argument instead of RuntimeInputRef
-#[derive(Debug, Clone)]
-pub enum UnsqueezeConfig {
-    Static(Vec<i64>),
-    Runtime(Argument),
-}
-
-#[derive(Debug, Clone, new)]
-pub struct UnsqueezeNode {
-    pub input: Type,
-    pub output: Type,
-    pub axes: UnsqueezeConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        let input = self.input.clone();
-        match &self.axes {
-            UnsqueezeConfig::Static(_) => vec![input],
-            UnsqueezeConfig::Runtime(rt_type) => vec![input, Type::from(rt_type)],
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
+
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let axes = match &self.axes {
-            UnsqueezeConfig::Static(static_axes) => static_axes.to_tokens(),
-            UnsqueezeConfig::Runtime(arg) => match Type::from(arg) {
-                Type::Tensor(axes_tensor) => {
-                    let tensor_name = &axes_tensor.name;
-                    quote! {
-                        #tensor_name.to_data().as_slice::<B::IntElem>().unwrap().iter().map(|&x| x.to_isize()).collect::<Vec<isize>>()
+        use onnx_ir::ir::ArgType;
+
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+        let output = arg_to_ident(output_arg);
+
+        // Generate axes token stream
+        let axes = match &self.config {
+            onnx_ir::unsqueeze::UnsqueezeConfig::Static(static_axes) => static_axes.to_tokens(),
+            onnx_ir::unsqueeze::UnsqueezeConfig::Runtime(axes_ref) => {
+                let axes_arg = &self.inputs[axes_ref.input_index];
+                match &axes_arg.ty {
+                    ArgType::Tensor(_) => {
+                        let tensor_name = arg_to_ident(axes_arg);
+                        quote! {
+                            #tensor_name.to_data().as_slice::<B::IntElem>().unwrap().iter().map(|&x| x.to_isize()).collect::<Vec<isize>>()
+                        }
                     }
+                    _ => panic!(
+                        "UnsqueezeNode received invalid axes type: expected tensor but got {:?}",
+                        axes_arg.ty
+                    ),
                 }
-                _ => panic!(
-                    "UnsqueezeNode received invalid axes type: expected tensor but got {arg:?}"
-                ),
-            },
+            }
         };
 
-        match (&self.input, &self.output) {
-            (Type::Tensor(input), Type::Tensor(output)) => {
-                let input = scope.tensor_use_owned(input, node_position);
-                let output_name = &output.name;
-                let output_rank = output.rank.to_tokens();
+        match (&input_arg.ty, &output_arg.ty) {
+            (ArgType::Tensor(input_tensor), ArgType::Tensor(output_tensor)) => {
+                let input = scope.tensor_use_owned(input_arg, node_position);
+                let output_rank = output_tensor.rank.to_tokens();
 
                 // Generate the correct output type based on the tensor kind
-                let output_type = match &output.kind {
-                    crate::burn::TensorKind::Int => quote! { Tensor<B, #output_rank, Int> },
-                    crate::burn::TensorKind::Float => quote! { Tensor<B, #output_rank> },
-                    crate::burn::TensorKind::Bool => quote! { Tensor<B, #output_rank, Bool> },
+                let output_type = match &output_tensor.dtype {
+                    onnx_ir::ir::DType::I8
+                    | onnx_ir::ir::DType::I32
+                    | onnx_ir::ir::DType::I64
+                    | onnx_ir::ir::DType::U8 => {
+                        quote! { Tensor<B, #output_rank, Int> }
+                    }
+                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
+                        quote! { Tensor<B, #output_rank> }
+                    }
+                    onnx_ir::ir::DType::Bool => {
+                        quote! { Tensor<B, #output_rank, Bool> }
+                    }
+                    _ => panic!("Unsupported tensor dtype: {:?}", output_tensor.dtype),
                 };
 
                 quote! {
-                    let #output_name: #output_type = #input.unsqueeze_dims(&#axes);
+                    let #output: #output_type = #input.unsqueeze_dims(&#axes);
                 }
             }
-            (Type::Scalar(scalar), Type::Tensor(output)) => {
-                let scalar_name = &scalar.name;
-                let output_name = &output.name;
-                let output_rank = output.rank.to_tokens();
+            (ArgType::Scalar(scalar_type), ArgType::Tensor(output_tensor)) => {
+                let scalar_name = arg_to_ident(input_arg);
+                let output_rank = output_tensor.rank.to_tokens();
 
                 // Determine the element type based on the output tensor type
-                let elem_conversion = match &output.kind {
-                    crate::burn::TensorKind::Int => quote! { #scalar_name.elem::<B::IntElem>() },
-                    crate::burn::TensorKind::Float => {
-                        quote! { #scalar_name.elem::<B::FloatElem>() }
+                let tensor_creation = match &output_tensor.dtype {
+                    onnx_ir::ir::DType::I8
+                    | onnx_ir::ir::DType::I32
+                    | onnx_ir::ir::DType::I64
+                    | onnx_ir::ir::DType::U8 => {
+                        let elem_conversion = quote! { #scalar_name.elem::<B::IntElem>() };
+                        quote! { Tensor::<B, #output_rank, Int>::from_data([#elem_conversion], &self.device).unsqueeze() }
                     }
-                    crate::burn::TensorKind::Bool => quote! { #scalar_name != 0 },
+                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
+                        let elem_conversion = quote! { #scalar_name.elem::<B::FloatElem>() };
+                        quote! { Tensor::<B, #output_rank>::from_data([#elem_conversion], &self.device).unsqueeze() }
+                    }
+                    onnx_ir::ir::DType::Bool => {
+                        let elem_conversion = quote! { #scalar_name != 0 };
+                        quote! { Tensor::<B, #output_rank, Bool>::from_data([#elem_conversion], &self.device).unsqueeze() }
+                    }
+                    _ => panic!("Unsupported tensor dtype: {:?}", output_tensor.dtype),
                 };
 
-                // Generate the tensor creation code with appropriate type
-                match &output.kind {
-                    crate::burn::TensorKind::Int => quote! {
-                        let #output_name = Tensor::<B, #output_rank, Int>::from_data([#elem_conversion], &self.device).unsqueeze();
-                    },
-                    crate::burn::TensorKind::Float => quote! {
-                        let #output_name = Tensor::<B, #output_rank>::from_data([#elem_conversion], &self.device).unsqueeze();
-                    },
-                    crate::burn::TensorKind::Bool => quote! {
-                        let #output_name = Tensor::<B, #output_rank, Bool>::from_data([#elem_conversion], &self.device).unsqueeze();
-                    },
+                quote! {
+                    let #output = #tensor_creation;
                 }
             }
-            (Type::Scalar(scalar), Type::Shape(shape)) => {
-                // Scalar(Int) -> Shape[1] conversion: Reverses squeeze(Shape[1]) -> Scalar
-                // Common in ONNX for dynamic reshape operations where dimensions are computed at runtime.
-                // This is a zero-cost conversion (both types are CPU-resident) that avoids unnecessary
-                // tensor allocations and GPU transfers.
-                let input_name = &scalar.name;
-                let output_name = &shape.name;
+            (ArgType::Scalar(scalar_type), ArgType::Shape(_)) => {
+                // Scalar(Int) -> Shape[1] conversion
+                let input_name = arg_to_ident(input_arg);
 
-                // Only Int32/Int64 scalars can be converted to Shape
-                let value_expr = match &scalar.kind {
-                    crate::burn::ScalarKind::Int64 => quote! { #input_name },
-                    crate::burn::ScalarKind::Int32 => quote! { #input_name as i64 },
+                use onnx_ir::ir::DType;
+                let value_expr = match scalar_type {
+                    DType::I64 => quote! { #input_name },
+                    DType::I32 => quote! { #input_name as i64 },
                     _ => panic!(
                         "Unsqueeze from Scalar to Shape only supports Int32/Int64 input types, but got: {:?}",
-                        scalar.kind
+                        scalar_type
                     ),
                 };
 
-                // Create a shape array with the scalar value
-                // For unsqueeze on axis 0, we're creating a 1D shape from a scalar
                 quote! {
-                    let #output_name = [#value_expr];
+                    let #output = [#value_expr];
                 }
             }
             _ => panic!(
                 "UnsqueezeNode received unsupported input/output combination: {:?} -> {:?}",
-                self.input, self.output
+                input_arg.ty, output_arg.ty
             ),
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Unsqueeze(self)
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
-        match &self.axes {
-            UnsqueezeConfig::Runtime(_) => {
+        match &self.config {
+            onnx_ir::unsqueeze::UnsqueezeConfig::Runtime(_) => {
                 imports.register("alloc::vec::Vec");
             }
             _ => {}
         }
-    }
-}
-
-impl OnnxIntoNode for UnsqueezeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Unsqueeze(n) = &node else {
-            panic!("Expected Unsqueeze node");
-        };
-        let inputs = &n.inputs;
-        let outputs = &n.outputs;
-        let config = &n.config;
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
-
-        // Convert from onnx-ir config (with RuntimeInputRef) to burn-import config (with Argument)
-        let axes = match config {
-            onnx_ir::node::unsqueeze::UnsqueezeConfig::Static(s) => {
-                UnsqueezeConfig::Static(s.clone())
-            }
-            onnx_ir::node::unsqueeze::UnsqueezeConfig::Runtime(axes_ref) => {
-                // Get the actual argument using the RuntimeInputRef
-                let axes_arg = inputs[axes_ref.input_index].clone();
-                UnsqueezeConfig::Runtime(axes_arg)
-            }
-        };
-
-        Self::new(input, output, axes)
     }
 }

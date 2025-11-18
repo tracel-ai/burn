@@ -1,52 +1,34 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{ScalarKind, ScalarType, TensorKind, TensorType, ToTokens, Type};
-
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
+use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct ArgMinNode {
-    pub input: TensorType,
-    pub output: Type,
-    pub axis: usize,
-    pub keepdims: bool,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
-    fn output_types(&self) -> Vec<Type> {
-        match &self.output {
-            Type::Tensor(tensor) => {
-                let mut tensor = tensor.clone();
-                tensor.kind = TensorKind::Int;
-                vec![Type::Tensor(tensor)]
-            }
-            Type::Scalar(scalar) => {
-                vec![Type::Scalar(ScalarType::new(
-                    scalar.name.to_string(),
-                    ScalarKind::Int64,
-                ))]
-            }
-            _ => panic!("ArgMin output must be Tensor or Scalar"),
-        }
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::argmin::ArgMinNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<crate::burn::Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
-    fn forward(
-        &self,
-        scope: &mut crate::burn::Scope,
-        node_position: usize,
-    ) -> proc_macro2::TokenStream {
-        //NOTE: select_last_index=1 is not supported (will panic during conversion)
-        let axis = self.axis.to_tokens();
-        let input = scope.tensor_use_owned(&self.input, node_position);
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        // NOTE: select_last_index=1 is not supported (will panic during conversion)
+        let axis = self.config.axis.to_tokens();
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
 
-        match &self.output {
-            Type::Tensor(tensor) => {
-                let output = &tensor.name;
-                if self.keepdims {
+        let input = scope.tensor_use_owned(input_arg, node_position);
+        let output = arg_to_ident(output_arg);
+
+        match &output_arg.ty {
+            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                if self.config.keepdims {
                     // keepdims=True: Burn's argmin keeps dimensions by default
                     quote! {
                         let #output = #input.argmin(#axis);
@@ -60,8 +42,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
                     }
                 }
             }
-            Type::Scalar(scalar) => {
-                let output = &scalar.name;
+            onnx_ir::ir::ArgType::Scalar(_) => {
                 // 1D tensor with keepdims=false -> scalar output
                 // ArgMin always outputs Int64 indices
                 quote! {
@@ -71,20 +52,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
             }
             _ => panic!("ArgMin output must be Tensor or Scalar"),
         }
-    }
-
-    fn into_node(self) -> super::Node<PS> {
-        Node::ArgMin(self)
-    }
-}
-
-impl OnnxIntoNode for ArgMinNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::ArgMin(n) = node else {
-            panic!("Expected ArgMin node");
-        };
-        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
-        let output = crate::burn::Type::from(n.outputs.first().unwrap());
-        Self::new(input, output, n.config.axis, n.config.keepdims)
     }
 }

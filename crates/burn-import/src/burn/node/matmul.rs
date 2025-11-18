@@ -1,56 +1,65 @@
 use core::cmp::Ordering;
 
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
+use onnx_ir::{ArgType, Argument, DType};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub struct MatmulNode {
-    pub lhs: TensorType,
-    pub rhs: TensorType,
-    pub output: TensorType,
-}
-
-impl MatmulNode {
-    pub fn new(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
-        if lhs.kind != TensorKind::Float {
-            panic!("MatMul is only implemented for float tensors");
-        }
-        Self { lhs, rhs, output }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![
-            Type::Tensor(self.lhs.clone()),
-            Type::Tensor(self.rhs.clone()),
-        ]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = scope.tensor_use_owned(&self.lhs, node_position);
-        let rhs = scope.tensor_use_owned(&self.rhs, node_position);
-        let output = &self.output.name;
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output_arg = self.outputs.first().unwrap();
 
-        let lhs_dim = self.lhs.rank;
-        let rhs_dim = self.rhs.rank;
+        // Validate that lhs is a float tensor
+        if let ArgType::Tensor(t) = &lhs_arg.ty {
+            match t.dtype {
+                DType::F64 | DType::F32 | DType::F16 | DType::BF16 | DType::Flex32 => {}
+                _ => panic!("MatMul is only implemented for float tensors"),
+            }
+        } else {
+            panic!("MatMul lhs must be a tensor");
+        }
+
+        let lhs = scope.tensor_use_owned(lhs_arg, node_position);
+        let rhs = scope.tensor_use_owned(rhs_arg, node_position);
+        let output = arg_to_ident(output_arg);
+
+        // Get ranks from tensor types
+        let lhs_rank = match &lhs_arg.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("lhs must be a tensor"),
+        };
+        let rhs_rank = match &rhs_arg.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("rhs must be a tensor"),
+        };
+        let output_rank = match &output_arg.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("output must be a tensor"),
+        };
 
         // Support broadcasting for missing dimensions
-        match lhs_dim.cmp(&rhs_dim) {
+        match lhs_rank.cmp(&rhs_rank) {
             Ordering::Greater => {
-                let num_unsqueezes = lhs_dim - rhs_dim;
+                let num_unsqueezes = lhs_rank - rhs_rank;
 
-                if rhs_dim == 1 {
+                if rhs_rank == 1 {
                     // Matrix-vector product: expand vector to match matrix rank
-                    let squeeze_dim = lhs_dim - 1;
-                    let output_rank = self.output.rank;
+                    let squeeze_dim = lhs_rank - 1;
 
                     // Build unsqueeze dimensions: [-1, 0, 0, ...]
                     let mut unsqueeze_dims = vec![-1isize];
@@ -63,7 +72,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
-                    let target_rank = lhs_dim;
+                    let target_rank = lhs_rank;
 
                     quote! {
                         let #output = #lhs.matmul(#rhs.unsqueeze::<#target_rank>());
@@ -71,18 +80,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
                 }
             }
             Ordering::Less => {
-                if lhs_dim == 1 {
+                if lhs_rank == 1 {
                     // Vector-matrix product: expand vector to match matrix rank
-                    let squeeze_dim = rhs_dim - 2;
-                    let output_rank = self.output.rank;
-                    let target_rank = rhs_dim;
+                    let squeeze_dim = rhs_rank - 2;
+                    let target_rank = rhs_rank;
 
                     quote! {
                         let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs).squeeze_dim::<#output_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
-                    let target_rank = rhs_dim;
+                    let target_rank = rhs_rank;
 
                     quote! {
                         let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs);
@@ -93,21 +101,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
                 let #output = #lhs.matmul(#rhs);
             },
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::MatMul(self)
-    }
-}
-
-impl OnnxIntoNode for MatmulNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::MatMul(n) = node else {
-            panic!("Expected MatMul node");
-        };
-        let lhs = crate::burn::TensorType::from(n.inputs.first().unwrap());
-        let rhs = crate::burn::TensorType::from(n.inputs.get(1).unwrap());
-        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
-        Self::new(lhs, rhs, output)
     }
 }

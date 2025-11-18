@@ -1,7 +1,7 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::reduce::ReduceConfig;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -43,19 +43,9 @@ impl ReductionType {
             _ => panic!("Unsupported reduction type {:?}", self),
         }
     }
-}
 
-#[derive(Debug, Clone, new)]
-pub struct ReduceNode {
-    pub input: Type,
-    pub output: Type,
-    pub reduction_type: ReductionType,
-    pub config: ReduceConfig,
-}
-
-impl ReduceNode {
     fn reduce_by_dims(
-        reduction_type: ReductionType,
+        &self,
         input: TokenStream,
         dims: Vec<usize>,
         keepdims: bool,
@@ -63,7 +53,7 @@ impl ReduceNode {
     ) -> TokenStream {
         // Reducing along specified dimensions
         let reduced_input = dims.iter().fold(input, |tokens, dim| {
-            reduction_type.forward_reduce_by_dim(tokens, *dim)
+            self.forward_reduce_by_dim(tokens, *dim)
         });
 
         if keepdims {
@@ -83,7 +73,7 @@ impl ReduceNode {
     }
 
     fn forward_reduce(
-        reduction_type: ReductionType,
+        &self,
         input: TokenStream,
         mut dims: Vec<usize>,
         keepdims: bool,
@@ -91,7 +81,7 @@ impl ReduceNode {
         output_rank: usize,
     ) -> TokenStream {
         if dims.is_empty() {
-            if let Some(reduced_input) = reduction_type.try_forward_reduce(input.clone()) {
+            if let Some(reduced_input) = self.try_forward_reduce(input.clone()) {
                 // Reducing along all dimensions
                 if keepdims {
                     quote! { #reduced_input.expand([1; #output_rank]) }
@@ -101,281 +91,299 @@ impl ReduceNode {
             } else {
                 // Reducing along all specific dimensions
                 dims = (0..input_rank).collect();
-                Self::reduce_by_dims(reduction_type, input, dims, keepdims, output_rank)
+                self.reduce_by_dims(input, dims, keepdims, output_rank)
             }
         } else {
             // Reducing along specific dimensions
-            Self::reduce_by_dims(reduction_type, input, dims, keepdims, output_rank)
+            self.reduce_by_dims(input, dims, keepdims, output_rank)
         }
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
-    }
+// Helper macro to implement NodeCodegen for reduce nodes
+macro_rules! impl_reduce_node {
+    ($node_type:ty, $reduction_type:expr) => {
+        impl<PS: PrecisionSettings> NodeCodegen<PS> for $node_type {
+            fn inputs(&self) -> Vec<&Argument> {
+                self.inputs
+                    .iter()
+                    .filter(|arg| arg.is_dynamic() || arg.is_constant())
+                    .collect()
+            }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
-    }
+            fn outputs(&self) -> Vec<&Argument> {
+                self.outputs.iter().collect()
+            }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
+            fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+                let input_arg = self.inputs.first().unwrap();
+                let output_arg = self.outputs.first().unwrap();
 
-        // Handle input based on type
-        let (input, input_rank, is_bool) = match &self.input {
-            Type::Tensor(tensor) => (
-                scope.tensor_use_owned(tensor, node_position),
-                tensor.rank,
-                tensor.kind == TensorKind::Bool,
-            ),
-            _ => panic!("ReduceNode input must be a tensor"),
-        };
+                // Get input rank and check if it's boolean
+                let (input_rank, is_bool) = match &input_arg.ty {
+                    onnx_ir::ir::ArgType::Tensor(tensor) => {
+                        (tensor.rank, tensor.dtype == onnx_ir::ir::DType::Bool)
+                    }
+                    _ => panic!("Reduce node input must be a tensor"),
+                };
 
-        // Handle output based on type
-        let output_rank = match &self.output {
-            Type::Tensor(tensor) => tensor.rank,
-            Type::Scalar(_) => 0,
-            _ => panic!("ReduceNode output must be tensor or scalar"),
-        };
-        let dims = self.config.dims.clone();
-        let keepdims = self.config.keepdims;
+                // Get output rank
+                let output_rank = match &output_arg.ty {
+                    onnx_ir::ir::ArgType::Tensor(tensor) => tensor.rank,
+                    onnx_ir::ir::ArgType::Scalar(_) => 0,
+                    _ => panic!("Reduce node output must be tensor or scalar"),
+                };
 
-        // For boolean tensors with Min/Max reduction, use all()/any()
-        if is_bool && matches!(self.reduction_type, ReductionType::Min | ReductionType::Max) {
-            let (bool_reduction_all, bool_reduction_dim) = match self.reduction_type {
-                ReductionType::Min => (quote! { all }, quote! { all_dim }),
-                ReductionType::Max => (quote! { any }, quote! { any_dim }),
-                _ => unreachable!(),
-            };
+                let input = scope.tensor_use_owned(input_arg, node_position);
+                let output = arg_to_ident(output_arg);
 
-            let reduced_input = if dims.is_empty() {
-                // Reduce all dimensions
-                quote! { #input.#bool_reduction_all() }
-            } else {
-                // Reduce along specific dimensions
-                dims.iter().fold(input.clone(), |tokens, dim| {
-                    quote! { #tokens.#bool_reduction_dim(#dim) }
-                })
-            };
+                let dims = self.config.dims.clone();
+                let keepdims = self.config.keepdims;
 
-            let final_output = if keepdims {
-                if dims.is_empty() {
-                    quote! { #reduced_input.expand([1; #output_rank]) }
-                } else {
-                    reduced_input
-                }
-            } else if output_rank == 0 {
-                reduced_input
-            } else {
-                // Need to squeeze dimensions
-                let dims_to_squeeze = dims.to_tokens();
-                quote! { #reduced_input.squeeze_dims(&#dims_to_squeeze) }
-            };
+                // For boolean tensors with Min/Max reduction, use all()/any()
+                if is_bool && matches!($reduction_type, ReductionType::Min | ReductionType::Max) {
+                    let (bool_reduction_all, bool_reduction_dim) = match $reduction_type {
+                        ReductionType::Min => (quote! { all }, quote! { all_dim }),
+                        ReductionType::Max => (quote! { any }, quote! { any_dim }),
+                        _ => unreachable!(),
+                    };
 
-            return if output_rank == 0 {
-                quote! {
-                    let #output = {
-                        #final_output.into_scalar().elem::<bool>()
+                    let reduced_input = if dims.is_empty() {
+                        // Reduce all dimensions
+                        quote! { #input.#bool_reduction_all() }
+                    } else {
+                        // Reduce along specific dimensions
+                        dims.iter().fold(input.clone(), |tokens, dim| {
+                            quote! { #tokens.#bool_reduction_dim(#dim) }
+                        })
+                    };
+
+                    let final_output = if keepdims {
+                        if dims.is_empty() {
+                            quote! { #reduced_input.expand([1; #output_rank]) }
+                        } else {
+                            reduced_input
+                        }
+                    } else if output_rank == 0 {
+                        reduced_input
+                    } else {
+                        // Need to squeeze dimensions
+                        let dims_to_squeeze = dims.to_tokens();
+                        quote! { #reduced_input.squeeze_dims(&#dims_to_squeeze) }
+                    };
+
+                    return if output_rank == 0 {
+                        quote! {
+                            let #output = {
+                                #final_output.into_scalar().elem::<bool>()
+                            };
+                        }
+                    } else {
+                        quote! {
+                            let #output = #final_output;
+                        }
                     };
                 }
-            } else {
-                quote! {
-                    let #output = #final_output;
-                }
-            };
+
+                let raw_output_expr = match $reduction_type {
+                    ReductionType::SumSquare => {
+                        let input_square = quote! { #input.square() };
+                        ReductionType::Sum.forward_reduce(
+                            input_square,
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        )
+                    }
+                    ReductionType::L1 => {
+                        let input_abs = quote! { #input.abs() };
+                        ReductionType::Sum.forward_reduce(
+                            input_abs,
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        )
+                    }
+                    ReductionType::L2 => {
+                        let input_square = quote! { #input.square() };
+                        let input_square_reduced = ReductionType::Sum.forward_reduce(
+                            input_square,
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        // Cast to F32 before sqrt to avoid overflow/underflow
+                                        quote! { #input_square_reduced.float().cast(burn::tensor::DType::F32).sqrt().int() }
+                                    }
+                                    _ => {
+                                        // Float types - cast to F32 before sqrt, then back
+                                        quote! {
+                                            let input_dtype = #input.dtype();
+                                            #input_square_reduced.cast(burn::tensor::DType::F32).sqrt().cast(input_dtype)
+                                        }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        }
+                    }
+                    ReductionType::LogSum => {
+                        let input_reduced = ReductionType::Sum.forward_reduce(
+                            input.clone(),
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        quote! { #input_reduced.float().cast(burn::tensor::DType::F32).log().int() }
+                                    }
+                                    _ => {
+                                        quote! {
+                                            let input_dtype = #input.dtype();
+                                            #input_reduced.cast(burn::tensor::DType::F32).log().cast(input_dtype)
+                                        }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        }
+                    }
+                    ReductionType::LogSumExp => {
+                        let input_double = match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        quote! { #input.float().cast(burn::tensor::DType::F32) }
+                                    }
+                                    _ => {
+                                        quote! { #input.cast(burn::tensor::DType::F32) }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        };
+
+                        let input_max_reduced = ReductionType::Max.forward_reduce(
+                            quote! { input_double.clone() },
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        let exp_reduced = ReductionType::Sum.forward_reduce(
+                            quote! { input_exp_reduced },
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        let input_reduced = quote! {
+                            let input_dtype = #input.dtype();
+                            let input_shape = #input.shape();
+                            let input_double = #input_double;
+                            let input_max_reduced = #input_max_reduced;
+                            let input_exp_reduced = (input_double - input_max_reduced.clone().expand(input_shape)).exp();
+                            let exp_sum_reduced = #exp_reduced;
+                            (input_max_reduced + exp_sum_reduced.log())
+                        };
+
+                        match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        quote! { #input_reduced.int() }
+                                    }
+                                    _ => {
+                                        quote! { #input_reduced.cast(input_dtype) }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        }
+                    }
+                    _ => $reduction_type.forward_reduce(
+                        input,
+                        dims.clone(),
+                        keepdims,
+                        input_rank,
+                        output_rank,
+                    ),
+                };
+
+                // Handle scalar outputs by extracting the scalar value from the tensor result
+                let output_expr = match &output_arg.ty {
+                    onnx_ir::ir::ArgType::Scalar(dtype) => {
+                        // For scalar outputs, extract the scalar value using .into_scalar()
+                        match dtype {
+                            onnx_ir::ir::DType::I8 => quote! { #raw_output_expr.into_scalar().elem::<i8>() },
+                            onnx_ir::ir::DType::I16 => quote! { #raw_output_expr.into_scalar().elem::<i16>() },
+                            onnx_ir::ir::DType::I32 => quote! { #raw_output_expr.into_scalar().elem::<i32>() },
+                            onnx_ir::ir::DType::I64 => quote! { #raw_output_expr.into_scalar().elem::<i64>() },
+                            onnx_ir::ir::DType::F16 => quote! { #raw_output_expr.into_scalar().elem::<half::f16>() },
+                            onnx_ir::ir::DType::F32 => quote! { #raw_output_expr.into_scalar().elem::<f32>() },
+                            onnx_ir::ir::DType::F64 => quote! { #raw_output_expr.into_scalar().elem::<f64>() },
+                            onnx_ir::ir::DType::Bool => quote! { #raw_output_expr.into_scalar().elem::<bool>() },
+                            _ => panic!("Unsupported scalar type for reduce output"),
+                        }
+                    }
+                    onnx_ir::ir::ArgType::Tensor(_) => raw_output_expr,
+                    _ => panic!("Reduce node output must be tensor or scalar"),
+                };
+
+                quote! { let #output = { #output_expr }; }
+            }
+
+            fn register_imports(&self, _imports: &mut BurnImports) {
+                // No special imports needed for reduce operations
+            }
         }
-
-        let raw_output_expr = match self.reduction_type {
-            ReductionType::SumSquare => {
-                let input_square = quote! { #input.square() };
-                Self::forward_reduce(
-                    ReductionType::Sum,
-                    input_square,
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                )
-            }
-            ReductionType::L1 => {
-                let input_abs = quote! { #input.abs() };
-                Self::forward_reduce(
-                    ReductionType::Sum,
-                    input_abs,
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                )
-            }
-            ReductionType::L2 => {
-                let input_square = quote! { #input.square() };
-                let input_square_reduced = Self::forward_reduce(
-                    ReductionType::Sum,
-                    input_square,
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
-
-                match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            // Cast to F32 before sqrt to avoid overflow/underflow in lower precision types,
-                            // as per ONNX ReduceL2 specification: https://onnx.ai/onnx/operators/onnx__ReduceL2.html#function-body
-                            quote! { #input_square_reduced.float().cast(burn::tensor::DType::F32).sqrt().int() }
-                        }
-                        TensorKind::Float => {
-                            // Cast to F32 before sqrt to avoid overflow/underflow in lower precision types,
-                            // then cast back to original dtype to maintain input precision
-                            quote! {
-                                let input_dtype = #input.dtype();
-                                #input_square_reduced.cast(burn::tensor::DType::F32).sqrt().cast(input_dtype)
-                            }
-                        }
-                        _ => panic!("Unsupported input type for L2 reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
-                }
-            }
-            ReductionType::LogSum => {
-                let input_reduced = Self::forward_reduce(
-                    ReductionType::Sum,
-                    input.clone(),
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
-
-                match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            quote! { #input_reduced.float().cast(burn::tensor::DType::F32).log().int() }
-                        }
-                        TensorKind::Float => {
-                            quote! {
-                                let input_dtype = #input.dtype();
-                                #input_reduced.cast(burn::tensor::DType::F32).log().cast(input_dtype)
-                            }
-                        }
-                        _ => panic!("Unsupported input type for LogSum reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
-                }
-            }
-            ReductionType::LogSumExp => {
-                let input_double = match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            quote! { #input.float().cast(burn::tensor::DType::F32) }
-                        }
-                        TensorKind::Float => {
-                            quote! { #input.cast(burn::tensor::DType::F32) }
-                        }
-                        _ => panic!("Unsupported input type for LogSumExp reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
-                };
-
-                let input_max_reduced = Self::forward_reduce(
-                    ReductionType::Max,
-                    quote! { input_double.clone() },
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
-
-                let exp_reduced = Self::forward_reduce(
-                    ReductionType::Sum,
-                    quote! { input_exp_reduced },
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
-
-                let input_reduced = quote! {
-                    let input_dtype = #input.dtype();
-                    let input_shape = #input.shape();
-                    let input_double = #input_double;
-                    let input_max_reduced = #input_max_reduced;
-                    let input_exp_reduced = (input_double - input_max_reduced.clone().expand(input_shape)).exp();
-                    let exp_sum_reduced = #exp_reduced;
-                    (input_max_reduced + exp_sum_reduced.log())
-                };
-
-                match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            quote! { #input_reduced.int() }
-                        }
-                        TensorKind::Float => {
-                            quote! { #input_reduced.cast(input_dtype) }
-                        }
-                        _ => panic!("Unsupported input type for LogSumExp reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
-                }
-            }
-            _ => Self::forward_reduce(
-                self.reduction_type,
-                input,
-                dims.clone(),
-                keepdims,
-                input_rank,
-                output_rank,
-            ),
-        };
-
-        // Handle scalar outputs by extracting the scalar value from the tensor result
-        let output_expr = match &self.output {
-            Type::Scalar(scalar_type) => {
-                // For scalar outputs, extract the scalar value using .into_scalar() and convert to the proper type
-                let elem_type = &scalar_type.ty();
-                quote! { #raw_output_expr.into_scalar().elem::<#elem_type>() }
-            }
-            Type::Tensor(_) => raw_output_expr,
-            _ => panic!("ReduceNode output must be tensor or scalar"),
-        };
-
-        quote! { let #output = { #output_expr }; }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::ReduceMax(self)
-    }
+    };
 }
 
-impl OnnxIntoNode for ReduceNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        // Extract reduction type, inputs, outputs, and config from node variant
-        let (inputs, outputs, reduction_type, config) = match &node {
-            onnx_ir::Node::ReduceMax(n) => (&n.inputs, &n.outputs, ReductionType::Max, &n.config),
-            onnx_ir::Node::ReduceMin(n) => (&n.inputs, &n.outputs, ReductionType::Min, &n.config),
-            onnx_ir::Node::ReduceSum(n) => (&n.inputs, &n.outputs, ReductionType::Sum, &n.config),
-            onnx_ir::Node::ReduceProd(n) => (&n.inputs, &n.outputs, ReductionType::Prod, &n.config),
-            onnx_ir::Node::ReduceMean(n) => (&n.inputs, &n.outputs, ReductionType::Mean, &n.config),
-            onnx_ir::Node::ReduceL1(n) => (&n.inputs, &n.outputs, ReductionType::L1, &n.config),
-            onnx_ir::Node::ReduceL2(n) => (&n.inputs, &n.outputs, ReductionType::L2, &n.config),
-            onnx_ir::Node::ReduceLogSum(n) => {
-                (&n.inputs, &n.outputs, ReductionType::LogSum, &n.config)
-            }
-            onnx_ir::Node::ReduceLogSumExp(n) => {
-                (&n.inputs, &n.outputs, ReductionType::LogSumExp, &n.config)
-            }
-            onnx_ir::Node::ReduceSumSquare(n) => {
-                (&n.inputs, &n.outputs, ReductionType::SumSquare, &n.config)
-            }
-            _ => panic!("Unsupported reduction type: {}", node.name()),
-        };
-
-        let input = Type::from(inputs.first().unwrap());
-        let output = Type::from(outputs.first().unwrap());
-
-        ReduceNode::new(input, output, reduction_type, config.clone())
-    }
-}
+// Implement NodeCodegen for all reduce node types
+impl_reduce_node!(onnx_ir::node::reduce::ReduceMaxNode, ReductionType::Max);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceMinNode, ReductionType::Min);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceSumNode, ReductionType::Sum);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceProdNode, ReductionType::Prod);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceMeanNode, ReductionType::Mean);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceL1Node, ReductionType::L1);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceL2Node, ReductionType::L2);
+impl_reduce_node!(
+    onnx_ir::node::reduce::ReduceLogSumNode,
+    ReductionType::LogSum
+);
+impl_reduce_node!(
+    onnx_ir::node::reduce::ReduceLogSumExpNode,
+    ReductionType::LogSumExp
+);
+impl_reduce_node!(
+    onnx_ir::node::reduce::ReduceSumSquareNode,
+    ReductionType::SumSquare
+);

@@ -1,66 +1,46 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
+use super::{NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data};
+use crate::burn::{BurnImports, Field, Scope};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::{PReluConfig, PReluRecord},
+    nn::PReluRecord,
     record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
+    tensor::Tensor,
 };
-use proc_macro2::TokenStream;
+use onnx_ir::Argument;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
 
-#[derive(Clone, Debug)]
-pub struct PReluNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub alpha: TensorData,
-    pub config: PReluConfig,
-}
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
+    }
 
-impl PReluNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        alpha: TensorData,
-        config: PReluConfig,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    PRelu<B>
-                },
-            ),
-            input,
-            output,
-            alpha,
-            config,
-        }
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
-}
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+    fn field(&self) -> Option<Field> {
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                PRelu<B>
+            },
+        ))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
-        let alpha = &self.config.alpha;
-        let num_parameters = self.config.num_parameters;
+        let name = Ident::new(&self.name, Span::call_site());
+
+        // Get alpha from the second input to determine num_parameters
+        let alpha_data = extract_node_data(&self.inputs, 1).expect("PRelu weight is required");
+        let num_parameters = alpha_data.shape[0];
+
         let tokens = quote! {
-            let #name = PReluConfig::new()
-                .with_num_parameters(#num_parameters)
-                .with_alpha(#alpha)
+            let #name = PReluConfig::new(#num_parameters)
                 .init(device);
         };
 
@@ -69,10 +49,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
+
+        let alpha = extract_node_data(&self.inputs, 1).expect("PRelu weight is required");
+
         let record = PReluRecord::<SerializationBackend> {
             alpha: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.alpha.clone().convert::<PS::FloatElem>(), &device),
+                Tensor::from_data(alpha.clone().convert::<PS::FloatElem>(), &device),
             ),
             alpha_value: ConstantRecord,
         };
@@ -82,64 +65,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::PRelu");
         imports.register("burn::nn::PReluConfig");
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::PRelu(self)
-    }
-}
-
-impl OnnxIntoNode for PReluNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::PRelu(n) = &node else {
-            panic!("Expected PRelu node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        let mut weight = extract_node_data(&n.inputs, 1).expect("PRelu weight is required");
-
-        // Determine weight shape and flatten if necessary
-        let weight_shape = if weight.shape.len() > 1 {
-            let trailing_dims_product: usize = weight.shape[1..].iter().product();
-            if trailing_dims_product == 1 {
-                // Flatten to rank 1 as Burn expects
-                weight.shape = vec![weight.shape[0]];
-                weight.shape[0]
-            } else {
-                panic!(
-                    "PRelu weight shape {:?} is invalid. Expected shape [C] or [C, 1, ...] where trailing dimensions are 1",
-                    weight.shape
-                );
-            }
-        } else if weight.shape.is_empty() {
-            // Scalar weight
-            1
-        } else {
-            // Already rank 1
-            weight.shape[0]
-        };
-
-        let alpha_value = if weight_shape == 1 {
-            weight.clone().to_vec::<f32>().unwrap()[0] as f64
-        } else {
-            0.01 // Default value if vectorized
-        };
-
-        let config = PReluConfig::new()
-            .with_num_parameters(weight_shape)
-            .with_alpha(alpha_value);
-
-        Self::new(&n.name, input, output, weight, config)
     }
 }

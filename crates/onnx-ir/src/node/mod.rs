@@ -13,10 +13,38 @@ pub mod test_utils;
 
 pub mod elementwise;
 
+// Unary element-wise operations
+pub mod abs;
+pub mod ceil;
+pub mod floor;
+pub mod sqrt;
+pub mod exp;
+pub mod log;
+pub mod neg;
+pub mod reciprocal;
+pub mod round;
+pub mod sign;
+pub mod sin;
+pub mod cos;
+pub mod tan;
+pub mod sinh;
+pub mod cosh;
+pub mod tanh;
+pub mod erf;
+pub mod sigmoid;
+pub mod gelu;
+pub mod not;
+pub mod bitwisenot;
+
+// Binary element-wise operations
+pub mod and;
 pub mod argmax;
 pub mod argmin;
 pub mod arithmetic;
 pub mod attention;
+pub mod bitwiseand;
+pub mod bitwiseor;
+pub mod bitwisexor;
 pub mod avg_pool1d;
 pub mod avg_pool2d;
 pub mod batch_norm;
@@ -63,8 +91,10 @@ pub mod mean;
 pub mod modulo;
 pub mod nonzero;
 pub mod one_hot;
+pub mod or;
 pub mod pad;
 pub mod padding;
+pub mod pow;
 pub mod prelu;
 pub mod random;
 pub mod random_like;
@@ -89,3 +119,4 @@ pub mod trilu;
 pub mod unsqueeze;
 pub mod unsupported;
 pub mod where_op;
+pub mod xor;

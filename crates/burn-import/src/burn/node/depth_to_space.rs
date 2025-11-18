@@ -1,39 +1,25 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::depth_to_space::{DepthToSpaceConfig, DepthToSpaceMode};
+use onnx_ir::{Argument, depth_to_space::DepthToSpaceMode};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub struct DepthToSpaceNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub config: DepthToSpaceConfig,
-}
-
-impl DepthToSpaceNode {
-    pub fn new(input: TensorType, output: TensorType, config: DepthToSpaceConfig) -> Self {
-        Self {
-            input,
-            output,
-            config,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::depth_to_space::DepthToSpaceNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
         let block_size = self.config.block_size;
 
         let output_expr = match self.config.mode {
@@ -61,20 +47,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
                 #output_expr
             };
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::DepthToSpace(self)
-    }
-}
-
-impl OnnxIntoNode for DepthToSpaceNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::DepthToSpace(n) = node else {
-            panic!("Expected DepthToSpace node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(input, output, n.config)
     }
 }

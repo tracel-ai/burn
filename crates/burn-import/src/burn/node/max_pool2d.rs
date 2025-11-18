@@ -1,58 +1,38 @@
-use onnx_ir::node::max_pool2d::MaxPool2dConfig;
-use proc_macro2::TokenStream;
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Field, Scope, ToTokens};
+use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use burn::record::PrecisionSettings;
-
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
-
-#[derive(Debug, Clone)]
-pub struct MaxPool2dNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub config: MaxPool2dConfig,
-}
-
-impl MaxPool2dNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        config: MaxPool2dConfig,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    MaxPool2d
-                },
-            ),
-            input,
-            output,
-            config,
-        }
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool2d::MaxPool2dNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
-}
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+
+    fn field(&self) -> Option<Field> {
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                MaxPool2d
+            },
+        ))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+        let name = Ident::new(&self.name, Span::call_site());
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
+
         let tokens = quote! {
             let #name = MaxPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
@@ -65,9 +45,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
@@ -75,27 +55,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::pool::MaxPool2d");
         imports.register("burn::nn::pool::MaxPool2dConfig");
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::MaxPool2d(self)
-    }
-
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        S::serialize_none(serializer)
-    }
-}
-
-impl OnnxIntoNode for MaxPool2dNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::MaxPool2d(n) = node else {
-            panic!("Expected MaxPool2d node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(&n.name, input, output, n.config.clone())
     }
 }

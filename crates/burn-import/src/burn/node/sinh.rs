@@ -1,52 +1,25 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct SinhNode {
-    pub input: Type,
-    pub output: Type,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SinhNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::sinh::SinhNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs.iter().collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = match &self.input {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
-            }
-            _ => panic!("Sinh input must be a tensor or scalar"),
-        };
-        let output = &self.output.name();
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = #input.sinh();
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Sinh(self)
-    }
-}
-
-impl OnnxIntoNode for SinhNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Sinh(n) = node else {
-            panic!("Expected Sinh node");
-        };
-        let input = Type::from(n.inputs.first().unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(input, output)
     }
 }

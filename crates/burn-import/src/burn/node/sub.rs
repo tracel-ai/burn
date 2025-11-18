@@ -1,62 +1,53 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::{ArgType, Argument};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
-pub struct SubNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-}
-
-impl SubNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type) -> Self {
-        Self { lhs, rhs, output }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::SubNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        let lhs = match &lhs_arg.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(lhs_arg, node_position),
+            ArgType::Scalar(_) => {
+                let name = arg_to_ident(lhs_arg);
                 quote! { #name }
             }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
+            ArgType::Shape(_) => {
+                let name = arg_to_ident(lhs_arg);
                 quote! { #name }
             }
-            _ => panic!("lhs must be a tensor, scalar, or shape"),
         };
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
+        let rhs = match &rhs_arg.ty {
+            ArgType::Tensor(_) => scope.tensor_use_owned(rhs_arg, node_position),
+            ArgType::Scalar(_) => {
+                let name = arg_to_ident(rhs_arg);
                 quote! { #name }
             }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
+            ArgType::Shape(_) => {
+                let name = arg_to_ident(rhs_arg);
                 quote! { #name }
             }
-            _ => panic!("rhs must be a tensor, scalar, or shape"),
         };
 
-        let output = &self.output.name();
-
-        let function = match (&self.lhs, &self.rhs) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+        let function = match (&lhs_arg.ty, &rhs_arg.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
 
@@ -72,10 +63,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     quote! { #lhs.unsqueeze_dims(&[#(#dims),*]).sub(#rhs) }
                 }
             }
-            (Type::Tensor(_), Type::Scalar(_)) => quote! { #lhs.sub_scalar(#rhs) },
-            (Type::Scalar(_), Type::Scalar(_)) => quote! { #lhs - #rhs },
-            (Type::Scalar(_), Type::Tensor(_)) => quote! { -#rhs.sub_scalar(#lhs) },
-            (Type::Shape(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Scalar(_)) => quote! { #lhs.sub_scalar(#rhs) },
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => quote! { #lhs - #rhs },
+            (ArgType::Scalar(_), ArgType::Tensor(_)) => quote! { -#rhs.sub_scalar(#lhs) },
+            (ArgType::Shape(_), ArgType::Shape(_)) => quote! {
                 {
                     let mut result = #lhs;
                     for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
@@ -84,7 +75,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     result
                 }
             },
-            (Type::Shape(_), Type::Scalar(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Scalar(_)) => quote! {
                 {
                     let mut result = #lhs;
                     for result_item in result.iter_mut() {
@@ -93,7 +84,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     result
                 }
             },
-            (Type::Scalar(_), Type::Shape(_)) => quote! {
+            (ArgType::Scalar(_), ArgType::Shape(_)) => quote! {
                 {
                     let mut result = #rhs;
                     for result_item in result.iter_mut() {
@@ -102,34 +93,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     result
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
                 Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).sub(#rhs)
             },
-            (Type::Tensor(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
                 #lhs.sub(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
             },
-            _ => panic!("Subtraction is supported for tensor, scalar, and shape types only"),
         };
 
         quote! {
             let #output = #function;
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Sub(self)
-    }
-}
-
-impl OnnxIntoNode for SubNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Sub(n) = node else {
-            panic!("Expected Sub node");
-        };
-        let lhs = Type::from(n.inputs.first().unwrap());
-        let rhs = Type::from(n.inputs.get(1).unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-
-        Self::new(lhs, rhs, output)
     }
 }

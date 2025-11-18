@@ -1,168 +1,160 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{ScalarType, ShapeType, Type};
-
+use super::NodeCodegen;
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct WhereNode {
-    /// Bool tensor. When True (nonzero), yield X, otherwise yield Y.
-    pub condition: Type,
-    /// Values selected at indices where condition is True.
-    pub x: Type,
-    /// Values selected at indices where condition is False.
-    pub y: Type,
-    pub output: Type,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::where_op::WhereNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<crate::burn::Type> {
-        vec![self.condition.clone(), self.x.clone(), self.y.clone()]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
-    fn forward(&self, scope: &mut crate::burn::Scope, node_position: usize) -> TokenStream {
-        match &self.output {
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        // Convert Arguments to Types for pattern matching
+        let condition = Type::from(&self.inputs[0]);
+        let x = Type::from(&self.inputs[1]);
+        let y = Type::from(&self.inputs[2]);
+        let output = Type::from(self.outputs.first().unwrap());
+
+        match &output {
             Type::Tensor(out) => {
-                let cond = Self::input_as_tensor(&self.condition, out.rank, scope, node_position);
-                let y = Self::input_as_tensor(&self.y, out.rank, scope, node_position);
+                let cond = where_input_as_tensor(&condition, out.rank, scope, node_position);
+                let y_tensor = where_input_as_tensor(&y, out.rank, scope, node_position);
                 let out_id = &out.name;
 
-                if let Type::Scalar(x) = &self.x {
-                    let x = &x.name;
+                if let Type::Scalar(x_scalar) = &x {
+                    let x_name = &x_scalar.name;
                     quote! {
-                        let #out_id = #y.mask_fill(#cond, #x);
+                        let #out_id = #y_tensor.mask_fill(#cond, #x_name);
                     }
                 } else {
-                    let x = Self::input_as_tensor(&self.x, out.rank, scope, node_position);
+                    let x_tensor = where_input_as_tensor(&x, out.rank, scope, node_position);
                     quote! {
-                        let #out_id = #y.mask_where(#cond, #x);
+                        let #out_id = #y_tensor.mask_where(#cond, #x_tensor);
                     }
                 }
             }
             Type::Scalar(out) => {
                 // Scalar out means all inputs are scalars as well:
-                let cond = self.condition.as_scalar();
-                let x = self.x.as_scalar();
-                let y = self.y.as_scalar();
-                Self::forward_scalar(out, cond, x, y)
+                let cond = condition.as_scalar();
+                let x_scalar = x.as_scalar();
+                let y_scalar = y.as_scalar();
+                where_forward_scalar(out, cond, x_scalar, y_scalar)
             }
             Type::Shape(out) => {
                 // Shape output - all inputs should be shapes or compatible types
-                Self::forward_shape(out, &self.condition, &self.x, &self.y)
+                where_forward_shape(out, &condition, &x, &y)
             }
-            other => panic!("Where cannot handle {other:?}"),
+            Type::Other(_) => panic!("Where cannot handle Other type"),
         }
-    }
-
-    fn into_node(self) -> super::Node<PS> {
-        Node::Where(self)
     }
 }
 
-impl OnnxIntoNode for WhereNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Where(n) = node else {
-            panic!("Expected Where node");
+// Helper functions for Where operation
+fn where_forward_scalar(
+    out: &ScalarType,
+    cond: &ScalarType,
+    x: &ScalarType,
+    y: &ScalarType,
+) -> TokenStream {
+    let out_name = &out.name;
+    let out_type = out.ty();
+    let cond_name = &cond.name;
+    let x_name = &x.name;
+    let y_name = &y.name;
+
+    quote! {
+        let #out_name : #out_type = if #cond_name {
+            #x_name
+        }
+        else {
+            #y_name
         };
-        let condition = Type::from(n.inputs.first().unwrap());
-        let x = Type::from(n.inputs.get(1).unwrap());
-        let y = Type::from(n.inputs.get(2).unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(condition, x, y, output)
     }
 }
 
-impl WhereNode {
-    fn forward_scalar(
-        out: &ScalarType,
-        cond: &ScalarType,
-        x: &ScalarType,
-        y: &ScalarType,
-    ) -> TokenStream {
-        let out_name = &out.name;
-        let out_type = out.ty();
-        let cond_name = &cond.name;
-        let x_name = &x.name;
-        let y_name = &y.name;
+fn where_forward_shape(out: &ShapeType, condition: &Type, x: &Type, y: &Type) -> TokenStream {
+    let out_name = &out.name;
 
-        quote! {
-            let #out_name : #out_type = if #cond_name {
-                #x_name
-            }
-            else {
-                #y_name
-            };
-        }
-    }
+    // Generate code based on input types - only semantically valid combinations
+    match (condition, x, y) {
+        (Type::Shape(cond), Type::Shape(x_shape), Type::Shape(y_shape)) => {
+            // All shapes: element-wise selection between shape dimensions
+            // Each element of condition determines whether to take from x or y
+            let cond_name = &cond.name;
+            let x_name = &x_shape.name;
+            let y_name = &y_shape.name;
 
-    fn forward_shape(out: &ShapeType, condition: &Type, x: &Type, y: &Type) -> TokenStream {
-        let out_name = &out.name;
-
-        // Generate code based on input types - only semantically valid combinations
-        match (condition, x, y) {
-            (Type::Shape(cond), Type::Shape(x_shape), Type::Shape(y_shape)) => {
-                // All shapes: element-wise selection between shape dimensions
-                // Each element of condition determines whether to take from x or y
-                let cond_name = &cond.name;
-                let x_name = &x_shape.name;
-                let y_name = &y_shape.name;
-
-                quote! {
-                    let #out_name = {
-                        let mut result = #y_name;
-                        for (i, (cond_item, x_item)) in #cond_name.iter().zip(#x_name.iter()).enumerate() {
-                            if *cond_item != 0 {
-                                result[i] = *x_item;
-                            }
+            quote! {
+                let #out_name = {
+                    let mut result = #y_name;
+                    for (i, (cond_item, x_item)) in #cond_name.iter().zip(#x_name.iter()).enumerate() {
+                        if *cond_item != 0 {
+                            result[i] = *x_item;
                         }
-                        result
-                    };
-                }
+                    }
+                    result
+                };
             }
-            (Type::Scalar(cond), Type::Shape(x_shape), Type::Shape(y_shape)) => {
-                // Scalar condition: select entire shape x or y
-                let cond_name = &cond.name;
-                let x_name = &x_shape.name;
-                let y_name = &y_shape.name;
+        }
+        (Type::Scalar(cond), Type::Shape(x_shape), Type::Shape(y_shape)) => {
+            // Scalar condition: select entire shape x or y
+            let cond_name = &cond.name;
+            let x_name = &x_shape.name;
+            let y_name = &y_shape.name;
 
-                quote! {
-                    let #out_name = if #cond_name { #x_name } else { #y_name };
-                }
+            quote! {
+                let #out_name = if #cond_name { #x_name } else { #y_name };
             }
-            _ => panic!(
-                "Where with Shape output only supports: \
+        }
+        _ => panic!(
+            "Where with Shape output only supports: \
                  (Shape, Shape, Shape) for element-wise selection or \
                  (Scalar, Shape, Shape) for whole shape selection"
-            ),
-        }
+        ),
     }
+}
 
-    fn input_as_tensor(
-        input: &Type,
-        broadcast_rank: usize,
-        scope: &mut crate::burn::Scope,
-        node_position: usize,
-    ) -> TokenStream {
-        let (tensor, rank) = match input {
-            Type::Tensor(t) => (scope.tensor_use_owned(t, node_position), t.rank),
-            Type::Scalar(s) => (s.to_full_tensor(&vec![1; broadcast_rank]), broadcast_rank),
-            Type::Shape(s) => (s.to_tensor(), 1),
-            _ => panic!("Where op: {input:?} input not implemented"),
-        };
-        if rank < broadcast_rank {
-            // Generate unsqueeze_dims to add trailing dimensions for broadcasting
-            // Create a vector of dimension indices to unsqueeze at the end
-            let dims_to_unsqueeze: Vec<isize> =
-                (rank..broadcast_rank).map(|d| d as isize).collect();
-            let dims = quote! { &[#(#dims_to_unsqueeze),*] };
-            quote! { #tensor.unsqueeze_dims(#dims) }
-        } else {
-            tensor
+fn where_input_as_tensor(
+    input: &Type,
+    broadcast_rank: usize,
+    scope: &mut Scope,
+    node_position: usize,
+) -> TokenStream {
+    let (tensor, rank) = match input {
+        Type::Tensor(t) => {
+            let arg_type = onnx_ir::ir::ArgType::Tensor(onnx_ir::ir::TensorType {
+                dtype: match t.kind {
+                    crate::burn::TensorKind::Float => onnx_ir::ir::DType::F32,
+                    crate::burn::TensorKind::Int => onnx_ir::ir::DType::I64,
+                    crate::burn::TensorKind::Bool => onnx_ir::ir::DType::Bool,
+                },
+                rank: t.rank,
+                static_shape: None,
+            });
+            let arg = onnx_ir::Argument::new(t.name.to_string(), arg_type);
+            (scope.tensor_use_owned(&arg, node_position), t.rank)
         }
+        Type::Scalar(s) => (s.to_full_tensor(&vec![1; broadcast_rank]), broadcast_rank),
+        Type::Shape(s) => (s.to_tensor(), 1),
+        Type::Other(_) => panic!("Where op: Other input not implemented"),
+    };
+
+    if rank < broadcast_rank {
+        // Generate unsqueeze_dims to add trailing dimensions for broadcasting
+        // Create a vector of dimension indices to unsqueeze at the end
+        let dims_to_unsqueeze: Vec<isize> = (rank..broadcast_rank).map(|d| d as isize).collect();
+        let dims = quote! { &[#(#dims_to_unsqueeze),*] };
+        quote! { #tensor.unsqueeze_dims(#dims) }
+    } else {
+        tensor
     }
 }

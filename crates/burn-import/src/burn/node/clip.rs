@@ -1,32 +1,44 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct ClipNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub min: Option<f64>, // Should be elem Type
-    pub max: Option<f64>,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::clip::ClipNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        if let Some(min) = self.min {
-            if let Some(max) = self.max {
+        // Extract static values from ClipInput enum
+        let min = match &self.config.min {
+            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
+            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
+                panic!("Clip: runtime min values are not supported in burn-import")
+            }
+            None => None,
+        };
+        let max = match &self.config.max {
+            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
+            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
+                panic!("Clip: runtime max values are not supported in burn-import")
+            }
+            None => None,
+        };
+
+        if let Some(min) = min {
+            if let Some(max) = max {
                 quote! {
                     let #output = #input.clamp(#min, #max);
                 }
@@ -35,44 +47,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
                     let #output = #input.clamp_min(#min);
                 }
             }
-        } else if let Some(max) = self.max {
+        } else if let Some(max) = max {
             quote! {
                 let #output = #input.clamp_max(#max);
             }
         } else {
             panic!("Clip node must have at least one min or max value");
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Clip(self)
-    }
-}
-
-impl OnnxIntoNode for ClipNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Clip(n) = node else {
-            panic!("Expected Clip node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-
-        // Extract static values from ClipInput enum
-        let min = match &n.config.min {
-            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
-            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
-                panic!("Clip: runtime min values are not supported in burn-import")
-            }
-            None => None,
-        };
-        let max = match &n.config.max {
-            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
-            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
-                panic!("Clip: runtime max values are not supported in burn-import")
-            }
-            None => None,
-        };
-
-        Self::new(input, output, min, max)
     }
 }

@@ -1,35 +1,40 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, Scope, ShapeType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct ShapeNode {
-    pub input: Type,
-    pub output: ShapeType,
-    pub start_dim: usize,
-    pub end_dim: usize,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::shape::ShapeNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Shape(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
-        let dim = self.output.rank.to_tokens();
-        let start_dim_tok = self.start_dim.to_tokens();
-        let end_dim_tok = self.end_dim.to_tokens();
+        use onnx_ir::ir::ArgType;
 
-        let function = match &self.input {
-            Type::Tensor(tensor) => {
-                let input = scope.tensor_use_owned(tensor, node_position);
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+        let output = arg_to_ident(output_arg);
+
+        let dim = match &output_arg.ty {
+            ArgType::Shape(rank) => rank.to_tokens(),
+            _ => panic!("Shape operation expects Shape output"),
+        };
+
+        let start_dim_tok = self.config.start.to_tokens();
+        let end_dim_tok = self.config.end.to_tokens();
+
+        let function = match &input_arg.ty {
+            ArgType::Tensor(_) => {
+                let input = scope.tensor_use_owned(input_arg, node_position);
                 quote! {
                     #input.dims()[#start_dim_tok..#end_dim_tok]
                         .iter()
@@ -39,14 +44,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
                         .unwrap()
                 }
             }
-            Type::Shape(shape_type) => {
+            ArgType::Shape(shape_rank) => {
                 // If input is already a shape array [i64; N], the Shape operation
                 // returns the dimensionality of the shape (which is N) as a Shape(1) array
                 // This matches the ONNX semantics where Shape of a shape gives you the rank
-                let rank_value = shape_type.rank as i64;
+                let rank_value = *shape_rank as i64;
                 quote! { [#rank_value] }
             }
-            _ => panic!("Shape operation only supports Tensor or Shape inputs"),
+            ArgType::Scalar(_) => panic!("Shape operation only supports Tensor or Shape inputs"),
         };
 
         quote! {
@@ -54,27 +59,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Shape(self)
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("alloc::vec::Vec");
-    }
-}
-
-impl OnnxIntoNode for ShapeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Shape(n) = node else {
-            panic!("Expected Shape node");
-        };
-        let input = Type::from(n.inputs.first().unwrap());
-        let output = match Type::from(n.outputs.first().unwrap()) {
-            Type::Shape(s) => s,
-            _ => panic!("Shape expects shape output"),
-        };
-        let start_dim = n.config.start;
-        let end_dim = n.config.end;
-        Self::new(input, output, start_dim, end_dim)
+        use onnx_ir::ir::ArgType;
+        // Only register Vec if we're extracting shape from a tensor
+        if matches!(&self.inputs.first().unwrap().ty, ArgType::Tensor(_)) {
+            imports.register("alloc::vec::Vec");
+        }
     }
 }

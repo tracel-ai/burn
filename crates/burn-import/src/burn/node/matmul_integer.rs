@@ -1,113 +1,73 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::Scope;
 use burn::record::PrecisionSettings;
-use proc_macro2::Ident;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::parse_str;
 
-/// ONNX MatMulInteger: (A - a_zp) @ (B - b_zp) -> int32
-#[derive(Debug, Clone)]
-pub struct MatMulIntegerNode {
-    pub lhs: TensorType,                    // u8 or i8
-    pub rhs: TensorType,                    // u8 or i8
-    pub lhs_zero_point: Option<TensorType>, // optional zp
-    pub rhs_zero_point: Option<TensorType>, // optional zp
-    pub output: TensorType,                 // i32
-}
-
-impl MatMulIntegerNode {
-    pub fn new(
-        lhs: TensorType,
-        rhs: TensorType,
-        lhs_zero_point: Option<TensorType>,
-        rhs_zero_point: Option<TensorType>,
-        output: TensorType,
-    ) -> Self {
-        if lhs.kind != TensorKind::Int || rhs.kind != TensorKind::Int {
-            panic!("MatMulInteger expects integer tensors (u8/i8) for lhs/rhs");
-        }
-        if output.kind != TensorKind::Int {
-            panic!("MatMulInteger output must be int32");
-        }
-        Self {
-            lhs,
-            rhs,
-            lhs_zero_point,
-            rhs_zero_point,
-            output,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmulinteger::MatMulIntegerNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        let mut v = vec![
-            Type::Tensor(self.lhs.clone()),
-            Type::Tensor(self.rhs.clone()),
-        ];
-        if let Some(zp) = &self.lhs_zero_point {
-            v.push(Type::Tensor(zp.clone()));
-        }
-        if let Some(zp) = &self.rhs_zero_point {
-            v.push(Type::Tensor(zp.clone()));
-        }
-        v
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = scope.tensor_use_owned(&self.lhs, node_position);
-        let rhs = scope.tensor_use_owned(&self.rhs, node_position);
+        let lhs = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let rhs = scope.tensor_use_owned(self.inputs.get(1).unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let out: Ident = parse_str(&self.output.name.to_string()).expect("Valid Rust identifier");
+        // Get ranks for handling broadcasting
+        let lhs_rank = match &self.inputs.first().unwrap().ty {
+            onnx_ir::ir::ArgType::Tensor(t) => t.rank,
+            _ => panic!("Expected tensor input for lhs"),
+        };
+        let rhs_rank = match &self.inputs.get(1).unwrap().ty {
+            onnx_ir::ir::ArgType::Tensor(t) => t.rank,
+            _ => panic!("Expected tensor input for rhs"),
+        };
 
-        let lhs_dim = self.lhs.rank;
-        let rhs_dim = self.rhs.rank;
-
-        // ---- Zero-points: synthesize when missing, otherwise lift to input rank ----
-        let a_zp_raw: TokenStream = if let Some(zp) = &self.lhs_zero_point {
-            scope.tensor_use_owned(zp, node_position)
+        // Handle zero-points: synthesize when missing, otherwise lift to input rank
+        let lhs_zp = if let Some(zp_input) = self.inputs.get(2) {
+            let zp = scope.tensor_use_owned(zp_input, node_position);
+            if lhs_rank > 1 {
+                quote! { (#zp).unsqueeze::<#lhs_rank>() }
+            } else {
+                quote! { #zp }
+            }
         } else {
             quote! { Tensor::zeros_like(&#lhs) }
         };
-        let b_zp_raw: TokenStream = if let Some(zp) = &self.rhs_zero_point {
-            scope.tensor_use_owned(zp, node_position)
+
+        let rhs_zp = if let Some(zp_input) = self.inputs.get(3) {
+            let zp = scope.tensor_use_owned(zp_input, node_position);
+            if rhs_rank > 1 {
+                quote! { (#zp).unsqueeze::<#rhs_rank>() }
+            } else {
+                quote! { #zp }
+            }
         } else {
             quote! { Tensor::zeros_like(&#rhs) }
         };
 
-        // If a ZP is provided (scalar or 1-D), unsqueeze it to the input rank so `sub` has matching rank.
-        let a_zp = if self.lhs_zero_point.is_some() && lhs_dim > 1 {
-            let tr = lhs_dim;
-            quote! { (#a_zp_raw).unsqueeze::<#tr>() }
-        } else {
-            quote! { #a_zp_raw }
-        };
-        let b_zp = if self.rhs_zero_point.is_some() && rhs_dim > 1 {
-            let tr = rhs_dim;
-            quote! { (#b_zp_raw).unsqueeze::<#tr>() }
-        } else {
-            quote! { #b_zp_raw }
-        };
+        // Centered inputs (subtract zero-points)
+        let lhs_centered = quote! { (#lhs).sub(#lhs_zp) };
+        let rhs_centered = quote! { (#rhs).sub(#rhs_zp) };
 
-        // Centered inputs (already Int tensors)
-        let lhs_c = quote! { (#lhs).sub(#a_zp) };
-        let rhs_c = quote! { (#rhs).sub(#b_zp) };
+        // Handle rank differences for matmul broadcasting
+        match lhs_rank.cmp(&rhs_rank) {
+            std::cmp::Ordering::Greater => {
+                let num_unsqueezes = lhs_rank - rhs_rank;
 
-        // ---- Rank handling for matmul broadcasting ----
-        match lhs_dim.cmp(&rhs_dim) {
-            core::cmp::Ordering::Greater => {
-                let num_unsqueezes = lhs_dim - rhs_dim;
-
-                if rhs_dim == 1 {
+                if rhs_rank == 1 {
                     // Matrix-vector product: expand vector to match matrix rank
-                    let squeeze_dim = lhs_dim - 1;
-                    // After squeeze, the output rank is reduced by 1
-                    let out_rank = lhs_dim - 1;
+                    let squeeze_dim = lhs_rank - 1;
+                    let out_rank = lhs_rank - 1;
 
                     // Build unsqueeze dimensions: [-1, 0, 0, ...]
                     let mut unsqueeze_dims = vec![-1isize];
@@ -116,56 +76,38 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
                     }
 
                     quote! {
-                        let #out = (#lhs_c).matmul((#rhs_c).unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze_dim::<#out_rank>(#squeeze_dim);
+                        let #output = (#lhs_centered).matmul((#rhs_centered).unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze_dim::<#out_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
-                    let target_rank = lhs_dim;
+                    let target_rank = lhs_rank;
                     quote! {
-                        let #out = (#lhs_c).matmul((#rhs_c).unsqueeze::<#target_rank>());
+                        let #output = (#lhs_centered).matmul((#rhs_centered).unsqueeze::<#target_rank>());
                     }
                 }
             }
-            core::cmp::Ordering::Less => {
-                if lhs_dim == 1 {
+            std::cmp::Ordering::Less => {
+                if lhs_rank == 1 {
                     // Vector-matrix product: expand vector to match matrix rank
-                    let squeeze_dim = rhs_dim - 2;
-                    // After squeeze, the output rank is reduced by 1
-                    let out_rank = rhs_dim - 1;
-                    let target_rank = rhs_dim;
+                    let squeeze_dim = rhs_rank - 2;
+                    let out_rank = rhs_rank - 1;
+                    let target_rank = rhs_rank;
                     quote! {
-                        let #out = (#lhs_c).unsqueeze::<#target_rank>().matmul(#rhs_c).squeeze_dim::<#out_rank>(#squeeze_dim);
+                        let #output = (#lhs_centered).unsqueeze::<#target_rank>().matmul(#rhs_centered).squeeze_dim::<#out_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
-                    let target_rank = rhs_dim;
+                    let target_rank = rhs_rank;
                     quote! {
-                        let #out = (#lhs_c).unsqueeze::<#target_rank>().matmul(#rhs_c);
+                        let #output = (#lhs_centered).unsqueeze::<#target_rank>().matmul(#rhs_centered);
                     }
                 }
             }
-            core::cmp::Ordering::Equal => quote! {
-                let #out = (#lhs_c).matmul(#rhs_c);
-            },
+            std::cmp::Ordering::Equal => {
+                quote! {
+                    let #output = (#lhs_centered).matmul(#rhs_centered);
+                }
+            }
         }
-    }
-    fn into_node(self) -> Node<PS> {
-        Node::MatMulInteger(self)
-    }
-}
-
-impl OnnxIntoNode for MatMulIntegerNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::MatMulInteger(n) = node else {
-            panic!("Expected MatMulInteger node");
-        };
-        let lhs = TensorType::from(n.inputs.first().unwrap());
-        let rhs = TensorType::from(n.inputs.get(1).unwrap());
-        let lhs_zp = n.inputs.get(2).map(TensorType::from);
-        let rhs_zp = n.inputs.get(3).map(TensorType::from);
-        let mut output = TensorType::from(n.outputs.first().unwrap());
-        output.kind = TensorKind::Int;
-
-        Self::new(lhs, rhs, lhs_zp, rhs_zp, output)
     }
 }

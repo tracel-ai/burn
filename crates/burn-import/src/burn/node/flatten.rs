@@ -1,35 +1,32 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{Scope, ToTokens};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
-pub struct FlattenNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub axis: usize,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::flatten::FlattenNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        if self.axis == 0 {
+        if self.config.axis == 0 {
             quote! {
                 let #output = #input.reshape::<2>([1, -1]);
             }
         } else {
-            let axis = self.axis.to_tokens();
+            let axis = self.config.axis.to_tokens();
             quote! {
                 let #output = {
                     let leading_dim = #input.shape().dims[..#axis].iter().product::<usize>() as i32;
@@ -37,27 +34,5 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {
                 };
             }
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Flatten(self)
-    }
-}
-
-impl OnnxIntoNode for FlattenNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Flatten(n) = node else {
-            panic!("Expected Flatten node");
-        };
-        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("Flatten expects tensor input"),
-        };
-        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("Flatten expects tensor output"),
-        };
-        let axis = n.config.axis;
-        Self::new(input, output, axis)
     }
 }

@@ -1,128 +1,84 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::{NodeCodegen, arg_to_ident};
+use crate::burn::{BurnImports, Scope};
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[allow(clippy::too_many_arguments)]
-#[derive(Debug, Clone, new)]
-pub struct GemmNode {
-    pub a: TensorType,
-    pub b: TensorType,
-    pub c: Option<Type>,
-    pub output: TensorType,
-    pub alpha: f32,
-    pub beta: f32,
-    pub trans_a: i64,
-    pub trans_b: i64,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
+    fn inputs(&self) -> Vec<&Argument> {
+        self.inputs
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+            .collect()
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        let mut inputs = vec![Type::Tensor(self.a.clone()), Type::Tensor(self.b.clone())];
-
-        if let Some(ref c) = self.c {
-            match c {
-                Type::Tensor(tensor) => inputs.push(Type::Tensor(tensor.clone())),
-                Type::Scalar(scalar) => inputs.push(Type::Scalar(scalar.clone())),
-                _ => panic!("C should be Tensor or Scalar!"),
-            }
-        }
-
-        inputs
+    fn outputs(&self) -> Vec<&Argument> {
+        self.outputs.iter().collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let a = scope.tensor_use_owned(&self.a, node_position);
-        let b = scope.tensor_use_owned(&self.b, node_position);
+        let a = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+        let b = scope.tensor_use_owned(self.inputs.get(1).unwrap(), node_position);
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let output = &self.output.name;
-        let alpha = self.alpha;
-        let beta = self.beta;
-        let trans_a = self.trans_a;
-        let trans_b = self.trans_b;
+        let alpha = self.config.alpha;
+        let beta = self.config.beta;
+        let trans_a = self.config.trans_a;
+        let trans_b = self.config.trans_b;
 
+        // Apply transpose to A if trans_a is set
         let a = if trans_a != 0 {
-            quote! {#a.transpose()}
+            quote! { #a.transpose() }
         } else {
-            quote! {#a}
+            quote! { #a }
         };
 
+        // Apply transpose to B if trans_b is set
         let b = if trans_b != 0 {
-            quote! {#b.transpose()}
+            quote! { #b.transpose() }
         } else {
-            quote! {#b}
+            quote! { #b }
         };
 
-        let product = quote! {#a.matmul(#b)};
+        // Compute A * B
+        let product = quote! { #a.matmul(#b) };
 
+        // Apply alpha scaling
         let scaled_product = match alpha {
             1.0 => product,
-            _ => quote! {#product * #alpha},
+            _ => quote! { #product * #alpha },
         };
 
-        if let Some(ref c) = self.c {
-            match (c, beta) {
-                (Type::Tensor(tensor), 1.0) => {
-                    let c_tensor = scope.tensor_use_owned(tensor, node_position);
-                    quote! {
-                        let #output = #scaled_product + #c_tensor.unsqueeze();
-                    }
+        // Handle optional C input with beta scaling
+        if let Some(c_input) = self.inputs.get(2) {
+            // Get C as either tensor or scalar depending on its type
+            let c = match &c_input.ty {
+                onnx_ir::ir::ArgType::Tensor(_) => {
+                    let c_tensor = scope.tensor_use_owned(c_input, node_position);
+                    quote! { #c_tensor.unsqueeze() }
                 }
-                (Type::Scalar(scalar), 1.0) => {
-                    let c_scalar = &scalar.name;
-                    quote! {
-                        let #output = #scaled_product + #c_scalar;
-                    }
+                onnx_ir::ir::ArgType::Scalar(_) => {
+                    let c_scalar = arg_to_ident(c_input);
+                    quote! { #c_scalar }
                 }
-                (Type::Tensor(tensor), _) => {
-                    let c_tensor = scope.tensor_use_owned(tensor, node_position);
-                    quote! {
-                        let #output = #scaled_product + (#c_tensor.unsqueeze() * #beta);
-                    }
-                }
-                (Type::Scalar(scalar), _) => {
-                    let c_scalar = &scalar.name;
-                    quote! {
-                        let #output = #scaled_product + (#c_scalar * #beta);
-                    }
-                }
-                _ => panic!("C should be Tensor or a Scalar!"),
+                _ => panic!("C input should be Tensor or Scalar!"),
+            };
+
+            // Apply beta scaling to C
+            let scaled_c = match beta {
+                1.0 => c,
+                _ => quote! { (#c) * #beta },
+            };
+
+            quote! {
+                let #output = #scaled_product + #scaled_c;
             }
         } else {
+            // No C input, just return scaled A * B
             quote! {
                 let #output = #scaled_product;
             }
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Gemm(self)
-    }
-}
-
-impl OnnxIntoNode for GemmNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Gemm(n) = node else {
-            panic!("Expected Gemm node");
-        };
-        let a = TensorType::from(n.inputs.first().unwrap());
-        let b = TensorType::from(n.inputs.get(1).unwrap());
-        let c = n.inputs.get(2).map(Type::from);
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(
-            a,
-            b,
-            c,
-            output,
-            n.config.alpha,
-            n.config.beta,
-            n.config.trans_a,
-            n.config.trans_b,
-        )
     }
 }
