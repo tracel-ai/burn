@@ -2,7 +2,6 @@ use cubecl::{prelude::*, std::scalar::InputScalar};
 
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric},
     tensor::CubeTensor,
 };
@@ -13,10 +12,10 @@ struct Options {
     max_value: InputScalar,
 }
 
-pub(crate) fn clamp<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn clamp<R: CubeRuntime>(
     input: CubeTensor<R>,
-    min_value: E,
-    max_value: E,
+    min_value: InputScalar,
+    max_value: InputScalar,
 ) -> CubeTensor<R> {
     struct ClampOp;
 
@@ -39,11 +38,5 @@ pub(crate) fn clamp<R: CubeRuntime, E: CubeElement>(
         type Unary<N: Numeric> = Self;
     }
 
-    let dtype = input.dtype;
-    launch_unary_numeric::<R, ClampOp, _>(input, |_| {
-        OptionsLaunch::new(
-            InputScalar::new(min_value, dtype),
-            InputScalar::new(max_value, dtype),
-        )
-    })
+    launch_unary_numeric::<R, ClampOp, _>(input, |_| OptionsLaunch::new(min_value, max_value))
 }

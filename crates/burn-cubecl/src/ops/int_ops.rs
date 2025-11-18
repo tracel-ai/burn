@@ -339,10 +339,11 @@ where
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            kernel::clamp::<R, I>(tensor, min.elem(), max.elem())
+        let dtype = tensor.dtype;
+        kernel::clamp::<R>(
+            tensor,
+            InputScalar::new(min, dtype),
+            InputScalar::new(max, dtype),
         )
     }
 
@@ -378,11 +379,7 @@ where
     }
 
     fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            kernel::repeat_dim::<R, I>(tensor, dim, times)
-        )
+        kernel::repeat_dim::<R>(tensor, dim, times)
     }
 
     fn int_random(

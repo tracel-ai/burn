@@ -439,10 +439,11 @@ where
         min: FloatElem<Self>,
         max: FloatElem<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::clamp::<R, E>(tensor, min.elem(), max.elem())
+        let dtype = tensor.dtype;
+        kernel::clamp::<R>(
+            tensor,
+            InputScalar::new(min, dtype),
+            InputScalar::new(max, dtype),
         )
     }
 
@@ -451,11 +452,7 @@ where
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::repeat_dim::<R, E>(tensor, dim, times)
-        )
+        kernel::repeat_dim::<R>(tensor, dim, times)
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

@@ -115,7 +115,7 @@ where
     }
 
     fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
-        kernel::repeat_dim::<R, BT>(tensor, dim, times)
+        kernel::repeat_dim::<R>(tensor, dim, times)
     }
 
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
