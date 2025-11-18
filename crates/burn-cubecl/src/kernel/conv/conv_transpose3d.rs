@@ -5,7 +5,7 @@ use crate::{
     element::CubeElement,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_device},
+        numeric::{empty_device, zeros_client},
         reshape,
     },
     tensor::CubeTensor,
@@ -195,7 +195,12 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
         }
         None => {
             let shape = Shape::from([output.shape[0], 1, 1, 1, 1]);
-            zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
+            zeros_client::<R>(
+                input.client.clone(),
+                input.device.clone(),
+                shape,
+                input.dtype,
+            )
         }
     };
 

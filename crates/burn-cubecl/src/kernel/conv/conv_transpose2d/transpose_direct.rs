@@ -2,7 +2,7 @@ use crate::{
     CubeRuntime,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device_dtype, zeros_device_dtype},
+        numeric::{empty_device_dtype, zeros_client},
         reshape,
     },
     tensor::CubeTensor,
@@ -160,7 +160,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         }
         None => {
             let shape = Shape::from([output.shape[0], 1, 1, 1]);
-            zeros_device_dtype::<R>(
+            zeros_client::<R>(
                 input.client.clone(),
                 input.device.clone(),
                 shape,

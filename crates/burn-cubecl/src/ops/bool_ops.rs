@@ -18,15 +18,15 @@ where
     BT: BoolElement,
 {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        super::empty::<R, BT>(shape, device)
+        super::empty::<R>(shape, device, BT::dtype())
     }
 
     fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::zeros::<R, BT>(shape, device)
+        numeric::zeros::<R>(device.clone(), shape, BT::dtype())
     }
 
     fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::ones::<R, BT>(shape, device)
+        numeric::ones::<R>(device.clone(), shape, BT::dtype())
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {

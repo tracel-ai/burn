@@ -215,7 +215,7 @@ impl SumAutotuneKey {
 }
 mod sum_ops {
     #![allow(missing_docs)]
-    use crate::ops::numeric::zeros_device_dtype;
+    use crate::ops::numeric::zeros_client;
 
     use super::*;
 
@@ -231,7 +231,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
         let device = input.device.clone();
-        let output = zeros_device_dtype(client.clone(), device, [1].into(), input.dtype);
+        let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
 
         cubecl::reduce::shared_sum::<Run>(
             &input.client,

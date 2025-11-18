@@ -2,7 +2,7 @@
 use super::{autotune_reduce, autotune_sum};
 use crate::{
     CubeRuntime,
-    ops::numeric::{empty_device_dtype, zeros_device_dtype},
+    ops::numeric::{empty_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
 use burn_tensor::{DType, Shape};
@@ -67,7 +67,7 @@ pub fn sum<Run: CubeRuntime>(
 
     match strategy {
         SumStrategy::OneShot(cube_count) => {
-            let output = zeros_device_dtype(client.clone(), device, [1].into(), tensor.dtype);
+            let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
             shared_sum::<Run>(
                 &client,
                 tensor.as_handle_ref(),

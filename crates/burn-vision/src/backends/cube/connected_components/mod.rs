@@ -6,7 +6,7 @@ mod prefix_sum;
 
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
-    ops::numeric::{full_device, zeros_device},
+    ops::numeric::{full_device, zeros_client},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -26,7 +26,14 @@ where
 {
     let [height, width] = l.shape.dims();
     let shape = Shape::new([height * width]);
-    let zeros = || zeros_device::<R, I>(l.client.clone(), l.device.clone(), shape.clone());
+    let zeros = || {
+        zeros_client::<R>(
+            l.client.clone(),
+            l.device.clone(),
+            shape.clone(),
+            I::dtype(),
+        )
+    };
     let max = I::max_value();
     let max = || full_device::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
     let dummy = || {
@@ -46,6 +53,11 @@ where
         top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
         right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
         bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        max_label: zeros_device::<R, I>(l.client.clone(), l.device.clone(), Shape::new([1])),
+        max_label: zeros_client::<R>(
+            l.client.clone(),
+            l.device.clone(),
+            Shape::new([1]),
+            I::dtype(),
+        ),
     }
 }

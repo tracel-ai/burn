@@ -36,7 +36,7 @@ where
 {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
-        execute_with_dtype!(int(dtype), I, super::empty::<R, I>(shape, device))
+        super::empty::<R>(shape, device, dtype)
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
@@ -244,12 +244,12 @@ where
 
     fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
-        execute_with_dtype!(int(dtype), I, numeric::zeros::<R, I>(shape, device))
+        numeric::zeros::<R>(device.clone(), shape, dtype)
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
-        execute_with_dtype!(int(dtype), I, numeric::ones::<R, I>(shape, device))
+        numeric::ones::<R>(device.clone(), shape, dtype)
     }
 
     fn int_full(

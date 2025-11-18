@@ -15,7 +15,7 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
     },
     ops::{
-        numeric::{ones_device_dtype, zeros_device_dtype},
+        numeric::{ones_client, zeros_client},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -210,10 +210,10 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         batch_size * out_height * out_width,
     ]);
 
-    let output = zeros_device_dtype::<R>(client.clone(), device.clone(), shape_out.clone(), dtype);
+    let output = zeros_client::<R>(client.clone(), device.clone(), shape_out.clone(), dtype);
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_device_dtype::<R>(
+        ones_client::<R>(
             client.clone(),
             device.clone(),
             Shape::new([

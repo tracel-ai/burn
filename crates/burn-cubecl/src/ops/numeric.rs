@@ -10,7 +10,7 @@ use crate::{
     },
     ops::max_line_size,
 };
-use burn_tensor::{DType, ElementConversion, Shape};
+use burn_tensor::{DType, Shape};
 use cubecl::std::{FastDivmod, scalar::InputScalar, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
@@ -81,23 +81,19 @@ pub fn full_device_dtype<R: CubeRuntime>(
 }
 
 /// Creates a tensor filled with zeros
-pub fn zeros<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
-    let client = R::client(device);
+pub fn zeros<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> CubeTensor<R> {
+    let client = R::client(&device);
+    full_device_dtype::<R>(client, shape, device, InputScalar::new(0u32, dtype), dtype)
+}
 
-    zeros_device::<R, E>(client, device.clone(), shape)
+/// Creates a tensor filled with ones
+pub fn ones<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> CubeTensor<R> {
+    let client = R::client(&device);
+    full_device_dtype::<R>(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
 /// Creates a tensor filled with zeros
-pub fn zeros_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server>,
-    device: R::Device,
-    shape: Shape,
-) -> CubeTensor<R> {
-    full_device::<R, E>(client, shape, device, 0.elem())
-}
-
-/// Creates a tensor filled with zeros
-pub fn zeros_device_dtype<R: CubeRuntime>(
+pub fn zeros_client<R: CubeRuntime>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
@@ -107,23 +103,7 @@ pub fn zeros_device_dtype<R: CubeRuntime>(
 }
 
 /// Creates a tensor filled with ones
-pub fn ones<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
-    let client = R::client(device);
-
-    ones_device::<R, E>(client, device.clone(), shape)
-}
-
-/// Creates a tensor filled with ones
-pub fn ones_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server>,
-    device: R::Device,
-    shape: Shape,
-) -> CubeTensor<R> {
-    full_device::<R, E>(client, shape, device, 1.elem())
-}
-
-/// Creates a tensor filled with ones
-pub fn ones_device_dtype<R: CubeRuntime>(
+pub fn ones_client<R: CubeRuntime>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,

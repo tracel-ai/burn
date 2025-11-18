@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
-    Shape,
+    DType, Shape,
     ops::{DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
@@ -18,7 +18,7 @@ use crate::{
         slice_assign,
     },
     ops::{
-        numeric::{empty_device, ones_device, zeros_device},
+        numeric::{empty_device, ones_client, zeros_client},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -217,7 +217,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
     let use_mask = mask.is_some();
 
     let mask = mask.unwrap_or_else(|| {
-        ones_device::<R, E>(
+        ones_client::<R>(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -226,6 +226,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
                 offset.shape[2],
                 offset.shape[3],
             ]),
+            columns.dtype,
         )
     });
 
@@ -473,15 +474,20 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let shape = Shape::new([batch_size, in_channels, height, width]);
     let grad_in = match supports_fadd && supports_same_type {
         // Use type as is to save a cast
-        true => zeros_device::<R, E>(client.clone(), device.clone(), shape),
+        true => zeros_client::<R>(client.clone(), device.clone(), shape, columns.dtype),
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
-        false => zeros_device::<R, f32>(client.clone(), device.clone(), shape),
+        false => zeros_client::<R>(client.clone(), device.clone(), shape, DType::F32),
     };
     let grad_arg = grad_in.as_tensor_arg(1);
 
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_device::<R, E>(client.clone(), device.clone(), Shape::new([1, 1, 1, 1]))
+        ones_client::<R>(
+            client.clone(),
+            device.clone(),
+            Shape::new([1, 1, 1, 1]),
+            columns.dtype,
+        )
     });
 
     let num_elements = columns.shape.num_elements();

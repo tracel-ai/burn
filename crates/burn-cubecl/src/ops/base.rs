@@ -45,14 +45,15 @@ pub(crate) fn to_device<R: CubeRuntime>(
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn empty<R: CubeRuntime>(
     shape: Shape,
     device: &R::Device,
+    dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+    let buffer = client.empty(shape.num_elements() * dtype.size());
 
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
+    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, dtype)
 }
 
 pub(crate) fn swap_dims<R: CubeRuntime>(
