@@ -55,11 +55,7 @@ where
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            super::into_data::<R, E>(tensor).await
-        )
+        super::into_data::<R>(tensor).await
     }
 
     fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {

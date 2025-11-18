@@ -12,7 +12,6 @@ use cubecl_quant::scheme::QuantStore;
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
-    execute_with_dtype,
     kernel::{self, matmul::MatmulStrategy},
     tensor::{CubeTensor, QParams},
 };
@@ -213,34 +212,14 @@ where
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         if tensor.qparams.is_none() {
-            return execute_with_dtype!(tensor.dtype, E, into_data::<R, E>(tensor).await);
+            return into_data::<R>(tensor).await;
         }
 
         let (shape, dtype) = (tensor.shape.dims.clone(), tensor.dtype);
-        let scheme = match dtype {
-            DType::QFloat(val) => val,
-            _ => unreachable!("Already checked if quantized."),
-        };
         let (values, params) = tensor.quantized_handles().unwrap();
 
-        let mut data_values = match scheme.store {
-            QuantStore::Native => match scheme.value {
-                QuantValue::Q8F | QuantValue::Q8S => into_data::<R, i8>(values).await,
-                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
-                    into_data::<R, u8>(values).await
-                }
-                QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
-                    panic!("Can't store native sub-byte values")
-                }
-            },
-            QuantStore::U32 => into_data::<R, u32>(values).await,
-        };
-        let data_params = match scheme.param {
-            QuantParam::UE8M0 | QuantParam::UE4M3 => into_data::<R, u8>(params).await,
-            QuantParam::F16 => into_data::<R, half::f16>(params).await,
-            QuantParam::BF16 => into_data::<R, half::bf16>(params).await,
-            QuantParam::F32 => into_data::<R, f32>(params).await,
-        };
+        let mut data_values = into_data::<R>(values).await;
+        let data_params = into_data::<R>(params).await;
 
         data_values.bytes.extend_from_byte_slice(&data_params.bytes);
 

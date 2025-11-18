@@ -30,7 +30,7 @@ where
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
-        super::into_data::<R, BT>(tensor).await
+        super::into_data::<R>(tensor).await
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {

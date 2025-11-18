@@ -16,26 +16,20 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
-pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
-    let elem_size = size_of::<E>();
+    let elem_size = tensor.elem_size();
     let shape = &tensor.shape.dims;
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor_async(binding).await;
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
 }
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous_aligned(tensor);
-
-    let elem_size = size_of::<E>();
-    let shape = &tensor.shape.dims;
-    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
-    let bytes = tensor.client.read_one_tensor(binding);
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    burn_common::future::block_on(into_data(tensor))
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(

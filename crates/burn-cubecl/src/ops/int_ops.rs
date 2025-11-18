@@ -40,7 +40,7 @@ where
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
-        execute_with_dtype!(int(tensor.dtype), I, super::into_data::<R, I>(tensor).await)
+        super::into_data::<R>(tensor).await
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
