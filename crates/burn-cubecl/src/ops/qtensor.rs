@@ -196,7 +196,7 @@ where
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        kernel::quantization::dequantize::<R, F>(tensor)
+        kernel::quantization::dequantize::<R>(tensor)
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
