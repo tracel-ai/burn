@@ -258,11 +258,14 @@ where
         device: &Device<Self>,
         dtype: IntDType,
     ) -> IntTensor<Self> {
-        let dtype = dtype.into();
-        execute_with_dtype!(
-            int(dtype),
-            I,
-            numeric::full::<R, I>(shape, device, fill_value.elem())
+        let dtype: DType = dtype.into();
+        let client = R::client(device);
+        numeric::full_device_dtype::<R>(
+            client,
+            shape,
+            device.clone(),
+            InputScalar::new(fill_value, dtype),
+            dtype,
         )
     }
 

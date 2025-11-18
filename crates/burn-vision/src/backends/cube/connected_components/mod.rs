@@ -6,7 +6,7 @@ mod prefix_sum;
 
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
-    ops::numeric::{full_device, zeros_client},
+    ops::numeric::{full_client, zeros_client},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -35,7 +35,7 @@ where
         )
     };
     let max = I::max_value();
-    let max = || full_device::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
+    let max = || full_client::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
     let dummy = || {
         CubeTensor::new_contiguous(
             l.client.clone(),

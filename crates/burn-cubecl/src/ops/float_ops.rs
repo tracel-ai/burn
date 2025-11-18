@@ -91,11 +91,14 @@ where
         device: &R::Device,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        let dtype = dtype.into();
-        execute_with_dtype!(
-            float(dtype),
-            E,
-            numeric::full::<R, E>(shape, device, fill_value.elem())
+        let dtype: DType = dtype.into();
+        let client = R::client(device);
+        numeric::full_device_dtype::<R>(
+            client,
+            shape,
+            device.clone(),
+            InputScalar::new(fill_value, dtype),
+            dtype,
         )
     }
 

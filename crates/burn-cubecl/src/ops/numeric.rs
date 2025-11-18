@@ -23,11 +23,11 @@ pub fn full<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let client = R::client(device);
 
-    full_device::<R, E>(client, shape, device.clone(), value)
+    full_client::<R, E>(client, shape, device.clone(), value)
 }
 
 /// Creates a tensor filled with `value`
-pub fn full_device<R: CubeRuntime, E: CubeElement>(
+pub fn full_client<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     shape: Shape,
     device: R::Device,
