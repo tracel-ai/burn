@@ -254,83 +254,48 @@ where
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            kernel::equal::<R, E, BT>(lhs, rhs)
-        )
+        kernel::equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            kernel::equal_elem::<R, E, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::equal_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            kernel::greater::<R, E, BT>(lhs, rhs)
-        )
+        kernel::greater::<R>(lhs, rhs, BT::dtype())
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            kernel::greater_elem::<R, E, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::greater_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            kernel::greater_equal::<R, E, BT>(lhs, rhs)
-        )
+        kernel::greater_equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            kernel::greater_equal_elem::<R, E, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::greater_equal_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            kernel::lower::<R, E, BT>(lhs, rhs)
-        )
+        kernel::lower::<R>(lhs, rhs, BT::dtype())
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            kernel::lower_elem::<R, E, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::lower_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            kernel::lower_equal::<R, E, BT>(lhs, rhs)
-        )
+        kernel::lower_equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype),
-            E,
-            kernel::lower_equal_elem::<R, E, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::lower_equal_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -634,10 +599,10 @@ where
     }
 
     fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, kernel::is_nan::<R, E, BT>(tensor))
+        kernel::is_nan::<R>(tensor, BT::dtype())
     }
 
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, kernel::is_inf::<R, E, BT>(tensor))
+        kernel::is_inf::<R>(tensor, BT::dtype())
     }
 }

@@ -2,6 +2,7 @@ use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
+    ops::numeric::input_scalar,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor};
 use burn_tensor::{Shape, TensorData};
@@ -83,11 +84,15 @@ where
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal::<R, BT, BT>(lhs, rhs)
+        kernel::equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal_elem::<R, BT, BT>(tensor, BT::false_val())
+        kernel::equal_elem::<R>(
+            tensor,
+            input_scalar(BT::false_val(), BT::dtype()),
+            BT::dtype(),
+        )
     }
 
     fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {

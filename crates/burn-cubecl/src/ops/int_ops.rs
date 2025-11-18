@@ -162,67 +162,48 @@ where
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, kernel::equal::<R, I, BT>(lhs, rhs))
+        kernel::equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            kernel::equal_elem::<R, I, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::equal_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, kernel::greater::<R, I, BT>(lhs, rhs))
+        kernel::greater::<R>(lhs, rhs, BT::dtype())
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            kernel::greater_elem::<R, I, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::greater_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            kernel::greater_equal::<R, I, BT>(lhs, rhs)
-        )
+        kernel::greater_equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            kernel::greater_equal_elem::<R, I, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::greater_equal_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, kernel::lower::<R, I, BT>(lhs, rhs))
+        kernel::lower::<R>(lhs, rhs, BT::dtype())
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            kernel::lower_elem::<R, I, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::lower_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(int(lhs.dtype), I, kernel::lower_equal::<R, I, BT>(lhs, rhs))
+        kernel::lower_equal::<R>(lhs, rhs, BT::dtype())
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        execute_with_dtype!(
-            int(lhs.dtype),
-            I,
-            kernel::lower_equal_elem::<R, I, BT>(lhs, rhs.elem())
-        )
+        let dtype = lhs.dtype;
+        kernel::lower_equal_elem::<R>(lhs, input_scalar(rhs, dtype), BT::dtype())
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
