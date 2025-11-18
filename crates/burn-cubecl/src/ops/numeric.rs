@@ -384,34 +384,34 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
 }
 
 /// Compute the cumulative sum along a dimension
-pub fn cumsum<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    cumulative_op::<R, E, SumOp>(input, dim)
+pub fn cumsum<R: CubeRuntime>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, SumOp>(input, dim)
 }
 
 /// Compute the cumulative product along a dimension
-pub fn cumprod<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    cumulative_op::<R, E, ProdOp>(input, dim)
+pub fn cumprod<R: CubeRuntime>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, ProdOp>(input, dim)
 }
 
 /// Compute the cumulative minimum along a dimension
-pub fn cummin<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    cumulative_op::<R, E, MinOp>(input, dim)
+pub fn cummin<R: CubeRuntime>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, MinOp>(input, dim)
 }
 
 /// Compute the cumulative maximum along a dimension
-pub fn cummax<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    cumulative_op::<R, E, MaxOp>(input, dim)
+pub fn cummax<R: CubeRuntime>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    cumulative_op::<R, MaxOp>(input, dim)
 }
 
 /// Generic cumulative operation function
-fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
+fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
     input: CubeTensor<R>,
     dim: usize,
 ) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
 
-    let output = empty_device::<R, E>(client.clone(), device, input.shape.clone());
+    let output = empty_device_dtype::<R>(client.clone(), device, input.shape.clone(), input.dtype);
 
     let num_elems = output.shape.num_elements();
     let cube_dim = CubeDim::default();

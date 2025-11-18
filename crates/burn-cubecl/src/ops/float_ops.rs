@@ -325,23 +325,19 @@ where
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, numeric::cumsum::<R, E>(tensor, dim))
+        numeric::cumsum::<R>(tensor, dim)
     }
 
     fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            numeric::cumprod::<R, E>(tensor, dim)
-        )
+        numeric::cumprod::<R>(tensor, dim)
     }
 
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, numeric::cummin::<R, E>(tensor, dim))
+        numeric::cummin::<R>(tensor, dim)
     }
 
     fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, numeric::cummax::<R, E>(tensor, dim))
+        numeric::cummax::<R>(tensor, dim)
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

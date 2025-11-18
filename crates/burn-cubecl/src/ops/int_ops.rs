@@ -1,6 +1,10 @@
 use self::unary_basic_int::BasicIntUnaryKind;
 
 use super::{expand, numeric, permute, unfold};
+use crate::kernel::{
+    BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily, launch_binop_int,
+    launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
+};
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     kernel::{
@@ -11,13 +15,6 @@ use crate::{
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
-};
-use crate::{
-    execute_with_dtype,
-    kernel::{
-        BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily, launch_binop_int,
-        launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
-    },
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{DType, IntDType};
@@ -314,19 +311,19 @@ where
     }
 
     fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, numeric::cumsum::<R, I>(tensor, dim))
+        numeric::cumsum::<R>(tensor, dim)
     }
 
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, numeric::cumprod::<R, I>(tensor, dim))
+        numeric::cumprod::<R>(tensor, dim)
     }
 
     fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, numeric::cummin::<R, I>(tensor, dim))
+        numeric::cummin::<R>(tensor, dim)
     }
 
     fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, numeric::cummax::<R, I>(tensor, dim))
+        numeric::cummax::<R>(tensor, dim)
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
