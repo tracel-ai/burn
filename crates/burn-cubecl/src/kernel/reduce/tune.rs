@@ -1,16 +1,12 @@
 #![allow(missing_docs)]
 
-use burn_tensor::ElementConversion;
 use cubecl::{
     client::ComputeClient,
     reduce::{ReduceFamily, tune_key::ReduceAutotuneKey},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 
-use crate::{
-    CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId, kernel::prng::random_like_uniform,
-    tensor::CubeTensor,
-};
+use crate::{CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId, tensor::CubeTensor};
 
 use super::SumAutotuneKey;
 
@@ -260,8 +256,7 @@ mod sum_ops {
         _key: &CubeAutotuneKey,
         input: &CubeTensor<Run>,
     ) -> CubeTensor<Run> {
-        let random_bounds: (E, E) = ((-10.0_f32).elem::<E>(), (10.0_f32).elem::<E>());
-        random_like_uniform(input, random_bounds.0, random_bounds.1)
+        input.clone()
     }
 
     pub(crate) fn sum_one_shot<Run: CubeRuntime, E: CubeElement, const C: u32>(

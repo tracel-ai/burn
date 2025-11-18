@@ -40,14 +40,17 @@ where
         distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
+        let dtype = FloatElem::<Self>::dtype();
         match distribution {
-            Distribution::Default => random_uniform(shape, device, 0.elem::<F>(), 1.elem()),
+            Distribution::Default => random_uniform(shape, device, 0., 1., dtype),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem::<F>(), high.elem())
+                random_uniform(shape, device, low.elem(), high.elem(), dtype)
             }
-            Distribution::Bernoulli(prob) => random_bernoulli::<R, F>(shape, device, prob as f32),
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli::<R>(shape, device, prob as f32, dtype)
+            }
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem::<F>(), std.elem())
+                random_normal(shape, device, mean.elem(), std.elem(), dtype)
             }
         }
     }

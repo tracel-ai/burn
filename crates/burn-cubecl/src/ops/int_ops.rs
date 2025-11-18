@@ -487,14 +487,17 @@ where
         distribution: Distribution,
         device: &Device<Self>,
     ) -> IntTensor<Self> {
+        let dtype = IntElem::<Self>::dtype();
         match distribution {
-            Distribution::Default => random_uniform(shape, device, 0.elem::<I>(), 255.elem()),
+            Distribution::Default => random_uniform(shape, device, 0., 255., dtype),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem::<I>(), high.elem())
+                random_uniform(shape, device, low.elem(), high.elem(), dtype)
             }
-            Distribution::Bernoulli(prob) => random_bernoulli::<R, I>(shape, device, prob as f32),
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli::<R>(shape, device, prob as f32, dtype)
+            }
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem::<I>(), std.elem())
+                random_normal(shape, device, mean.elem(), std.elem(), dtype)
             }
         }
     }
