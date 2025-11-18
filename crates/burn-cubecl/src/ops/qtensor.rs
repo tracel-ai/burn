@@ -192,7 +192,7 @@ where
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize::<R, F>(tensor, scheme, qparams.scales)
+        kernel::quantization::quantize::<R>(tensor, scheme, qparams.scales)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
