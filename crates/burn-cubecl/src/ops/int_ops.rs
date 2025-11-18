@@ -570,11 +570,7 @@ where
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(
-            int(tensor.dtype),
-            I,
-            unary_basic_int::launch::<R, _, I>(tensor, |_| BasicIntUnaryKind::BitwiseNot)
-        )
+        unary_basic_int::launch::<R, _>(tensor, |_| BasicIntUnaryKind::BitwiseNot)
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
