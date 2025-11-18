@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
@@ -38,7 +38,12 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
     let shape = input.shape.clone().repeat(dim, times).unwrap();
 
     // Create output handle
-    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape);
+    let output = empty_device_dtype::<R>(
+        input.client.clone(),
+        input.device.clone(),
+        shape,
+        input.dtype,
+    );
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
