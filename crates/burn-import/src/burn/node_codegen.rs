@@ -14,8 +14,8 @@ macro_rules! impl_node_codegen_dispatch {
             fn inputs(&self) -> Vec<&Argument> {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::inputs(n),)*
-                    // If/Loop/Scan are disabled - return empty
-                    Node::If(_) | Node::Loop(_) | Node::Scan(_) => vec![],
+                    // Loop/Scan are disabled - return empty
+                    Node::Loop(_) | Node::Scan(_) => vec![],
                     _ => panic!("Unsupported node type for inputs: {:?}", self),
                 }
             }
@@ -23,8 +23,8 @@ macro_rules! impl_node_codegen_dispatch {
             fn outputs(&self) -> Vec<&Argument> {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::outputs(n),)*
-                    // If/Loop/Scan are disabled - return empty
-                    Node::If(_) | Node::Loop(_) | Node::Scan(_) => vec![],
+                    // Loop/Scan are disabled - return empty
+                    Node::Loop(_) | Node::Scan(_) => vec![],
                     _ => panic!("Unsupported node type for outputs: {:?}", self),
                 }
             }
@@ -32,8 +32,8 @@ macro_rules! impl_node_codegen_dispatch {
             fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::forward(n, scope, node_position),)*
-                    // If/Loop/Scan are disabled - return empty tokens
-                    Node::If(_) | Node::Loop(_) | Node::Scan(_) => quote::quote! {},
+                    // Loop/Scan are disabled - return empty tokens
+                    Node::Loop(_) | Node::Scan(_) => quote::quote! {},
                     _ => panic!("Unsupported node type for forward: {:?}", self),
                 }
             }
@@ -55,8 +55,8 @@ macro_rules! impl_node_codegen_dispatch {
             fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::field_serialize(n, serializer),)*
-                    // If/Loop/Scan are disabled - serialize unit
-                    Node::If(_) | Node::Loop(_) | Node::Scan(_) => {
+                    // Loop/Scan are disabled - serialize unit
+                    Node::Loop(_) | Node::Scan(_) => {
                         use serde::Serialize;
                         ().serialize(serializer)
                     }
@@ -223,8 +223,8 @@ impl_node_codegen_dispatch! {
     Attention,
 
     // Control flow ops
-    // TODO: If, Loop, Scan need Type abstraction removal
-    // If,
+    If,
+    // TODO: Loop, Scan need Type abstraction removal
     // Loop,
     // Scan,
 

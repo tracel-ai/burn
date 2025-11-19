@@ -51,7 +51,7 @@ pub(crate) mod greater_equal;
 pub(crate) mod group_norm;
 pub(crate) mod hard_sigmoid;
 pub(crate) mod identity;
-// pub(crate) mod if_node; // TODO: Needs Type abstraction removal
+pub(crate) mod if_node;
 pub(crate) mod instance_norm;
 pub(crate) mod is_inf;
 pub(crate) mod is_nan;
