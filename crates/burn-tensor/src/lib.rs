@@ -9,6 +9,7 @@
 #[macro_use]
 extern crate derive_new;
 
+#[macro_use]
 extern crate alloc;
 extern crate core;
 

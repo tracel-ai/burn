@@ -1,12 +1,10 @@
-use alloc::vec::Vec;
-
 use crate::Shape;
 use crate::indexing::AsIndex;
+use alloc::vec::Vec;
 use burn_common::errors::ExpressionError;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
-use std::num::ParseIntError;
 
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
@@ -541,7 +539,7 @@ impl FromStr for Slice {
         let mut s = source.trim();
 
         let parse_int = |v: &str| -> Result<isize, Self::Err> {
-            v.parse::<isize>().map_err(|e: ParseIntError| {
+            v.parse::<isize>().map_err(|e| {
                 ExpressionError::parse_error(format!("Invalid integer: '{v}': {}", e), source)
             })
         };
