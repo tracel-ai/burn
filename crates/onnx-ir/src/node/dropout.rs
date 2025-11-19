@@ -15,6 +15,7 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
@@ -47,7 +48,7 @@ impl Default for DropoutInput {
 }
 
 /// Configuration for Dropout operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct DropoutConfig {
     /// Probability of dropping out a unit
     pub prob: DropoutInput,

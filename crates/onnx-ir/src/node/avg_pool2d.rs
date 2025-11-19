@@ -9,6 +9,7 @@
 //! - **Opset 10**: Added dilations attribute support
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -20,7 +21,7 @@ use crate::processor::{
 };
 
 /// Configuration for AvgPool2d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct AvgPool2dConfig {
     /// Kernel size [height, width]
     pub kernel_size: [usize; 2],
@@ -32,30 +33,6 @@ pub struct AvgPool2dConfig {
     pub count_include_pad: bool,
     /// Dilation [height, width] (opset 10+)
     pub dilation: [usize; 2],
-}
-
-impl AvgPool2dConfig {
-    /// Create a new AvgPool2dConfig
-    pub fn new(
-        kernel_size: [usize; 2],
-        strides: [usize; 2],
-        padding: PaddingConfig2d,
-        count_include_pad: bool,
-    ) -> Self {
-        Self {
-            kernel_size,
-            strides,
-            padding,
-            count_include_pad,
-            dilation: [1, 1],
-        }
-    }
-
-    /// Set the dilation
-    pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
-        self.dilation = dilation;
-        self
-    }
 }
 
 /// Node representation for AveragePool2d operation
@@ -185,8 +162,8 @@ impl NodeProcessor for AvgPool2dProcessor {
             [strides[0] as usize, strides[1] as usize],
             padding,
             count_include_pad == 1,
-        )
-        .with_dilation([dilations[0] as usize, dilations[1] as usize]);
+            [dilations[0] as usize, dilations[1] as usize],
+        );
 
         Ok(config)
     }

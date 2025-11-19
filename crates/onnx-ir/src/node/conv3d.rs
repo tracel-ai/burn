@@ -8,6 +8,7 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
@@ -27,7 +28,7 @@ pub struct Conv3dNode {
 }
 
 /// Configuration for Conv3d operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Conv3dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],
@@ -43,29 +44,6 @@ pub struct Conv3dConfig {
     pub bias: bool,
     /// Padding.
     pub padding: PaddingConfig3d,
-}
-
-impl Conv3dConfig {
-    /// Create a new configuration for a Conv3d.
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 3],
-        stride: [usize; 3],
-        dilation: [usize; 3],
-        groups: usize,
-        bias: bool,
-        padding: PaddingConfig3d,
-    ) -> Self {
-        Self {
-            channels,
-            kernel_size,
-            stride,
-            dilation,
-            groups,
-            bias,
-            padding,
-        }
-    }
 }
 
 pub(crate) struct Conv3dProcessor;

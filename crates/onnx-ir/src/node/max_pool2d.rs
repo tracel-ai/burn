@@ -24,6 +24,7 @@
 //! - TODO: No test for edge case: kernel larger than input dimension
 //! - TODO: No test validating input is 4D (N x C x H x W) - Lower/higher rank should be rejected
 //! - TODO: No test for asymmetric kernel sizes - e.g., kernel=[3, 5]
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
@@ -33,7 +34,7 @@ use crate::processor::{
 };
 
 /// Configuration for MaxPool2d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct MaxPool2dConfig {
     /// Kernel size [height, width]
     pub kernel_size: [usize; 2],
@@ -55,16 +56,6 @@ pub struct MaxPool2dNode {
 }
 
 impl MaxPool2dConfig {
-    /// Create a new MaxPool2dConfig
-    pub fn new(kernel_size: [usize; 2]) -> Self {
-        Self {
-            kernel_size,
-            strides: [1, 1],
-            padding: PaddingConfig2d::Valid,
-            dilation: [1, 1],
-        }
-    }
-
     /// Set the strides
     pub fn with_strides(mut self, strides: [usize; 2]) -> Self {
         self.strides = strides;
@@ -185,10 +176,12 @@ impl NodeProcessor for MaxPool2dProcessor {
 
         let padding = padding_config_2d(&pads);
 
-        let config = MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-            .with_strides([strides[0] as usize, strides[1] as usize])
-            .with_padding(padding)
-            .with_dilation([dilations[0] as usize, dilations[1] as usize]);
+        let config = MaxPool2dConfig::new(
+            [kernel_shape[0] as usize, kernel_shape[1] as usize],
+            [strides[0] as usize, strides[1] as usize],
+            padding,
+            [dilations[0] as usize, dilations[1] as usize],
+        );
 
         Ok(config)
     }

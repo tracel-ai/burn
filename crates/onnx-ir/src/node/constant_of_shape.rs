@@ -8,6 +8,7 @@
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{
@@ -28,7 +29,7 @@ pub struct ConstantOfShapeNode {
 }
 
 /// Configuration for the ConstantOfShape operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConstantOfShapeConfig {
     /// Shape information (static or runtime).
     pub shape: ConstantOfShapeShape,

@@ -25,10 +25,11 @@ use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for LeakyRelu operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LeakyReluConfig {
     /// Alpha value for negative slope
     pub alpha: f64,

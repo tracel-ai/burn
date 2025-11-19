@@ -19,6 +19,7 @@
 //! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, NodeType, TensorType};
@@ -26,16 +27,10 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
-}
-
-impl ReduceConfig {
-    pub fn new(dims: Vec<usize>, keepdims: bool) -> Self {
-        Self { dims, keepdims }
-    }
 }
 
 /// Node representation for ReduceMax operation

@@ -8,12 +8,13 @@
 //!
 //! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct AttentionConfig {
     pub is_causal: bool,
     pub kv_num_heads: Option<usize>,
@@ -22,28 +23,6 @@ pub struct AttentionConfig {
     pub scale: Option<f64>,
     pub softcap: f64,
     pub softmax_precision: Option<usize>,
-}
-
-impl AttentionConfig {
-    pub fn new(
-        is_causal: bool,
-        kv_num_heads: Option<usize>,
-        q_num_heads: Option<usize>,
-        qk_matmul_output_mode: AttentionQkMatmulOutputMode,
-        scale: Option<f64>,
-        softcap: f64,
-        softmax_precision: Option<usize>,
-    ) -> Self {
-        Self {
-            is_causal,
-            q_num_heads,
-            kv_num_heads,
-            qk_matmul_output_mode,
-            scale,
-            softcap,
-            softmax_precision,
-        }
-    }
 }
 
 /// Node representation for Attention operation

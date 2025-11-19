@@ -24,6 +24,7 @@
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -89,7 +90,7 @@ impl PadMode {
 }
 
 /// Configuration for the Pad operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct PadConfig {
     /// The paddings to be applied to each dimension.
     pub pads: PadInput,

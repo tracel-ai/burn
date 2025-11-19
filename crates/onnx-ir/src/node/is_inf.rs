@@ -12,6 +12,7 @@
 //! - **Opset 10-19**: Initial version with detect_negative and detect_positive attributes
 //! - **Opset 20+**: Extended type support (added float8 variants)
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::processor::{
@@ -20,19 +21,10 @@ use crate::processor::{
 
 use crate::ir::{Argument, Node, NodeBuilder};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct IsInfConfig {
     pub detect_negative: bool,
     pub detect_positive: bool,
-}
-
-impl IsInfConfig {
-    pub fn new(detect_negative: bool, detect_positive: bool) -> Self {
-        Self {
-            detect_negative,
-            detect_positive,
-        }
-    }
 }
 
 /// Node representation for IsInf operation

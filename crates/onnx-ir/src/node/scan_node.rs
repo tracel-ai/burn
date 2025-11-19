@@ -9,6 +9,7 @@
 //! - **Opset 9**: Added scan_input_axes
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -17,7 +18,7 @@ use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ScanConfig {
     pub body: OnnxGraph,
     pub num_scan_inputs: i64,

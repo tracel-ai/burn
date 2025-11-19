@@ -10,6 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
@@ -18,7 +19,7 @@ use crate::processor::{
 };
 
 /// Configuration for If operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,

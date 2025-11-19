@@ -16,6 +16,7 @@
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder};
@@ -24,7 +25,7 @@ use crate::processor::{
 };
 
 /// Configuration for Transpose operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TransposeConfig {
     /// Permutation of dimensions
     pub perm: Vec<i64>,

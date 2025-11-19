@@ -10,6 +10,7 @@
 //! - **Opset 9-13**: Removed consumed_inputs attribute
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -20,7 +21,7 @@ use crate::processor::{
 };
 
 /// Configuration for BatchNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct BatchNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -28,17 +29,6 @@ pub struct BatchNormConfig {
     pub epsilon: f64,
     /// Momentum for running statistics
     pub momentum: f64,
-}
-
-impl BatchNormConfig {
-    /// Create a new BatchNormConfig
-    pub fn new(num_features: usize, epsilon: f64, momentum: f64) -> Self {
-        Self {
-            num_features,
-            epsilon,
-            momentum,
-        }
-    }
 }
 
 /// Node representation for BatchNormalization operation

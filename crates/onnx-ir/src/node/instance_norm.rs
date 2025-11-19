@@ -20,6 +20,7 @@
 //! - TODO: No test for custom epsilon values (e.g., epsilon=1e-3) - Only default epsilon tested
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
@@ -28,22 +29,12 @@ use crate::processor::{
 };
 
 /// Configuration for InstanceNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct InstanceNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
-}
-
-impl InstanceNormConfig {
-    /// Create a new InstanceNormConfig
-    pub fn new(num_features: usize, epsilon: f64) -> Self {
-        Self {
-            num_features,
-            epsilon,
-        }
-    }
 }
 
 /// Node representation for InstanceNormalization operation

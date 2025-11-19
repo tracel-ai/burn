@@ -9,6 +9,7 @@
 //!   the `stash_type` attribute to control intermediate calculation precision.
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
@@ -17,7 +18,7 @@ use crate::processor::{
 };
 
 /// Configuration for GroupNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct GroupNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -27,18 +28,6 @@ pub struct GroupNormConfig {
     pub epsilon: f64,
     /// Whether to use full precision for intermediate calculations (stash_type == 1)
     pub full_precision: bool,
-}
-
-impl GroupNormConfig {
-    /// Create a new GroupNormConfig
-    pub fn new(num_features: usize, num_groups: usize, epsilon: f64, full_precision: bool) -> Self {
-        Self {
-            num_features,
-            num_groups,
-            epsilon,
-            full_precision,
-        }
-    }
 }
 
 /// Node representation for GroupNormalization operation

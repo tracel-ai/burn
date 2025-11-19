@@ -24,10 +24,11 @@ use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for LogSoftmax operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LogSoftmaxConfig {
     /// Axis along which to apply log softmax
     pub axis: usize,

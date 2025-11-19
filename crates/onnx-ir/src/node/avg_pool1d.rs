@@ -9,6 +9,7 @@
 //! - **Opset 10**: Added dilations attribute support
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -22,7 +23,7 @@ use crate::processor::{
 use super::padding::PaddingConfig1d;
 
 /// Configuration for AvgPool1d operations extracted from ONNX nodes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct AvgPool1dConfig {
     /// Kernel size
     pub kernel_size: usize,
@@ -34,30 +35,6 @@ pub struct AvgPool1dConfig {
     pub count_include_pad: bool,
     /// Dilation (opset 10+)
     pub dilation: usize,
-}
-
-impl AvgPool1dConfig {
-    /// Create a new AvgPool1dConfig
-    pub fn new(
-        kernel_size: usize,
-        stride: usize,
-        padding: PaddingConfig1d,
-        count_include_pad: bool,
-    ) -> Self {
-        Self {
-            kernel_size,
-            stride,
-            padding,
-            count_include_pad,
-            dilation: 1,
-        }
-    }
-
-    /// Set the dilation
-    pub fn with_dilation(mut self, dilation: usize) -> Self {
-        self.dilation = dilation;
-        self
-    }
 }
 
 /// Node representation for AveragePool1d operation
@@ -182,13 +159,13 @@ impl NodeProcessor for AvgPool1dProcessor {
 
         let padding = padding_config_1d(&pads);
 
-        let config = AvgPool1dConfig {
-            kernel_size: kernel_shape[0] as usize,
-            stride: strides[0] as usize,
+        let config = AvgPool1dConfig::new(
+            kernel_shape[0] as usize,
+            strides[0] as usize,
             padding,
-            count_include_pad: count_include_pad == 1,
-            dilation: dilations[0] as usize,
-        };
+            count_include_pad == 1,
+            dilations[0] as usize,
+        );
 
         Ok(config)
     }

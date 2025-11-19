@@ -16,6 +16,7 @@
 //! - Supports casting from string tensor in plain (e.g., "3.14", "1000") and scientific notation
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -27,17 +28,10 @@ use crate::processor::{
 use crate::proto_conversion::element_type_from_proto;
 
 /// Configuration for Cast operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CastConfig {
     /// Target element type to cast to
     pub to: DType,
-}
-
-impl CastConfig {
-    /// Create a new CastConfig
-    pub fn new(to: DType) -> Self {
-        Self { to }
-    }
 }
 
 /// Node representation for Cast operation

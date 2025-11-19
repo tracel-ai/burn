@@ -15,6 +15,7 @@
 //! - Current implementation validates opset 11+ (see FIXME at line 83)
 //! - According to spec, operator exists since opset 1
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::processor::{
@@ -51,17 +52,10 @@ impl DepthToSpaceMode {
 }
 
 /// Configuration for DepthToSpace operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct DepthToSpaceConfig {
     pub mode: DepthToSpaceMode,
     pub block_size: usize,
-}
-
-impl DepthToSpaceConfig {
-    /// Create a new DepthToSpaceConfig
-    pub fn new(mode: DepthToSpaceMode, block_size: usize) -> Self {
-        Self { mode, block_size }
-    }
 }
 
 pub(crate) struct DepthToSpaceProcessor;

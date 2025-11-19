@@ -9,6 +9,7 @@
 //! - **Opset 4-10**: Updated type support
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -20,7 +21,7 @@ use crate::processor::{
 };
 
 /// Configuration for Concat operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConcatConfig {
     pub axis: usize,
 }

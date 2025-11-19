@@ -18,13 +18,15 @@
 //! - TODO: No test for zero-size dimensions - Edge case for empty matrices
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
+use derive_new::new;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for Linear operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LinearConfig {
     /// Input dimension (features)
     pub d_input: usize,
@@ -41,23 +43,6 @@ pub struct LinearNode {
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
     pub config: LinearConfig,
-}
-
-impl LinearConfig {
-    /// Create a new LinearConfig
-    pub fn new(d_input: usize, d_output: usize) -> Self {
-        Self {
-            d_input,
-            d_output,
-            bias: true,
-        }
-    }
-
-    /// Set whether bias is used
-    pub fn with_bias(mut self, bias: bool) -> Self {
-        self.bias = bias;
-        self
-    }
 }
 
 pub(crate) struct LinearProcessor;
@@ -143,7 +128,7 @@ impl NodeProcessor for LinearProcessor {
         // check if the bias is present (could be Constant, Static, or Dynamic)
         let bias = node.inputs.len() == 3 && !node.inputs[2].is_optional();
 
-        let config = LinearConfig::new(in_size, out_size).with_bias(bias);
+        let config = LinearConfig::new(in_size, out_size, bias);
         Ok(config)
     }
 

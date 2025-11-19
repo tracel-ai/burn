@@ -23,6 +23,7 @@
 //! - TODO: No test for negative padding values - Opset 12+ allows negative padding
 //! - TODO: No test for edge case: kernel larger than input dimension
 //! - TODO: No test validating input is 3D (N x C x L) - Lower/higher rank should be rejected
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::processor::{
@@ -36,7 +37,7 @@ use crate::{
 use super::padding::PaddingConfig1d;
 
 /// Configuration for MaxPool1d operations extracted from ONNX nodes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct MaxPool1dConfig {
     /// Kernel size
     pub kernel_size: usize,
@@ -58,16 +59,6 @@ pub struct MaxPool1dNode {
 }
 
 impl MaxPool1dConfig {
-    /// Create a new MaxPool1dConfig
-    pub fn new(kernel_size: usize) -> Self {
-        Self {
-            kernel_size,
-            stride: 1,
-            padding: PaddingConfig1d::Valid,
-            dilation: 1,
-        }
-    }
-
     /// Set the stride
     pub fn with_stride(mut self, stride: usize) -> Self {
         self.stride = stride;
@@ -189,12 +180,12 @@ impl NodeProcessor for MaxPool1dProcessor {
 
         let padding = padding_config_1d(&pads);
 
-        let config = MaxPool1dConfig {
-            kernel_size: kernel_shape[0] as usize,
-            stride: stride[0] as usize,
-            dilation: dilation[0] as usize,
+        let config = MaxPool1dConfig::new(
+            kernel_shape[0] as usize,
+            stride[0] as usize,
+            dilation[0] as usize,
             padding,
-        };
+        );
 
         Ok(config)
     }

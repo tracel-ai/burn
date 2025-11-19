@@ -8,6 +8,7 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
@@ -27,7 +28,8 @@ pub struct Conv1dNode {
 }
 
 /// Configuration for Conv1d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct Conv1dConfig {
     /// Input channels
     pub channels_in: usize,
@@ -45,32 +47,6 @@ pub struct Conv1dConfig {
     pub bias: bool,
     /// Padding configuration
     pub padding: PaddingConfig1d,
-}
-
-impl Conv1dConfig {
-    /// Create a new Conv1dConfig
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        channels_in: usize,
-        channels_out: usize,
-        kernel_size: usize,
-        stride: usize,
-        padding: PaddingConfig1d,
-        dilation: usize,
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels_in,
-            channels_out,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-        }
-    }
 }
 
 /// Node processor for Conv1d operation
@@ -271,16 +247,16 @@ impl NodeProcessor for Conv1dProcessor {
             kernel_shape[0] as _
         };
 
-        let config = Conv1dConfig {
+        let config = Conv1dConfig::new(
             channels_in,
             channels_out,
             kernel_size,
-            stride: strides[0] as usize,
-            dilation: dilations[0] as usize,
-            groups: group,
+            strides[0] as usize,
+            dilations[0] as usize,
+            group,
             bias,
             padding,
-        };
+        );
 
         Ok(config)
     }

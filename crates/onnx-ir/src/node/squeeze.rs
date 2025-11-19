@@ -11,6 +11,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::processor::{
@@ -35,7 +36,7 @@ impl Default for SqueezeInput {
 }
 
 /// Configuration for Squeeze operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SqueezeConfig {
     pub axes: Option<SqueezeInput>,
 }

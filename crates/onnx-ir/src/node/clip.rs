@@ -17,6 +17,7 @@
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
@@ -36,7 +37,7 @@ pub enum ClipInput {
 }
 
 /// Configuration for Clip operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ClipConfig {
     pub min: Option<ClipInput>,
     pub max: Option<ClipInput>,

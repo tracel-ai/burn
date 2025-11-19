@@ -13,6 +13,7 @@
 //!   (see FIXME at line 188 regarding ONNX spec clarification)
 //! - Padding order: See FIXME at line 163 regarding padding order verification
 
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
@@ -31,7 +32,8 @@ pub struct ConvTranspose2dNode {
 }
 
 /// Configuration for ConvTranspose2d operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ConvTranspose2dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],
@@ -49,32 +51,6 @@ pub struct ConvTranspose2dConfig {
     pub groups: usize,
     /// Use bias.
     pub bias: bool,
-}
-
-impl ConvTranspose2dConfig {
-    /// Create a new configuration for a ConvTranspose2d.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        dilation: [usize; 2],
-        padding: [usize; 2],
-        padding_out: [usize; 2],
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels,
-            kernel_size,
-            stride,
-            dilation,
-            padding,
-            padding_out,
-            groups,
-            bias,
-        }
-    }
 }
 
 pub(crate) struct Convtranspose2dProcessor;

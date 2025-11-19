@@ -19,6 +19,7 @@
 //! - TODO: No test for axis != -1 cases (positive axis values) - Only axis=-1 tested
 //! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
+use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
@@ -27,7 +28,7 @@ use crate::processor::{
 };
 
 /// Configuration for LayerNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LayerNormConfig {
     /// Number of features/model dimension
     pub d_model: usize,
@@ -38,15 +39,6 @@ pub struct LayerNormConfig {
 }
 
 impl LayerNormConfig {
-    /// Create a new LayerNormConfig
-    pub fn new(d_model: usize) -> Self {
-        Self {
-            d_model,
-            epsilon: 1e-5,
-            full_precision: true, // Default to true (stash_type default is 1)
-        }
-    }
-
     /// Set the epsilon value
     pub fn with_epsilon(mut self, epsilon: f64) -> Self {
         self.epsilon = epsilon;
@@ -173,9 +165,7 @@ impl NodeProcessor for LayerNormProcessor {
         }
 
         let full_precision = stash_type == 1;
-        let config = LayerNormConfig::new(num_features)
-            .with_epsilon(epsilon as f64)
-            .with_full_precision(full_precision);
+        let config = LayerNormConfig::new(num_features, epsilon as f64, full_precision);
         Ok(config)
     }
 
