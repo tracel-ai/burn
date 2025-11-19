@@ -53,9 +53,6 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
             reduce_dim::<R>(out_grad.clone(), 0, Default::default(), ReduceFnConfig::Sum).unwrap();
         let grad = reduce_dim::<R>(grad, 2, Default::default(), ReduceFnConfig::Sum).unwrap();
         let grad = reduce_dim::<R>(grad, 3, Default::default(), ReduceFnConfig::Sum).unwrap();
-        // let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
-        // let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
-        // let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
 
         reshape(grad, bias.shape)
     });

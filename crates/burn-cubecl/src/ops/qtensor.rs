@@ -1,6 +1,6 @@
 use burn_tensor::{
     Bytes, DType, Device, Shape, TensorData, TensorPrimitive,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+    ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
         QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
@@ -195,7 +195,7 @@ where
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        kernel::quantization::dequantize::<R>(tensor)
+        kernel::quantization::dequantize::<R>(tensor, FloatElem::<Self>::dtype())
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
