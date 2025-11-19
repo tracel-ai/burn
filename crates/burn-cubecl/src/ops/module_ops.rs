@@ -58,19 +58,17 @@ where
         output_grad: FloatTensor<Self>,
         options: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
-        execute_with_dtype!(float(x.dtype), E, {
-            let (x, o, w, m, b) = kernel::conv::deform_conv2d_backward::<R, E, I, BT>(
-                x,
-                offset,
-                weight,
-                mask,
-                bias,
-                output_grad,
-                options,
-            )
-            .unwrap();
-            DeformConv2dBackward::new(x, o, w, m, b)
-        })
+        let (x, o, w, m, b) = kernel::conv::deform_conv2d_backward::<R>(
+            x,
+            offset,
+            weight,
+            mask,
+            bias,
+            output_grad,
+            options,
+        )
+        .unwrap();
+        DeformConv2dBackward::new(x, o, w, m, b)
     }
 
     fn conv3d(
