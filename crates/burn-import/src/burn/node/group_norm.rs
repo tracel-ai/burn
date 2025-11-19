@@ -21,27 +21,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::group_norm::Group
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                GroupNorm<B>
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let num_groups = self.config.num_groups.to_tokens();
         let num_features = self.config.num_features.to_tokens();
         let epsilon = self.config.epsilon;
 
-        let tokens = quote! {
-            let #name = GroupNormConfig::new(#num_groups, #num_features)
-                .with_epsilon(#epsilon)
-                .init(device);
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                GroupNorm<B>
+            },
+            quote! {
+                let #name = GroupNormConfig::new(#num_groups, #num_features)
+                    .with_epsilon(#epsilon)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

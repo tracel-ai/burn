@@ -21,28 +21,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::batch_norm::Batch
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                BatchNorm<B>
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let num_features = self.config.num_features.to_tokens();
         let epsilon = self.config.epsilon;
         let momentum = self.config.momentum;
 
-        let tokens = quote! {
-            let #name = BatchNormConfig::new(#num_features)
-                .with_epsilon(#epsilon)
-                .with_momentum(#momentum)
-                .init(device);
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                BatchNorm<B>
+            },
+            quote! {
+                let #name = BatchNormConfig::new(#num_features)
+                    .with_epsilon(#epsilon)
+                    .with_momentum(#momentum)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

@@ -380,8 +380,6 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
                 let burn_node = onnx_node;
                 // Collect this node's field if it has one
                 if let Some(mut field) = NodeCodegen::<PS>::field(burn_node) {
-                    let field_init = NodeCodegen::<PS>::field_init(burn_node);
-
                     // Make field name unique by appending a counter if needed
                     let base_name = field.name.to_string();
                     let count = field_name_counts.entry(base_name.clone()).or_insert(0);
@@ -397,32 +395,24 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
                         // Update the field name
                         field.name = new_name.clone();
 
-                        // Also need to update field_init to use the renamed variable
-                        if let Some(init_code) = field_init {
-                            let init_str = init_code.to_string();
-                            let old_let = format!("let {} :", base_name);
-                            let new_let = format!("let {} :", new_name_str);
-                            let updated_init_str = init_str.replace(&old_let, &new_let);
+                        // Also need to update field.init to use the renamed variable
+                        let init_str = field.init.to_string();
+                        let old_let = format!("let {} :", base_name);
+                        let new_let = format!("let {} :", new_name_str);
+                        let updated_init_str = init_str.replace(&old_let, &new_let);
 
-                            // Also handle "let base_name ="
-                            let old_let2 = format!("let {} =", base_name);
-                            let new_let2 = format!("let {} =", new_name_str);
-                            let updated_init_str = updated_init_str.replace(&old_let2, &new_let2);
+                        // Also handle "let base_name ="
+                        let old_let2 = format!("let {} =", base_name);
+                        let new_let2 = format!("let {} =", new_name_str);
+                        let updated_init_str = updated_init_str.replace(&old_let2, &new_let2);
 
-                            // Parse back to TokenStream
-                            let updated_init: TokenStream =
-                                updated_init_str.parse().unwrap_or(init_code);
-                            all_fields.push((
-                                field.name.clone(),
-                                field.ty.clone(),
-                                Some(updated_init),
-                            ));
-                        } else {
-                            all_fields.push((field.name.clone(), field.ty.clone(), field_init));
-                        }
-                    } else {
-                        all_fields.push((field.name.clone(), field.ty.clone(), field_init));
+                        // Parse back to TokenStream
+                        let updated_init: TokenStream = updated_init_str
+                            .parse()
+                            .unwrap_or_else(|_| field.init.clone());
+                        field.init = updated_init;
                     }
+                    all_fields.push((field.name.clone(), field.ty.clone(), Some(field.init)));
                 }
 
                 // Recursively collect from nested If/Loop nodes
@@ -450,8 +440,7 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
         for node in &self.nodes {
             // Collect this node's field if it has one
             if let Some(field) = NodeCodegen::<PS>::field(node) {
-                let field_init = NodeCodegen::<PS>::field_init(node);
-                all_fields.push((field.name, field.ty, field_init));
+                all_fields.push((field.name, field.ty, Some(field.init)));
             }
 
             // Recursively collect fields from If/Loop node subgraphs

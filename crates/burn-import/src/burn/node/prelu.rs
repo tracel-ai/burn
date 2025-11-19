@@ -21,23 +21,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {
     }
 
     fn field(&self) -> Option<Field> {
+        let name = Ident::new(&self.name, Span::call_site());
+
         Some(Field::new(
             self.name.clone(),
             quote! {
                 PRelu<B>
             },
+            quote! {
+                let #name = PReluConfig::new()
+                    .init(device);
+            },
         ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        let name = Ident::new(&self.name, Span::call_site());
-
-        let tokens = quote! {
-            let #name = PReluConfig::new()
-                .init(device);
-        };
-
-        Some(tokens)
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

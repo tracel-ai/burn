@@ -21,22 +21,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(self.name.clone(), quote! { Linear<B> }))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
 
-        let tokens = quote! {
-            let #name = LinearConfig::new(#d_input, #d_output)
-                .with_bias(#bias)
-                .init(device);
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! { Linear<B> },
+            quote! {
+                let #name = LinearConfig::new(#d_input, #d_output)
+                    .with_bias(#bias)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

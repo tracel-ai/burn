@@ -15,30 +15,25 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::avg_pool2d::Avera
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                AvgPool2d
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
         let count_include_pad = self.config.count_include_pad;
 
-        let tokens = quote! {
-            let #name = AvgPool2dConfig::new(#kernel_size)
-                .with_strides(#strides)
-                .with_padding(#padding)
-                .with_count_include_pad(#count_include_pad)
-                .init();
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                AvgPool2d
+            },
+            quote! {
+                let #name = AvgPool2dConfig::new(#kernel_size)
+                    .with_strides(#strides)
+                    .with_padding(#padding)
+                    .with_count_include_pad(#count_include_pad)
+                    .init();
+            },
+        ))
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

@@ -22,15 +22,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv3d::Conv3dNode {
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                Conv3d<B>
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
@@ -40,17 +31,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv3d::Conv3dNode {
         let padding = self.config.padding.to_tokens();
         let bias = self.config.bias;
 
-        let tokens = quote! {
-            let #name = Conv3dConfig::new(#channels, #kernel_size)
-                .with_stride(#stride)
-                .with_padding(#padding)
-                .with_dilation(#dilation)
-                .with_groups(#groups)
-                .with_bias(#bias)
-                .init(device);
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                Conv3d<B>
+            },
+            quote! {
+                let #name = Conv3dConfig::new(#channels, #kernel_size)
+                    .with_stride(#stride)
+                    .with_padding(#padding)
+                    .with_dilation(#dilation)
+                    .with_groups(#groups)
+                    .with_bias(#bias)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

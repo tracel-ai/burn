@@ -21,71 +21,65 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
         let output = self.outputs.first().unwrap();
         match &output.ty {
             ArgType::Tensor(t) => {
-                let rank = t.rank.to_tokens();
-                let ty = match t.dtype {
-                    onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => {
-                        quote! { burn::module::Param<Tensor<B, #rank, Int>> }
-                    }
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
-                        quote! { burn::module::Param<Tensor<B, #rank>> }
-                    }
-                    onnx_ir::ir::DType::Bool => {
-                        quote! { burn::module::Param<Tensor<B, #rank, Bool>> }
-                    }
-                    _ => {
-                        quote! { burn::module::Param<Tensor<B, #rank>> }
-                    }
-                };
-                Some(Field::new(self.name.clone(), ty))
-            }
-            _ => None,
-        }
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        let output = self.outputs.first().unwrap();
-
-        match &output.ty {
-            ArgType::Tensor(t) => {
                 let name = Ident::new(&self.name, Span::call_site());
                 let rank = t.rank.to_tokens();
 
                 // Get tensor data from the input (which holds the constant value)
                 let input = self.inputs.first().unwrap();
                 let tensor_data = input.value().expect("Constant node must have tensor data");
-
                 let shape = tensor_data.shape.to_tokens();
 
-                match t.dtype {
-                    onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => Some(quote! {
-                        let #name: burn::module::Param<Tensor<B, #rank, Int>> = burn::module::Param::uninitialized(
-                            burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #rank, Int>::zeros(#shape, device),
-                            device.clone(),
-                            false,
-                            #shape.into(),
-                        );
-                    }),
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => Some(quote! {
-                        let #name: burn::module::Param<Tensor<B, #rank>> = burn::module::Param::uninitialized(
-                            burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, device),
-                            device.clone(),
-                            false,
-                            #shape.into(),
-                        );
-                    }),
-                    onnx_ir::ir::DType::Bool => Some(quote! {
-                        let #name: burn::module::Param<Tensor<B, #rank, Bool>> = burn::module::Param::uninitialized(
-                            burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #rank, Bool>::empty(#shape, device),
-                            device.clone(),
-                            false,
-                            #shape.into(),
-                        );
-                    }),
-                    _ => None,
-                }
+                let (ty, init) = match t.dtype {
+                    onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => (
+                        quote! { burn::module::Param<Tensor<B, #rank, Int>> },
+                        quote! {
+                            let #name: burn::module::Param<Tensor<B, #rank, Int>> = burn::module::Param::uninitialized(
+                                burn::module::ParamId::new(),
+                                move |device, _require_grad| Tensor::<B, #rank, Int>::zeros(#shape, device),
+                                device.clone(),
+                                false,
+                                #shape.into(),
+                            );
+                        },
+                    ),
+                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => (
+                        quote! { burn::module::Param<Tensor<B, #rank>> },
+                        quote! {
+                            let #name: burn::module::Param<Tensor<B, #rank>> = burn::module::Param::uninitialized(
+                                burn::module::ParamId::new(),
+                                move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, device),
+                                device.clone(),
+                                false,
+                                #shape.into(),
+                            );
+                        },
+                    ),
+                    onnx_ir::ir::DType::Bool => (
+                        quote! { burn::module::Param<Tensor<B, #rank, Bool>> },
+                        quote! {
+                            let #name: burn::module::Param<Tensor<B, #rank, Bool>> = burn::module::Param::uninitialized(
+                                burn::module::ParamId::new(),
+                                move |device, _require_grad| Tensor::<B, #rank, Bool>::empty(#shape, device),
+                                device.clone(),
+                                false,
+                                #shape.into(),
+                            );
+                        },
+                    ),
+                    _ => (
+                        quote! { burn::module::Param<Tensor<B, #rank>> },
+                        quote! {
+                            let #name: burn::module::Param<Tensor<B, #rank>> = burn::module::Param::uninitialized(
+                                burn::module::ParamId::new(),
+                                move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, device),
+                                device.clone(),
+                                false,
+                                #shape.into(),
+                            );
+                        },
+                    ),
+                };
+                Some(Field::new(self.name.clone(), ty, init))
             }
             _ => None,
         }

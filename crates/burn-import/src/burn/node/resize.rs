@@ -15,7 +15,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
     }
 
     fn field(&self) -> Option<Field> {
-        use onnx_ir::node::resize::{ResizeScales, ResizeSizes};
+        use onnx_ir::node::resize::{ResizeMode, ResizeScales, ResizeSizes};
 
         // Only create a field for static resize (no runtime inputs)
         let has_runtime_scales = matches!(&self.config.scales, Some(ResizeScales::Runtime(_)));
@@ -40,44 +40,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
             _ => panic!("Resize input must be a tensor"),
         };
 
-        let ty = if input_rank == 3 {
-            quote! { burn::nn::interpolate::Interpolate1d }
-        } else if input_rank == 4 {
-            quote! { burn::nn::interpolate::Interpolate2d }
-        } else {
-            panic!("Unsupported input rank for resize node");
-        };
-
-        Some(Field::new(&self.name, ty))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        use onnx_ir::node::resize::{ResizeMode, ResizeScales, ResizeSizes};
-
-        // Only static resize needs field init
-        let has_runtime_scales = matches!(&self.config.scales, Some(ResizeScales::Runtime(_)));
-        let has_runtime_sizes = matches!(&self.config.sizes, Some(ResizeSizes::Runtime(_)));
-        if has_runtime_scales || has_runtime_sizes {
-            return None;
-        }
-
-        let has_static = matches!(&self.config.scales, Some(ResizeScales::Static(_)))
-            || matches!(&self.config.sizes, Some(ResizeSizes::Static(_)));
-        if !has_static {
-            return None;
-        }
-
         let name = syn::Ident::new(&self.name, proc_macro2::Span::call_site());
         let mode = match self.config.mode {
             ResizeMode::Nearest => quote! { burn::nn::interpolate::InterpolateMode::Nearest },
             ResizeMode::Linear => quote! { burn::nn::interpolate::InterpolateMode::Linear },
             ResizeMode::Cubic => quote! { burn::nn::interpolate::InterpolateMode::Cubic },
-        };
-
-        let input_arg = self.inputs.first().unwrap();
-        let input_rank = match &input_arg.ty {
-            ArgType::Tensor(t) => t.rank,
-            _ => panic!("Resize input must be a tensor"),
         };
 
         if input_rank == 3 {
@@ -97,13 +64,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
                 _ => quote! { None },
             };
 
-            Some(quote! {
-                let #name = burn::nn::interpolate::Interpolate1dConfig::new()
-                    .with_output_size(#size)
-                    .with_scale_factor(#scale_factor)
-                    .with_mode(#mode)
-                    .init();
-            })
+            Some(Field::new(
+                &self.name,
+                quote! { burn::nn::interpolate::Interpolate1d },
+                quote! {
+                    let #name = burn::nn::interpolate::Interpolate1dConfig::new()
+                        .with_output_size(#size)
+                        .with_scale_factor(#scale_factor)
+                        .with_mode(#mode)
+                        .init();
+                },
+            ))
         } else if input_rank == 4 {
             let size = match &self.config.sizes {
                 Some(ResizeSizes::Static(sizes)) if sizes.len() >= 2 => {
@@ -123,13 +94,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
                 _ => quote! { None },
             };
 
-            Some(quote! {
-                let #name = burn::nn::interpolate::Interpolate2dConfig::new()
-                    .with_output_size(#size)
-                    .with_scale_factor(#scale_factor)
-                    .with_mode(#mode)
-                    .init();
-            })
+            Some(Field::new(
+                &self.name,
+                quote! { burn::nn::interpolate::Interpolate2d },
+                quote! {
+                    let #name = burn::nn::interpolate::Interpolate2dConfig::new()
+                        .with_output_size(#size)
+                        .with_scale_factor(#scale_factor)
+                        .with_mode(#mode)
+                        .init();
+                },
+            ))
         } else {
             None
         }

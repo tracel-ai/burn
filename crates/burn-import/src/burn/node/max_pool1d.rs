@@ -15,30 +15,25 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool1d::MaxPool1dNo
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                MaxPool1d
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.stride.to_tokens();
         let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
 
-        let tokens = quote! {
-            let #name = MaxPool1dConfig::new(#kernel_size)
-                .with_stride(#strides)
-                .with_padding(#padding)
-                .with_dilation(#dilation)
-                .init();
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                MaxPool1d
+            },
+            quote! {
+                let #name = MaxPool1dConfig::new(#kernel_size)
+                    .with_stride(#strides)
+                    .with_padding(#padding)
+                    .with_dilation(#dilation)
+                    .init();
+            },
+        ))
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

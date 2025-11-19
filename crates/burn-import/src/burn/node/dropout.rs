@@ -15,15 +15,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::dropout::DropoutNode {
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                Dropout
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let prob = match &self.config.prob {
             onnx_ir::dropout::DropoutInput::Static(val) => val.to_tokens(),
@@ -31,11 +22,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::dropout::DropoutNode {
                 panic!("Runtime input is not implemented for Dropout")
             }
         };
-        let tokens = quote! {
-            let #name = DropoutConfig::new(#prob).init();
-        };
 
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                Dropout
+            },
+            quote! {
+                let #name = DropoutConfig::new(#prob).init();
+            },
+        ))
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

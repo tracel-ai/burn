@@ -10,16 +10,18 @@ use crate::burn::{BurnImports, Scope};
 pub struct Field {
     pub name: Ident,
     pub ty: TokenStream,
+    pub init: TokenStream,
 }
 
 impl Field {
-    pub fn new<S: AsRef<str>>(name: S, tokens: TokenStream) -> Self {
+    pub fn new<S: AsRef<str>>(name: S, ty: TokenStream, init: TokenStream) -> Self {
         if name.as_ref().is_empty() {
-            panic!("Field with tokens {tokens:?} was passed with empty name");
+            panic!("Field with type {ty:?} was passed with empty name");
         }
         Self {
             name: Ident::new(name.as_ref(), Span::call_site()),
-            ty: tokens,
+            ty,
+            init,
         }
     }
 }
@@ -85,8 +87,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// Register the necessary imports.
     fn register_imports(&self, _imports: &mut BurnImports) {}
 
-    // TODO Combine field and field_init
-    /// (Optional) Declare the type of the field
+    /// (Optional) Declare the type and initialization of the field
     ///
     /// # Notes
     ///
@@ -94,17 +95,11 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// Just one field per type is possible, if the node has multiple types for its parameters, a
     /// tuple can be used.
     ///
+    /// The returned Field struct contains both the type and initialization code.
+    ///
     /// Other field functions should be implemented when this one returns something other than None.
-    ///   * [field_init](NodeCodegen::field_init) to initialize parameters.
     ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
     fn field(&self) -> Option<Field> {
-        None
-    }
-
-    /// (Optional) Declare how the parameters are initialized.
-    ///
-    /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    fn field_init(&self) -> Option<TokenStream> {
         None
     }
 

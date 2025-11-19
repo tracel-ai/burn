@@ -24,15 +24,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
     }
 
     fn field(&self) -> Option<Field> {
-        Some(Field::new(
-            self.name.clone(),
-            quote! {
-                ConvTranspose1d<B>
-            },
-        ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
         let channels_in = self.config.channels_in.to_tokens();
         let channels_out = self.config.channels_out.to_tokens();
@@ -44,18 +35,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         let padding_out = self.config.padding_out.to_tokens();
         let bias = self.config.bias;
 
-        let tokens = quote! {
-            let #name = ConvTranspose1dConfig::new([#channels_in, #channels_out], #kernel_size)
-                .with_stride(#stride)
-                .with_padding(#padding)
-                .with_padding_out(#padding_out)
-                .with_dilation(#dilation)
-                .with_groups(#groups)
-                .with_bias(#bias)
-                .init(device);
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                ConvTranspose1d<B>
+            },
+            quote! {
+                let #name = ConvTranspose1dConfig::new([#channels_in, #channels_out], #kernel_size)
+                    .with_stride(#stride)
+                    .with_padding(#padding)
+                    .with_padding_out(#padding_out)
+                    .with_dilation(#dilation)
+                    .with_groups(#groups)
+                    .with_bias(#bias)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

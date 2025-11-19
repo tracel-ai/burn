@@ -24,36 +24,27 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
             _ => panic!("Expected tensor input for GlobalAvgPool"),
         };
 
-        let field_type = match rank {
-            3 => quote! { AdaptiveAvgPool1d },
-            4 => quote! { AdaptiveAvgPool2d },
-            dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
-        };
-
-        Some(Field::new(self.name.clone(), field_type))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
         let name = Ident::new(&self.name, Span::call_site());
-        let input = self.inputs.first().unwrap();
-        let rank = match &input.ty {
-            ArgType::Tensor(t) => t.rank,
-            _ => panic!("Expected tensor input for GlobalAvgPool"),
-        };
 
-        let tokens = match rank {
-            3 => quote! {
-                let #name = AdaptiveAvgPool1dConfig::new(1)
-                    .init();
-            },
-            4 => quote! {
-                let #name = AdaptiveAvgPool2dConfig::new([1, 1])
-                    .init();
-            },
+        let (field_type, init_tokens) = match rank {
+            3 => (
+                quote! { AdaptiveAvgPool1d },
+                quote! {
+                    let #name = AdaptiveAvgPool1dConfig::new(1)
+                        .init();
+                },
+            ),
+            4 => (
+                quote! { AdaptiveAvgPool2d },
+                quote! {
+                    let #name = AdaptiveAvgPool2dConfig::new([1, 1])
+                        .init();
+                },
+            ),
             dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
         };
 
-        Some(tokens)
+        Some(Field::new(self.name.clone(), field_type, init_tokens))
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

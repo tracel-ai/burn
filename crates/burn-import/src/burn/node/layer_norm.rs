@@ -21,26 +21,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::Layer
     }
 
     fn field(&self) -> Option<Field> {
+        let name = Ident::new(&self.name, Span::call_site());
+        let num_features = self.config.d_model.to_tokens();
+        let epsilon = self.config.epsilon;
+
         Some(Field::new(
             self.name.clone(),
             quote! {
                 LayerNorm<B>
             },
+            quote! {
+                let #name = LayerNormConfig::new(#num_features)
+                    .with_epsilon(#epsilon)
+                    .init(device);
+            },
         ))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        let name = Ident::new(&self.name, Span::call_site());
-        let num_features = self.config.d_model.to_tokens();
-        let epsilon = self.config.epsilon;
-
-        let tokens = quote! {
-            let #name = LayerNormConfig::new(#num_features)
-                .with_epsilon(#epsilon)
-                .init(device);
-        };
-
-        Some(tokens)
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

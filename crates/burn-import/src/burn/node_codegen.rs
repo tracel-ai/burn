@@ -39,13 +39,6 @@ macro_rules! impl_node_codegen_dispatch {
                 }
             }
 
-            fn field_init(&self) -> Option<TokenStream> {
-                match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::field_init(n),)*
-                    _ => None,
-                }
-            }
-
             fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::field_serialize(n, serializer),)*
