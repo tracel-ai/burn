@@ -53,10 +53,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SpaceToDepthNode {
 
 impl OnnxIntoNode for SpaceToDepthNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::space_to_depth::SpaceToDepthConfig>();
-        Self::new(input, output, config.block_size)
+        let onnx_ir::Node::SpaceToDepth(n) = node else {
+            panic!("Expected SpaceToDepth node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.block_size)
     }
 }
 

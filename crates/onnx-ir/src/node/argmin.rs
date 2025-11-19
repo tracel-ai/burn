@@ -9,13 +9,12 @@
 //! - **Opset 11**: Initial supported version.
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
+use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for ArgMin operations
 #[derive(Debug, Clone, new)]
@@ -26,19 +25,20 @@ pub struct ArgMinConfig {
     pub keepdims: bool,
 }
 
-impl NodeConfig for ArgMinConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for ArgMin operation
+#[derive(Debug, Clone)]
+pub struct ArgMinNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ArgMinConfig,
 }
 
-pub struct ArgMinProcessor;
+pub(crate) struct ArgMinProcessor;
 
 impl NodeProcessor for ArgMinProcessor {
+    type Config = ArgMinConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -50,37 +50,10 @@ impl NodeProcessor for ArgMinProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // TODO: Add validation for unexpected attributes (similar to attention.rs)
-        // Currently only validates select_last_index and keepdims values but doesn't check for unknown attributes
-
-        // Validate select_last_index before config extraction
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "select_last_index" && value.clone().into_i64() != 0 {
-                return Err(ProcessError::InvalidAttribute {
-                    name: "select_last_index".to_string(),
-                    reason: "select_last_index=1 is not supported for argmin in burn".to_string(),
-                });
-            }
-        }
-
-        // Validate keepdims value
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "keepdims" {
-                let keepdims_val = value.clone().into_i64();
-                if keepdims_val != 0 && keepdims_val != 1 {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: "keepdims".to_string(),
-                        reason: "Only keepdims=0 or keepdims=1 is supported for argmin in burn"
-                            .to_string(),
-                    });
-                }
-            }
-        }
-
         // Extract the input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
@@ -93,7 +66,10 @@ impl NodeProcessor for ArgMinProcessor {
         };
 
         // Get config values before mutating node
-        let keepdims = node.config::<ArgMinConfig>().keepdims;
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
+        let keepdims = config.keepdims;
 
         // For burn compatibility, argmin always outputs a tensor
         // When keepdims=false, we still output a tensor but with adjusted rank
@@ -121,9 +97,9 @@ impl NodeProcessor for ArgMinProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
             _ => {
@@ -137,14 +113,37 @@ impl NodeProcessor for ArgMinProcessor {
         let mut axis: i64 = 0;
         let mut keepdims = true;
 
+        // Extract and validate attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "axis" => axis = value.clone().into_i64(),
                 "keepdims" => {
                     let keepdims_val = value.clone().into_i64();
+
+                    // Validate keepdims value
+                    if keepdims_val != 0 && keepdims_val != 1 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "keepdims".to_string(),
+                            reason: "Only keepdims=0 or keepdims=1 is supported for argmin in burn"
+                                .to_string(),
+                        });
+                    }
+
                     keepdims = keepdims_val != 0;
                 }
-                _ => {}
+                "select_last_index" => {
+                    // Validate select_last_index
+                    if value.clone().into_i64() != 0 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "select_last_index".to_string(),
+                            reason: "select_last_index=1 is not supported for argmin in burn"
+                                .to_string(),
+                        });
+                    }
+                }
+                _ => {
+                    // Unknown attributes are ignored (could add warning here)
+                }
             }
         }
 
@@ -153,7 +152,20 @@ impl NodeProcessor for ArgMinProcessor {
         }
 
         let config = ArgMinConfig::new(axis as usize, keepdims);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::ArgMin(ArgMinNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -163,10 +175,10 @@ mod tests {
 
     use super::*;
     use crate::ir::{Argument, DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> Node {
-        NodeBuilder::new(NodeType::ArgMin, "test_argmin")
+    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::ArgMin, "test_argmin")
             .input_tensor_f32("data", 3, None)
             .output_tensor_i64("output", 3, None)
             .attr_int("axis", axis)
@@ -183,12 +195,10 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ArgMinConfig>();
         assert_eq!(config.axis, 0);
         assert_eq!(config.keepdims, true);
     }
@@ -201,12 +211,10 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ArgMinConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
     }
@@ -241,70 +249,58 @@ mod tests {
         let processor = ArgMinProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node_keepdims_0, 16).unwrap();
-        node_keepdims_0.config = config;
+        let extracted_config_0 = processor.extract_config(&node_keepdims_0, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor
             .infer_types(&mut node_keepdims_0, 16, &prefs)
             .unwrap();
 
-        let config_0 = node_keepdims_0.config::<ArgMinConfig>();
-        assert_eq!(config_0.axis, 0);
-        assert_eq!(config_0.keepdims, false);
+        assert_eq!(extracted_config_0.axis, 0);
+        assert_eq!(extracted_config_0.keepdims, false);
 
         let mut node_keepdims_1 = create_test_node(0, 0, 1);
 
         let processor = ArgMinProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node_keepdims_1, 16).unwrap();
-        node_keepdims_1.config = config;
+        let extracted_config_1 = processor.extract_config(&node_keepdims_1, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor
             .infer_types(&mut node_keepdims_1, 16, &prefs)
             .unwrap();
 
-        let config_1 = node_keepdims_1.config::<ArgMinConfig>();
-        assert_eq!(config_1.axis, 0);
-        assert_eq!(config_1.keepdims, true);
+        assert_eq!(extracted_config_1.axis, 0);
+        assert_eq!(extracted_config_1.keepdims, true);
     }
 
     #[test]
     fn test_argmin_config_keepdims_invalid() {
-        let mut node = create_test_node(0, 0, 2); // Invalid keepdims value
+        let node = create_test_node(0, 0, 2); // Invalid keepdims value
 
         let processor = ArgMinProcessor;
 
-        // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        // Validation should fail during config extraction
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
     fn test_argmin_config_select_last_index_invalid() {
-        let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
+        let node = create_test_node(0, 1, 1); // Invalid select_last_index value
 
         let processor = ArgMinProcessor;
 
-        // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        // Validation should fail during config extraction
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
     fn test_argmin_update_outputs_keepdims_0() {
         // Test argmin with keepdims=0 - output rank should be reduced but minimum 1 for burn
-        let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_0")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_0")
             .attr_int("axis", 1)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 2, None) // 2D input
@@ -314,8 +310,7 @@ mod tests {
         let processor = ArgMinProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -333,7 +328,7 @@ mod tests {
     #[test]
     fn test_argmin_update_outputs_keepdims_1() {
         // Test argmin with keepdims=1 - output rank should be same as input
-        let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_1")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMin, "test_argmin_keepdims_1")
             .attr_int("axis", 0)
             .attr_int("keepdims", 1)
             .input_tensor_f32("data", 3, None) // 3D input
@@ -343,8 +338,7 @@ mod tests {
         let processor = ArgMinProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -362,7 +356,7 @@ mod tests {
     #[test]
     fn test_argmin_update_outputs_keepdims_0_scalar() {
         // Test argmin with keepdims=0 on 1D tensor - should output scalar
-        let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_1d_keepdims_0")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMin, "test_argmin_1d_keepdims_0")
             .attr_int("axis", 0)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 1, None) // 1D input
@@ -372,8 +366,7 @@ mod tests {
         let processor = ArgMinProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();

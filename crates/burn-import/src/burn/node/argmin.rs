@@ -80,10 +80,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
 
 impl OnnxIntoNode for ArgMinNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::argmin::ArgMinConfig>();
-        Self::new(input, output, config.axis, config.keepdims)
+        let onnx_ir::Node::ArgMin(n) = node else {
+            panic!("Expected ArgMin node");
+        };
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::Type::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.axis, n.config.keepdims)
     }
 }
 

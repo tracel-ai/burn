@@ -119,20 +119,25 @@ impl OnnxIntoNode for LinearNode {
         use burn::tensor::TensorData;
         use onnx_ir::ir::ArgType;
 
-        let name = &node.name;
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::linear::LinearConfig>();
+        let onnx_ir::Node::Linear(n) = &node else {
+            panic!("Expected Linear node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Helper function to extract and serialize data - converts to the appropriate dtype
         fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
             use onnx_ir::ir::DType;
 
-            if node.inputs.is_empty() {
+            if node.inputs().is_empty() {
                 return None;
             }
 
-            let input = node.inputs.get(input_index)?;
+            let input = node.inputs().get(input_index)?;
             let value = input.value()?;
             let ty = input.ty.clone();
 

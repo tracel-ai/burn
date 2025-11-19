@@ -22,14 +22,14 @@
 //!
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
+use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
-use std::any::Any;
 
 /// Configuration for RandomNormal operation.
 #[derive(Debug, Clone)]
@@ -37,16 +37,6 @@ pub struct RandomNormalConfig {
     pub mean: f64,
     pub scale: f64,
     pub shape: Vec<usize>,
-}
-
-impl NodeConfig for RandomNormalConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Configuration for RandomUniform operation.
@@ -57,19 +47,36 @@ pub struct RandomUniformConfig {
     pub shape: Vec<usize>,
 }
 
-impl NodeConfig for RandomUniformConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Enum config that can hold either RandomNormal or RandomUniform config
+#[derive(Debug, Clone)]
+pub enum RandomConfig {
+    Normal(RandomNormalConfig),
+    Uniform(RandomUniformConfig),
 }
 
-pub struct RandomProcessor;
+/// Node representation for RandomNormal operation
+#[derive(Debug, Clone)]
+pub struct RandomNormalNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RandomNormalConfig,
+}
+
+/// Node representation for RandomUniform operation
+#[derive(Debug, Clone)]
+pub struct RandomUniformNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RandomUniformConfig,
+}
+
+pub(crate) struct RandomProcessor;
 
 impl NodeProcessor for RandomProcessor {
+    type Config = RandomConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -81,7 +88,7 @@ impl NodeProcessor for RandomProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -153,9 +160,9 @@ impl NodeProcessor for RandomProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let shape = node
             .attrs
             .get("shape")
@@ -164,7 +171,7 @@ impl NodeProcessor for RandomProcessor {
             .into_i64s();
         let shape: Vec<usize> = shape.into_iter().map(|i| i as usize).collect();
 
-        let config: Box<dyn NodeConfig> = match node.node_type {
+        let config = match node.node_type {
             crate::ir::NodeType::RandomNormal => {
                 let mean = node
                     .attrs
@@ -176,7 +183,7 @@ impl NodeProcessor for RandomProcessor {
                     .get("scale")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomNormalConfig { mean, scale, shape })
+                RandomConfig::Normal(RandomNormalConfig { mean, scale, shape })
             }
             crate::ir::NodeType::RandomUniform => {
                 let low = node
@@ -189,7 +196,7 @@ impl NodeProcessor for RandomProcessor {
                     .get("high")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomUniformConfig { low, high, shape })
+                RandomConfig::Uniform(RandomUniformConfig { low, high, shape })
             }
             _ => {
                 return Err(ProcessError::Custom(format!(
@@ -199,7 +206,28 @@ impl NodeProcessor for RandomProcessor {
             }
         };
 
-        Ok(Some(config))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        match config {
+            RandomConfig::Normal(normal_config) => Node::RandomNormal(RandomNormalNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: normal_config,
+            }),
+            RandomConfig::Uniform(uniform_config) => Node::RandomUniform(RandomUniformNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: uniform_config,
+            }),
+        }
     }
 }
 
@@ -207,11 +235,11 @@ impl NodeProcessor for RandomProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: i32, shape: Vec<i64>) -> Node {
-        NodeBuilder::new(NodeType::RandomNormal, "test_random")
+    fn create_test_node(dtype: i32, shape: Vec<i64>) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::RandomNormal, "test_random")
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
             .attr_int("dtype", dtype as i64)
             .attr_ints("shape", shape)

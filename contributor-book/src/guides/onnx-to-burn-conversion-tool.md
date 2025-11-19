@@ -91,25 +91,60 @@ are relative to the root of the burn repository.
 The `onnx-ir` crate handles the Intermediate Representation (IR) of ONNX models using a
 processor-based architecture. For each operation:
 
-1. Add the operation to the `NodeType` enum in `crates/onnx-ir/src/ir.rs`.
+1. **Create a node module** in `crates/onnx-ir/src/node/<operation_name>.rs`. This file should
+   contain:
+   - **Configuration struct**: Define operation-specific parameters (e.g., `SqueezeConfig`)
+   - **Processor struct**: Implement `NodeProcessor` trait (marked as `pub(crate)`)
+   - The processor handles:
+     - **Input/output specification**: Define expected inputs and outputs via `NodeSpec`
+     - **Type inference**: Infer output types from inputs and configuration
+     - **Configuration extraction**: Extract operation parameters from ONNX attributes
+     - **Node construction**: Build the final `Node` enum variant with config
 
-2. Create a new module file in `crates/onnx-ir/src/node/<operation_name>.rs`. This file should
-   implement the `NodeProcessor` trait which handles:
-   - **Configuration extraction**: Extract operation parameters from ONNX node attributes
-   - **Type inference**: Infer output types (including element type, rank, and optionally static
-     shapes) from input types and configuration
-   - **Opset validation**: Ensure the node is compatible with the model's opset version
+2. **Make the module visible** in `crates/onnx-ir/src/node/mod.rs`:
 
-3. Make the module visible in `crates/onnx-ir/src/node/mod.rs`.
+   ```rust
+   pub mod squeeze;
+   ```
 
-4. Register your processor in `crates/onnx-ir/src/registry.rs` by adding it to the
-   `with_standard_processors()` function.
+3. **Create a node struct** in your module file (e.g., `squeeze.rs`) with the standard fields:
 
-For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeeze.rs` and contains:
+   ```rust
+   #[derive(Debug, Clone)]
+   pub struct SqueezeNode {
+       pub name: String,
+       pub inputs: Vec<Argument>,
+       pub outputs: Vec<Argument>,
+       pub config: SqueezeConfig,
+   }
+   ```
 
-- A `SqueezeProcessor` struct that implements `NodeProcessor`
-- The `extract_config` method extracts axes from node attributes
-- The `infer_types` method updates output type by reducing input rank based on squeezed axes
+4. **Add to the macro invocation** in `crates/onnx-ir/src/ir/node.rs` by adding a mapping to the
+   `define_node_enum!` macro:
+
+   ```rust
+   define_node_enum! {
+       // ... other variants
+       Squeeze => squeeze::SqueezeNode,
+       // ... more variants
+   }
+   ```
+
+   This single macro invocation generates both the `NodeType` enum (for parsing) and the `Node` enum
+   (with tuple variants wrapping node structs) from a single source of truth.
+
+5. **Register your processor** in `crates/onnx-ir/src/registry.rs` by adding it to the
+   `with_standard_processors()` function:
+   ```rust
+   registry.register("Squeeze", Box::new(squeeze::SqueezeProcessor));
+   ```
+
+For example, the squeeze operation in `crates/onnx-ir/src/node/squeeze.rs` contains:
+
+- A `SqueezeConfig` struct with operation parameters (axes)
+- A `SqueezeProcessor` struct (marked `pub(crate)`) that implements `NodeProcessor`
+- The `node_spec()` method defines input/output requirements
+- The `process()` method extracts config and constructs the `Node::Squeeze` variant
 
 ### Step 2: Node Implementation in burn-import
 
@@ -121,16 +156,22 @@ For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeez
    for the operation.
 
 2. Implement the `OnnxIntoNode` trait for your node. This trait has a single method `from_onnx` that
-   converts an ONNX IR node into your Burn node type:
+   converts an ONNX IR node into your Burn node type. Use pattern matching to extract the node
+   struct:
 
    ```rust
    impl OnnxIntoNode for SqueezeNode {
-       fn from_onnx(node: onnx_ir::Node) -> Self {
-           let input = TensorType::from(node.inputs.first().unwrap());
-           let output = TensorType::from(node.outputs.first().unwrap());
-           let axes = squeeze_config(&node);
+       fn from_onnx(node: onnx_ir::ir::Node) -> Self {
+           // Pattern match on the Node enum variant to extract the node struct
+           let squeeze_node = match node {
+               onnx_ir::ir::Node::Squeeze(node) => node,
+               _ => panic!("Expected Squeeze node"),
+           };
 
-           SqueezeNode::new(input, output, axes)
+           let input = TensorType::from(squeeze_node.inputs.first().unwrap());
+           let output = TensorType::from(squeeze_node.outputs.first().unwrap());
+
+           SqueezeNode::new(input, output, squeeze_node.config.axes)
        }
    }
    ```
@@ -233,50 +274,39 @@ That's it! The registry automatically generates:
 - The ONNX to Burn conversion logic
 - All necessary imports
 
-### Step 5: Type Inference Implementation
+### Step 5: Processor Implementation
 
-Type inference in onnx-ir is handled by the `NodeProcessor` trait's `infer_types` method. This
-method infers output types (element type, rank, and optionally static shapes) based on:
+The `NodeProcessor` trait defines how operations are processed in onnx-ir. Each processor must
+implement:
 
-- Input argument types
-- Node configuration (extracted from attributes)
-- ONNX opset version
+1. **Associated type**: `type Config` - Define your configuration struct (use `()` if no config)
+2. **`infer_types()`** - Infer output types from inputs and config (required)
+3. **`build_node()`** - Construct the node struct and wrap it in the `Node` enum variant (required)
+4. **`extract_config()`** - Extract config from attributes/inputs (override if Config != `()`)
+5. **`spec()`** - Define opset and input/output requirements (optional)
+6. **`lift_constants()`** - Request constant lifting for inputs (optional)
 
-Example implementation in your processor:
+Example `build_node()` implementation:
 
 ```rust
-fn infer_types(
-    &self,
-    node: &mut Node,
-    opset: usize,
-) -> Result<(), ProcessError> {
-    // Extract input information
-    let input = &node.inputs[0];
-    let input_type = input.ty.as_tensor()?;
-
-    // Extract configuration
-    let config = self.extract_config(node, opset)?;
-    let axes = config.get::<Vec<i64>>("axes")?;
-
-    // Compute output type
-    let output_rank = input_type.rank - axes.len();
-
-    // Update output type
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: input_type.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
-
-    Ok(())
+fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    let config = self.extract_config(&builder, opset).expect("Config extraction failed");
+    Node::Squeeze(SqueezeNode {
+        name: builder.name,
+        inputs: builder.inputs,
+        outputs: builder.outputs,
+        config,
+    })
 }
 ```
 
-The onnx-ir crate provides helper functions for common patterns:
+For complete examples, see existing processors:
 
-- `same_as_input()` - Output has same type as input
-- `broadcast_shapes()` - Compute broadcasted shape for binary operations
-- `infer_shape_from_outputs()` - For operations with runtime-determined shapes
+- **Simple operation**: `crates/onnx-ir/src/node/softmax.rs`
+- **With constant inputs**: `crates/onnx-ir/src/node/squeeze.rs`
+- **Complex operation**: `crates/onnx-ir/src/node/conv2d.rs`
+
+See [NodeProcessor Trait](#nodeprocessor-trait) for the complete trait definition.
 
 ### Step 6: Add Newly Supported Op!
 
@@ -284,38 +314,17 @@ As a reward, add an extra check to `crates/burn-import/SUPPORTED-ONNX-OPS.md`!
 
 ### Constant Lifting
 
-The onnx-ir pipeline automatically handles constant lifting during the post-processing phase. If
-your operation takes inputs from constant nodes (such as weights in Conv1d, shape tensors in
-Reshape, etc.), the constants are automatically lifted and made available through the
-`Argument::value()` method.
+The onnx-ir pipeline automatically handles constant lifting during the post-processing phase.
+"Lifting" constants means making constant values directly accessible on node inputs via
+`Argument::value()`, instead of requiring a separate graph traversal to find a Constant node.
 
-"Lifting" constants means making constant values directly accessible on node inputs. For example,
-instead of requiring a separate graph traversal to find a Constant node, you can call
-`node.inputs[1].value()` to access the constant tensor data directly.
+**When to use**: If your operation takes constant inputs (e.g., weights in Conv1d, shape tensors in
+Reshape, axes in Squeeze), access them via `node.inputs[N].value()` in your `extract_config()`
+method. See the [Configuration Extraction example](#example-configuration-extraction) in Step 5.
 
-To use constant values in your processor:
-
-```rust
-fn extract_config(
-    &self,
-    node: &Node,
-    _opset: usize,
-) -> Result<NodeConfig, ProcessError> {
-    let mut config = NodeConfig::new();
-
-    // Access constant input (e.g., shape tensor)
-    if let Some(shape_tensor) = node.inputs.get(1).and_then(|arg| arg.value()) {
-        let shape_values = shape_tensor.to_vec::<i64>()?;
-        config.set("target_shape", shape_values);
-    }
-
-    Ok(config)
-}
-```
-
-The constant lifting happens automatically for nodes that request constant values, so you don't need
-to register your node type anywhere. The pipeline intelligently lifts constants only when needed
-during the post-processing phase.
+**Optional optimization**: Implement `lift_constants()` to explicitly request constant lifting for
+specific inputs before `extract_config()` is called. The pipeline handles this automatically during
+post-processing.
 
 ## Architecture Overview
 
@@ -334,16 +343,18 @@ pipeline:
 
 #### Phase 2: Node Conversion
 
-- Converts ONNX nodes to IR nodes using `convert_node_proto()`
-- **Opset-aware**: Extracts node configuration using registered processors that accept opset
-  parameters for version-specific behavior
+- Converts ONNX nodes to IR nodes using registered processors
+- Creates `NodeBuilder` instances from ONNX proto nodes
+- Processors extract configuration and construct typed `Node` enum variants
 - Handles constant nodes specially (extracting values from attributes into tensor store)
+- Each processor is responsible for its own type inference and node construction
 
 #### Phase 3: Type Inference
 
-- Iteratively infers types for all nodes using processor implementations
-- Supports preference propagation (e.g., Concat can request Shape types from producers)
-- Continues until convergence (no more type changes) or max iterations
+- Type inference happens within each processor's `process()` method during Phase 2
+- Processors infer output types based on input types and configuration
+- Multi-pass processing handles dependencies between nodes
+- The pipeline may need multiple iterations for complex type dependencies (e.g., control flow)
 
 #### Phase 4: Post-processing
 
@@ -358,43 +369,27 @@ pipeline:
 
 ### NodeProcessor Trait
 
-The `NodeProcessor` trait is the core abstraction for handling ONNX operations in onnx-ir,
-representing the **simplified op model** that makes the crate more scalable and maintainable. Each
-processor is self-contained and implements three key methods:
+The `NodeProcessor` trait (defined in `crates/onnx-ir/src/processor.rs`) is the core abstraction for
+handling ONNX operations. Each processor implements:
 
-```rust
-pub trait NodeProcessor {
-    /// Extract configuration from node attributes
-    fn extract_config(
-        &self,
-        node: &Node,
-        opset: usize,
-    ) -> Result<NodeConfig, ProcessError>;
+**Required:**
 
-    /// Infer output types from inputs and configuration
-    fn infer_types(
-        &self,
-        node: &mut Node,
-        opset: usize,
-    ) -> Result<(), ProcessError>;
+- `type Config` - Associated type for configuration (use `()` if no config needed)
+- `infer_types()` - Infer output types from inputs and configuration
+- `build_node()` - Construct the final `Node` enum variant
 
-    /// Optionally request specific types from producers (e.g., Shape instead of Tensor)
-    fn request_producer_types(
-        &self,
-        _node: &Node,
-    ) -> Option<HashMap<String, Vec<RequestedType>>> {
-        None
-    }
-}
-```
+**Optional (have defaults):**
 
-Key design principles:
+- `spec()` - Define opset requirements and input/output count validation (`NodeSpec`, `InputSpec`,
+  `OutputSpec`)
+- `extract_config()` - Extract configuration from attributes/inputs (default returns
+  `Default::default()`)
+- `lift_constants()` - Request constant lifting for specific inputs (default does nothing)
+- `input_preferences()` - Declare preferred input types from producers (default returns `None`)
 
-- **Separation of concerns**: Configuration extraction is separate from type inference
-- **Error handling**: All methods return `Result` for proper error propagation
-- **Opset awareness**: Methods receive opset version for version-specific behavior
-- **Type preferences**: Nodes can request specific types from their inputs (e.g., requesting Shape
-  type for dynamic operations)
+Design principles: Each processor is self-contained, handling type inference, config extraction, and
+node construction. Processors return strongly-typed `Node` enum variants, ensuring type safety
+throughout the pipeline.
 
 ## Testing
 
@@ -402,20 +397,19 @@ When implementing a new operator, there are several levels of testing to conside
 
 ### Unit Testing
 
-- **Processor Configuration**: Write unit tests for the `extract_config` method in
-  `crates/onnx-ir/src/node/<operation_name>.rs` to verify that it correctly extracts parameters from
-  ONNX nodes. Test with various attribute combinations and edge cases.
+- **Processor Methods**: Write unit tests in `crates/onnx-ir/src/node/<operation_name>.rs` to
+  verify:
+  - `extract_config()` - Correctly extracts configuration from attributes and inputs
+  - `infer_types()` - Correctly infers output types (element type, rank, static shapes)
+  - `build_node()` - Constructs correct `Node` enum variant
+  - `spec()` - Defines correct opset and input/output requirements
+  - Error handling for invalid inputs or configurations
 
-- **Type Inference**: Test the `infer_types` method to ensure it correctly computes output types
-  (element type, rank, and static shapes when applicable). Verify behavior with different input
-  types and configurations.
+  See existing tests in `crates/onnx-ir/src/node/squeeze.rs` for examples.
 
-- **Opset Validation**: Test that the processor correctly validates or rejects nodes based on opset
-  version requirements.
-
-- **Code Generation**: Test the Node implementation in `burn-import` to verify that it generates
-  correct Rust code. Each node file typically includes a `test_codegen_nodes()` function that uses
-  `assert_tokens()` to validate generated code.
+- **Code Generation**: Test the burn-import Node implementation to verify correct Rust code
+  generation. Each node file typically includes unit tests using `assert_tokens()` to validate
+  generated code against expected output.
 
 ### Integration Testing
 
@@ -429,10 +423,44 @@ When implementing a new operator, there are several levels of testing to conside
 - Verify that inputs and outputs match between the original ONNX model and the converted Burn model
 - Include models that test edge cases (e.g., different input shapes, parameter combinations)
 
-Testing both type inference and configuration extraction is particularly important as these
-components directly affect the correctness of the conversion process. Incorrect type inference can
-lead to mismatched tensor shapes or wrong element types, while incorrect configuration can cause
-runtime errors or produce incorrect results.
+Testing the processor implementation is particularly important as it directly affects the
+correctness of the conversion process. Incorrect type inference can lead to mismatched tensor shapes
+or wrong element types, while incorrect configuration extraction can cause runtime errors or produce
+incorrect results.
+
+## Node Enum Architecture
+
+The ONNX-IR uses an enum-based node representation where each ONNX operation is a variant of the
+`Node` enum (defined in `crates/onnx-ir/src/ir/node.rs`). Each variant wraps an operation-specific
+node struct (e.g., `SoftmaxNode`, `Conv2dNode`) that contains `name`, `inputs`, `outputs`, and
+optionally a `config` field.
+
+The `define_node_enum!` macro generates both enums from a single source using the syntax
+`VariantName => module::NodeStructType`:
+
+```rust
+define_node_enum! {
+    Softmax => softmax::SoftmaxNode,
+    Conv2d => conv2d::Conv2dNode,
+    Squeeze => squeeze::SqueezeNode,
+    // ... 200+ more variants
+}
+```
+
+This macro generates:
+
+1. **`NodeType` enum**: Simple unit variants for ONNX parsing (`Softmax`, `Conv2d`, etc.)
+2. **`Node` enum**: Tuple variants wrapping node structs (`Softmax(SoftmaxNode)`,
+   `Conv2d(Conv2dNode)`, etc.)
+3. **Accessor methods**: `name()`, `inputs()`, `outputs()` automatically generated for the `Node`
+   enum
+
+This design provides:
+
+- **Type safety**: Each operation has its own struct type
+- **Trait implementations**: Operations can implement specific traits on their node structs
+- **Single source of truth**: Both enums are guaranteed to stay in sync
+- **Pattern matching**: Easy to match on specific operations and access their configuration
 
 ## Resources
 

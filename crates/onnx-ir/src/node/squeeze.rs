@@ -15,8 +15,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
-use std::any::Any;
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 
 /// Represents either a static value or a runtime argument for squeeze axes.
 #[derive(Debug, Clone)]
@@ -27,24 +26,32 @@ pub enum SqueezeInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for SqueezeInput {
+    fn default() -> Self {
+        SqueezeInput::Static(vec![])
+    }
+}
+
 /// Configuration for Squeeze operation
 #[derive(Debug, Clone)]
 pub struct SqueezeConfig {
     pub axes: Option<SqueezeInput>,
 }
 
-impl NodeConfig for SqueezeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Squeeze operation
+#[derive(Debug, Clone)]
+pub struct SqueezeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SqueezeConfig,
 }
 
-pub struct SqueezeProcessor;
+pub(crate) struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
+    type Config = SqueezeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 13,
@@ -54,7 +61,7 @@ impl NodeProcessor for SqueezeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
@@ -68,12 +75,14 @@ impl NodeProcessor for SqueezeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference
-        let config = node.config::<SqueezeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let axes = config.axes.clone();
 
         // Extract axes for type inference
@@ -154,10 +163,10 @@ impl NodeProcessor for SqueezeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
+    ) -> Result<Self::Config, ProcessError> {
+        fn get_squeeze_axes(node: &NodeBuilder) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input
             if node.inputs.len() < 2 {
                 return None; // No axes input means squeeze all dims with size 1
@@ -181,7 +190,20 @@ impl NodeProcessor for SqueezeProcessor {
 
         let axes = get_squeeze_axes(node);
         let config = SqueezeConfig { axes };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Squeeze(SqueezeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -189,9 +211,9 @@ impl NodeProcessor for SqueezeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> NodeBuilder {
+    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> TestNodeBuilder {
         let output_rank = if let Some(ref axes_vec) = axes {
             rank - axes_vec.len()
         } else {
@@ -200,7 +222,7 @@ mod tests {
             rank
         };
 
-        let mut builder = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+        let mut builder = TestNodeBuilder::new(NodeType::Squeeze, "test_squeeze")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("squeezed", output_rank, None);
 
@@ -212,8 +234,8 @@ mod tests {
         builder
     }
 
-    fn create_runtime_squeeze_node() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
+    fn create_runtime_squeeze_node() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
             .input_tensor_f32("data", 4, Some(vec![2, 3, 4, 5])) // Need some shape
             .input_tensor_i64("axes", 0, None) // Runtime input - no static value
             .output_tensor_f32("squeezed", 2, None)
@@ -226,16 +248,14 @@ mod tests {
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Static(ref axes)) if axes == &vec![0, 2]));
     }
 
     #[test]
     fn test_squeeze_config_no_axes_input() {
         // Test with no axes input - need static shape with dims of size 1
-        let node = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+        let node = TestNodeBuilder::new(NodeType::Squeeze, "test_squeeze")
             .input_tensor_f32("data", 4, Some(vec![2, 1, 3, 1])) // Has two dims of size 1
             .output_tensor_f32("squeezed", 2, None) // Will squeeze to rank 2
             .build();
@@ -243,9 +263,7 @@ mod tests {
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SqueezeConfig>();
         assert!(config.axes.is_none());
     }
 
@@ -256,9 +274,7 @@ mod tests {
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));
     }
 

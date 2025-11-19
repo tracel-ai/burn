@@ -98,9 +98,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GreaterNode {
 
 impl OnnxIntoNode for GreaterNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Greater(n) = node else {
+            panic!("Expected Greater node");
+        };
+        let lhs = Type::from(n.inputs.first().unwrap());
+        let rhs = Type::from(n.inputs.get(1).unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(lhs, rhs, output)
     }
 }

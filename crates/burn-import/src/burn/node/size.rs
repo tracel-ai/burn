@@ -35,11 +35,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SizeNode {
 
 impl OnnxIntoNode for SizeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match Type::from(node.inputs.first().unwrap()) {
+        let onnx_ir::Node::Size(n) = node else {
+            panic!("Expected Size node");
+        };
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("Size expects tensor input"),
         };
-        let output = match Type::from(node.outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Scalar(s) => s,
             _ => panic!("Size expects scalar output"),
         };

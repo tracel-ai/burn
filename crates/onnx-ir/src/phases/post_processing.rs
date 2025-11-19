@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{Argument, Node, NodeType},
+    ir::{Argument, NodeBuilder, NodeType},
     processor::get_processor_registry,
     proto_conversion::MIN_OPSET_VERSION,
 };
@@ -47,7 +47,7 @@ fn rewire_argument(
 /// Identity node outputs. We need to rewire these references before removing
 /// the Identity nodes.
 fn rewire_subgraph(
-    graph: &mut crate::ir::OnnxGraph,
+    graph: &mut crate::ir::OnnxGraphBuilder,
     rewire_map: &HashMap<String, String>,
     output_arg_map: &HashMap<String, Argument>,
 ) {
@@ -76,7 +76,7 @@ fn rewire_subgraph(
 
 /// Rewire subgraphs within a single node (recursive helper)
 fn rewire_node_subgraphs(
-    node: &mut Node,
+    node: &mut NodeBuilder,
     rewire_map: &HashMap<String, String>,
     output_arg_map: &HashMap<String, Argument>,
 ) {
@@ -86,33 +86,23 @@ fn rewire_node_subgraphs(
         NodeType::If => {
             // If node has then_branch and else_branch - update both attrs and config
             if let Some(then_attr) = node.attrs.get_mut("then_branch")
-                && let AttributeValue::Graph(subgraph) = then_attr
+                && let AttributeValue::GraphBuilder(subgraph) = then_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
             if let Some(else_attr) = node.attrs.get_mut("else_branch")
-                && let AttributeValue::Graph(subgraph) = else_attr
+                && let AttributeValue::GraphBuilder(subgraph) = else_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
 
-            // Also update the config
-            if let Some(config) = node.config.as_mut()
-                && let Some(if_config) = config
-                    .as_any()
-                    .downcast_ref::<crate::node::if_node::IfConfig>()
-            {
-                // Clone, modify, and replace the config
-                let mut new_config = if_config.clone();
-                rewire_subgraph(&mut new_config.then_branch, rewire_map, output_arg_map);
-                rewire_subgraph(&mut new_config.else_branch, rewire_map, output_arg_map);
-                node.config = Some(Box::new(new_config));
-            }
+            // Note: Configs are extracted on-demand from attributes by processors.
+            // Rewiring the branch attributes above is sufficient; no separate config update needed.
         }
         NodeType::Loop | NodeType::Scan => {
             // Loop and Scan nodes have a body graph
             if let Some(body_attr) = node.attrs.get_mut("body")
-                && let AttributeValue::Graph(subgraph) = body_attr
+                && let AttributeValue::GraphBuilder(subgraph) = body_attr
             {
                 rewire_subgraph(subgraph, rewire_map, output_arg_map);
             }
@@ -125,7 +115,7 @@ fn rewire_node_subgraphs(
 
 /// Analyze which Identity nodes can be removed and create rewiring map
 fn plan_identity_elimination(
-    nodes: &[Node],
+    nodes: &[NodeBuilder],
     node_output_map: &HashMap<String, (usize, usize)>,
 ) -> IdentityEliminationPlan {
     let mut rewire_map = HashMap::new();
@@ -184,7 +174,7 @@ fn plan_identity_elimination(
 /// 2. Updates graph outputs to bypass removed Identity nodes
 /// 3. Filters out removed nodes
 fn apply_identity_elimination(
-    nodes: &mut Vec<Node>,
+    nodes: &mut Vec<NodeBuilder>,
     outputs: &mut [Argument],
     plan: IdentityEliminationPlan,
 ) {
@@ -260,7 +250,7 @@ fn apply_identity_elimination(
 /// Returns (nodes, inputs, outputs) tuple ready for finalization
 pub(crate) fn post_process(
     state_rc: &Rc<RefCell<GraphState>>,
-) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+) -> (Vec<NodeBuilder>, Vec<Argument>, Vec<Argument>) {
     // Extract graph data while preserving tensor_store and node_output_map
     let (mut nodes, inputs, mut outputs, node_output_map) = {
         let mut state = state_rc.borrow_mut();
@@ -321,10 +311,10 @@ pub(crate) fn post_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, Node, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeBuilder, NodeType, TensorType};
 
-    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> Node {
-        Node {
+    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> NodeBuilder {
+        NodeBuilder {
             node_type: NodeType::Identity,
             name: name.to_string(),
             inputs: vec![Argument {
@@ -348,12 +338,11 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         }
     }
 
-    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> Node {
-        Node {
+    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> NodeBuilder {
+        NodeBuilder {
             node_type: NodeType::Add,
             name: name.to_string(),
             inputs: vec![
@@ -389,7 +378,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         }
     }
 

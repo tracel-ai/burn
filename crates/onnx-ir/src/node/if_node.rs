@@ -10,9 +10,7 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use std::any::Any;
-
-use crate::ir::{ArgType, DType, Node, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -24,20 +22,21 @@ pub struct IfConfig {
     pub else_branch: OnnxGraph,
 }
 
-impl NodeConfig for IfConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for If operation
+#[derive(Debug, Clone)]
+pub struct IfNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: IfConfig,
 }
 
 /// If node processor
-pub struct IfProcessor;
+pub(crate) struct IfProcessor;
 
 impl NodeProcessor for IfProcessor {
+    type Config = IfConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -49,8 +48,8 @@ impl NodeProcessor for IfProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate condition input is scalar bool
@@ -75,7 +74,9 @@ impl NodeProcessor for IfProcessor {
         }
 
         // Get branches from config (clone to avoid borrow checker issues)
-        let config = node.config::<IfConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let then_outputs = config.then_branch.outputs.clone();
         let else_outputs = config.else_branch.outputs.clone();
 
@@ -124,28 +125,78 @@ impl NodeProcessor for IfProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
-        let then_branch = node
+        let then_attr = node
             .attrs
             .get("then_branch")
             .ok_or_else(|| ProcessError::MissingAttribute("then_branch".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
 
-        let else_branch = node
+        let else_attr = node
             .attrs
             .get("else_branch")
             .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
 
-        Ok(Some(Box::new(IfConfig {
+        // Handle both Graph and GraphBuilder
+        let then_branch = match then_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for then_branch".to_string(),
+                ));
+            }
+        };
+
+        let else_branch = match else_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for else_branch".to_string(),
+                ));
+            }
+        };
+
+        Ok(IfConfig {
             then_branch,
             else_branch,
-        })))
+        })
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::If(IfNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -154,7 +205,7 @@ mod tests {
     use super::*;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, NodeType, OnnxGraph, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_branch(output_rank: usize, dtype: DType) -> OnnxGraph {
@@ -187,7 +238,7 @@ mod tests {
             AttributeValue::Graph(create_test_branch(2, DType::F32)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::If, "test_if")
+        let mut node = TestNodeBuilder::new(NodeType::If, "test_if")
             .input_scalar("cond", DType::Bool)
             .build();
         node.attrs = attrs;
@@ -195,8 +246,7 @@ mod tests {
         let processor = IfProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -223,7 +273,7 @@ mod tests {
             AttributeValue::Graph(create_test_branch(2, DType::F32)),
         );
 
-        let mut node = NodeBuilder::new(NodeType::If, "test_if")
+        let mut node = TestNodeBuilder::new(NodeType::If, "test_if")
             .input_tensor_f32("cond", 1, None) // Tensor instead of scalar
             .build();
         node.attrs = attrs;
@@ -231,8 +281,7 @@ mod tests {
         let processor = IfProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
@@ -265,7 +314,7 @@ mod tests {
             AttributeValue::Graph(else_branch),
         );
 
-        let mut node = NodeBuilder::new(NodeType::If, "test_if")
+        let mut node = TestNodeBuilder::new(NodeType::If, "test_if")
             .input_scalar("cond", DType::Bool)
             .build();
         node.attrs = attrs;
@@ -273,8 +322,7 @@ mod tests {
         let processor = IfProcessor;
 
         // Extract config first
-        let config = processor.extract_config(&node, 16).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);

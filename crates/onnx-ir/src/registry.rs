@@ -3,16 +3,68 @@
 //! This module provides a centralized registry that maps ONNX node types
 //! to their corresponding processor implementations.
 
-use crate::ir::NodeType;
-use crate::processor::NodeProcessor;
+use crate::ir::{Node, NodeBuilder, NodeType};
+use crate::processor::{InputPreferences, NodeSpec, OutputPreferences, ProcessError};
 use std::collections::HashMap;
+
+/// Trait for registry-specific processor methods (without associated Config type).
+///
+/// This trait is object-safe and used only for storing processors in the registry.
+pub trait ProcessorMethods: Send + Sync {
+    fn spec(&self) -> NodeSpec;
+    fn input_preferences(
+        &self,
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError>;
+    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError>;
+    fn infer_types(
+        &self,
+        node: &mut NodeBuilder,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError>;
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node;
+}
+
+/// Blanket implementation: all NodeProcessor types implement ProcessorMethods
+impl<T: crate::processor::NodeProcessor> ProcessorMethods for T {
+    fn spec(&self) -> NodeSpec {
+        crate::processor::NodeProcessor::spec(self)
+    }
+
+    fn input_preferences(
+        &self,
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
+        crate::processor::NodeProcessor::input_preferences(self, node, opset)
+    }
+
+    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError> {
+        crate::processor::NodeProcessor::lift_constants(self, node, opset)
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut NodeBuilder,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        crate::processor::NodeProcessor::infer_types(self, node, opset, output_preferences)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        crate::processor::NodeProcessor::build_node(self, builder, opset)
+    }
+}
 
 /// Registry for node processors.
 ///
 /// This registry maps node types to their corresponding processor implementations.
 /// It provides a centralized way to look up and use processors for different node types.
 pub struct ProcessorRegistry {
-    processors: HashMap<NodeType, Box<dyn NodeProcessor>>,
+    processors: HashMap<NodeType, Box<dyn ProcessorMethods>>,
 }
 
 impl ProcessorRegistry {
@@ -24,12 +76,12 @@ impl ProcessorRegistry {
     }
 
     /// Register a processor for a specific node type
-    pub fn register(&mut self, node_type: NodeType, processor: Box<dyn NodeProcessor>) {
+    pub fn register(&mut self, node_type: NodeType, processor: Box<dyn ProcessorMethods>) {
         self.processors.insert(node_type, processor);
     }
 
     /// Get the processor for a node type, or the default processor if not found
-    pub fn get(&self, node_type: &NodeType) -> &dyn NodeProcessor {
+    pub fn get(&self, node_type: &NodeType) -> &dyn ProcessorMethods {
         self.processors
             .get(node_type)
             .map(|b| b.as_ref())
@@ -95,6 +147,7 @@ impl ProcessorRegistry {
             Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
         );
         registry.register(NodeType::Sum, Box::new(crate::node::sum::SumProcessor));
+        registry.register(NodeType::Mean, Box::new(crate::node::mean::MeanProcessor));
 
         // Unary operations
         registry.register(
@@ -220,9 +273,47 @@ impl ProcessorRegistry {
             NodeType::MaxPool2d,
             Box::new(crate::node::max_pool2d::MaxPool2dProcessor),
         );
+
+        // Global pooling operations
         registry.register(
             NodeType::GlobalAveragePool,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::global_avg_pool::GlobalAveragePoolProcessor),
+        );
+
+        // Identity operation (typically eliminated during post-processing)
+        registry.register(
+            NodeType::Identity,
+            Box::new(crate::node::identity::IdentityProcessor),
+        );
+
+        // Unsupported/placeholder operations
+        registry.register(
+            NodeType::GlobalMaxPool,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::GatherND,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::Scatter,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::ScatterElements,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::ScatterND,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::Unique,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::CumSum,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
         );
 
         // Convolution operations

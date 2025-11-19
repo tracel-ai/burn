@@ -17,12 +17,10 @@
 //! - **Opset 1-5**: Earlier versions with different default values
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for HardSigmoid operation
 #[derive(Debug, Clone)]
@@ -31,18 +29,20 @@ pub struct HardSigmoidConfig {
     pub beta: f64,
 }
 
-impl NodeConfig for HardSigmoidConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for HardSigmoid operation
+#[derive(Debug, Clone)]
+pub struct HardSigmoidNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: HardSigmoidConfig,
 }
 
-pub struct HardSigmoidProcessor;
+pub(crate) struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
+    type Config = HardSigmoidConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -54,7 +54,7 @@ impl NodeProcessor for HardSigmoidProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -80,9 +80,9 @@ impl NodeProcessor for HardSigmoidProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract alpha and beta attributes
         let mut alpha = 0.2;
         let mut beta = 0.5;
@@ -96,7 +96,20 @@ impl NodeProcessor for HardSigmoidProcessor {
         }
 
         let config = HardSigmoidConfig { alpha, beta };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::HardSigmoid(HardSigmoidNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -104,10 +117,10 @@ impl NodeProcessor for HardSigmoidProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(alpha: f32, beta: f32) -> Node {
-        NodeBuilder::new(NodeType::HardSigmoid, "test_hard_sigmoid")
+    fn create_test_node(alpha: f32, beta: f32) -> NodeBuilder {
+        TestNodeBuilder::new(NodeType::HardSigmoid, "test_hard_sigmoid")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None)
             .attr_float("alpha", alpha)
@@ -122,9 +135,7 @@ mod tests {
         let processor = HardSigmoidProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<HardSigmoidConfig>();
         assert!((config.alpha - 0.3).abs() < 1e-6);
         assert!((config.beta - 0.6).abs() < 1e-6);
     }
@@ -137,9 +148,7 @@ mod tests {
         let processor = HardSigmoidProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<HardSigmoidConfig>();
         assert_eq!(config.alpha, 0.2); // Check default values
         assert_eq!(config.beta, 0.5);
     }

@@ -4,30 +4,20 @@
 //! in an intermediate representation suitable for code generation and analysis.
 
 // Module declarations
-pub mod argument;
-pub mod attribute;
-pub mod graph;
-pub mod node;
-pub mod node_type;
-pub mod tensor_data_ext;
+mod argument;
+mod attribute;
+pub(crate) mod graph;
+mod node;
+mod tensor_data_ext;
 
-// Re-export burn-tensor's DType
+pub(crate) use attribute::{AttributeValue, Attributes};
+pub(crate) use graph::OnnxGraphBuilder;
+pub(crate) use node::{NodeBuilder, NodeType, RuntimeInputRef};
+pub(crate) use tensor_data_ext::TensorDataExt;
+
+// Re-exports
+pub use argument::{ArgType, Argument, DataId, Rank, Shape, TensorType, ValueSource};
 pub use burn_tensor::DType;
-
-// Re-exports from argument module
-pub use argument::{ArgType, Argument, Rank, Shape, TensorId, TensorType, ValueSource};
-
-// Re-exports from attribute module
-pub use attribute::{AttributeValue, Attributes};
-
-// Re-exports from graph module
 pub use graph::OnnxGraph;
-
-// Re-exports from node module
-pub use node::{Node, NodeConfig, RuntimeInputRef};
-
-// Re-exports from node_type module
-pub use node_type::NodeType;
-
-// Re-exports from tensor_data_ext module
-pub use tensor_data_ext::{TensorData, TensorDataExt};
+pub use node::Node;
+pub use tensor_data_ext::TensorData;

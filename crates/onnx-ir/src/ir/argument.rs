@@ -14,13 +14,13 @@ pub type Rank = usize;
 pub type Shape = Vec<usize>;
 
 /// Unique identifier for tensor data in the central store
-pub type TensorId = usize;
+pub type DataId = usize;
 
 /// Describes where an argument's value comes from
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueSource {
     /// Static constant value embedded in the argument (name="" with embedded data)
-    Static(TensorId),
+    Static(DataId),
     /// Points to a constant node output (name="constant1_out1")
     Constant,
     /// Points to a runtime node output (name="conv1_out1")
@@ -95,6 +95,16 @@ impl Default for TensorType {
     }
 }
 
+impl TensorType {
+    pub fn new(dtype: DType, rank: Rank, static_shape: Option<Vec<usize>>) -> Self {
+        Self {
+            dtype,
+            rank,
+            static_shape,
+        }
+    }
+}
+
 impl Default for ArgType {
     fn default() -> Self {
         Self::Tensor(TensorType::default())
@@ -145,7 +155,9 @@ impl ArgType {
 }
 
 impl Argument {
-    pub fn new(name: String) -> Self {
+    /// Create a new argument with a specific type
+    pub fn new(name: impl Into<String>, ty: ArgType) -> Self {
+        let name = name.into();
         // Default to Dynamic (points to a node output by name)
         let value_source = if name.is_empty() {
             ValueSource::Optional
@@ -155,10 +167,15 @@ impl Argument {
 
         Self {
             name,
-            ty: ArgType::default(),
+            ty,
             value_source,
             value_store: None,
         }
+    }
+
+    /// Create a new argument with default type (F32 tensor rank 0)
+    pub fn from_name(name: impl Into<String>) -> Self {
+        Self::new(name, ArgType::default())
     }
 
     /// Get the constant value from the central tensor store

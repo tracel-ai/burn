@@ -75,10 +75,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
 
 impl OnnxIntoNode for ConcatNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let inputs: Vec<Type> = node.inputs.iter().map(Type::from).collect();
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::concat::ConcatConfig>();
-        let dim = config.axis;
+        let onnx_ir::Node::Concat(n) = node else {
+            panic!("Expected Concat node");
+        };
+        let inputs: Vec<Type> = n.inputs.iter().map(Type::from).collect();
+        let output = Type::from(n.outputs.first().unwrap());
+        let dim = n.config.axis;
         Self::new(inputs, output, dim)
     }
 }

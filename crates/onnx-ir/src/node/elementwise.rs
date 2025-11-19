@@ -54,15 +54,34 @@
 //! - **BitwiseAnd**: Bitwise AND (Opset 18+)
 //! - **BitwiseOr**: Bitwise OR (Opset 18+)
 //! - **BitwiseXor**: Bitwise XOR (Opset 18+)
+//! - **BitwiseNot**: Bitwise NOT (Opset 18+)
 //!
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
 
-use crate::ir::Node;
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     same_as_input_broadcast,
 };
+
+/// Node representation for element-wise binary operations
+#[derive(Debug, Clone)]
+pub struct ElementwiseBinaryNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub node_type: crate::ir::NodeType,
+}
+
+/// Node representation for element-wise unary operations
+#[derive(Debug, Clone)]
+pub struct ElementwiseUnaryNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub node_type: crate::ir::NodeType,
+}
 
 /// Node processor for element-wise binary operations with broadcasting
 ///
@@ -79,9 +98,11 @@ use crate::processor::{
 ///
 /// These operations support standard ONNX broadcasting semantics without
 /// needing Shape or Scalar type propagation (unlike arithmetic operations).
-pub struct ElementwiseBinaryProcessor;
+pub(crate) struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -93,7 +114,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -106,13 +127,42 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         same_as_input_broadcast(node);
         Ok(())
     }
+
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+        use crate::ir::NodeType;
+
+        let node = ElementwiseBinaryNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            node_type: builder.node_type.clone(),
+        };
+
+        match builder.node_type {
+            NodeType::Pow => Node::Pow(node),
+            NodeType::Max => Node::Max(node),
+            NodeType::Min => Node::Min(node),
+            NodeType::And => Node::And(node),
+            NodeType::Or => Node::Or(node),
+            NodeType::Xor => Node::Xor(node),
+            NodeType::BitwiseAnd => Node::BitwiseAnd(node),
+            NodeType::BitwiseOr => Node::BitwiseOr(node),
+            NodeType::BitwiseXor => Node::BitwiseXor(node),
+            _ => panic!(
+                "Unsupported node type for ElementwiseBinaryProcessor: {:?}",
+                builder.node_type
+            ),
+        }
+    }
 }
 
 /// Node processor for element-wise unary operations
 /// Used for: Neg, Abs, Ceil, Floor, Sqrt, Exp, Log, Sin, Cos, etc.
-pub struct ElementwiseUnaryProcessor;
+pub(crate) struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         // Determine opset based on operation type
         let min_opset = 1;
@@ -127,7 +177,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -165,10 +215,11 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             crate::ir::NodeType::Round => 11,
             // Opset 1 operations
             crate::ir::NodeType::Not => 1,
+            // Opset 18 operations (bitwise)
+            crate::ir::NodeType::BitwiseNot => 18,
             // Other unary operations (need proper opset validation)
             crate::ir::NodeType::Sigmoid => 6,
             crate::ir::NodeType::Gelu => 20, // TODO: Verify Gelu opset requirement - may need custom processor for 'approximate' attribute
-            crate::ir::NodeType::GlobalAveragePool => 1, // TODO: GlobalAveragePool should not be in elementwise processor - has specific pooling semantics - Should have dedicated processor
             // Other unary operations
             _ => 1, // FIXME: Default case should not be needed - all unary ops should be explicitly listed
         };
@@ -180,6 +231,51 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         // TODO: Hyperbolic functions (Sinh, Cosh, Tanh, Asinh, Acosh, Atanh) not listed in opset validation - May be missing from elementwise processor - Check if handled elsewhere
         same_as_input(node);
         Ok(())
+    }
+
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+        use crate::ir::NodeType;
+
+        let node = ElementwiseUnaryNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            node_type: builder.node_type.clone(),
+        };
+
+        match builder.node_type {
+            NodeType::Abs => Node::Abs(node),
+            NodeType::Ceil => Node::Ceil(node),
+            NodeType::Floor => Node::Floor(node),
+            NodeType::Exp => Node::Exp(node),
+            NodeType::Log => Node::Log(node),
+            NodeType::Neg => Node::Neg(node),
+            NodeType::Reciprocal => Node::Reciprocal(node),
+            NodeType::Sqrt => Node::Sqrt(node),
+            NodeType::Acos => Node::Acos(node),
+            NodeType::Asin => Node::Asin(node),
+            NodeType::Atan => Node::Atan(node),
+            NodeType::Cos => Node::Cos(node),
+            NodeType::Sin => Node::Sin(node),
+            NodeType::Tan => Node::Tan(node),
+            NodeType::Erf => Node::Erf(node),
+            NodeType::Sign => Node::Sign(node),
+            NodeType::Sinh => Node::Sinh(node),
+            NodeType::Cosh => Node::Cosh(node),
+            NodeType::Tanh => Node::Tanh(node),
+            NodeType::Asinh => Node::Asinh(node),
+            NodeType::Acosh => Node::Acosh(node),
+            NodeType::Atanh => Node::Atanh(node),
+            NodeType::Round => Node::Round(node),
+            NodeType::Not => Node::Not(node),
+            NodeType::BitwiseNot => Node::BitwiseNot(node),
+            NodeType::Sigmoid => Node::Sigmoid(node),
+            NodeType::Gelu => Node::Gelu(node),
+            _ => panic!(
+                "Unsupported node type for ElementwiseUnaryProcessor: {:?}",
+                builder.node_type
+            ),
+        }
     }
 }
 
@@ -193,7 +289,7 @@ mod tests {
         let processor = ElementwiseBinaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Max,
             name: "test_max".to_string(),
             inputs: vec![
@@ -225,7 +321,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -241,7 +336,7 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Neg,
             name: "test_neg".to_string(),
             inputs: vec![Argument {
@@ -261,7 +356,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -281,7 +375,7 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::Node {
+        let mut node = crate::ir::NodeBuilder {
             node_type: NodeType::Round,
             name: "test_round".to_string(),
             inputs: vec![Argument {
@@ -301,7 +395,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         };
 
         let result = processor.infer_types(&mut node, 10, &prefs);

@@ -10,11 +10,10 @@
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for GroupNorm operations
 #[derive(Debug, Clone)]
@@ -29,16 +28,6 @@ pub struct GroupNormConfig {
     pub full_precision: bool,
 }
 
-impl NodeConfig for GroupNormConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
 impl GroupNormConfig {
     /// Create a new GroupNormConfig
     pub fn new(num_features: usize, num_groups: usize, epsilon: f64, full_precision: bool) -> Self {
@@ -51,9 +40,20 @@ impl GroupNormConfig {
     }
 }
 
-pub struct GroupNormProcessor;
+/// Node representation for GroupNormalization operation
+#[derive(Debug, Clone)]
+pub struct GroupNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: GroupNormConfig,
+}
+
+pub(crate) struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
+    type Config = GroupNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 18,
@@ -63,7 +63,7 @@ impl NodeProcessor for GroupNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -77,8 +77,8 @@ impl NodeProcessor for GroupNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Validate X tensor rank is at least 3 per ONNX spec (N x C x D1 x ... x Dn) - Missing rank validation
@@ -98,7 +98,9 @@ impl NodeProcessor for GroupNormProcessor {
         }
 
         // Validate num_groups divisibility
-        let config = node.config::<GroupNormConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // TODO: Validate num_groups > 0 per ONNX spec - num_groups must be positive - Missing constraint validation
         if config.num_groups > 0 && !config.num_features.is_multiple_of(config.num_groups) {
@@ -116,9 +118,9 @@ impl NodeProcessor for GroupNormProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .as_ref()
@@ -150,7 +152,20 @@ impl NodeProcessor for GroupNormProcessor {
 
         let full_precision = stash_type == 1;
         let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64, full_precision);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::GroupNormalization(GroupNormalizationNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -158,18 +173,18 @@ impl NodeProcessor for GroupNormProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         epsilon: f32,
         num_features: usize,
         num_groups: usize,
         stash_type: i64,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
-        NodeBuilder::new(NodeType::GroupNormalization, "test_groupnorm")
+        TestNodeBuilder::new(NodeType::GroupNormalization, "test_groupnorm")
             .input_tensor_f32("X", 3, None)
             .input_tensor_f32_data("scale", weight_data, vec![num_features])
             .input_tensor_f32_data("bias", bias_data, vec![num_features])
@@ -185,10 +200,8 @@ mod tests {
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 18).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 18, &prefs).unwrap();
 
-        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -201,10 +214,8 @@ mod tests {
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 18).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 18, &prefs).unwrap();
 
-        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -217,8 +228,7 @@ mod tests {
         let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 18).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 18).unwrap();
         let result = processor.infer_types(&mut node, 18, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
