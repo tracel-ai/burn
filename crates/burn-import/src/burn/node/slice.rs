@@ -162,7 +162,6 @@ fn generate_tensor_slice(
                 let end_name = arg_to_ident(end_arg);
 
                 // Generate code to extract values from tensors
-                let input_dims_var = quote! { input_dims };
                 let start_data_var = quote! { start_data };
                 let start_vec_var = quote! { start_vec };
                 let end_data_var = quote! { end_data };
@@ -183,7 +182,6 @@ fn generate_tensor_slice(
                     }
 
                     return quote! {
-                        let #input_dims_var = #input.dims();
                         let #start_data_var = #start_name.to_data();
                         let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
                         let #end_data_var = #end_name.to_data();
@@ -227,14 +225,11 @@ fn generate_tensor_slice(
                 let start_is_tensor = start_arg.ty.is_tensor();
                 let end_is_tensor = end_arg.ty.is_tensor();
 
-                let input_dims_var = quote! { input_dims };
                 let start_vec_var = quote! { start_vec };
                 let end_vec_var = quote! { end_vec };
 
                 // Build the extraction code
-                let mut extraction_code = quote! {
-                    let #input_dims_var = #input.dims();
-                };
+                let mut extraction_code = quote! {};
 
                 if start_is_tensor {
                     extraction_code = quote! {
@@ -348,7 +343,6 @@ fn generate_tensor_slice(
                     let end_name = arg_to_ident(end_arg);
 
                     // Generate code to extract values from end tensor
-                    let input_dims_var = quote! { input_dims };
                     let end_data_var = quote! { end_data };
                     let end_vec_var = quote! { end_vec };
 
@@ -368,7 +362,6 @@ fn generate_tensor_slice(
                         .collect();
 
                     return quote! {
-                        let #input_dims_var = #input.dims();
                         let #end_data_var = #end_name.to_data();
                         let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
                         let #output = #input.slice(s![#(#range_exprs),*]);
@@ -386,8 +379,9 @@ fn generate_tensor_slice(
                         _ => panic!("Axes must be Static for scalar slice"),
                     };
 
-                    if axis_idx < rank && axis_idx < starts.len() {
-                        let start = starts[axis_idx].to_tokens();
+                    if axis_idx < rank {
+                        // Use the first start value (starts[0]) for the specified axis
+                        let start = starts.first().expect("Starts array is empty").to_tokens();
                         ranges[axis_idx] = quote! { #start..(#end_name as usize) };
                     }
                 }
@@ -433,7 +427,6 @@ fn generate_tensor_slice(
                     let start_name = arg_to_ident(start_arg);
 
                     // Generate code to extract values from start tensor
-                    let input_dims_var = quote! { input_dims };
                     let start_data_var = quote! { start_data };
                     let start_vec_var = quote! { start_vec };
 
@@ -453,7 +446,6 @@ fn generate_tensor_slice(
                         .collect();
 
                     return quote! {
-                        let #input_dims_var = #input.dims();
                         let #start_data_var = #start_name.to_data();
                         let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
                         let #output = #input.slice(s![#(#range_exprs),*]);

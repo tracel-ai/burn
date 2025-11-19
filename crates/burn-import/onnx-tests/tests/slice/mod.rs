@@ -113,24 +113,26 @@ mod tests {
         let model: slice_shape_gather::Model<TestBackend> = slice_shape_gather::Model::default();
         let device = Default::default();
 
-        // Create test input tensor [2, 4, 6, 8]
-        let input = Tensor::<TestBackend, 4>::ones([2, 4, 6, 8], &device);
+        // Create test input tensor [2, 10, 6, 8]
+        let input = Tensor::<TestBackend, 4>::ones([2, 10, 6, 8], &device);
 
         let output = model.forward(input.clone());
 
-        // The graph does: Shape -> Gather(axis=0, indices=[1]) -> Slice(ends=gathered_dim)
-        // Shape produces [2, 4, 6, 8]
-        // Gather with index 1 produces 4 (scalar)
-        // Slice uses starts=[0], ends=4, axes=[1], steps=[1]
-        // So it slices axis 1 from 0:4, which is the full dimension
-        // Result should be same shape as input: [2, 4, 6, 8]
+        // The graph does: Shape -> Gather(axis=0, indices=[0]) -> Slice(ends=gathered_dim)
+        // Shape produces [2, 10, 6, 8]
+        // Gather with index 0 produces 2 (scalar)
+        // Slice uses starts=[0], ends=2, axes=[1], steps=[1]
+        // So it slices axis 1 from 0:2
+        // Result should be [2, 2, 6, 8] (NOT [2, 10, 6, 8])
 
-        assert_eq!(output.shape().dims, [2, 4, 6, 8]);
+        assert_eq!(output.shape().dims, [2, 2, 6, 8]);
 
-        // Since we're slicing the full dimension (0:4), output should equal input
-        let input_data = input.to_data();
+        // Verify the slice actually took only the first 2 elements of axis 1
+        // The output should match input[:, 0:2, :, :]
+        let expected = input.clone().slice([0..2, 0..2, 0..6, 0..8]);
         let output_data = output.to_data();
-        input_data.assert_eq(&output_data, true);
+        let expected_data = expected.to_data();
+        output_data.assert_eq(&expected_data, true);
     }
 
     #[test]
