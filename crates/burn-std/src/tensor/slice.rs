@@ -323,6 +323,46 @@ pub struct Slice {
     pub step: isize,
 }
 
+/// Defines an [`Iterator`] over a [`Slice`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SliceIter {
+    slice: Slice,
+    current: isize,
+}
+
+impl Iterator for SliceIter {
+    type Item = isize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.current;
+        self.current += self.slice.step;
+
+        if let Some(end) = self.slice.end {
+            if self.slice.is_reversed() {
+                if next <= end {
+                    return None;
+                }
+            } else if next >= end {
+                return None;
+            }
+        }
+
+        Some(next)
+    }
+}
+
+impl IntoIterator for Slice {
+    type Item = isize;
+    type IntoIter = SliceIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SliceIter {
+            slice: self,
+            current: self.start,
+        }
+    }
+}
+
 impl Default for Slice {
     fn default() -> Self {
         Self::full()
@@ -347,6 +387,52 @@ impl Slice {
             start: idx,
             end: handle_signed_inclusive_end(idx),
             step: 1,
+        }
+    }
+
+    /// Converts the slice to a vector.
+    pub fn into_vec(self) -> Vec<isize> {
+        assert!(
+            self.end.is_some(),
+            "Slice must have an end to convert to a vector: {self:?}"
+        );
+        self.into_iter().collect()
+    }
+
+    /// Clips the slice to a maximum size.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// assert_eq!(
+    ///     Slice::new(0, None, 1).clip_size(10),
+    ///     Slice::new(0, Some(10), 1));
+    /// assert_eq!(
+    ///     Slice::new(0, Some(5), 1).clip_size(10),
+    ///     Slice::new(0, Some(5), 1));
+    /// assert_eq!(
+    ///     Slice::new(0, None, -1).clip_size(10),
+    ///     Slice::new(0, Some(-11), -1));
+    /// assert_eq!(
+    ///     Slice::new(0, Some(-5), -1).clip_size(10),
+    ///     Slice::new(0, Some(-5), -1));
+    /// ```
+    pub fn clip_size(self, size: usize) -> Self {
+        let mut bounds = size as isize;
+
+        if let Some(end) = self.end {
+            if end > 0 {
+                bounds = end.min(bounds);
+            } else {
+                bounds = end.max(-(bounds + 1));
+            }
+        } else if self.is_reversed() {
+            bounds = -(bounds + 1);
+        }
+
+        Self {
+            end: Some(bounds),
+            ..self
         }
     }
 
@@ -742,5 +828,63 @@ mod tests {
         assert_eq!(Slice::new(0, Some(10), -2).output_size(10), 5);
         assert_eq!(Slice::new(2, Some(8), -3).output_size(10), 2); // ceil(6/3)
         assert_eq!(Slice::new(5, Some(5), 1).output_size(10), 0); // empty range
+    }
+
+    #[test]
+    fn test_clip_size() {
+        assert_eq!(
+            Slice::new(0, None, 1).clip_size(10),
+            Slice::new(0, Some(10), 1)
+        );
+        assert_eq!(
+            Slice::new(0, Some(5), 1).clip_size(10),
+            Slice::new(0, Some(5), 1)
+        );
+
+        assert_eq!(
+            Slice::new(0, None, -1).clip_size(10),
+            Slice::new(0, Some(-11), -1)
+        );
+        assert_eq!(
+            Slice::new(0, Some(-5), -1).clip_size(10),
+            Slice::new(0, Some(-5), -1)
+        );
+    }
+
+    #[test]
+    fn test_slice_iter() {
+        assert_eq!(
+            Slice::new(2, Some(3), 1).into_iter().collect::<Vec<_>>(),
+            vec![2]
+        );
+        assert_eq!(
+            Slice::new(3, Some(-1), -1).into_iter().collect::<Vec<_>>(),
+            vec![3, 2, 1, 0]
+        );
+
+        assert_eq!(Slice::new(3, Some(-1), -1).into_vec(), vec![3, 2, 1, 0]);
+
+        assert_eq!(
+            Slice::new(3, None, 2)
+                .into_iter()
+                .take(3)
+                .collect::<Vec<_>>(),
+            vec![3, 5, 7]
+        );
+        assert_eq!(
+            Slice::new(3, None, 2)
+                .clip_size(8)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![3, 5, 7]
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Slice must have an end to convert to a vector: Slice { start: 0, end: None, step: 1 }"
+    )]
+    fn test_unbound_slice_into_vec() {
+        Slice::new(0, None, 1).into_vec();
     }
 }
