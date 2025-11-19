@@ -8,6 +8,8 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
@@ -16,7 +18,7 @@ use crate::processor::{
 };
 
 /// Node representation for Conv3d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct Conv3dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

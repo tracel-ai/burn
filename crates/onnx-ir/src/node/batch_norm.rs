@@ -10,6 +10,8 @@
 //! - **Opset 9-13**: Removed consumed_inputs attribute
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
@@ -40,7 +42,7 @@ impl BatchNormConfig {
 }
 
 /// Node representation for BatchNormalization operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct BatchNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

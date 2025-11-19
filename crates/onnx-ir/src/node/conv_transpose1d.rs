@@ -12,6 +12,8 @@
 //! - Weight tensor layout: Implementation expects [out_channels, in_channels, kernel_size]
 //!   (see FIXME at line 185 regarding ONNX spec clarification)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
@@ -19,7 +21,7 @@ use crate::processor::{
 };
 
 /// Node representation for ConvTranspose1d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ConvTranspose1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

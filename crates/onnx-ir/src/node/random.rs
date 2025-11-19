@@ -22,6 +22,8 @@
 //!
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
@@ -55,7 +57,7 @@ pub enum RandomConfig {
 }
 
 /// Node representation for RandomNormal operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomNormalNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -64,7 +66,7 @@ pub struct RandomNormalNode {
 }
 
 /// Node representation for RandomUniform operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomUniformNode {
     pub name: String,
     pub inputs: Vec<Argument>,

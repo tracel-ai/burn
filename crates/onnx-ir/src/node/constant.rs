@@ -15,13 +15,15 @@
 //! - **Opset 11-12**: Added sparse_value attribute for sparse tensor support
 //! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Constant operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ConstantNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -24,6 +24,8 @@
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::processor::{
@@ -98,7 +100,7 @@ pub struct PadConfig {
 }
 
 /// Node representation for Pad operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct PadNode {
     pub name: String,
     pub inputs: Vec<Argument>,

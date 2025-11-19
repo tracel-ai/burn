@@ -18,9 +18,10 @@ use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for Relu operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,

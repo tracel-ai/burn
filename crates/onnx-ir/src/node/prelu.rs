@@ -29,9 +29,10 @@ use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for PRelu operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct PReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,

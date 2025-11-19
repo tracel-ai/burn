@@ -12,6 +12,8 @@
 //! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
 //! - **Opset 13**: Extended type support including bfloat16
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -19,7 +21,7 @@ use crate::processor::{
 };
 
 /// Node representation for Mean operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct MeanNode {
     pub name: String,
     pub inputs: Vec<Argument>,

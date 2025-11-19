@@ -5,6 +5,8 @@
 //! The Min operation computes element-wise minimum of two or more tensors.
 //! Supports standard ONNX broadcasting semantics.
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -12,7 +14,7 @@ use crate::processor::{
 };
 
 /// Node representation for Min operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct MinNode {
     pub name: String,
     pub inputs: Vec<Argument>,

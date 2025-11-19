@@ -9,6 +9,8 @@
 //! - **Opset 10**: Added dilations attribute support
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
@@ -57,7 +59,7 @@ impl AvgPool2dConfig {
 }
 
 /// Node representation for AveragePool2d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct AveragePool2dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

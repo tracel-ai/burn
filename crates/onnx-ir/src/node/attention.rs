@@ -8,6 +8,8 @@
 //!
 //! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -45,7 +47,7 @@ impl AttentionConfig {
 }
 
 /// Node representation for Attention operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct AttentionNode {
     pub name: String,
     pub inputs: Vec<Argument>,

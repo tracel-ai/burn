@@ -9,6 +9,8 @@
 //! - **Opset 9**: Added scan_input_axes
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
@@ -26,7 +28,7 @@ pub struct ScanConfig {
 }
 
 /// Node representation for Scan operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ScanNode {
     pub name: String,
     pub inputs: Vec<Argument>,

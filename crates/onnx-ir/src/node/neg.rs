@@ -13,6 +13,8 @@
 //! - **Opset 6+**: Improved shape inference
 //! - **Opset 13+**: Added support for bfloat16
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
@@ -20,7 +22,7 @@ use crate::processor::{
 };
 
 /// Node representation for Neg operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct NegNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -12,6 +12,8 @@
 //! - **Opset 10-19**: Initial version with detect_negative and detect_positive attributes
 //! - **Opset 20+**: Extended type support (added float8 variants)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -34,7 +36,7 @@ impl IsInfConfig {
 }
 
 /// Node representation for IsInf operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct IsInfNode {
     pub name: String,
     pub inputs: Vec<Argument>,

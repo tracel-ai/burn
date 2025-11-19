@@ -44,13 +44,15 @@
 //! - When both inputs are scalars, the output is a scalar boolean
 //! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Equal operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct EqualNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -58,7 +60,7 @@ pub struct EqualNode {
 }
 
 /// Node representation for Greater operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GreaterNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -66,7 +68,7 @@ pub struct GreaterNode {
 }
 
 /// Node representation for GreaterOrEqual operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GreaterOrEqualNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -74,7 +76,7 @@ pub struct GreaterOrEqualNode {
 }
 
 /// Node representation for Less operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LessNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -82,7 +84,7 @@ pub struct LessNode {
 }
 
 /// Node representation for LessOrEqual operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LessOrEqualNode {
     pub name: String,
     pub inputs: Vec<Argument>,

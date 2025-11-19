@@ -19,6 +19,8 @@
 //! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, NodeType, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -37,7 +39,7 @@ impl ReduceConfig {
 }
 
 /// Node representation for ReduceMax operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceMaxNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -46,7 +48,7 @@ pub struct ReduceMaxNode {
 }
 
 /// Node representation for ReduceMin operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceMinNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -55,7 +57,7 @@ pub struct ReduceMinNode {
 }
 
 /// Node representation for ReduceMean operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceMeanNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -64,7 +66,7 @@ pub struct ReduceMeanNode {
 }
 
 /// Node representation for ReduceSum operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceSumNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -73,7 +75,7 @@ pub struct ReduceSumNode {
 }
 
 /// Node representation for ReduceProd operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceProdNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -82,7 +84,7 @@ pub struct ReduceProdNode {
 }
 
 /// Node representation for ReduceSumSquare operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceSumSquareNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -91,7 +93,7 @@ pub struct ReduceSumSquareNode {
 }
 
 /// Node representation for ReduceL1 operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceL1Node {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -100,7 +102,7 @@ pub struct ReduceL1Node {
 }
 
 /// Node representation for ReduceL2 operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceL2Node {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -109,7 +111,7 @@ pub struct ReduceL2Node {
 }
 
 /// Node representation for ReduceLogSum operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceLogSumNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -118,7 +120,7 @@ pub struct ReduceLogSumNode {
 }
 
 /// Node representation for ReduceLogSumExp operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceLogSumExpNode {
     pub name: String,
     pub inputs: Vec<Argument>,

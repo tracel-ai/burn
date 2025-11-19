@@ -20,6 +20,7 @@
 //! - TODO: No test for custom epsilon values (e.g., epsilon=1e-3) - Only default epsilon tested
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -46,7 +47,7 @@ impl InstanceNormConfig {
 }
 
 /// Node representation for InstanceNormalization operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct InstanceNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

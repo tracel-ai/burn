@@ -18,6 +18,7 @@
 //! ## Opset Versions
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
@@ -32,7 +33,7 @@ pub struct GatherElementsConfig {
 }
 
 /// Node representation for GatherElements operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GatherElementsNode {
     pub name: String,
     pub inputs: Vec<Argument>,

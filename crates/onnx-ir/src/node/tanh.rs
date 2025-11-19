@@ -18,9 +18,10 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     validate_opset,
 };
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for Tanh operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct TanhNode {
     pub name: String,
     pub inputs: Vec<Argument>,

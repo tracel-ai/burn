@@ -15,6 +15,8 @@
 //!
 //! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -22,7 +24,7 @@ use crate::processor::{
 };
 
 /// Node representation for Where operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct WhereNode {
     pub name: String,
     pub inputs: Vec<Argument>,

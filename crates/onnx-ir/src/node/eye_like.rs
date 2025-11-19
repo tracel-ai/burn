@@ -7,6 +7,8 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -23,7 +25,7 @@ pub struct EyeLikeConfig {
 }
 
 /// Node representation for EyeLike operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct EyeLikeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

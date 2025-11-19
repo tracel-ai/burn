@@ -9,6 +9,7 @@
 //!   the `stash_type` attribute to control intermediate calculation precision.
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -41,7 +42,7 @@ impl GroupNormConfig {
 }
 
 /// Node representation for GroupNormalization operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GroupNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

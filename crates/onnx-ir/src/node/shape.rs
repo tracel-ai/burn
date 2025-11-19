@@ -20,6 +20,9 @@
 //!   allowing selection of a slice of dimensions from the input shape.
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
+
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -33,7 +36,7 @@ pub struct ShapeConfig {
 }
 
 /// Node representation for Shape operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ShapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

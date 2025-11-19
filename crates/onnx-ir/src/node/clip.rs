@@ -16,6 +16,9 @@
 //! - **Opset 11**: Changed min and max from attributes to optional inputs (allows runtime values)
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
+
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
@@ -40,7 +43,7 @@ pub struct ClipConfig {
 }
 
 /// Node representation for Clip operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ClipNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -10,6 +10,8 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -23,7 +25,7 @@ pub struct IfConfig {
 }
 
 /// Node representation for If operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct IfNode {
     pub name: String,
     pub inputs: Vec<Argument>,

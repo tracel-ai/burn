@@ -23,6 +23,8 @@
 //! ## Opset Versions
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
@@ -54,7 +56,7 @@ impl Default for RangeInput {
 }
 
 /// Node representation for Range operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RangeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

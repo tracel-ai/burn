@@ -12,6 +12,8 @@
 //! - **Opset 1-6**: Limited broadcast support
 //! - **Opset 7+**: Multidirectional (Numpy-style) broadcasting
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -19,7 +21,7 @@ use crate::processor::{
 };
 
 /// Node representation for Or operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct OrNode {
     pub name: String,
     pub inputs: Vec<Argument>,

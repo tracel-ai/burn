@@ -12,6 +12,8 @@
 //! - **Opset 9+**: Initial version
 //! - **Opset 13+**: Added support for bfloat16
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
@@ -19,7 +21,7 @@ use crate::processor::{
 };
 
 /// Node representation for Erf operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ErfNode {
     pub name: String,
     pub inputs: Vec<Argument>,

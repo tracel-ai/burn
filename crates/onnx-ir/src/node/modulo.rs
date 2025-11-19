@@ -16,6 +16,8 @@
 //! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, AttributeValue, Node, NodeBuilder};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
@@ -32,7 +34,7 @@ pub struct ModConfig {
 }
 
 /// Node representation for Mod operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ModNode {
     pub name: String,
     pub inputs: Vec<Argument>,

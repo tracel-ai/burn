@@ -10,6 +10,8 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -51,7 +53,7 @@ pub struct LoopConfig {
 }
 
 /// Node representation for Loop operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LoopNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -11,6 +11,8 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -39,7 +41,7 @@ pub struct SqueezeConfig {
 }
 
 /// Node representation for Squeeze operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SqueezeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

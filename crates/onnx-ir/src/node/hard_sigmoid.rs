@@ -21,6 +21,7 @@ use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for HardSigmoid operation
 #[derive(Debug, Clone)]
@@ -30,7 +31,7 @@ pub struct HardSigmoidConfig {
 }
 
 /// Node representation for HardSigmoid operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct HardSigmoidNode {
     pub name: String,
     pub inputs: Vec<Argument>,

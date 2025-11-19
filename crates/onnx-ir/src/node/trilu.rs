@@ -18,6 +18,8 @@
 //!   - Positive k: Retains lower triangle including main diagonal and k diagonals above it
 //!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -33,7 +35,7 @@ pub struct TriluConfig {
 }
 
 /// Node representation for Trilu operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct TriluNode {
     pub name: String,
     pub inputs: Vec<Argument>,

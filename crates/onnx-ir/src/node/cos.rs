@@ -11,6 +11,8 @@
 //! ## Opset Versions
 //! - **Opset 7+**: Initial version
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
@@ -18,7 +20,7 @@ use crate::processor::{
 };
 
 /// Node representation for Cos operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct CosNode {
     pub name: String,
     pub inputs: Vec<Argument>,

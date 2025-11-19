@@ -12,6 +12,8 @@
 //! - **Opset 19**: Added antialiasing improvements and clarified coordinate transformation modes.
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef};
@@ -97,7 +99,7 @@ impl Default for ResizeSizes {
 }
 
 /// Node representation for Resize operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ResizeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -14,6 +14,8 @@
 //! ## Opset Versions
 //! - Available since opset version 1
 //! - Current version: 22
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
@@ -45,7 +47,7 @@ pub enum RandomLikeConfig {
 }
 
 /// Node representation for RandomNormalLike operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomNormalLikeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -54,7 +56,7 @@ pub struct RandomNormalLikeNode {
 }
 
 /// Node representation for RandomUniformLike operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomUniformLikeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

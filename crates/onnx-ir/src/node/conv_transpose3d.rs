@@ -8,6 +8,8 @@
 //! - **Opset 1**: Initial version with basic transposed convolution support
 //! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
@@ -15,7 +17,7 @@ use crate::processor::{
 };
 
 /// Node representation for ConvTranspose3d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ConvTranspose3dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

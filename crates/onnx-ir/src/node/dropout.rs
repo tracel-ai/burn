@@ -15,13 +15,15 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
 
 /// Node representation for Dropout operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct DropoutNode {
     pub name: String,
     pub inputs: Vec<Argument>,
