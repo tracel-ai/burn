@@ -85,10 +85,10 @@ impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
             return false;
         }
 
-        if let Some(warmup_epochs) = self.warmup_epochs {
-            if epoch <= warmup_epochs {
-                return false;
-            }
+        if let Some(warmup_epochs) = self.warmup_epochs
+            && epoch <= warmup_epochs
+        {
+            return false;
         }
 
         match self.condition {
