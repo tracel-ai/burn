@@ -112,6 +112,7 @@ pub mod sub;
 pub mod if_op;
 pub mod r#loop;
 pub mod scan;
+pub mod subgraph;
 pub mod sum;
 pub mod tan;
 pub mod tanh;
