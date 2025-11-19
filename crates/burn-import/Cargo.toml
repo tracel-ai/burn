@@ -19,7 +19,7 @@ workspace = true
 
 [features]
 default = ["onnx", "pytorch", "safetensors"]
-onnx = ["burn-ndarray"]
+onnx = ["burn-ndarray", "onnx-ir"]
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 safetensors = [
     "burn/record-item-custom-serde",
@@ -34,7 +34,7 @@ burn = { path = "../burn", version = "=0.20.0-pre.2", default-features = false, 
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.2", default-features = false, optional = true }
 burn-store = { path = "../burn-store", version = "=0.20.0-pre.2", default-features = false, features = ["std", "pytorch"] }
-onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.2" }
+onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.2", optional = true }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
