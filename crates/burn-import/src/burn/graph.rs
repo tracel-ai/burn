@@ -283,8 +283,10 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
                     });
                 // Since the graph is guaranteed to be a DAG, we can safely register future uses
                 // of the inputs (which are the previous nodes' outputs)
+                // Filter to only dynamic/constant inputs (exclude static-only initializers)
                 node.inputs()
                     .iter()
+                    .filter(|arg| arg.is_dynamic() || arg.is_constant())
                     .filter(|arg| matches!(arg.ty, ArgType::Tensor(_)))
                     .for_each(|arg| self.scope.tensor_register_future_use(arg, node_position));
             });

@@ -11,14 +11,14 @@ use crate::burn::{BurnImports, Field, Scope};
 macro_rules! impl_node_codegen_dispatch {
     ($($variant:ident),* $(,)?) => {
         impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node {
-            fn inputs(&self) -> Vec<&Argument> {
+            fn inputs(&self) -> &[Argument] {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::inputs(n),)*
                     _ => panic!("Unsupported node type for inputs: {:?}", self),
                 }
             }
 
-            fn outputs(&self) -> Vec<&Argument> {
+            fn outputs(&self) -> &[Argument] {
                 match self {
                     $(Node::$variant(n) => NodeCodegen::<PS>::outputs(n),)*
                     _ => panic!("Unsupported node type for outputs: {:?}", self),

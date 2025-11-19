@@ -6,13 +6,13 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random::RandomUniformNode {
-    fn inputs(&self) -> Vec<&Argument> {
+    fn inputs(&self) -> &[Argument] {
         // RandomUniform has no inputs - it generates a tensor from scratch
-        vec![]
+        &[]
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {

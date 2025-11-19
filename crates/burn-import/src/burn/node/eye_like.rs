@@ -7,15 +7,12 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLikeNode {
-    fn inputs(&self) -> Vec<&Argument> {
-        self.inputs
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-            .collect()
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

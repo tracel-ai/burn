@@ -104,15 +104,12 @@ impl ReductionType {
 macro_rules! impl_reduce_node {
     ($node_type:ty, $reduction_type:expr) => {
         impl<PS: PrecisionSettings> NodeCodegen<PS> for $node_type {
-            fn inputs(&self) -> Vec<&Argument> {
-                self.inputs
-                    .iter()
-                    .filter(|arg| arg.is_dynamic() || arg.is_constant())
-                    .collect()
+            fn inputs(&self) -> &[Argument] {
+                &self.inputs
             }
 
-            fn outputs(&self) -> Vec<&Argument> {
-                self.outputs.iter().collect()
+            fn outputs(&self) -> &[Argument] {
+                &self.outputs
             }
 
             fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

@@ -6,16 +6,13 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
-    fn inputs(&self) -> Vec<&Argument> {
+    fn inputs(&self) -> &[Argument] {
         // Filter inputs only dynamic and constant
-        self.inputs
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-            .collect()
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

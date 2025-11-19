@@ -35,7 +35,11 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
         }
 
         // Register future uses of node inputs
-        for input in <Node as NodeCodegen<PS>>::inputs(node) {
+        // Filter to only dynamic/constant inputs (exclude static-only initializers)
+        for input in <Node as NodeCodegen<PS>>::inputs(node)
+            .iter()
+            .filter(|arg| arg.is_dynamic() || arg.is_constant())
+        {
             if let ArgType::Tensor(_) = &input.ty {
                 scope.tensor_register_future_use(input, subgraph_node_pos - 1);
             }
@@ -69,12 +73,12 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
 }
 
 impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node::IfNode {
-    fn inputs(&self) -> Vec<&Argument> {
-        self.inputs.iter().collect()
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

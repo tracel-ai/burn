@@ -7,13 +7,13 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::ConstantNode {
-    fn inputs(&self) -> Vec<&Argument> {
+    fn inputs(&self) -> &[Argument] {
         // Constant has no runtime inputs - data comes from the input's value store
-        vec![]
+        &[]
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn field(&self) -> Option<Field> {

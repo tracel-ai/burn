@@ -15,15 +15,12 @@ pub enum PowerType {
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pow::PowNode {
-    fn inputs(&self) -> Vec<&Argument> {
-        self.inputs
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-            .collect()
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

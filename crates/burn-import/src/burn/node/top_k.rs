@@ -6,17 +6,14 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::topk::TopKNode {
-    fn inputs(&self) -> Vec<&Argument> {
+    fn inputs(&self) -> &[Argument] {
         // Filter inputs only dynamic and constant
-        self.inputs
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-            .collect()
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
+    fn outputs(&self) -> &[Argument] {
         // TopK has 2 outputs: values and indices
-        self.outputs.iter().collect()
+        &self.outputs
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

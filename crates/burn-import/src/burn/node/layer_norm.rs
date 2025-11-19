@@ -12,15 +12,12 @@ use quote::quote;
 use serde::Serialize;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::LayerNormalizationNode {
-    fn inputs(&self) -> Vec<&Argument> {
-        self.inputs
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-            .collect()
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn field(&self) -> Option<Field> {

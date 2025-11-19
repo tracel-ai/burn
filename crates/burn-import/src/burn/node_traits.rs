@@ -58,8 +58,20 @@ pub trait OnnxIntoNode: Sized {
 }
 
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
-    fn inputs(&self) -> Vec<&Argument>;
-    fn outputs(&self) -> Vec<&Argument>;
+    /// Returns all input arguments for this node.
+    ///
+    /// # Notes
+    ///
+    /// This should return ALL inputs, including static initializers.
+    /// Filtering (e.g., for dynamic/constant inputs only) is done at the call site.
+    fn inputs(&self) -> &[Argument];
+
+    /// Returns all output arguments for this node.
+    ///
+    /// # Notes
+    ///
+    /// This should return ALL outputs.
+    fn outputs(&self) -> &[Argument];
 
     /// The forward pass implementation of the node.
     ///

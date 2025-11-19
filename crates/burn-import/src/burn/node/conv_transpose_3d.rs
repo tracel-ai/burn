@@ -14,16 +14,13 @@ use serde::Serialize;
 impl<PS: PrecisionSettings> NodeCodegen<PS>
     for onnx_ir::node::conv_transpose3d::ConvTranspose3dNode
 {
-    fn inputs(&self) -> Vec<&Argument> {
+    fn inputs(&self) -> &[Argument] {
         // Filter inputs only dynamic and constant
-        self.inputs
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-            .collect()
+        &self.inputs
     }
 
-    fn outputs(&self) -> Vec<&Argument> {
-        self.outputs.iter().collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
     fn field(&self) -> Option<Field> {
