@@ -60,7 +60,7 @@ pub(crate) mod leaky_relu;
 pub(crate) mod linear;
 pub(crate) mod log;
 pub(crate) mod log_softmax;
-// pub(crate) mod loop_node; // TODO: Needs Type abstraction removal
+pub(crate) mod loop_node;
 pub(crate) mod lower;
 pub(crate) mod lower_equal;
 pub(crate) mod matmul;

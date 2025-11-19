@@ -110,8 +110,8 @@ pub mod squeeze;
 pub mod sub;
 // Control flow operators
 pub mod if_op;
-// Temporarily disabled - Loop/Scan nodes not yet implemented in refactor
-// pub mod r#loop;
+pub mod r#loop;
+// Temporarily disabled - Scan node not yet implemented in refactor
 // pub mod scan;
 // pub mod subgraph;
 pub mod sum;
