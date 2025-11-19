@@ -1,16 +1,12 @@
+//! This module declare input-output primitives to read and write values during kernel expansion.
+
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use burn_tensor::quantization::QuantScheme;
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    std::{
-        FastDivmod,
-        tensor::{
-            View,
-            layout::{linear::LinearLayout, plain::PlainLayout},
-        },
-    },
+    std::{FastDivmod, tensor::View},
 };
 use cubecl_quant::{
     layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout},
@@ -18,14 +14,30 @@ use cubecl_quant::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Define how a tensor might be transformed at runtime.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Transform {
+    /// A reshape operation has been registered on a tensor.
+    ///
+    /// This enum entry contains a sequence of [arguments](Arg) that points to global scalars representing the
+    /// new shape for the current tensor.
     Reshape(Sequence<Arg>),
+    /// Two axis has been swapped on a tensor.
+    ///
+    /// The enum entry contains those two axis.
     SwapDims(u32, u32),
 }
 
+/// Reads the value from the [arg](Arg) and cast it to the generic cube primitive.
+///
+/// # Notes
+///
+/// The [global arguments](GlobalArgs) for both inputs and outputs as well as the
+/// [local arguments](LocalArgs) need to be passed to this function.
+///
+/// This is because the [argument](Arg) might point to a global input, output or local variable
+/// created during kernel expansion.
 #[cube]
-/// Read the value from the [arg](Arg) and cast it to the generic cube primitive.
 pub fn read<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
@@ -141,6 +153,10 @@ pub fn read<C: CubePrimitive>(
     }
 }
 
+/// Computes the offset for the current global tensor with a quantized layout.
+///
+/// The offset can be used to fetch the correct data from the quantized tensor as if it was in a
+/// linear contiguous format.
 #[cube]
 fn index_offset_with_quant_layout(
     tensor: &GlobalTensor,
@@ -170,6 +186,11 @@ fn index_offset_with_quant_layout(
     offset / tensor.tensor.line_size()
 }
 
+/// Reads a global quantized tensor at the given position.
+///
+/// # Notes
+///
+/// The values returned in the [Line] are not dequantized.
 #[cube]
 pub fn read_quantized<C: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -192,6 +213,7 @@ pub fn read_quantized<C: CubePrimitive>(
     }
 }
 
+/// Reads a global scalar.
 #[cube]
 pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) -> C {
     match arg {
@@ -203,6 +225,7 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
     }
 }
 
+/// Reads a global scalar that is used as a reshape position.
 #[cube]
 pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
     match arg {
@@ -211,6 +234,7 @@ pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
     }
 }
 
+/// Reads an input tensor.
 #[cube]
 pub fn read_input<C: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -230,6 +254,7 @@ pub fn read_input<C: CubePrimitive>(
     Line::cast_from(tensor.tensor[offset])
 }
 
+/// Returns a slice of data in the asked precision of the input tensor at the given position.
 #[cube]
 pub fn read_input_window<C: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -242,6 +267,7 @@ pub fn read_input_window<C: CubePrimitive>(
     slice.try_cast_unchecked()
 }
 
+/// Returns the input as a slice.
 #[cube]
 pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u32) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
@@ -249,16 +275,7 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u3
     slice.try_cast_unchecked()
 }
 
-#[cube]
-pub fn input_as_linear_view<C: CubePrimitive>(
-    inputs: &GlobalArgs,
-    #[comptime] pos: u32,
-) -> View<C, u32> {
-    let slice = input_as_slice::<C>(inputs, pos);
-    let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
-    View::new::<Slice<C>, u32>(&slice, layout)
-}
-
+/// Returns the input tensor as a quantized scale view.
 #[cube]
 pub fn input_as_scales_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -297,15 +314,7 @@ pub fn input_as_scales_view<C: CubePrimitive>(
     View::new::<Slice<C>, u32>(&scales.tensor.to_slice().try_cast_unchecked(), layout)
 }
 
-#[cube]
-#[allow(clippy::extra_unused_type_parameters)]
-fn set_polyfill_typed<C: CubePrimitive, Dyn: CubePrimitive>() {
-    intrinsic!(|scope| {
-        let elem_type = C::as_type(scope);
-        set_polyfill::expand::<Dyn>(scope, elem_type);
-    })
-}
-
+/// Reads the input tensor aligned.
 #[cube]
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -745,5 +754,14 @@ fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
         let constant: ExpandElement = value.into();
         let constant_c = constant.as_const().unwrap().cast_to(C::as_type(scope));
         ExpandElement::Plain(Variable::constant(constant_c)).into()
+    })
+}
+
+#[cube]
+#[allow(clippy::extra_unused_type_parameters)]
+fn set_polyfill_typed<C: CubePrimitive, Dyn: CubePrimitive>() {
+    intrinsic!(|scope| {
+        let elem_type = C::as_type(scope);
+        set_polyfill::expand::<Dyn>(scope, elem_type);
     })
 }

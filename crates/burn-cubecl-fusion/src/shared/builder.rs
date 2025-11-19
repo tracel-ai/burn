@@ -1,10 +1,9 @@
-use crate::shared::ir::QuantSchemeFuse;
-
 use super::{
     ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, UnaryFuseArgs},
     settings::FuseSettings,
     trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
 };
+use crate::shared::ir::QuantSchemeFuse;
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
@@ -32,6 +31,7 @@ pub(crate) struct FuseOptimizationBuilder {
 }
 
 impl FuseOptimizationBuilder {
+    /// Checks if the [operation](OperationIr) can be fused with the current builder.
     pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
         let len_previous = self.len();
         let mut builder_cloned = self.clone();
@@ -142,7 +142,7 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
 }
 
 impl FuseOptimizationBuilder {
-    /// Create a new builder.
+    /// Creates a new builder.
     pub fn new(max_bindings: u32, bool_precision: FusePrecision, settings: FuseSettings) -> Self {
         Self {
             builder: TryFuseBuilder::new(max_bindings, bool_precision, settings),
@@ -161,19 +161,36 @@ impl FuseOptimizationBuilder {
     }
 
     /// Declares an input tensor argument where the kernel is responsible to load.
+    ///
+    /// # Returns
+    ///
+    /// - The argument that maps to the tensor to be used during kernel expansion.
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         self.builder.builder.input_unhandled(tensor)
     }
 
-    /// Declares an input tensor argument where the kernel is responsible to load.
+    /// Declares an input quantized tensor argument where the kernel is responsible to load.
+    ///
+    /// # Returns
+    ///
+    /// None if it's not possible to register a quantized tensor. Otherwise:
+    ///
+    /// - The argument that maps to the tensor values to be used during kernel expansion.
+    /// - The argument that maps to the tensor params to be used during kernel expansion.
     pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(Arg, Arg)> {
         self.builder.builder.input_quantized_unhandled(tensor)
     }
 
     /// Declares an output tensor argument where the kernel is responsible to write values.
     ///
+    /// # Notes
+    ///
     /// Normally you don't have to declare outputs explicitly before they are going to be
     /// registered based on the operations [registered](Self::register).
+    ///
+    /// # Returns
+    ///
+    /// - The argument that maps to the tensor to be used during kernel expansion.
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.current_output_shape.is_empty() {
             self.current_output_shape = tensor.shape.dims.clone();
@@ -187,9 +204,16 @@ impl FuseOptimizationBuilder {
 
     /// Closes the previous block and declares a new one.
     ///
-    /// The arguments that will be used in the following block need to be passed as parameters.
-    /// They are going to be returned as [arguments](Arg), used to be retrieved in the kernel that
-    /// uses it.
+    /// # Arguments
+    ///
+    /// - arguments: Tensors that are logical outputs of the current block and inputs of the
+    /// following blocks.
+    /// - settings: [FuseSettings] to be used by the next block.
+    ///
+    /// # Returns
+    ///
+    /// None if it's impossible to create a next block with the given arguments. Otherwise, the
+    /// corresponding [arguments](Arg) to the given tensors are returned.
     pub fn next_block<const N: usize>(
         &mut self,
         arguments: [&TensorIr; N],
