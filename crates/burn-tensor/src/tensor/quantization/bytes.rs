@@ -77,7 +77,7 @@ impl QuantizedBytes {
     }
 
     fn split_i8_values(self, num_params: usize) -> (Vec<i8>, Vec<u32>) {
-        let mut values = self.bytes.try_into_vec::<i8>().unwrap();
+        let mut values = read_bytes_to_i8(self.bytes);
 
         let scale_size = num_params * size_of::<f32>();
         let values_end = values.len() - scale_size;
@@ -137,6 +137,16 @@ impl QuantizedBytes {
         };
 
         (values, (qparams, num_params))
+    }
+}
+
+fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
+    match bytes.try_into_vec::<i8>() {
+        Ok(val) => val,
+        // Safety,
+        //
+        // `Vec<u8>` can be Re-interpreted as `Vec<i8>` since they share the same alignment.
+        Err(bytes) => unsafe { core::mem::transmute(bytes.to_vec()) },
     }
 }
 
