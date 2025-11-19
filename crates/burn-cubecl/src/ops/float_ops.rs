@@ -1,10 +1,10 @@
 use super::{expand, numeric, permute, unfold};
+use crate::CubeBackend;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
 use crate::kernel::{into_contiguous, unary_basic::BasicFloatUnaryKind};
-use crate::{CubeBackend, execute_with_dtype};
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
     element::BoolElement,
@@ -455,8 +455,7 @@ where
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        // Terrible, but necessary here for now.
-        execute_with_dtype!(float(lhs.dtype), E, numeric::pow::<R, E>(lhs, rhs))
+        numeric::pow::<R>(lhs, rhs)
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {

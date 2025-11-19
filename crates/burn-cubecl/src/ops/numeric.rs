@@ -207,8 +207,8 @@ pub fn remainder_scalar<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: InputScalar) ->
 }
 
 /// Calculate the power of two tensors
-pub fn pow<R: CubeRuntime, F: Float>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
-    launch_binop::<R, PowOp<F>>(lhs, rhs)
+pub fn pow<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+    launch_binop::<R, PowOp>(lhs, rhs)
 }
 
 /// Bitwise and two tensors

@@ -1,7 +1,6 @@
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
-    execute_with_dtype,
     kernel::{
         self,
         conv::{ConvStrategy, ConvTranspose2dStrategy},
@@ -102,11 +101,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(x.dtype),
-            E,
-            kernel::conv::conv_transpose3d::<R, E>(x, weight, bias, options)
-        )
+        kernel::conv::conv_transpose3d::<R>(x, weight, bias, options)
     }
 
     fn avg_pool2d(

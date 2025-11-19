@@ -2,15 +2,14 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_client},
+        numeric::{empty_device_dtype, zeros_client},
         reshape,
     },
     tensor::CubeTensor,
 };
-use burn_tensor::{Element, Shape, ops::ConvTransposeOptions};
+use burn_tensor::{Shape, ops::ConvTransposeOptions};
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
@@ -33,6 +32,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     bias: &Tensor<E>,
     output: &mut Tensor<E>,
     args: ConvArgs,
+    #[define(E)] _dtype: StorageType,
 ) {
     let in_channels = weight.shape(0);
     let out_c_per_group = weight.shape(1);
@@ -147,7 +147,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
+pub(crate) fn conv_transpose3d<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -182,10 +182,11 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
         out_2,
     ]);
 
-    let output = empty_device::<R, E>(
+    let output = empty_device_dtype::<R>(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
+        input.dtype,
     );
 
     let bias = match bias {
@@ -207,7 +208,7 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    conv_transpose3d_kernel::launch::<E, R>(
+    conv_transpose3d_kernel::launch::<R>(
         &input.client,
         cube_count,
         cube_dim,
@@ -227,6 +228,7 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
             ScalarArg::new(options.padding[2] as u32),
             ScalarArg::new(options.groups as u32),
         ),
+        input.dtype.into(),
     );
 
     output

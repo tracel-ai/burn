@@ -5,11 +5,10 @@ use crate::{
     tensor::CubeTensor,
 };
 use cubecl::{
-    calculate_cube_count_elemwise,
+    calculate_cube_count_elemwise, intrinsic,
     prelude::*,
     std::{scalar::InputScalar, tensor::layout::linear::LinearView},
 };
-use std::marker::PhantomData;
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
     type BinaryOp<C: Numeric>: BinaryOp<C>;
@@ -28,16 +27,7 @@ pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
 pub(crate) struct AndOp;
 pub(crate) struct OrOp;
-
-/// Since Powf only works on float, but we still want to implement the numeric binary op family, we
-/// set another precision in the family type to cast, when necessary, the input value to a valid
-/// float.
-///
-/// Because of this we won't benefit from the cubecl rust compilation speed improvement from using
-/// the family pattern for [PowOp], but at least we don't duplicate code.
-pub(crate) struct PowOp<F: Float> {
-    _f: PhantomData<F>,
-}
+pub(crate) struct PowOp;
 
 impl BinaryOpFamily for AddOp {
     type BinaryOp<C: Numeric> = Self;
@@ -59,7 +49,7 @@ impl BinaryOpFamily for RemainderOp {
     type BinaryOp<C: Numeric> = Self;
 }
 
-impl<F: Float> BinaryOpFamily for PowOp<F> {
+impl BinaryOpFamily for PowOp {
     type BinaryOp<C: Numeric> = Self;
 }
 
@@ -107,13 +97,41 @@ impl<N: Numeric> BinaryOp<N> for RemainderOp {
 }
 
 #[cube]
-impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
+impl<N: Numeric> BinaryOp<N> for PowOp {
+    #[allow(unused)]
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        let lhs = Line::<F>::cast_from(lhs);
-        let rhs = Line::<F>::cast_from(rhs);
-        let out = Line::powf(lhs, rhs);
+        intrinsic!(|scope| {
+            let elem = N::as_type(scope).elem_type();
 
-        Line::cast_from(out)
+            if let cubecl::ir::ElemType::Float(kind) = elem {
+                match kind {
+                    cubecl::ir::FloatKind::F16 => {
+                        let lhs = <Line<half::f16> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<half::f16> as Cast>::__expand_cast_from(scope, rhs);
+                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                    }
+                    cubecl::ir::FloatKind::BF16 => {
+                        let lhs = <Line<half::bf16> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<half::bf16> as Cast>::__expand_cast_from(scope, rhs);
+                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                    }
+                    cubecl::ir::FloatKind::F64 => {
+                        let lhs = <Line<f64> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<f64> as Cast>::__expand_cast_from(scope, rhs);
+                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                    }
+                    _ => {}
+                }
+            };
+
+            let lhs = <Line<f32> as Cast>::__expand_cast_from(scope, lhs);
+            let rhs = <Line<f32> as Cast>::__expand_cast_from(scope, rhs);
+            let out = Powf::__expand_powf(scope, lhs, rhs);
+            return <Line<N> as Cast>::__expand_cast_from(scope, out);
+        })
     }
 }
 
