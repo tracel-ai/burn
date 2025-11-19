@@ -2,6 +2,8 @@
 //! and expression-related error handling. It provides an extensible way
 //! to encapsulate and manage error metadata for usage in parsing or evaluating expressions.
 
+use alloc::string::String;
+
 /// Common Parse Error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionError {
