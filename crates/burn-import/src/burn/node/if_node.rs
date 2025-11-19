@@ -1,9 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope};
-use burn::record::PrecisionSettings;
-use onnx_ir::{ArgType, Argument, Node};
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::Node;
 
 /// Generate inline code for a subgraph
 ///

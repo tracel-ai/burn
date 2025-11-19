@@ -1,9 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::{Argument, depth_to_space::DepthToSpaceMode};
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::depth_to_space::DepthToSpaceMode;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::depth_to_space::DepthToSpaceNode {
     fn inputs(&self) -> &[Argument] {

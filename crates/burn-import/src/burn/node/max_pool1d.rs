@@ -1,10 +1,4 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Field, Scope, ToTokens};
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
-
+use super::prelude::*;
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool1d::MaxPool1dNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs

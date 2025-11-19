@@ -1,11 +1,7 @@
+use super::prelude::*;
 use core::cmp::Ordering;
 
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::{ArgType, Argument, DType};
-use proc_macro2::TokenStream;
-use quote::quote;
+use onnx_ir::DType;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
     fn inputs(&self) -> &[Argument] {

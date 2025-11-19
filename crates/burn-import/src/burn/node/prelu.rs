@@ -1,14 +1,10 @@
-use super::{NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data};
-use crate::burn::{BurnImports, Field, Scope};
+use super::prelude::*;
 use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::PReluRecord,
     record::{PrecisionSettings, Record},
     tensor::Tensor,
 };
-use onnx_ir::Argument;
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
 use serde::Serialize;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {

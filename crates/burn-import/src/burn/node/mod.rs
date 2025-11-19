@@ -1,5 +1,9 @@
 // Individual node implementations
 // Module declarations (unfortunately must be manual due to Rust's module system)
+
+// Prelude module with common imports for node implementations
+pub(crate) mod prelude;
+
 pub(crate) mod abs;
 pub(crate) mod add;
 pub(crate) mod argmax;

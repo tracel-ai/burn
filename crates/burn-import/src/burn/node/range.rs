@@ -1,10 +1,6 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
+use super::prelude::*;
 use onnx_ir::ir::ArgType;
-use proc_macro2::{Literal, TokenStream};
-use quote::quote;
+use proc_macro2::Literal;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::range::RangeNode {
     fn inputs(&self) -> &[Argument] {

@@ -1,10 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{Field, Scope, ToTokens};
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
-use onnx_ir::ir::{ArgType, TensorDataExt};
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::ir::TensorDataExt;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::ConstantNode {
     fn inputs(&self) -> &[Argument] {

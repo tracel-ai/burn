@@ -1,11 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{Scope, ToTokens};
-use burn::record::PrecisionSettings;
-use onnx_ir::{ArgType, Argument};
-use proc_macro2::{Literal, TokenStream};
-use quote::quote;
+use super::prelude::*;
+use proc_macro2::Literal;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::slice::SliceNode {
     fn inputs(&self) -> &[Argument] {

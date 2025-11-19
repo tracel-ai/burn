@@ -1,9 +1,4 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
     fn inputs(&self) -> &[Argument] {

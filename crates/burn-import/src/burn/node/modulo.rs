@@ -1,9 +1,4 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::{Argument, ir::ArgType};
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use super::prelude::*;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
     fn inputs(&self) -> &[Argument] {

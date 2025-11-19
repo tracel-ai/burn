@@ -1,14 +1,10 @@
-use super::{NodeCodegen, SerializationBackend, extract_node_data};
-use crate::burn::{BurnImports, Field, Scope, ToTokens};
+use super::prelude::*;
 use burn::{
     module::{Param, ParamId},
     nn::LinearRecord,
     record::{PrecisionSettings, Record},
     tensor::Tensor,
 };
-use onnx_ir::Argument;
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
 use serde::Serialize;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {

@@ -1,11 +1,5 @@
+use super::prelude::*;
 use std::str::FromStr;
-
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{Scope, ToTokens};
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
-use proc_macro2::TokenStream;
-use quote::quote;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pad::PadNode {
     fn inputs(&self) -> &[Argument] {

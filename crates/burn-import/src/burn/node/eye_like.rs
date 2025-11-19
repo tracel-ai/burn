@@ -1,9 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
+use super::prelude::*;
 use onnx_ir::ir::ArgType;
-use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLikeNode {

@@ -1,10 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope};
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
+use super::prelude::*;
 use onnx_ir::ir::ArgType;
-use proc_macro2::TokenStream;
-use quote::quote;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bernoulli::BernoulliNode {
     fn inputs(&self) -> &[Argument] {

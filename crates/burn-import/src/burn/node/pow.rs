@@ -1,9 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::Scope;
-use burn::record::PrecisionSettings;
-use onnx_ir::{ArgType, Argument, DType};
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::DType;
 
 /// Type of power operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

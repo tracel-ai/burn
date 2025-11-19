@@ -1,9 +1,4 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{Scope, ToTokens};
-
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
-use quote::quote;
+use super::prelude::*;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gather_elements::GatherElementsNode {
     fn inputs(&self) -> &[Argument] {

@@ -1,12 +1,6 @@
-use super::NodeCodegen;
-use crate::burn::{BurnImports, Scope, TensorKind, arg_ident};
-use burn::record::PrecisionSettings;
-use onnx_ir::{
-    Argument,
-    ir::{ArgType, DType},
-};
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use crate::burn::TensorKind;
+use onnx_ir::ir::DType;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
     fn inputs(&self) -> &[Argument] {
@@ -26,8 +20,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
             // Scalar -> Scalar
             // -----------------------
             (ArgType::Scalar(input_dtype), ArgType::Scalar(_output_dtype)) => {
-                let input = arg_ident(input_arg);
-                let output = arg_ident(output_arg);
+                let input = arg_to_ident(input_arg);
+                let output = arg_to_ident(output_arg);
 
                 // Check if the cast is a no-op within the same dtype "family"
                 let is_noop = matches!(
@@ -70,7 +64,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
             // -----------------------
             (ArgType::Tensor(input_tensor), ArgType::Tensor(_output_tensor)) => {
                 let input = scope.tensor_use_owned(input_arg, node_position);
-                let output = arg_ident(output_arg);
+                let output = arg_to_ident(output_arg);
 
                 // Map ONNX element types to Burn TensorKind categories.
                 // Burn only distinguishes Float / Int / Bool at the Tensor level.
@@ -105,8 +99,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
             // Shape -> Shape
             // -----------------------
             (ArgType::Shape(_), ArgType::Shape(_)) => {
-                let input = arg_ident(input_arg);
-                let output = arg_ident(output_arg);
+                let input = arg_to_ident(input_arg);
+                let output = arg_to_ident(output_arg);
                 // Shapes stay as [i64; N] regardless of ONNX target. No cast.
                 quote! {
                     let #output = #input;
@@ -118,8 +112,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
             // (Mostly for float/bool visualization or downstream ops.)
             // -----------------------
             (ArgType::Shape(input_rank), ArgType::Tensor(_)) => {
-                let input = arg_ident(input_arg);
-                let output = arg_ident(output_arg);
+                let input = arg_to_ident(input_arg);
+                let output = arg_to_ident(output_arg);
                 let rank = *input_rank;
 
                 match self.config.to {

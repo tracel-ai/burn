@@ -1,9 +1,5 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope};
-use burn::record::PrecisionSettings;
-use onnx_ir::{Argument, node::attention::AttentionQkMatmulOutputMode};
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::node::attention::AttentionQkMatmulOutputMode;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNode {
     fn inputs(&self) -> &[Argument] {

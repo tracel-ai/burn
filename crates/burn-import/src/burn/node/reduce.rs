@@ -1,9 +1,4 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{BurnImports, Scope, ToTokens};
-use burn::record::PrecisionSettings;
-use onnx_ir::Argument;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ReductionType {

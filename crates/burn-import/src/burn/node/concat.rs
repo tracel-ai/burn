@@ -1,10 +1,4 @@
-use super::{NodeCodegen, arg_to_ident};
-use crate::burn::{Scope, ToTokens};
-
-use burn::record::PrecisionSettings;
-use onnx_ir::{ArgType, Argument};
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::concat::ConcatNode {
     fn inputs(&self) -> &[Argument] {
