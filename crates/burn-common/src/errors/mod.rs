@@ -3,6 +3,7 @@
 //! to encapsulate and manage error metadata for usage in parsing or evaluating expressions.
 
 use alloc::string::String;
+use alloc::format;
 
 /// Common Parse Error.
 #[derive(Debug, Clone, PartialEq, Eq)]
