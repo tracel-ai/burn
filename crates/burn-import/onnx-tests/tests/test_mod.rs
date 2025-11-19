@@ -111,9 +111,7 @@ pub mod sub;
 // Control flow operators
 pub mod if_op;
 pub mod r#loop;
-// Temporarily disabled - Scan node not yet implemented in refactor
-// pub mod scan;
-// pub mod subgraph;
+pub mod scan;
 pub mod sum;
 pub mod tan;
 pub mod tanh;

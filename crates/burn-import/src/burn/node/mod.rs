@@ -90,7 +90,7 @@ pub(crate) mod relu;
 pub(crate) mod reshape;
 pub(crate) mod resize;
 pub(crate) mod round;
-// pub(crate) mod scan_node; // TODO: Needs Type abstraction removal
+pub(crate) mod scan_node;
 pub(crate) mod shape;
 pub(crate) mod sigmoid;
 pub(crate) mod sign;
