@@ -2,10 +2,11 @@ use alloc::vec::Vec;
 
 use crate::Shape;
 use crate::indexing::AsIndex;
-use alloc::string::{String, ToString};
+use burn_common::errors::ExpressionError;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
+use std::num::ParseIntError;
 
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
@@ -510,13 +511,6 @@ impl From<i32> for Slice {
     }
 }
 
-/// Parse error for [`Slice`] parsing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SliceParseError {
-    /// The value that failed to parse.
-    pub value: String,
-}
-
 impl Display for Slice {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         if self.step == 1
@@ -541,43 +535,51 @@ impl Display for Slice {
 }
 
 impl FromStr for Slice {
-    type Err = SliceParseError;
+    type Err = ExpressionError;
 
-    fn from_str(buf: &str) -> Result<Self, Self::Err> {
-        let mut s = buf.trim();
-        let make_error = || SliceParseError {
-            value: buf.to_string(),
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        let mut s = source.trim();
+
+        let parse_int = |v: &str| -> Result<isize, Self::Err> {
+            v.parse::<isize>().map_err(|e: ParseIntError| {
+                ExpressionError::parse_error(format!("Invalid integer: '{v}': {}", e), source)
+            })
         };
-        let parse =
-            |v: &str| -> Result<isize, Self::Err> { v.parse::<isize>().map_err(|_| make_error()) };
 
         let mut start: isize = 0;
         let mut end: Option<isize> = None;
         let mut step: isize = 1;
 
         if let Some((head, tail)) = s.split_once(";") {
-            step = parse(tail)?;
+            step = parse_int(tail)?;
             s = head;
         }
 
         if s.is_empty() {
-            return Err(make_error());
+            return Err(ExpressionError::parse_error("Empty expression", source));
         }
 
         if let Some((start_s, end_s)) = s.split_once("..") {
             if !start_s.is_empty() {
-                start = parse(start_s)?;
+                start = parse_int(start_s)?;
             }
             if !end_s.is_empty() {
                 if let Some(end_s) = end_s.strip_prefix('=') {
-                    end = Some(parse(end_s)? + 1);
+                    end = Some(parse_int(end_s)? + 1);
                 } else {
-                    end = Some(parse(end_s)?);
+                    end = Some(parse_int(end_s)?);
                 }
             }
         } else {
-            start = parse(s)?;
+            start = parse_int(s)?;
             end = Some(start + 1);
+        }
+
+        if step == 0 {
+            return Err(ExpressionError::invalid_expression(
+                "Step cannot be zero",
+                source,
+            ));
         }
 
         Ok(Slice::new(start, end, step))
@@ -612,18 +614,39 @@ mod tests {
 
         assert_eq!("..=3;-2".parse::<Slice>(), Ok(Slice::new(0, Some(4), -2)));
 
-        fn expect_err(val: &str) {
-            assert_eq!(
-                val.parse::<Slice>().unwrap_err(),
-                SliceParseError {
-                    value: val.to_string()
-                }
-            );
-        }
-        expect_err("");
-        expect_err("a");
-        expect_err("..a");
-        expect_err("a:b:c");
+        assert_eq!(
+            "..;0".parse::<Slice>(),
+            Err(ExpressionError::invalid_expression(
+                "Step cannot be zero",
+                "..;0"
+            ))
+        );
+
+        assert_eq!(
+            "".parse::<Slice>(),
+            Err(ExpressionError::parse_error("Empty expression", ""))
+        );
+        assert_eq!(
+            "a".parse::<Slice>(),
+            Err(ExpressionError::parse_error(
+                "Invalid integer: 'a': invalid digit found in string",
+                "a"
+            ))
+        );
+        assert_eq!(
+            "..a".parse::<Slice>(),
+            Err(ExpressionError::parse_error(
+                "Invalid integer: 'a': invalid digit found in string",
+                "..a"
+            ))
+        );
+        assert_eq!(
+            "a:b:c".parse::<Slice>(),
+            Err(ExpressionError::parse_error(
+                "Invalid integer: 'a:b:c': invalid digit found in string",
+                "a:b:c"
+            ))
+        );
     }
 
     #[test]

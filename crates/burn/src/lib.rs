@@ -126,6 +126,9 @@ pub mod store {
     pub use burn_store::*;
 }
 
+/// Error types
+pub use burn_common::errors;
+
 /// Neural network module.
 pub mod nn {
     pub use burn_nn::*;
