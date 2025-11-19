@@ -89,7 +89,17 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn clear_unused_roots(&mut self, to_delete: &mut Vec<NodeId>) {
+    pub(crate) fn free_unused_roots(&mut self, mut on_free_graph: impl FnMut(&NodeId)) {
+        let mut deletables = Vec::new();
+        self.clear_unused_roots(&mut deletables);
+
+        for node_id in deletables {
+            self.nodes.remove(&node_id);
+            on_free_graph(&node_id);
+        }
+    }
+
+    fn clear_unused_roots(&self, to_delete: &mut Vec<NodeId>) {
         for (id, parents) in self.nodes.iter() {
             let is_useful = matches!(
                 self.statuses.get(id.as_ref()),

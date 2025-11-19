@@ -140,7 +140,20 @@ struct GraphCleaner<'a> {
 impl<'a> GraphCleaner<'a> {
     fn cleanup_orphaned_entries(&mut self) {
         if let Some(state) = self.guard.as_mut() {
+            // Clean untracked nodes
             state.cleanup_untracked();
+
+            // Clean unused roots
+            let graphs = state.graphs.values().fold(HashMap::new(), |mut m, g| {
+                m.entry(g.origin).or_insert_with(|| Arc::clone(g)); // deduplicate graphs by origin
+                m
+            });
+            for (_origin, graph) in graphs {
+                let mut graph_state = graph.state.lock().unwrap();
+                graph_state
+                    .server
+                    .free_unused_roots(|node| state.remove_entry(&node));
+            }
         }
     }
 }
