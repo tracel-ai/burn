@@ -1,21 +1,3 @@
-use std::marker::PhantomData;
-
-use burn_fusion::stream::Context;
-use burn_ir::TensorId;
-use cubecl::{
-    Runtime,
-    ir::{ElemType, StorageType, UIntKind},
-};
-use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
-
-use crate::{
-    CubeFusionHandle,
-    shared::{
-        settings::VectorizationSetting,
-        trace::{HandleInput, VectorizationHandle},
-    },
-};
-
 use super::{
     super::{
         BlockPlan, FuseResources, HandleOutput, LaunchPlan, TensorView, Vectorization,
@@ -23,6 +5,21 @@ use super::{
     },
     Vect,
 };
+use crate::{
+    CubeFusionHandle,
+    engine::{
+        settings::VectorizationSetting,
+        trace::{HandleInput, VectorizationHandle},
+    },
+};
+use burn_fusion::stream::Context;
+use burn_ir::TensorId;
+use cubecl::{
+    Runtime,
+    ir::{ElemType, StorageType, UIntKind},
+};
+use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
+use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {

@@ -15,7 +15,7 @@ use burn_ir::{
 use burn_tensor::{DType, Shape};
 
 use crate::{
-    NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    NumOperations, OperationFuser, OptimizationProperties, OptimizationStatus,
     search::BlockOptimization,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
@@ -432,7 +432,7 @@ fn should_support_overlapping_optimizations() {
 
 impl TestStream {
     /// Create a new stream with the given optimization builders.
-    fn new(optimizations: Vec<Box<dyn OptimizationBuilder<TestOptimization>>>) -> Self {
+    fn new(optimizations: Vec<Box<dyn OperationFuser<TestOptimization>>>) -> Self {
         Self {
             processor: Processor::<TestOptimization>::new(optimizations),
             store: ExecutionPlanStore::<TestOptimization>::new(),
@@ -497,14 +497,14 @@ impl TestOptimizationBuilder {
     }
 }
 
-impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
+impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
     /// Register a new operation.
-    fn register(&mut self, operation: &OperationIr) {
+    fn fuse(&mut self, operation: &OperationIr) {
         self.actual.push(operation.clone());
     }
 
     /// Build the optimization.
-    fn build(&self) -> TestOptimization {
+    fn finish(&self) -> TestOptimization {
         TestOptimization::new(self.builder_id, self.len())
     }
 
@@ -561,7 +561,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     fn len(&self) -> usize {
         self.expected_operations.len()
     }
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<TestOptimization>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
         Box::new(self.clone())
     }
 }

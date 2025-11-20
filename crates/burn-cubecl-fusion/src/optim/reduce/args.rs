@@ -1,11 +1,12 @@
-use cubecl::reduce::args::ReduceArgs;
-use cubecl::{prelude::*, reduce::args::ReduceDType};
-
-use crate::shared::io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride};
-use crate::shared::ir::{
-    FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
+use crate::engine::{
+    io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
+    kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
-use crate::shared::kernel::{fuse_on_read, fuse_on_write, init_locals};
+use cubecl::{
+    prelude::*,
+    reduce::args::{ReduceArgs, ReduceDType},
+};
 
 #[derive(Clone)]
 pub struct FusedReduceArgs;

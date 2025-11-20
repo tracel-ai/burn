@@ -1,4 +1,4 @@
-use crate::shared::{
+use crate::engine::{
     ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
     settings::FuseSettings,
 };

@@ -1,6 +1,4 @@
-use crate::{
-    NumOperations, OptimizationBuilder, OptimizationStatus, stream::store::ExecutionStrategy,
-};
+use crate::{NumOperations, OperationFuser, OptimizationStatus, stream::store::ExecutionStrategy};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::{collections::HashSet, sync::Arc};
 
@@ -10,7 +8,7 @@ use std::{collections::HashSet, sync::Arc};
 /// The start and end position of the relative execution stream are tracked in the block alongside
 /// the ordering.
 pub struct Block<O> {
-    builders: Vec<Box<dyn OptimizationBuilder<O>>>,
+    builders: Vec<Box<dyn OperationFuser<O>>>,
     operations: Vec<OperationIr>,
     ids: HashSet<TensorId>,
     ordering: Vec<usize>,
@@ -41,7 +39,7 @@ pub struct BlockOptimization<O> {
 
 impl<O: NumOperations> Block<O> {
     /// Create a new block that will be optimized with the provided [optimization builders](OptimizationBuilder).
-    pub fn new(builders: &[Box<dyn OptimizationBuilder<O>>]) -> Self {
+    pub fn new(builders: &[Box<dyn OperationFuser<O>>]) -> Self {
         Self {
             builders: builders.iter().map(|o| o.clone_dyn()).collect(),
             operations: Vec::new(),
@@ -61,7 +59,7 @@ impl<O: NumOperations> Block<O> {
     pub fn optimize(mut self) -> BlockOptimization<O> {
         match find_best_optimization_index(&mut self.builders) {
             Some(index) => {
-                let opt = self.builders[index].build();
+                let opt = self.builders[index].finish();
                 let opt_len = opt.len();
                 if opt_len < self.operations.len() {
                     self.ordering.drain(opt_len..);
@@ -168,7 +166,7 @@ impl<O: NumOperations> Block<O> {
         }
 
         for builder in self.builders.iter_mut() {
-            builder.register(operation);
+            builder.fuse(operation);
         }
 
         for node in operation.nodes() {
@@ -218,7 +216,7 @@ impl<O> ExecutionStrategy<O> {
 }
 
 fn find_best_optimization_index<O>(
-    optimizations: &mut [Box<dyn OptimizationBuilder<O>>],
+    optimizations: &mut [Box<dyn OperationFuser<O>>],
 ) -> Option<usize> {
     let mut best_index = None;
     let mut best_score = 0;

@@ -1,3 +1,12 @@
+use crate::engine::{
+    DYN_ELEM_ID,
+    io::{
+        Transform, global_buffer_len, global_line_size, input_as_slice, read_input,
+        read_input_window, ref_buffer_len, ref_len,
+    },
+    ir::{FuseArg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
+    kernel::fuse_on_write,
+};
 use cubecl::{
     CubeType,
     io::read_masked,
@@ -10,16 +19,6 @@ use cubecl::{
             layout::Coords1d,
         },
     },
-};
-
-use crate::shared::{
-    DYN_ELEM_ID,
-    io::{
-        Transform, global_buffer_len, global_line_size, input_as_slice, read_input,
-        read_input_window, ref_buffer_len, ref_len,
-    },
-    ir::{FuseArg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
-    kernel::fuse_on_write,
 };
 
 #[allow(dead_code, reason = "only used in expand")]

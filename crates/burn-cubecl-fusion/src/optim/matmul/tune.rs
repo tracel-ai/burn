@@ -1,12 +1,12 @@
 use super::optimization::{MatmulOptimizationTuneArg, MatmulVariantSelection};
 use crate::{
     CubeFusionHandle,
+    engine::trace::TuneOutput,
     optim::matmul::optimization::{
         DoubleBuffering, DoubleBufferingMma, DoubleUnit, DoubleVecMat, Ordered, OrderedMma, Simple,
         SimpleMma, SimpleMultiRows, SimpleMultiRowsMma, SimpleUnit, SimpleVecMat, Specialized,
         SpecializedMma,
     },
-    shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;

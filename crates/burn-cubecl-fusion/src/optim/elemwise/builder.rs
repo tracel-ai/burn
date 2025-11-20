@@ -1,18 +1,18 @@
 use super::optimization::ElemwiseOptimization;
 use crate::{
-    optim::CubeOptimization,
-    shared::{
-        builder::FuseOptimizationBuilder,
+    engine::{
+        builder::FuseTraceCompiler,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
+    optim::CubeOptimization,
 };
-use burn_fusion::OptimizationBuilder;
+use burn_fusion::OperationFuser;
 use cubecl::Runtime;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ElementWiseBuilder<R: Runtime> {
-    builder: FuseOptimizationBuilder,
+    builder: FuseTraceCompiler,
     device: R::Device,
 }
 
@@ -32,7 +32,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
         let max_bindings = props.hardware.max_bindings;
 
         Self {
-            builder: FuseOptimizationBuilder::new(
+            builder: FuseTraceCompiler::new(
                 max_bindings,
                 bool_precision,
                 FuseSettings {
@@ -48,14 +48,14 @@ impl<R: Runtime> ElementWiseBuilder<R> {
     }
 }
 
-impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder<R> {
-    fn register(&mut self, operation: &burn_ir::OperationIr) {
-        self.builder.register(operation);
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseBuilder<R> {
+    fn fuse(&mut self, operation: &burn_ir::OperationIr) {
+        self.builder.fuse(operation);
     }
 
-    fn build(&self) -> CubeOptimization<R> {
+    fn finish(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.builder.build();
+        let trace = self.builder.finish();
         let elementwise =
             ElemwiseOptimization::<R>::new(trace, client, self.device.clone(), self.len());
 
@@ -78,7 +78,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder
         self.builder.len()
     }
 
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
         Box::new(self.clone())
     }
 }

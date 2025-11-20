@@ -1,8 +1,8 @@
 use super::io::*;
 use super::ir::*;
-use crate::shared::DYN_ELEM_ID;
-use crate::shared::Q_PARAM_DYN_ELEM_ID;
-use crate::shared::Q_STORE_DYN_ELEM_ID;
+use crate::engine::DYN_ELEM_ID;
+use crate::engine::Q_PARAM_DYN_ELEM_ID;
+use crate::engine::Q_STORE_DYN_ELEM_ID;
 use burn_tensor::quantization::QuantScheme;
 use burn_tensor::quantization::QuantStore;
 use burn_tensor::quantization::QuantValue;

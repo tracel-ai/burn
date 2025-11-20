@@ -3,8 +3,8 @@ use super::{
     settings::FuseSettings,
     trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
 };
-use crate::shared::ir::QuantSchemeFuse;
-use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
+use crate::engine::ir::QuantSchemeFuse;
+use burn_fusion::{OperationFuser, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
@@ -12,7 +12,7 @@ use burn_ir::{
 use burn_tensor::DType;
 use cubecl::ir::ElemType;
 
-/// The base optimization builder that can be used to fuse all elemwise operations.
+/// The base optimization compiler that can be used to fuse [all supported fuse operations](FuseOp).
 ///
 /// This builder doesn't create a ready-to-execute kernel, but rather generates a
 /// [trace](FuseTrace) that be used with a [runner](super::trace::TraceRunner).
@@ -20,7 +20,7 @@ use cubecl::ir::ElemType;
 /// Since this builder supports fusing multiple blocks, you can fuse any compute-bound operations
 /// with the combination of fuse-on-read and fuse-on-write strategy.
 #[derive(Debug, Clone)]
-pub(crate) struct FuseOptimizationBuilder {
+pub(crate) struct FuseTraceCompiler {
     builder: TryFuseBuilder,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Vec<usize>,
@@ -30,21 +30,21 @@ pub(crate) struct FuseOptimizationBuilder {
     max_bindings: u32,
 }
 
-impl FuseOptimizationBuilder {
+impl FuseTraceCompiler {
     /// Checks if the [operation](OperationIr) can be fused with the current builder.
     pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
         let len_previous = self.len();
         let mut builder_cloned = self.clone();
 
-        builder_cloned.register(op);
+        builder_cloned.fuse(op);
         let len_after = builder_cloned.len();
 
         len_after > len_previous
     }
 }
 
-impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
-    fn register(&mut self, op: &OperationIr) {
+impl OperationFuser<FuseTrace> for FuseTraceCompiler {
+    fn fuse(&mut self, op: &OperationIr) {
         if let OptimizationStatus::Closed = self.status {
             return;
         }
@@ -104,7 +104,7 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
         self.num_ops += 1;
     }
 
-    fn build(&self) -> FuseTrace {
+    fn finish(&self) -> FuseTrace {
         self.builder.build(self.current_output_shape.clone())
     }
 
@@ -136,12 +136,12 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
         }
     }
 
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<FuseTrace>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<FuseTrace>> {
         Box::new(self.clone())
     }
 }
 
-impl FuseOptimizationBuilder {
+impl FuseTraceCompiler {
     /// Creates a new builder.
     pub fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {

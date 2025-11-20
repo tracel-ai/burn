@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     CubeFusionHandle,
-    shared::{
+    engine::{
         ir::{FuseArg, FuseType},
         trace::HandleInput,
     },

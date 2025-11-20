@@ -130,7 +130,7 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
 
     fn optimizations(
         device: R::Device,
-    ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
+    ) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
             Box::new(ElementWiseBuilder::<R>::new(
                 device.clone(),

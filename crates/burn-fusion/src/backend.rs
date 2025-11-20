@@ -110,11 +110,11 @@ pub struct OptimizationProperties {
 ///
 /// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait OptimizationBuilder<O>: Send {
+pub trait OperationFuser<O>: Send {
     /// Register a new [tensor operation](OperationIr).
-    fn register(&mut self, operation: &OperationIr);
+    fn fuse(&mut self, operation: &OperationIr);
     /// Finish the optimization and create a fusion operation.
-    fn build(&self) -> O;
+    fn finish(&self) -> O;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).
@@ -128,7 +128,7 @@ pub trait OptimizationBuilder<O>: Send {
         self.len() == 0
     }
     /// Clone the optimization builder.
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>>;
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<O>>;
 }
 
 /// The number of operations contained in the data structure.
@@ -179,7 +179,7 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(
         device: Self::FusionDevice,
-    ) -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+    ) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using

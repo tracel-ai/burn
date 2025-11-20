@@ -4,11 +4,11 @@ use super::args::{
 use super::tune::fused_reduce_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
-    shared::{
+    engine::{
         ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
         trace::{FuseTrace, TraceError, TraceRunner, TuneOutput, Vectorization},
     },
+    optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
 };
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;

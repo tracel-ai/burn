@@ -1,14 +1,20 @@
+use super::args::FusedMatmulInputLaunch;
+use super::tune::fused_matmul_autotune;
+use crate::engine::{
+    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
+    trace::{FuseTrace, TraceRunner},
+};
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    optim::{
-        elemwise::ElemwiseRunner,
-        matmul::args::{FusedMatmulArgs, MatmulArg},
-    },
-    shared::{
+    engine::{
         ir::{FuseType, RefLayout},
         trace::{
             HandleInput, LaunchPlan, TraceError, TuneOutput, Vectorization, VectorizationAxis,
         },
+    },
+    optim::{
+        elemwise::ElemwiseRunner,
+        matmul::args::{FusedMatmulArgs, MatmulArg},
     },
 };
 use burn_fusion::stream::Context;
@@ -38,14 +44,6 @@ use cubecl::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-use crate::shared::{
-    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
-    trace::{FuseTrace, TraceRunner},
-};
-
-use super::args::FusedMatmulInputLaunch;
-use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: Runtime> {

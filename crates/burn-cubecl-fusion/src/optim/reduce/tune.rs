@@ -1,6 +1,6 @@
 use crate::{
     CubeFusionHandle,
-    shared::trace::TuneOutput,
+    engine::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;

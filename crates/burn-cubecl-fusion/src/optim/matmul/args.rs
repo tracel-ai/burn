@@ -1,5 +1,9 @@
-use std::marker::PhantomData;
-
+use crate::engine::{
+    io::ref_line_size,
+    ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs},
+    kernel::init_locals,
+    view::{FusedOutput, GlobalInput, GlobalInputExpand},
+};
 use cubecl::{
     intrinsic,
     matmul::components::{
@@ -28,13 +32,7 @@ use cubecl::{
 };
 use cubecl_quant::scheme::{QuantLevel, QuantScheme};
 use serde::{Deserialize, Serialize};
-
-use crate::shared::{
-    io::ref_line_size,
-    ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs},
-    kernel::init_locals,
-    view::{FusedOutput, GlobalInput, GlobalInputExpand},
-};
+use std::marker::PhantomData;
 
 #[derive(Clone)]
 pub struct FusedMatmulArgs;

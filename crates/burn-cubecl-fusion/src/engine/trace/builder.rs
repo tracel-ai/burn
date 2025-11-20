@@ -1,5 +1,3 @@
-use crate::shared::trace::block::QuantInput;
-
 use super::{
     super::{
         ir::{FuseArg, FuseOp, FuseType, LayoutInfo},
@@ -9,6 +7,7 @@ use super::{
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
+use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorId, TensorIr};
 use burn_tensor::DType;

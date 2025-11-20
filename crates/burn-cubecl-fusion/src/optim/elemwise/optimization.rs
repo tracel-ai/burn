@@ -1,17 +1,15 @@
-use crate::CubeFusionHandle;
-use crate::shared::io::ref_len;
-use crate::shared::ir::{GlobalArgs, RefLayout};
-use crate::shared::kernel::fuse_on_write;
-use crate::shared::kernel::init_locals;
-use crate::shared::trace::Vectorization;
+use crate::{
+    CubeFusionHandle,
+    engine::{
+        io::ref_len,
+        ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
+        kernel::{fuse_on_write, init_locals},
+        trace::{FuseTrace, TraceRunner, Vectorization},
+    },
+};
 use burn_fusion::stream::Context;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prelude::*};
 use serde::{Deserialize, Serialize};
-
-use crate::shared::{
-    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
-    trace::{FuseTrace, TraceRunner},
-};
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.

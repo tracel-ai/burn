@@ -1,19 +1,18 @@
+use super::optimization::{FusedMatmul, MatmulOptimization};
 use crate::{
+    engine::{builder::FuseTraceCompiler, ir::FuseType, settings::FuseSettings},
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
-    shared::{builder::FuseOptimizationBuilder, ir::FuseType, settings::FuseSettings},
 };
-use burn_fusion::{OptimizationBuilder, OptimizationStatus};
+use burn_fusion::{OperationFuser, OptimizationStatus};
 use burn_ir::{FloatOperationIr, OperationIr};
 use burn_tensor::DType;
 use cubecl::Runtime;
 
-use super::optimization::{FusedMatmul, MatmulOptimization};
-
 /// Fused element wise operations that are normally memory bound.
 pub struct MatmulBuilder<R: Runtime> {
-    builder: FuseOptimizationBuilder,
-    builder_fallback: FuseOptimizationBuilder,
+    builder: FuseTraceCompiler,
+    builder_fallback: FuseTraceCompiler,
     device: R::Device,
     matmul: Option<FusedMatmul>,
 }
@@ -41,8 +40,8 @@ impl<R: Runtime> MatmulBuilder<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_matmul),
-            builder_fallback: FuseOptimizationBuilder::new(
+            builder: FuseTraceCompiler::new(max_bindings, bool_precision, settings_matmul),
+            builder_fallback: FuseTraceCompiler::new(
                 max_bindings,
                 bool_precision,
                 settings_fallback,
@@ -53,8 +52,8 @@ impl<R: Runtime> MatmulBuilder<R> {
     }
 }
 
-impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
-    fn register(&mut self, operation: &OperationIr) {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
+    fn fuse(&mut self, operation: &OperationIr) {
         if let OptimizationStatus::Closed = self.builder.status() {
             return;
         }
@@ -108,8 +107,8 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
 
             match can_register {
                 true => {
-                    self.builder.register(operation);
-                    self.builder_fallback.register(operation);
+                    self.builder.fuse(operation);
+                    self.builder_fallback.fuse(operation);
                 }
                 false => {
                     self.builder.close();
@@ -119,10 +118,10 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
         }
     }
 
-    fn build(&self) -> CubeOptimization<R> {
+    fn finish(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.builder.build();
-        let trace_fallback = self.builder_fallback.build();
+        let trace = self.builder.finish();
+        let trace_fallback = self.builder_fallback.finish();
 
         let matmul = MatmulOptimization::<R>::new(
             trace,
@@ -157,7 +156,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
         self.builder.len() + 1
     }
 
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
         Box::new(self.clone())
     }
 }

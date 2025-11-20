@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
-    shared::{
+    engine::{
         ir::{FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch, RefLayout, VirtualLayout},
         tensor::GlobalTensorArg,
         trace::HandleInput,

@@ -1,22 +1,21 @@
-use super::optimization::ReduceInstruction;
-use super::optimization::{FusedReduce, ReduceOptimization};
+use super::optimization::{FusedReduce, ReduceInstruction, ReduceOptimization};
 use crate::{
-    optim::CubeOptimization,
-    shared::{
-        builder::FuseOptimizationBuilder,
+    engine::{
+        builder::FuseTraceCompiler,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
+    optim::CubeOptimization,
 };
-use burn_fusion::{OptimizationBuilder, OptimizationStatus};
+use burn_fusion::{OperationFuser, OptimizationStatus};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
 use cubecl::{Runtime, reduce::ReduceStrategy};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {
-    builder: FuseOptimizationBuilder,
-    builder_read_fallback: FuseOptimizationBuilder,
-    builder_write_fallback: FuseOptimizationBuilder,
+    builder: FuseTraceCompiler,
+    builder_read_fallback: FuseTraceCompiler,
+    builder_write_fallback: FuseTraceCompiler,
     settings_write: FuseSettings,
     device: R::Device,
     reduce: Option<FusedReduce>,
@@ -53,13 +52,13 @@ impl<R: Runtime> ReduceBuilder<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_read),
-            builder_read_fallback: FuseOptimizationBuilder::new(
+            builder: FuseTraceCompiler::new(max_bindings, bool_precision, settings_read),
+            builder_read_fallback: FuseTraceCompiler::new(
                 max_bindings,
                 bool_precision,
                 settings_fallback,
             ),
-            builder_write_fallback: FuseOptimizationBuilder::new(
+            builder_write_fallback: FuseTraceCompiler::new(
                 max_bindings,
                 bool_precision,
                 settings_fallback,
@@ -129,8 +128,8 @@ impl<R: Runtime> ReduceBuilder<R> {
 
         match can_register {
             true => {
-                self.builder.register(operation);
-                self.builder_read_fallback.register(operation);
+                self.builder.fuse(operation);
+                self.builder_read_fallback.fuse(operation);
             }
             false => {
                 self.builder.close();
@@ -145,8 +144,8 @@ impl<R: Runtime> ReduceBuilder<R> {
 
         match can_register {
             true => {
-                self.builder.register(operation);
-                self.builder_write_fallback.register(operation);
+                self.builder.fuse(operation);
+                self.builder_write_fallback.fuse(operation);
             }
             false => {
                 self.builder.close();
@@ -156,8 +155,8 @@ impl<R: Runtime> ReduceBuilder<R> {
     }
 }
 
-impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
-    fn register(&mut self, operation: &OperationIr) {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
+    fn fuse(&mut self, operation: &OperationIr) {
         if let OptimizationStatus::Closed = self.builder.status() {
             return;
         }
@@ -231,11 +230,11 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         }
     }
 
-    fn build(&self) -> CubeOptimization<R> {
+    fn finish(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.builder.build();
-        let trace_read_fallback = self.builder_read_fallback.build();
-        let trace_write_fallback = self.builder_write_fallback.build();
+        let trace = self.builder.finish();
+        let trace_read_fallback = self.builder_read_fallback.finish();
+        let trace_write_fallback = self.builder_write_fallback.finish();
         let fuse_reduce = self.reduce.as_ref().unwrap();
 
         let reduce = ReduceOptimization::<R>::new(
@@ -280,7 +279,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         self.builder.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
         Box::new(self.clone())
     }
 }

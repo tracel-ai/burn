@@ -5,7 +5,7 @@ use super::{
 use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
 use crate::{
     CubeFusionHandle,
-    shared::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
+    engine::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
