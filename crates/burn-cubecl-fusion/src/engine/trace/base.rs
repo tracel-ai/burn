@@ -1,12 +1,12 @@
-use super::{
-    HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock, executor::LaunchPlanExecutor,
-    input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner,
-};
 use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseType},
-        trace::HandleInput,
+        launcher::{
+            HandleInput, HandleOutput, LaunchPlan, executor::LaunchPlanExecutor,
+            input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner,
+        },
+        trace::{TraceRunner, block::FuseBlock},
     },
 };
 use burn_fusion::stream::Context;

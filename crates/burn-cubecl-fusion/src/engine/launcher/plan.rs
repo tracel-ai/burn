@@ -1,7 +1,10 @@
-use super::{block::FuseBlock, vectorization::Vect};
 use crate::{
     CubeFusionHandle,
-    engine::codegen::ir::{FuseArg, FuseOp, FuseType},
+    engine::{
+        codegen::ir::{FuseArg, FuseOp, FuseType},
+        launcher::vectorization::Vect,
+        trace::block::FuseBlock,
+    },
 };
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;

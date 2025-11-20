@@ -1,8 +1,11 @@
-use super::{
-    super::codegen::ir::{FuseBlockConfig, GlobalArgsLaunch},
-    vectorization::{Vect, vectorization_default},
+use super::super::codegen::ir::{FuseBlockConfig, GlobalArgsLaunch};
+use crate::{
+    CubeFusionHandle,
+    engine::launcher::{
+        LaunchPlan,
+        vectorization::{Vect, vectorization_default},
+    },
 };
-use crate::{CubeFusionHandle, engine::trace::LaunchPlan};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;

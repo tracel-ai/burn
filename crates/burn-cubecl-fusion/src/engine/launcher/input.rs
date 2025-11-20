@@ -1,12 +1,9 @@
-use super::{
-    BlockPlan, FuseResources, HandleInput, InputReference, RegisterTensor, TensorView,
-    block::FuseBlock,
-};
+use super::{BlockPlan, HandleInput, InputReference};
 use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
-use crate::{
-    CubeFusionHandle,
-    engine::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
-};
+use crate::CubeFusionHandle;
+use crate::engine::launcher::{QuantParamsHandleInput, QuantValuesHandleInput};
+use crate::engine::trace::block::FuseBlock;
+use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use burn_tensor::quantization::params_shape;

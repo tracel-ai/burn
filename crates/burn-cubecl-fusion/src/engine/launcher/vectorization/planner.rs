@@ -1,15 +1,13 @@
 use super::{
-    super::{
-        BlockPlan, FuseResources, HandleOutput, LaunchPlan, TensorView, Vectorization,
-        block::FuseBlock,
-    },
+    super::{BlockPlan, HandleOutput, LaunchPlan},
     Vect,
 };
 use crate::{
     CubeFusionHandle,
     engine::{
+        launcher::HandleInput,
         settings::VectorizationSetting,
-        trace::{HandleInput, VectorizationHandle},
+        trace::{FuseResources, TensorView, Vectorization, VectorizationHandle, block::FuseBlock},
     },
 };
 use burn_fusion::stream::Context;

@@ -1,14 +1,14 @@
 use super::{
-    super::codegen::ir::FuseType, BlockPlan, FuseResources, HandleOutput, InputReference,
-    LaunchPlan, NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView,
-    block::FuseBlock,
+    super::codegen::ir::FuseType, BlockPlan, HandleOutput, InputReference, LaunchPlan,
+    NormalHandleInput, ReferenceSelection,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
     engine::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
+        launcher::HandleInput,
         settings::RefLayoutSetting,
-        trace::HandleInput,
+        trace::{FuseResources, RegisterTensor, TensorView, block::FuseBlock},
     },
     strides_dyn_rank,
 };

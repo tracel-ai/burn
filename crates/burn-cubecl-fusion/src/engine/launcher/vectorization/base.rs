@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use crate::{
     CubeFusionHandle,
     engine::trace::{VectorizationAxis, VectorizationHandle},
@@ -8,6 +6,7 @@ use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Vect {

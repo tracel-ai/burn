@@ -1,6 +1,6 @@
-use super::{
-    FuseResources, HandleOutput, LaunchPlan, ReferenceSelection, TensorView, TraceError,
-    TraceRunner, TuneOutput, block::FuseBlock,
+use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
+use crate::engine::trace::{
+    FuseResources, TensorView, TraceError, TraceRunner, TuneOutput, block::FuseBlock,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
@@ -9,7 +9,6 @@ use crate::{
             FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch, RefLayout, VirtualLayout,
         },
         codegen::tensor::GlobalTensorArg,
-        trace::HandleInput,
     },
 };
 use burn_fusion::stream::{Context, ScalarId};
