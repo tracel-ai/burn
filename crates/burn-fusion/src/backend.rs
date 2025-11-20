@@ -181,7 +181,7 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [operation builder](crate::OptimizationBuilder).
+/// [operation fuser](crate::OperationFuser).
 pub trait FusionBackend:
     BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {
