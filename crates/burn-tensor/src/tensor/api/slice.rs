@@ -596,6 +596,7 @@ impl From<i32> for Slice {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_slice_output_size() {
