@@ -145,9 +145,11 @@ fn forward_tensor_gather(
                 ArgType::Scalar(_) => {
                     let index = arg_to_ident(index_arg);
                     quote! {
-                        let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                        let selected = Tensor::select(#input, #dim, indices);
-                        let #output = selected.into_scalar().elem::<#scalar_ty>();
+                        let #output = {
+                            let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
+                            let selected = Tensor::select(#input, #dim, indices);
+                            selected.into_scalar().elem::<#scalar_ty>()
+                        };
                     }
                 }
                 _ => panic!(
@@ -175,8 +177,10 @@ fn forward_tensor_gather(
                         .collect::<Vec<_>>();
 
                     quote! {
-                        let sliced = #input.slice(s![#(#slice_args),*]);
-                        let #output = sliced.squeeze_dim::<#output_rank>(#dim);
+                        let #output = {
+                            let sliced = #input.slice(s![#(#slice_args),*]);
+                            sliced.squeeze_dim::<#output_rank>(#dim)
+                        };
                     }
                 }
                 ArgType::Tensor(idx_tensor) => {
@@ -198,8 +202,10 @@ fn forward_tensor_gather(
 
                     // Shape array can be directly used to create tensor data
                     quote! {
-                        let indices = Tensor::<B, 1, _>::from_data(#shape_name, &*self.device);
-                        let #output = Tensor::select(#input, #dim, indices);
+                        let #output = {
+                            let indices = Tensor::<B, 1, _>::from_data(#shape_name, &*self.device);
+                            Tensor::select(#input, #dim, indices)
+                        };
                     }
                 }
             }
@@ -215,32 +221,401 @@ mod tests {
     use insta::assert_snapshot;
     use onnx_ir::gather::{GatherConfig, GatherNodeBuilder};
 
+    // ==================== Shape Gather Tests ====================
+
     #[test]
-    fn test_gather_scalar_index() {
+    fn test_gather_shape_to_scalar_i32() {
         let config = GatherConfig { axis: 0 };
-        let node = GatherNodeBuilder::new("gather1")
-            .input_tensor("data", 2, DType::F32)
-            .input_scalar("indices", DType::I32)
-            .output_tensor("output", 1, DType::F32)
+        let node = GatherNodeBuilder::new("extract_dim")
+            .input_shape("input_shape")
+            .input_scalar("dim_idx", DType::I32)
+            .output_scalar("dim_value", DType::I32)
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let sliced = data.slice(s![(indices as usize).. ((indices as usize) + 1), ..]);
-            let output = sliced.squeeze_dim::<1usize>(0);
+        let actual_idx = if dim_idx < 0 {
+                (input_shape.len() as i64 + dim_idx) as usize
+            } else {
+                dim_idx as usize
+            };
+            let dim_value = input_shape[actual_idx] as i32;
         ");
     }
 
     #[test]
-    fn test_gather_tensor_index() {
-        let config = GatherConfig { axis: 1 };
-        let node = GatherNodeBuilder::new("gather1")
-            .input_tensor("data", 2, DType::F32)
-            .input_tensor("indices", 1, DType::I64)
-            .output_tensor("output", 2, DType::F32)
+    fn test_gather_shape_to_scalar_i64() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("get_batch_size")
+            .input_shape("shape_arr")
+            .input_scalar("position", DType::I64)
+            .output_scalar("size", DType::I64)
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = data.take::<1, 2>(1, indices);");
+        assert_snapshot!(code, @r"
+        let actual_idx = if position < 0 {
+                (shape_arr.len() as i64 + position) as usize
+            } else {
+                position as usize
+            };
+            let size = shape_arr[actual_idx] as i64;
+        ");
+    }
+
+    #[test]
+    fn test_gather_shape_to_shape_tensor_index() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("select_dims")
+            .input_shape("full_shape")
+            .input_tensor("dim_indices", 1, DType::I64)
+            .output_shape("selected_shape")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let selected_shape: [i64; 1usize] = dim_indices
+                .to_data()
+                .iter::<i64>()
+                .map(|idx| {
+                    let actual_idx = if idx < 0 {
+                        (full_shape.len() as i64 + idx) as usize
+                    } else {
+                        idx as usize
+                    };
+                    full_shape[actual_idx]
+                })
+                .collect::<alloc::vec::Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_gather_shape_to_shape_tensor_index_rank3() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("pick_dimensions")
+            .input_shape("dimensions")
+            .input_tensor("choices", 1, DType::I64)
+            .output_shape("result_dims")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let result_dims: [i64; 1usize] = choices
+                .to_data()
+                .iter::<i64>()
+                .map(|idx| {
+                    let actual_idx = if idx < 0 {
+                        (dimensions.len() as i64 + idx) as usize
+                    } else {
+                        idx as usize
+                    };
+                    dimensions[actual_idx]
+                })
+                .collect::<alloc::vec::Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_gather_shape_to_shape_shape_index() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("reorder_shape")
+            .input_shape("original")
+            .input_shape("indices")
+            .output_shape("reordered")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let reordered: [i64; 1usize] = indices
+                .iter()
+                .map(|&idx| {
+                    let actual_idx = if idx < 0 {
+                        (original.len() as i64 + idx) as usize
+                    } else {
+                        idx as usize
+                    };
+                    original[actual_idx]
+                })
+                .collect::<alloc::vec::Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_gather_shape_to_shape_shape_index_rank2() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("transpose_dims")
+            .input_shape("shape_vec")
+            .input_shape("order")
+            .output_shape("transposed")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let transposed: [i64; 1usize] = order
+                .iter()
+                .map(|&idx| {
+                    let actual_idx = if idx < 0 {
+                        (shape_vec.len() as i64 + idx) as usize
+                    } else {
+                        idx as usize
+                    };
+                    shape_vec[actual_idx]
+                })
+                .collect::<alloc::vec::Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    // ==================== Tensor Gather to Scalar Tests ====================
+
+    #[test]
+    fn test_gather_tensor_to_scalar_axis0() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("extract_elem")
+            .input_tensor("values", 2, DType::F32)
+            .input_scalar("idx", DType::I32)
+            .output_scalar("elem", DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let elem = {
+                let indices = Tensor::<B, 1, _>::from_data([idx], &*self.device);
+                let selected = Tensor::select(values, 0, indices);
+                selected.into_scalar().elem::<f32>()
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_to_scalar_axis1() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("get_value")
+            .input_tensor("matrix", 3, DType::F64)
+            .input_scalar("col_idx", DType::I64)
+            .output_scalar("value", DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let value = {
+                let indices = Tensor::<B, 1, _>::from_data([col_idx], &*self.device);
+                let selected = Tensor::select(matrix, 1, indices);
+                selected.into_scalar().elem::<f64>()
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_to_scalar_i32() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("pick_int")
+            .input_tensor("int_array", 1, DType::I32)
+            .input_scalar("position", DType::I32)
+            .output_scalar("result", DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let result = {
+                let indices = Tensor::<B, 1, _>::from_data([position], &*self.device);
+                let selected = Tensor::select(int_array, 0, indices);
+                selected.into_scalar().elem::<i32>()
+            };
+        ");
+    }
+
+    // ==================== Tensor Gather to Tensor - Scalar Index Tests ====================
+
+    #[test]
+    fn test_gather_tensor_scalar_index_axis0() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("select_row")
+            .input_tensor("table", 3, DType::F32)
+            .input_scalar("row_idx", DType::I32)
+            .output_tensor("row", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let row = {
+                let sliced = table
+                    .slice(s![(row_idx as usize).. ((row_idx as usize) + 1), .., ..]);
+                sliced.squeeze_dim::<2usize>(0)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_scalar_index_axis1() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("extract_col")
+            .input_tensor("data", 2, DType::F32)
+            .input_scalar("col_num", DType::I64)
+            .output_tensor("column", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let column = {
+                let sliced = data.slice(s![.., (col_num as usize).. ((col_num as usize) + 1)]);
+                sliced.squeeze_dim::<1usize>(1)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_scalar_index_axis2() {
+        let config = GatherConfig { axis: 2 };
+        let node = GatherNodeBuilder::new("slice_depth")
+            .input_tensor("volume", 4, DType::F32)
+            .input_scalar("depth_idx", DType::I32)
+            .output_tensor("slice", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let slice = {
+                let sliced = volume
+                    .slice(s![.., .., (depth_idx as usize).. ((depth_idx as usize) + 1), ..]);
+                sliced.squeeze_dim::<3usize>(2)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_scalar_index_rank4_axis3() {
+        let config = GatherConfig { axis: 3 };
+        let node = GatherNodeBuilder::new("pick_channel")
+            .input_tensor("features", 4, DType::F64)
+            .input_scalar("ch_idx", DType::I64)
+            .output_tensor("channel", 3, DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let channel = {
+                let sliced = features
+                    .slice(s![.., .., .., (ch_idx as usize).. ((ch_idx as usize) + 1)]);
+                sliced.squeeze_dim::<3usize>(3)
+            };
+        ");
+    }
+
+    // ==================== Tensor Gather to Tensor - Tensor Index Tests ====================
+
+    #[test]
+    fn test_gather_tensor_tensor_index_axis0() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("gather_rows")
+            .input_tensor("embedding", 2, DType::F32)
+            .input_tensor("row_indices", 1, DType::I64)
+            .output_tensor("gathered", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let gathered = embedding.take::<1, 2>(0, row_indices);");
+    }
+
+    #[test]
+    fn test_gather_tensor_tensor_index_axis1() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("select_features")
+            .input_tensor("feature_map", 3, DType::F32)
+            .input_tensor("feature_ids", 1, DType::I64)
+            .output_tensor("selected_features", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let selected_features = feature_map.take::<1, 3>(1, feature_ids);");
+    }
+
+    #[test]
+    fn test_gather_tensor_tensor_index_rank2_idx() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("batch_gather")
+            .input_tensor("source", 3, DType::F32)
+            .input_tensor("indices_2d", 2, DType::I64)
+            .output_tensor("result", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let result = source.take::<2, 4>(0, indices_2d);");
+    }
+
+    #[test]
+    fn test_gather_tensor_tensor_index_rank3_idx() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("multi_gather")
+            .input_tensor("input_data", 4, DType::F64)
+            .input_tensor("index_tensor", 3, DType::I64)
+            .output_tensor("output_data", 6, DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output_data = input_data.take::<3, 6>(1, index_tensor);");
+    }
+
+    // ==================== Tensor Gather to Tensor - Shape Index Tests ====================
+
+    #[test]
+    fn test_gather_tensor_shape_index_axis0() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("gather_by_shape")
+            .input_tensor("weights", 2, DType::F32)
+            .input_shape("positions")
+            .output_tensor("selected_weights", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let selected_weights = {
+                let indices = Tensor::<B, 1, _>::from_data(positions, &*self.device);
+                Tensor::select(weights, 0, indices)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_shape_index_axis1() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("index_columns")
+            .input_tensor("matrix_data", 3, DType::F64)
+            .input_shape("col_indices")
+            .output_tensor("columns", 3, DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let columns = {
+                let indices = Tensor::<B, 1, _>::from_data(col_indices, &*self.device);
+                Tensor::select(matrix_data, 1, indices)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_shape_index_axis2() {
+        let config = GatherConfig { axis: 2 };
+        let node = GatherNodeBuilder::new("select_planes")
+            .input_tensor("tensor3d", 4, DType::F32)
+            .input_shape("plane_ids")
+            .output_tensor("planes", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let planes = {
+                let indices = Tensor::<B, 1, _>::from_data(plane_ids, &*self.device);
+                Tensor::select(tensor3d, 2, indices)
+            };
+        ");
     }
 }
