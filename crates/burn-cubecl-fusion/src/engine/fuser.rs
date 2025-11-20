@@ -212,8 +212,7 @@ impl TraceOperationFuser {
     ///
     /// # Arguments
     ///
-    /// - arguments: Tensors that are logical outputs of the current block and inputs of the
-    /// following blocks.
+    /// - arguments: Tensors that are logical outputs of the current block and inputs of the following blocks.
     /// - settings: [FuseSettings] to be used by the next block.
     ///
     /// # Returns
