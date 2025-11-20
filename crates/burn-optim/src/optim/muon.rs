@@ -5,6 +5,7 @@ use burn::{module::AutodiffModule, record::Record};
 use burn::config::Config;
 use burn::tensor::{Tensor, backend::AutodiffBackend};
 use burn::tensor::{backend::Backend, ops::Device};
+use serde::{Deserialize, Serialize};
 
 use super::{
     SimpleOptimizer,
@@ -27,7 +28,7 @@ use num_traits::Float as _;
 ///
 /// - Original: [Muon: An optimizer for hidden layers](https://kellerjordan.github.io/posts/muon/)
 /// - Moonshot: [Muon is Scalable for LLM Training](https://arxiv.org/pdf/2502.16982)
-#[derive(Config, Debug, Copy, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AdjustLrFn {
     /// Keller Jordan's original method: `lr * sqrt(max(1, A/B))`
     ///
@@ -38,6 +39,7 @@ pub enum AdjustLrFn {
     /// # Example
     ///
     /// For a [1024, 512] matrix: `lr * sqrt(1024/512) = lr * 1.414`
+    #[default]
     Original,
 
     /// Moonshot's method: `lr * 0.2 * sqrt(max(A, B))`
@@ -49,12 +51,6 @@ pub enum AdjustLrFn {
     ///
     /// For a [1024, 512] matrix: `lr * 0.2 * sqrt(1024) = lr * 6.4`
     MatchRmsAdamW,
-}
-
-impl Default for AdjustLrFn {
-    fn default() -> Self {
-        Self::Original
-    }
 }
 
 impl AdjustLrFn {
