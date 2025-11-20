@@ -146,7 +146,7 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
         // Safety,
         //
         // `Vec<u8>` can be Re-interpreted as `Vec<i8>` since they share the same alignment.
-        Err(bytes) => unsafe { core::mem::transmute(bytes.to_vec()) },
+        Err(bytes) => unsafe { core::mem::transmute::<Vec<u8>, Vec<i8>>(bytes.to_vec()) },
     }
 }
 
