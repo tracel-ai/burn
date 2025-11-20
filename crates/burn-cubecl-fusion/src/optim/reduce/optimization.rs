@@ -1,39 +1,32 @@
-use std::sync::Arc;
-
-use burn_fusion::stream::Context;
-use burn_ir::ReduceDimOpIr;
-use burn_tensor::DType;
-use cubecl::prelude::*;
-use cubecl::reduce::{
-    BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, init_tensors,
-    reduce_kernel_virtual,
-};
-use cubecl::{
-    CubeCount, CubeDim, Runtime,
-    client::ComputeClient,
-    reduce::{LineMode, ReduceConfig, ReduceError},
-};
-use cubecl::{
-    ir::StorageType,
-    reduce::instructions::{ReduceFn, ReduceFnConfig},
-};
-use serde::{Deserialize, Serialize};
-
-use crate::elemwise::optimization::ElemwiseRunner;
-use crate::reduce::args::FusedReduceArgs;
-use crate::shared::ir::{FuseType, RefLayout};
-use crate::shared::trace::{TraceError, TraceRunner};
-use crate::shared::trace::{TuneOutput, Vectorization};
-use crate::shared::{
-    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
-    trace::FuseTrace,
-};
-use crate::{CubeFusionHandle, FallbackOperation};
-
 use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
 use super::tune::fused_reduce_autotune;
+use crate::{
+    CubeFusionHandle, FallbackOperation,
+    optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
+    shared::{
+        ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
+        trace::{FuseTrace, TraceError, TraceRunner, TuneOutput, Vectorization},
+    },
+};
+use burn_fusion::stream::Context;
+use burn_ir::ReduceDimOpIr;
+use burn_tensor::DType;
+use cubecl::{
+    CubeCount, CubeDim, Runtime,
+    client::ComputeClient,
+    ir::StorageType,
+    prelude::*,
+    reduce::{
+        BoundChecksInner, LineMode, ReduceConfig, ReduceError, ReduceFamily, ReduceParams,
+        ReduceStrategy, init_tensors,
+        instructions::{ReduceFn, ReduceFnConfig},
+        reduce_kernel_virtual,
+    },
+};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub struct ReduceOptimization<R: Runtime> {
     info: Arc<ReduceOptimizationInfo<R>>,

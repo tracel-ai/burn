@@ -2,6 +2,7 @@ use super::{
     BlockPlan, FuseResources, HandleInput, InputReference, RegisterTensor, TensorView,
     block::FuseBlock,
 };
+use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
 use crate::{
     CubeFusionHandle,
     shared::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
@@ -11,8 +12,6 @@ use burn_ir::{TensorIr, TensorStatus};
 use burn_tensor::quantization::params_shape;
 use cubecl::Runtime;
 use std::marker::PhantomData;
-
-use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
 
 /// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
 /// can be used inplace and/or as the [reference layout](super::super::ir::RefLayout).

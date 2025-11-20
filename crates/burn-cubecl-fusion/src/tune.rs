@@ -1,8 +1,7 @@
-use std::sync::Arc;
-
-use super::CubeFusionHandle;
+use crate::CubeFusionHandle;
 use burn_fusion::stream::{Context, ContextOwned};
 use cubecl::Runtime;
+use std::sync::Arc;
 
 /// Fusion context used when tuning kernels.
 ///

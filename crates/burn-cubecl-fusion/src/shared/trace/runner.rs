@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, HashMap};
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
-/// with a provided [element wise config](ElemwiseConfig).
+/// with provided [fuse block configs](FuseBlockConfig).
 pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     /// The error that might happen while running the trace.
     type Error;

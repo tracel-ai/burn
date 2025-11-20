@@ -1,14 +1,13 @@
+use super::{
+    HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock, executor::LaunchPlanExecutor,
+    input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner,
+};
 use crate::{
     CubeFusionHandle,
     shared::{
         ir::{FuseArg, FuseType},
         trace::HandleInput,
     },
-};
-
-use super::{
-    HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock, executor::LaunchPlanExecutor,
-    input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
@@ -25,7 +24,7 @@ use burn_tensor::TensorData;
 use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-/// A trace contains all [blocks](FuseBlock) and the [resources](KernelResources) used by the
+/// A trace contains all [blocks](FuseBlock) and the [resources](FuseResources) used by the
 /// kernel.
 pub struct FuseTrace {
     pub blocks: Vec<FuseBlock>,

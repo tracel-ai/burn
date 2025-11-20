@@ -1,9 +1,7 @@
 #[macro_use]
 extern crate derive_new;
 
-pub mod elemwise;
-pub mod matmul;
-pub mod reduce;
+pub mod optim;
 
 mod base;
 

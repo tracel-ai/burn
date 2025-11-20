@@ -1,16 +1,14 @@
-use burn_fusion::OptimizationBuilder;
-use cubecl::Runtime;
-
+use super::optimization::ElemwiseOptimization;
 use crate::{
-    CubeOptimization,
+    optim::CubeOptimization,
     shared::{
         builder::FuseOptimizationBuilder,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
-
-use super::optimization::ElemwiseOptimization;
+use burn_fusion::OptimizationBuilder;
+use cubecl::Runtime;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ElementWiseBuilder<R: Runtime> {

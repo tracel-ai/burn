@@ -1,13 +1,12 @@
+use crate::{
+    optim::CubeOptimization,
+    optim::matmul::args::MatmulArg,
+    shared::{builder::FuseOptimizationBuilder, ir::FuseType, settings::FuseSettings},
+};
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{FloatOperationIr, OperationIr};
 use burn_tensor::DType;
 use cubecl::Runtime;
-
-use crate::{
-    CubeOptimization,
-    matmul::args::MatmulArg,
-    shared::{builder::FuseOptimizationBuilder, ir::FuseType, settings::FuseSettings},
-};
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
 

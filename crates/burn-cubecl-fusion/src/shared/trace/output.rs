@@ -1,9 +1,7 @@
-use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
-use burn_fusion::stream::Context;
-use burn_ir::{TensorId, TensorIr};
-use burn_tensor::DType;
-use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
-
+use super::{
+    super::ir::FuseType, BlockPlan, FuseResources, HandleOutput, InputReference, LaunchPlan,
+    NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView, block::FuseBlock,
+};
 use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
@@ -13,11 +11,11 @@ use crate::{
     },
     strides_dyn_rank,
 };
-
-use super::{
-    super::ir::FuseType, BlockPlan, FuseResources, HandleOutput, InputReference, LaunchPlan,
-    NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView, block::FuseBlock,
-};
+use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
+use burn_fusion::stream::Context;
+use burn_ir::{TensorId, TensorIr};
+use burn_tensor::DType;
+use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 /// Create or reuse handles for the outputs.
 ///

@@ -1,41 +1,43 @@
-use std::sync::Arc;
-
-use crate::FallbackOperation;
-use crate::elemwise::optimization::ElemwiseRunner;
-use crate::matmul::args::FusedMatmulArgs;
-use crate::shared::ir::FuseType;
-use crate::shared::ir::RefLayout;
-use crate::shared::trace::HandleInput;
-use crate::shared::trace::LaunchPlan;
-use crate::shared::trace::TraceError;
-use crate::shared::trace::TuneOutput;
-use crate::shared::trace::Vectorization;
-use crate::shared::trace::VectorizationAxis;
-use crate::{CubeFusionHandle, matmul::args::MatmulArg};
-
+use crate::{
+    CubeFusionHandle, FallbackOperation,
+    optim::{
+        elemwise::ElemwiseRunner,
+        matmul::args::{FusedMatmulArgs, MatmulArg},
+    },
+    shared::{
+        ir::{FuseType, RefLayout},
+        trace::{
+            HandleInput, LaunchPlan, TraceError, TuneOutput, Vectorization, VectorizationAxis,
+        },
+    },
+};
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use cubecl::matmul::AcceleratedTileKind;
-use cubecl::matmul::components::MatmulElems;
-use cubecl::matmul::components::tile::io::Filled;
-use cubecl::matmul::components::tile::{cmma::CmmaMatmul, mma::MmaMatmul};
-use cubecl::matmul::components::{self, MatmulProblem, MatmulSetupError};
-use cubecl::matmul::kernels::layered::Selection;
-use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
-use cubecl::matmul::kernels::layered::double_unit::DoubleUnitAlgorithm;
-use cubecl::matmul::kernels::layered::launch_kernel_virtual;
-use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelectionArgs;
-use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
-use cubecl::matmul::kernels::layered::simple::SimpleArgs;
-use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
-use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
-use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
-use cubecl::matmul::{components::MatmulLineSizes, kernels::layered::Algorithm};
-use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
-use cubecl::{client::ComputeClient, prelude::*};
+use cubecl::matmul::{
+    AcceleratedTileKind,
+    components::{
+        self, MatmulElems, MatmulProblem, MatmulSetupError,
+        tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
+    },
+    kernels::layered::{
+        Selection,
+        double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
+        double_unit::DoubleUnitAlgorithm,
+        launch_kernel_virtual,
+        ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
+        simple::{SimpleAlgorithm, SimpleArgs},
+        simple_unit::SimpleUnitAlgorithm,
+        vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
+    },
+};
+use cubecl::{
+    client::ComputeClient,
+    matmul::{components::MatmulLineSizes, kernels::layered::Algorithm},
+    prelude::*,
+    std::tensor::{MatrixBatchLayout, matrix_batch_layout},
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::shared::{
     ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},

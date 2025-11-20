@@ -1,6 +1,7 @@
+use super::optimization::{MatmulOptimizationTuneArg, MatmulVariantSelection};
 use crate::{
     CubeFusionHandle,
-    matmul::optimization::{
+    optim::matmul::optimization::{
         DoubleBuffering, DoubleBufferingMma, DoubleUnit, DoubleVecMat, Ordered, OrderedMma, Simple,
         SimpleMma, SimpleMultiRows, SimpleMultiRowsMma, SimpleUnit, SimpleVecMat, Specialized,
         SpecializedMma,
@@ -21,8 +22,6 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use serde::{Deserialize, Serialize};
-
-use super::optimization::{MatmulOptimizationTuneArg, MatmulVariantSelection};
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {

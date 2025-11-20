@@ -1,18 +1,16 @@
 use super::optimization::ReduceInstruction;
-use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
-use cubecl::{Runtime, reduce::ReduceStrategy};
-
+use super::optimization::{FusedReduce, ReduceOptimization};
 use crate::{
-    CubeOptimization,
+    optim::CubeOptimization,
     shared::{
         builder::FuseOptimizationBuilder,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
-
-use super::optimization::{FusedReduce, ReduceOptimization};
+use burn_fusion::{OptimizationBuilder, OptimizationStatus};
+use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
+use cubecl::{Runtime, reduce::ReduceStrategy};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {

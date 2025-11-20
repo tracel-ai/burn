@@ -1,17 +1,18 @@
 use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
-
-use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
-use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
-use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
-use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
-use burn_cubecl_fusion::reduce::optimization::ReduceOptimization;
-use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_cubecl_fusion::{
-    CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
+    CubeFusionHandle, FallbackOperation,
+    optim::{
+        CubeOptimization, CubeOptimizationState,
+        elemwise::{ElementWiseBuilder, ElemwiseOptimization},
+        matmul::{MatmulBuilder, MatmulOptimization},
+        reduce::{ReduceBuilder, ReduceOptimization},
+    },
 };
-use burn_fusion::stream::{Operation, OrderedExecution};
-use burn_fusion::{FusionBackend, FusionRuntime};
+use burn_fusion::{
+    FusionBackend, FusionRuntime,
+    stream::{Operation, OrderedExecution},
+};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
