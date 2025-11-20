@@ -1,14 +1,3 @@
-use std::marker::PhantomData;
-
-use burn_fusion::stream::{Context, ScalarId};
-use burn_ir::ScalarIr;
-use burn_tensor::DType;
-use cubecl::{
-    CubeElement, Runtime,
-    client::ComputeClient,
-    prelude::{ScalarArg, Sequence, TensorArg},
-};
-
 use super::{
     FuseResources, HandleOutput, LaunchPlan, ReferenceSelection, TensorView, TraceError,
     TraceRunner, TuneOutput, block::FuseBlock,
@@ -17,10 +6,20 @@ use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
         ir::{FuseBlockConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
-        tensor::{GlobalScalar, GlobalTensorArg},
+        tensor::GlobalTensorArg,
         trace::HandleInput,
     },
 };
+use burn_fusion::stream::{Context, ScalarId};
+use burn_ir::ScalarIr;
+use burn_tensor::DType;
+use cubecl::{
+    CubeElement, Runtime,
+    client::ComputeClient,
+    prelude::{ScalarArg, Sequence, TensorArg},
+    std::scalar::InputScalar,
+};
+use std::marker::PhantomData;
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a, R: Runtime> {
@@ -246,7 +245,7 @@ fn register_scalars<'h, R: Runtime>(
     for (precision, id) in scalars {
         match precision {
             FusePrecision::F64 => {
-                inputs.scalars.push(GlobalScalar::F64(
+                inputs.scalars.push(InputScalar::F64(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::F64(val)) => *val,
                         _ => panic!(),
@@ -254,7 +253,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::F32 | FusePrecision::Flex32 => {
-                inputs.scalars.push(GlobalScalar::F32(
+                inputs.scalars.push(InputScalar::F32(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::F32(val)) => *val,
                         _ => panic!(),
@@ -262,7 +261,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::F16 => {
-                inputs.scalars.push(GlobalScalar::F16(
+                inputs.scalars.push(InputScalar::F16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::F16(val)) => *val,
                         _ => panic!(),
@@ -270,7 +269,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::BF16 => {
-                inputs.scalars.push(GlobalScalar::BF16(
+                inputs.scalars.push(InputScalar::BF16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::BF16(val)) => *val,
                         _ => panic!(),
@@ -278,7 +277,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::I64 => {
-                inputs.scalars.push(GlobalScalar::I64(
+                inputs.scalars.push(InputScalar::I64(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I64(val)) => *val,
                         _ => panic!(),
@@ -286,7 +285,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::I32 => {
-                inputs.scalars.push(GlobalScalar::I32(
+                inputs.scalars.push(InputScalar::I32(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I32(val)) => *val,
                         _ => panic!(),
@@ -294,7 +293,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::I16 => {
-                inputs.scalars.push(GlobalScalar::I16(
+                inputs.scalars.push(InputScalar::I16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I16(val)) => *val,
                         _ => panic!(),
@@ -302,7 +301,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::I8 => {
-                inputs.scalars.push(GlobalScalar::I8(
+                inputs.scalars.push(InputScalar::I8(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I8(val)) => *val,
                         _ => panic!(),
@@ -310,7 +309,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::U64 => {
-                inputs.scalars.push(GlobalScalar::U64(
+                inputs.scalars.push(InputScalar::U64(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U64(val)) => *val,
                         _ => panic!(),
@@ -318,7 +317,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::U32 => {
-                inputs.scalars.push(GlobalScalar::U32(
+                inputs.scalars.push(InputScalar::U32(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U32(val)) => *val,
                         _ => panic!(),
@@ -326,7 +325,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::U16 => {
-                inputs.scalars.push(GlobalScalar::U16(
+                inputs.scalars.push(InputScalar::U16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U16(val)) => *val,
                         _ => panic!(),
@@ -334,7 +333,7 @@ fn register_scalars<'h, R: Runtime>(
                 ));
             }
             FusePrecision::U8 => {
-                inputs.scalars.push(GlobalScalar::U8(
+                inputs.scalars.push(InputScalar::U8(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U8(val)) => *val,
                         _ => panic!(),

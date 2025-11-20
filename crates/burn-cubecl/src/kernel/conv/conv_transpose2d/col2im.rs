@@ -1,21 +1,19 @@
-use burn_tensor::{
-    Shape,
-    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
-};
-use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
-
 use crate::{
     CubeRuntime,
-    element::MatmulElement,
     kernel::{
         conv::batches_per_run,
         into_contiguous,
         matmul::{MatmulStrategy, matmul},
         slice,
     },
-    ops::{numeric::empty_device, reshape, swap_dims},
+    ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,
 };
+use burn_tensor::{
+    Shape,
+    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
+};
+use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 /// Perform a 2D convolution transposition using the GEMM (col2im) algorithm.
 ///
@@ -23,8 +21,7 @@ use crate::{
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-///
-pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
+pub fn conv_transpose2d_col2im<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -73,7 +70,12 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
         let runs = batch_size / batches_per_run;
 
         let im_shape = Shape::new([runs, batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
+        let image = empty_device_dtype::<R>(
+            input.client.clone(),
+            input.device.clone(),
+            im_shape,
+            input.dtype,
+        );
 
         let input_shape = Shape::new([runs, batches_per_run, input_channels, input_h, input_w]);
         let input = reshape(input, input_shape);
@@ -85,7 +87,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
             let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
             let image_slice = index::<R>(image.clone(), run);
             let image_slice = reshape(image_slice, im_shape);
-            execute::<R, E>(
+            execute::<R>(
                 input,
                 weight.clone(),
                 bias.clone(),
@@ -101,8 +103,13 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
         ))
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
-        execute::<R, E>(
+        let image = empty_device_dtype::<R>(
+            input.client.clone(),
+            input.device.clone(),
+            im_shape,
+            input.dtype,
+        );
+        execute::<R>(
             input,
             weight,
             bias,
@@ -128,7 +135,7 @@ pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTens
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute<R: CubeRuntime, E: MatmulElement>(
+fn execute<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -146,10 +153,11 @@ fn execute<R: CubeRuntime, E: MatmulElement>(
     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
     let input = reshape(input, input_shape);
 
-    let columns = matmul::<R>(weight, input, None, MatmulStrategy::default(), E::dtype())?;
+    let dtype = input.dtype;
+    let columns = matmul::<R>(weight, input, None, MatmulStrategy::default(), dtype)?;
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
-    col2im::<R, E>(
+    col2im::<R>(
         columns, bias, image, kernel_h, kernel_w, input_h, input_w, options,
     );
 
@@ -157,7 +165,7 @@ fn execute<R: CubeRuntime, E: MatmulElement>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn col2im<R: CubeRuntime, E: MatmulElement>(
+fn col2im<R: CubeRuntime>(
     columns: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     out: CubeTensor<R>,
@@ -173,10 +181,11 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
     let columns = into_contiguous(columns);
     let has_bias = bias.is_some();
     let bias = bias.map(into_contiguous).unwrap_or_else(|| {
-        empty_device::<R, E>(
+        empty_device_dtype::<R>(
             columns.client.clone(),
             columns.device.clone(),
             Shape::new([1]),
+            dtype,
         )
     });
 
