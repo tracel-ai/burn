@@ -1,7 +1,7 @@
 use super::optimization::{FusedReduce, ReduceInstruction, ReduceOptimization};
 use crate::{
     engine::{
-        fuser::TraceFuser,
+        fuser::TraceOperationFuser,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
@@ -13,9 +13,9 @@ use cubecl::{Runtime, reduce::ReduceStrategy};
 
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser<R: Runtime> {
-    fuser: TraceFuser,
-    fuser_read_fallback: TraceFuser,
-    fuser_write_fallback: TraceFuser,
+    fuser: TraceOperationFuser,
+    fuser_read_fallback: TraceOperationFuser,
+    fuser_write_fallback: TraceOperationFuser,
     settings_write: FuseSettings,
     device: R::Device,
     reduce: Option<FusedReduce>,
@@ -52,9 +52,17 @@ impl<R: Runtime> ReduceFuser<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            fuser: TraceFuser::new(max_bindings, bool_precision, settings_read),
-            fuser_read_fallback: TraceFuser::new(max_bindings, bool_precision, settings_fallback),
-            fuser_write_fallback: TraceFuser::new(max_bindings, bool_precision, settings_fallback),
+            fuser: TraceOperationFuser::new(max_bindings, bool_precision, settings_read),
+            fuser_read_fallback: TraceOperationFuser::new(
+                max_bindings,
+                bool_precision,
+                settings_fallback,
+            ),
+            fuser_write_fallback: TraceOperationFuser::new(
+                max_bindings,
+                bool_precision,
+                settings_fallback,
+            ),
             settings_write,
             device,
             reduce: None,
@@ -116,7 +124,7 @@ impl<R: Runtime> ReduceFuser<R> {
 
     fn on_elemwise_read(&mut self, operation: &OperationIr) {
         let can_register =
-            self.fuser.can_register(operation) && self.fuser_read_fallback.can_register(operation);
+            self.fuser.can_fuse(operation) && self.fuser_read_fallback.can_fuse(operation);
 
         match can_register {
             true => {
@@ -132,7 +140,7 @@ impl<R: Runtime> ReduceFuser<R> {
 
     fn on_elemwise_write(&mut self, operation: &OperationIr) {
         let can_register =
-            self.fuser.can_register(operation) && self.fuser_write_fallback.can_register(operation);
+            self.fuser.can_fuse(operation) && self.fuser_write_fallback.can_fuse(operation);
 
         match can_register {
             true => {

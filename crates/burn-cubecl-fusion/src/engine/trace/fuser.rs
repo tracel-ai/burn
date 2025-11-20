@@ -18,7 +18,7 @@ use cubecl_quant::scheme::QuantParam;
 ///
 /// It mostly handles the [resources](KernelResources) needed by the generated fused kernel, and
 /// delegates most of the work to the [block builder](FuseBlockBuilder).
-pub struct FuseTraceBuilder {
+pub struct TraceFuser {
     settings: FuseSettings,
     pub bool_precision: FuseType,
     // The tensors returned by the block that don't need to be written to global memory.
@@ -27,7 +27,7 @@ pub struct FuseTraceBuilder {
     resources: FuseResources,
 }
 
-impl FuseTraceBuilder {
+impl TraceFuser {
     /// Create a new trace builder with the given bool precision and [fuse settings](FuseSettings).
     pub fn new(bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
@@ -40,12 +40,12 @@ impl FuseTraceBuilder {
     }
 
     /// Tag a tensor as dropped.
-    pub fn register_dropped(&mut self, id: TensorId) {
+    pub fn fuse_dropped(&mut self, id: TensorId) {
         self.resources.dropped.insert(id);
     }
 
     /// Register an operation.
-    pub fn register_operation(&mut self, op: FuseOp) {
+    pub fn fuse_operation(&mut self, op: FuseOp) {
         self.block_current.ops.push(op);
     }
 

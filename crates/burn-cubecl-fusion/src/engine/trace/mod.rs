@@ -5,11 +5,11 @@ pub(crate) mod output;
 pub(crate) mod vectorization;
 
 mod base;
-mod builder;
+mod fuser;
 mod plan;
 mod runner;
 
 pub use base::*;
-pub use builder::*;
+pub use fuser::*;
 pub use plan::*;
 pub use runner::*;

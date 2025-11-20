@@ -1,7 +1,7 @@
 use super::optimization::ElemwiseOptimization;
 use crate::{
     engine::{
-        fuser::TraceFuser,
+        fuser::TraceOperationFuser,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
@@ -12,7 +12,7 @@ use cubecl::Runtime;
 
 /// Fuses element wise operations.
 pub struct ElementWiseFuser<R: Runtime> {
-    fuser: TraceFuser,
+    fuser: TraceOperationFuser,
     device: R::Device,
 }
 
@@ -32,7 +32,7 @@ impl<R: Runtime> ElementWiseFuser<R> {
         let max_bindings = props.hardware.max_bindings;
 
         Self {
-            fuser: TraceFuser::new(
+            fuser: TraceOperationFuser::new(
                 max_bindings,
                 bool_precision,
                 FuseSettings {

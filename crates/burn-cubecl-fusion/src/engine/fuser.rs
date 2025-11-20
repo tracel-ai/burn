@@ -1,7 +1,7 @@
 use super::{
     ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, UnaryFuseArgs},
     settings::FuseSettings,
-    trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
+    trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
 use crate::engine::ir::QuantSchemeFuse;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
@@ -12,15 +12,21 @@ use burn_ir::{
 use burn_tensor::DType;
 use cubecl::ir::ElemType;
 
-/// The base optimization compiler that can be used to fuse [all supported fuse operations](FuseOp).
+/// The base operation fuser that can be used to fuse [all supported fuse operations](FuseOp).
+///
 ///
 /// This fuser doesn't create a ready-to-execute kernel, but rather generates a
 /// [trace](FuseTrace) that be used with a [runner](super::trace::TraceRunner).
 ///
 /// Since this fuser supports fusing multiple blocks, you can fuse any compute-bound operations
 /// with the combination of fuse-on-read and fuse-on-write strategy.
+///
+/// # Notes
+///
+/// It is responsable to translate [OperationIr] into [FuseOp] and it uses the [TraceFuser]
+/// to actually fuse the [FuseOp] when possible.
 #[derive(Debug, Clone)]
-pub(crate) struct TraceFuser {
+pub(crate) struct TraceOperationFuser {
     fuser: TryTraceFuser,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Vec<usize>,
@@ -30,9 +36,9 @@ pub(crate) struct TraceFuser {
     max_bindings: u32,
 }
 
-impl TraceFuser {
+impl TraceOperationFuser {
     /// Checks if the [operation](OperationIr) can be fused with the current fuser.
-    pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
+    pub(crate) fn can_fuse(&self, op: &OperationIr) -> bool {
         let len_previous = self.len();
         let mut fuser_cloned = self.clone();
 
@@ -43,7 +49,7 @@ impl TraceFuser {
     }
 }
 
-impl OperationFuser<FuseTrace> for TraceFuser {
+impl OperationFuser<FuseTrace> for TraceOperationFuser {
     fn fuse(&mut self, op: &OperationIr) {
         if let FuserStatus::Closed = self.status {
             return;
@@ -56,40 +62,40 @@ impl OperationFuser<FuseTrace> for TraceFuser {
                     return;
                 }
 
-                self.fuser.fuser.register_dropped(tensor.id);
+                self.fuser.fuser.fuse_dropped(tensor.id);
             }
             OperationIr::BaseFloat(ops) => {
-                if !self.register_base(ops) {
+                if !self.fuse_base(ops) {
                     self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::BaseInt(ops) => {
-                if !self.register_base(ops) {
+                if !self.fuse_base(ops) {
                     self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::Float(_dtype, ops) => {
-                if !self.register_float(ops) {
+                if !self.fuse_float(ops) {
                     self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericFloat(_dtype, ops) => {
-                if !self.register_numeric(ops) {
+                if !self.fuse_numeric(ops) {
                     self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericInt(_dtype, ops) => {
-                if !self.register_numeric(ops) {
+                if !self.fuse_numeric(ops) {
                     self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::BaseBool(ops) => {
-                if !self.register_base(ops) {
+                if !self.fuse_base(ops) {
                     self.status = FuserStatus::Closed;
                     return;
                 }
@@ -141,7 +147,7 @@ impl OperationFuser<FuseTrace> for TraceFuser {
     }
 }
 
-impl TraceFuser {
+impl TraceOperationFuser {
     /// Creates a new fuser.
     pub fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
@@ -173,7 +179,7 @@ impl TraceFuser {
     ///
     /// # Returns
     ///
-    /// None if it's not possible to register a quantized tensor. Otherwise:
+    /// None if it's not possible to fuse a quantized tensor. Otherwise:
     ///
     /// - The argument that maps to the tensor values to be used during kernel expansion.
     /// - The argument that maps to the tensor params to be used during kernel expansion.
@@ -186,7 +192,7 @@ impl TraceFuser {
     /// # Notes
     ///
     /// Normally you don't have to declare outputs explicitly before they are going to be
-    /// registered based on the operations [registered](Self::register).
+    /// fused based on the operations [fused](Self::fuse).
     ///
     /// # Returns
     ///
@@ -252,13 +258,13 @@ impl TraceFuser {
         Some(args)
     }
 
-    fn register_base(&mut self, ops: &BaseOperationIr) -> bool {
+    fn fuse_base(&mut self, ops: &BaseOperationIr) -> bool {
         match ops {
-            BaseOperationIr::Equal(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            BaseOperationIr::Equal(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
             }),
             BaseOperationIr::Cast(desc) => {
-                self.register_unary_op(&desc.input, &desc.out, |input, out| {
+                self.fuse_unary_op(&desc.input, &desc.out, |input, out| {
                     FuseOp::Assign(UnaryFuseArgs { input, out })
                 })
             }
@@ -267,8 +273,8 @@ impl TraceFuser {
                     return false;
                 }
 
-                if self.fuser.register(|build| {
-                    build.input_swap_dims(
+                if self.fuser.fuse(|fuser| {
+                    fuser.input_swap_dims(
                         &desc.input,
                         &desc.out,
                         (desc.dim1 as u32, desc.dim2 as u32),
@@ -284,7 +290,7 @@ impl TraceFuser {
             }
             BaseOperationIr::Reshape(desc) => {
                 if desc.input.shape == desc.out.shape {
-                    return self.register_unary_op(&desc.input, &desc.out, |input, out| {
+                    return self.fuse_unary_op(&desc.input, &desc.out, |input, out| {
                         FuseOp::Assign(UnaryFuseArgs { input, out })
                     });
                 }
@@ -298,8 +304,8 @@ impl TraceFuser {
                     return false;
                 }
 
-                if self.fuser.register(|build| {
-                    build.input_reshaped(&desc.input, &desc.out)?;
+                if self.fuser.fuse(|fuser| {
+                    fuser.input_reshaped(&desc.input, &desc.out)?;
                     Some(())
                 }) {
                     self.num_views += 1;
@@ -317,10 +323,10 @@ impl TraceFuser {
                 let precision = elem.into();
                 let input = FuseArg::Literal(1, precision);
 
-                self.fuser.register(|build| {
-                    let out = build.output(&desc.out)?;
+                self.fuser.fuse(|fuser| {
+                    let out = fuser.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
+                    fuser.fuse_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
 
                     Some(())
                 })
@@ -334,10 +340,10 @@ impl TraceFuser {
                 let precision = elem.into();
                 let input = FuseArg::Literal(0, precision);
 
-                self.fuser.register(|build| {
-                    let out = build.output(&desc.out)?;
+                self.fuser.fuse(|fuser| {
+                    let out = fuser.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
+                    fuser.fuse_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
 
                     Some(())
                 })
@@ -346,32 +352,36 @@ impl TraceFuser {
         }
     }
 
-    fn register_float(&mut self, ops: &FloatOperationIr) -> bool {
+    fn fuse_float(&mut self, ops: &FloatOperationIr) -> bool {
         match ops {
-            FloatOperationIr::Exp(desc) => self
-                .register_unary_ops(desc, |input, out| FuseOp::Exp(UnaryFuseArgs { input, out })),
-            FloatOperationIr::Log(desc) => self
-                .register_unary_ops(desc, |input, out| FuseOp::Log(UnaryFuseArgs { input, out })),
-            FloatOperationIr::Log1p(desc) => self.register_unary_ops(desc, |input, out| {
+            FloatOperationIr::Exp(desc) => {
+                self.fuse_unary_ops(desc, |input, out| FuseOp::Exp(UnaryFuseArgs { input, out }))
+            }
+            FloatOperationIr::Log(desc) => {
+                self.fuse_unary_ops(desc, |input, out| FuseOp::Log(UnaryFuseArgs { input, out }))
+            }
+            FloatOperationIr::Log1p(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Log1p(UnaryFuseArgs { input, out })
             }),
-            FloatOperationIr::Cos(desc) => self
-                .register_unary_ops(desc, |input, out| FuseOp::Cos(UnaryFuseArgs { input, out })),
-            FloatOperationIr::Sin(desc) => self
-                .register_unary_ops(desc, |input, out| FuseOp::Sin(UnaryFuseArgs { input, out })),
-            FloatOperationIr::PowfScalar(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            FloatOperationIr::Tanh(desc) => self.register_unary_ops(desc, |input, out| {
+            FloatOperationIr::Cos(desc) => {
+                self.fuse_unary_ops(desc, |input, out| FuseOp::Cos(UnaryFuseArgs { input, out }))
+            }
+            FloatOperationIr::Sin(desc) => {
+                self.fuse_unary_ops(desc, |input, out| FuseOp::Sin(UnaryFuseArgs { input, out }))
+            }
+            FloatOperationIr::PowfScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            FloatOperationIr::Tanh(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Tanh(UnaryFuseArgs { input, out })
             }),
-            FloatOperationIr::Erf(desc) => self
-                .register_unary_ops(desc, |input, out| FuseOp::Erf(UnaryFuseArgs { input, out })),
-            FloatOperationIr::Sqrt(desc) => self.register_unary_ops(desc, |input, out| {
+            FloatOperationIr::Erf(desc) => {
+                self.fuse_unary_ops(desc, |input, out| FuseOp::Erf(UnaryFuseArgs { input, out }))
+            }
+            FloatOperationIr::Sqrt(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Sqrt(UnaryFuseArgs { input, out })
             }),
-            FloatOperationIr::Recip(desc) => self.register_unary_ops(desc, |input, out| {
+            FloatOperationIr::Recip(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Recip(UnaryFuseArgs { input, out })
             }),
             FloatOperationIr::Dequantize(desc) => {
@@ -379,19 +389,19 @@ impl TraceFuser {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let qinput = build.input_quantized(&desc.input)?;
                     let out = build.output(&desc.out)?;
 
                     match qinput {
                         QuantInput::AlreadyDequantized { local } => {
-                            build.register_operation(FuseOp::Assign(UnaryFuseArgs {
+                            build.fuse_operation(FuseOp::Assign(UnaryFuseArgs {
                                 input: local,
                                 out,
                             }));
                         }
                         QuantInput::Quantized { values, params } => {
-                            build.register_operation(FuseOp::Dequantize {
+                            build.fuse_operation(FuseOp::Dequantize {
                                 values,
                                 params,
                                 output: out,
@@ -410,84 +420,77 @@ impl TraceFuser {
         }
     }
 
-    fn register_numeric(&mut self, op: &NumericOperationIr) -> bool {
+    fn fuse_numeric(&mut self, op: &NumericOperationIr) -> bool {
         match op {
-            NumericOperationIr::Add(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::Add(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::AddScalar(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::Sub(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::AddScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Sub(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Sub(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::SubScalar(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Sub(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::Mul(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::SubScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Sub(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Mul(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Mul(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::MulScalar(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Mul(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::Div(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::MulScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Mul(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Div(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Div(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::DivScalar(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Div(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::Abs(desc) => self
-                .register_unary_ops(desc, |input, out| FuseOp::Abs(UnaryFuseArgs { input, out })),
-            NumericOperationIr::Lower(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::DivScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Div(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Abs(desc) => {
+                self.fuse_unary_ops(desc, |input, out| FuseOp::Abs(UnaryFuseArgs { input, out }))
+            }
+            NumericOperationIr::Lower(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Lower(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::LowerElem(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Lower(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::Greater(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::LowerElem(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Lower(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Greater(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Greater(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::GreaterElem(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Greater(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::LowerEqual(desc) => self
-                .register_binary_ops(desc, |lhs, rhs, out| {
-                    FuseOp::LowerEqual(BinaryFuseArgs { lhs, rhs, out })
-                }),
+            NumericOperationIr::GreaterElem(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Greater(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::LowerEqual(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::LowerEqual(BinaryFuseArgs { lhs, rhs, out })
+            }),
             NumericOperationIr::LowerEqualElem(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
+                .fuse_scalar_ops(desc, |lhs, rhs, out| {
                     FuseOp::LowerEqual(BinaryFuseArgs { lhs, rhs, out })
                 }),
             NumericOperationIr::GreaterEqual(desc) => self
-                .register_binary_ops(desc, |lhs, rhs, out| {
+                .fuse_binary_ops(desc, |lhs, rhs, out| {
                     FuseOp::GreaterEqual(BinaryFuseArgs { lhs, rhs, out })
                 }),
             NumericOperationIr::GreaterEqualElem(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
+                .fuse_scalar_ops(desc, |lhs, rhs, out| {
                     FuseOp::GreaterEqual(BinaryFuseArgs { lhs, rhs, out })
                 }),
-            NumericOperationIr::EqualElem(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
-                }),
+            NumericOperationIr::EqualElem(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
+            }),
             NumericOperationIr::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let cond = build.input(&desc.mask)?;
                     let rhs = build.input(&desc.tensor)?;
                     let lhs = build.input(&desc.value)?;
                     let out = build.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::ConditionalAssign {
+                    build.fuse_operation(FuseOp::ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
@@ -502,13 +505,13 @@ impl TraceFuser {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let cond = build.input(&desc.mask)?;
                     let lhs = build.scalar(&desc.value, desc.out.dtype);
                     let rhs = build.input(&desc.tensor)?;
                     let out = build.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::ConditionalAssign {
+                    build.fuse_operation(FuseOp::ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
@@ -523,11 +526,11 @@ impl TraceFuser {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let input = build.scalar(&desc.value, desc.out.dtype);
                     let out = build.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
+                    build.fuse_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
 
                     Some(())
                 })
@@ -537,12 +540,12 @@ impl TraceFuser {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
                     let output = build.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::Gather {
+                    build.fuse_operation(FuseOp::Gather {
                         input,
                         indices,
                         output,
@@ -557,12 +560,12 @@ impl TraceFuser {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
                     let output = build.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::Select {
+                    build.fuse_operation(FuseOp::Select {
                         input,
                         indices,
                         output,
@@ -572,14 +575,13 @@ impl TraceFuser {
                     Some(())
                 })
             }
-            NumericOperationIr::Rem(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::Rem(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::RemScalar(desc) => self
-                .register_scalar_ops(desc, |lhs, rhs, out| {
-                    FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
-                }),
-            NumericOperationIr::Powf(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+            NumericOperationIr::RemScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
             NumericOperationIr::Clamp(desc) => {
@@ -587,13 +589,13 @@ impl TraceFuser {
                     return false;
                 }
 
-                self.fuser.register(|build| {
+                self.fuser.fuse(|build| {
                     let input = build.input(&desc.tensor)?;
                     let min = build.scalar(&desc.min, desc.out.dtype);
                     let max = build.scalar(&desc.max, desc.out.dtype);
                     let out = build.output(&desc.out)?;
 
-                    build.register_operation(FuseOp::Clamp {
+                    build.fuse_operation(FuseOp::Clamp {
                         input,
                         min,
                         max,
@@ -607,7 +609,7 @@ impl TraceFuser {
         }
     }
 
-    fn register_binary_ops<Func>(&mut self, desc: &BinaryOpIr, func: Func) -> bool
+    fn fuse_binary_ops<Func>(&mut self, desc: &BinaryOpIr, func: Func) -> bool
     where
         Func: Fn(FuseArg, FuseArg, FuseArg) -> FuseOp,
     {
@@ -615,25 +617,25 @@ impl TraceFuser {
             return false;
         }
 
-        self.fuser.register(|build| {
+        self.fuser.fuse(|build| {
             let lhs = build.input(&desc.lhs)?;
             let rhs = build.input(&desc.rhs)?;
             let out = build.output(&desc.out)?;
 
-            build.register_operation(func(lhs, rhs, out));
+            build.fuse_operation(func(lhs, rhs, out));
 
             Some(())
         })
     }
 
-    fn register_unary_ops<Func>(&mut self, desc: &UnaryOpIr, func: Func) -> bool
+    fn fuse_unary_ops<Func>(&mut self, desc: &UnaryOpIr, func: Func) -> bool
     where
         Func: Fn(FuseArg, FuseArg) -> FuseOp,
     {
-        self.register_unary_op(&desc.input, &desc.out, func)
+        self.fuse_unary_op(&desc.input, &desc.out, func)
     }
 
-    fn register_unary_op<Func>(&mut self, input: &TensorIr, out: &TensorIr, func: Func) -> bool
+    fn fuse_unary_op<Func>(&mut self, input: &TensorIr, out: &TensorIr, func: Func) -> bool
     where
         Func: Fn(FuseArg, FuseArg) -> FuseOp,
     {
@@ -641,15 +643,15 @@ impl TraceFuser {
             return false;
         }
 
-        self.fuser.register(|build| {
+        self.fuser.fuse(|build| {
             let input = build.input(input)?;
             let out = build.output(out)?;
-            build.register_operation(func(input, out));
+            build.fuse_operation(func(input, out));
             Some(())
         })
     }
 
-    fn register_scalar_ops<Func>(&mut self, desc: &ScalarOpIr, func: Func) -> bool
+    fn fuse_scalar_ops<Func>(&mut self, desc: &ScalarOpIr, func: Func) -> bool
     where
         Func: Fn(FuseArg, FuseArg, FuseArg) -> FuseOp,
     {
@@ -657,13 +659,13 @@ impl TraceFuser {
             return false;
         }
 
-        self.fuser.register(|build| {
+        self.fuser.fuse(|build| {
             let elem = desc.lhs.dtype;
             let lhs = build.input(&desc.lhs)?;
             let rhs = build.scalar(&desc.rhs, elem);
             let out = build.output(&desc.out)?;
 
-            build.register_operation(func(lhs, rhs, out));
+            build.fuse_operation(func(lhs, rhs, out));
 
             Some(())
         })
@@ -730,7 +732,7 @@ impl TraceFuser {
 #[derive(Debug, Clone)]
 /// Builder wrapper to limit the number of bindings in generated kernels.
 struct TryTraceFuser {
-    fuser: FuseTraceBuilder,
+    fuser: TraceFuser,
     max_bindings: u32,
     max_ops: u32,
     added_ops: bool,
@@ -739,7 +741,7 @@ struct TryTraceFuser {
 impl TryTraceFuser {
     fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
-            fuser: FuseTraceBuilder::new(bool_precision, settings),
+            fuser: TraceFuser::new(bool_precision, settings),
             max_bindings,
             // A good default, avoid errors with for loops over only memory
             // bound operations.
@@ -748,7 +750,7 @@ impl TryTraceFuser {
         }
     }
 
-    fn register(&mut self, add_ops: impl FnOnce(&mut FuseTraceBuilder) -> Option<()>) -> bool {
+    fn fuse(&mut self, add_ops: impl FnOnce(&mut TraceFuser) -> Option<()>) -> bool {
         if self.fuser.num_ops_fused() > self.max_ops {
             return false;
         }

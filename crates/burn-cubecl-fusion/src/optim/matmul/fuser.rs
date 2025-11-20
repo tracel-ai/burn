@@ -1,6 +1,6 @@
 use super::optimization::{FusedMatmul, MatmulOptimization};
 use crate::{
-    engine::{fuser::TraceFuser, ir::FuseType, settings::FuseSettings},
+    engine::{fuser::TraceOperationFuser, ir::FuseType, settings::FuseSettings},
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };
@@ -11,8 +11,8 @@ use cubecl::Runtime;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct MatmulFuser<R: Runtime> {
-    fuser: TraceFuser,
-    fuser_fallback: TraceFuser,
+    fuser: TraceOperationFuser,
+    fuser_fallback: TraceOperationFuser,
     device: R::Device,
     matmul: Option<FusedMatmul>,
 }
@@ -40,8 +40,12 @@ impl<R: Runtime> MatmulFuser<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            fuser: TraceFuser::new(max_bindings, bool_precision, settings_matmul),
-            fuser_fallback: TraceFuser::new(max_bindings, bool_precision, settings_fallback),
+            fuser: TraceOperationFuser::new(max_bindings, bool_precision, settings_matmul),
+            fuser_fallback: TraceOperationFuser::new(
+                max_bindings,
+                bool_precision,
+                settings_fallback,
+            ),
             device,
             matmul: None,
         }
@@ -97,7 +101,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
             }
         } else {
             let can_register =
-                self.fuser.can_register(operation) && self.fuser_fallback.can_register(operation);
+                self.fuser.can_fuse(operation) && self.fuser_fallback.can_fuse(operation);
 
             match can_register {
                 true => {
