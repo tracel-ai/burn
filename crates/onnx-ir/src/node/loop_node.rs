@@ -117,7 +117,7 @@ impl NodeProcessor for LoopProcessor {
                 });
             }
             match cond_type {
-                ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+                ArgType::Scalar(dtype) if dtype.is_bool() => {
                     // Valid scalar bool
                 }
                 _ => {
@@ -153,7 +153,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_in_type {
-            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid
             }
             _ => {
@@ -180,7 +180,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_out_type {
-            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid
             }
             _ => {

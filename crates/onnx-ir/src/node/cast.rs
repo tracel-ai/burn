@@ -101,19 +101,16 @@ impl NodeProcessor for CastProcessor {
             ArgType::Shape(rank) => {
                 // When casting Shape to float or bool types, convert to 1D tensor
                 // This allows Shape values to be used in tensor operations
-                match elem_type {
-                    DType::F32 | DType::F64 | DType::F16 | DType::Bool => {
-                        output.ty = ArgType::Tensor(TensorType {
-                            dtype: elem_type,
-                            rank: 1,
-                            static_shape: Some(vec![rank]),
-                        });
-                    }
-                    _ => {
-                        // For int types, keep as Shape
-                        // This matches Burn's representation where shapes are always [i64; N]
-                        output.ty = ArgType::Shape(rank);
-                    }
+                if elem_type.is_float() || elem_type.is_bool() {
+                    output.ty = ArgType::Tensor(TensorType {
+                        dtype: elem_type,
+                        rank: 1,
+                        static_shape: Some(vec![rank]),
+                    });
+                } else {
+                    // For int types, keep as Shape
+                    // This matches Burn's representation where shapes are always [i64; N]
+                    output.ty = ArgType::Shape(rank);
                 }
             }
         }

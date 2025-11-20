@@ -43,16 +43,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
 
                 // Generate the correct output type based on the tensor kind
                 let output_type = match &output_tensor.dtype {
-                    onnx_ir::ir::DType::I8
-                    | onnx_ir::ir::DType::I32
-                    | onnx_ir::ir::DType::I64
-                    | onnx_ir::ir::DType::U8 => {
+                    dtype if dtype.is_int() || dtype.is_uint() => {
                         quote! { Tensor<B, #output_rank, Int> }
                     }
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
+                    dtype if dtype.is_float() => {
                         quote! { Tensor<B, #output_rank> }
                     }
-                    onnx_ir::ir::DType::Bool => {
+                    dtype if dtype.is_bool() => {
                         quote! { Tensor<B, #output_rank, Bool> }
                     }
                     _ => panic!("Unsupported tensor dtype: {:?}", output_tensor.dtype),
@@ -68,18 +65,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
 
                 // Determine the element type based on the output tensor type
                 let tensor_creation = match &output_tensor.dtype {
-                    onnx_ir::ir::DType::I8
-                    | onnx_ir::ir::DType::I32
-                    | onnx_ir::ir::DType::I64
-                    | onnx_ir::ir::DType::U8 => {
+                    dtype if dtype.is_int() || dtype.is_uint() => {
                         let elem_conversion = quote! { #scalar_name.elem::<B::IntElem>() };
                         quote! { Tensor::<B, #output_rank, Int>::from_data([#elem_conversion], &self.device).unsqueeze() }
                     }
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
+                    dtype if dtype.is_float() => {
                         let elem_conversion = quote! { #scalar_name.elem::<B::FloatElem>() };
                         quote! { Tensor::<B, #output_rank>::from_data([#elem_conversion], &self.device).unsqueeze() }
                     }
-                    onnx_ir::ir::DType::Bool => {
+                    dtype if dtype.is_bool() => {
                         let elem_conversion = quote! { #scalar_name != 0 };
                         quote! { Tensor::<B, #output_rank, Bool>::from_data([#elem_conversion], &self.device).unsqueeze() }
                     }

@@ -135,12 +135,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNod
         let mut attn_mask = if let Some(mask_input) = self.inputs.get(3) {
             let mask_arg = scope.arg(mask_input);
             let mask = match &mask_input.ty {
-                onnx_ir::ir::ArgType::Tensor(t) => match t.dtype {
-                    onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => {
+                onnx_ir::ir::ArgType::Tensor(t) => match &t.dtype {
+                    dtype if dtype.is_int() || dtype.is_uint() => {
                         quote! { #mask_arg.float() }
                     }
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => mask_arg,
-                    onnx_ir::ir::DType::Bool => {
+                    dtype if dtype.is_float() => mask_arg,
+                    dtype if dtype.is_bool() => {
                         quote! {{
                             let float_mask = Tensor::<B, 2>::zeros([shape[2], shape[3]], &#mask_arg.device());
                             float_mask.mask_fill(#mask_arg.bool_not(), f32::NEG_INFINITY)

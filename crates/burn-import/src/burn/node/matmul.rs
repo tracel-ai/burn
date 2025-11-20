@@ -1,8 +1,6 @@
 use super::prelude::*;
 use core::cmp::Ordering;
 
-use onnx_ir::DType;
-
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
@@ -19,9 +17,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
 
         // Validate that lhs is a float tensor
         if let ArgType::Tensor(t) = &lhs_arg.ty {
-            match t.dtype {
-                DType::F64 | DType::F32 | DType::F16 | DType::BF16 | DType::Flex32 => {}
-                _ => panic!("MatMul is only implemented for float tensors"),
+            if !t.dtype.is_float() {
+                panic!("MatMul is only implemented for float tensors");
             }
         } else {
             panic!("MatMul lhs must be a tensor");

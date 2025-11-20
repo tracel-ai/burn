@@ -13,7 +13,7 @@
 use derive_new::new;
 use onnx_ir_derive::NodeBuilderDerive;
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -65,7 +65,7 @@ impl NodeProcessor for IfProcessor {
         }
 
         match condition {
-            ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid scalar bool condition
             }
             _ => {
@@ -206,6 +206,7 @@ impl NodeProcessor for IfProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DType;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, NodeType, OnnxGraph, TensorType};
     use crate::node::test_utils::TestNodeBuilder;

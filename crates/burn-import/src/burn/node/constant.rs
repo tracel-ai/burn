@@ -24,8 +24,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
                 let tensor_data = input.value().expect("Constant node must have tensor data");
                 let shape = tensor_data.shape.to_tokens();
 
-                let (ty, init) = match t.dtype {
-                    onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => (
+                let (ty, init) = match &t.dtype {
+                    dtype if dtype.is_int() || dtype.is_uint() => (
                         quote! { burn::module::Param<Tensor<B, #rank, Int>> },
                         quote! {
                             let #name: burn::module::Param<Tensor<B, #rank, Int>> = burn::module::Param::uninitialized(
@@ -37,7 +37,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
                             );
                         },
                     ),
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => (
+                    dtype if dtype.is_float() => (
                         quote! { burn::module::Param<Tensor<B, #rank>> },
                         quote! {
                             let #name: burn::module::Param<Tensor<B, #rank>> = burn::module::Param::uninitialized(
@@ -49,7 +49,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
                             );
                         },
                     ),
-                    onnx_ir::ir::DType::Bool => (
+                    dtype if dtype.is_bool() => (
                         quote! { burn::module::Param<Tensor<B, #rank, Bool>> },
                         quote! {
                             let #name: burn::module::Param<Tensor<B, #rank, Bool>> = burn::module::Param::uninitialized(
@@ -94,14 +94,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
                 let tensor_data = input.value().expect("Constant node must have tensor data");
 
                 // Convert to appropriate element type based on dtype
-                let data = match t.dtype {
-                    onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => {
+                let data = match &t.dtype {
+                    dtype if dtype.is_int() || dtype.is_uint() => {
                         tensor_data.clone().convert::<PS::IntElem>()
                     }
-                    onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
-                        tensor_data.clone().convert::<PS::FloatElem>()
-                    }
-                    onnx_ir::ir::DType::Bool => tensor_data.clone(),
+                    dtype if dtype.is_float() => tensor_data.clone().convert::<PS::FloatElem>(),
+                    dtype if dtype.is_bool() => tensor_data.clone(),
                     _ => return S::serialize_none(serializer),
                 };
 

@@ -89,7 +89,7 @@ impl NodeProcessor for WhereProcessor {
         let condition_elem_type = get_elem_type(condition);
 
         // FIXME: Condition type validation allows Shape types incorrectly - ONNX spec requires condition to be boolean (type B), but implementation allows Shape type (always I64) which violates spec - Shape should not be allowed as condition type
-        if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != DType::Bool {
+        if !matches!(condition, ArgType::Shape(_)) && !condition_elem_type.is_bool() {
             return Err(ProcessError::TypeMismatch {
                 expected: "Bool".to_string(),
                 actual: format!("{:?}", condition_elem_type),

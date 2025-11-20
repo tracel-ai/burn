@@ -77,7 +77,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
 
                 // Check if value is boolean - special handling needed
                 let is_bool_value = if let Some(tensor_data) = &self.config.value {
-                    matches!(tensor_data.dtype, onnx_ir::ir::DType::Bool)
+                    tensor_data.dtype.is_bool()
                 } else {
                     false
                 };

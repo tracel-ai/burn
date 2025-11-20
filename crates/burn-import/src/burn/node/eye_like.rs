@@ -19,10 +19,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLike
         // Convert mask to appropriate type based on output tensor kind
         let output_ty = &self.outputs.first().unwrap().ty;
         let conversion = match output_ty {
-            ArgType::Tensor(t) => match t.dtype {
-                onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => quote! { .int() },
-                onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => quote! { .float() },
-                onnx_ir::ir::DType::Bool => quote! {},
+            ArgType::Tensor(t) => match &t.dtype {
+                dtype if dtype.is_int() || dtype.is_uint() => quote! { .int() },
+                dtype if dtype.is_float() => quote! { .float() },
+                dtype if dtype.is_bool() => quote! {},
                 _ => quote! { .float() }, // Default to float
             },
             _ => quote! { .float() },

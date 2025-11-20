@@ -17,12 +17,12 @@ pub fn arg_type_tokens(arg: &Argument) -> TokenStream {
     match &arg.ty {
         ArgType::Tensor(tensor) => {
             let rank = tensor.rank.to_tokens();
-            match tensor.dtype {
-                DType::F32 | DType::F64 | DType::F16 => quote! { Tensor<B, #rank> },
-                DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => {
+            match &tensor.dtype {
+                dtype if dtype.is_float() => quote! { Tensor<B, #rank> },
+                dtype if dtype.is_int() || dtype.is_uint() => {
                     quote! { Tensor<B, #rank, Int> }
                 }
-                DType::Bool => quote! { Tensor<B, #rank, Bool> },
+                dtype if dtype.is_bool() => quote! { Tensor<B, #rank, Bool> },
                 _ => quote! { Tensor<B, #rank> },
             }
         }

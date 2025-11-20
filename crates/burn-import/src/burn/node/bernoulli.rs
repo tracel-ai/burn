@@ -23,12 +23,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bernoulli::Bernou
         // Convert to the output type based on the output tensor kind
         let output_ty = &self.outputs.first().unwrap().ty;
         let output_random = match output_ty {
-            ArgType::Tensor(t) => match t.dtype {
-                onnx_ir::ir::DType::Bool => input_random,
-                onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => quote! { #input_random.int() },
-                onnx_ir::ir::DType::F32 | onnx_ir::ir::DType::F64 => {
-                    quote! { #input_random.float() }
-                }
+            ArgType::Tensor(t) => match &t.dtype {
+                dtype if dtype.is_bool() => input_random,
+                dtype if dtype.is_int() || dtype.is_uint() => quote! { #input_random.int() },
+                dtype if dtype.is_float() => quote! { #input_random.float() },
                 _ => input_random, // Fallback
             },
             _ => input_random,

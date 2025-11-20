@@ -1,5 +1,4 @@
 use super::prelude::*;
-use onnx_ir::DType;
 
 /// Type of power operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,18 +29,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pow::PowNode {
 
         // Determine power type based on RHS type
         let power_type = match &rhs_arg.ty {
-            ArgType::Tensor(t) => match t.dtype {
-                DType::I64 | DType::I32 | DType::I16 | DType::I8 => PowerType::Int,
-                DType::F64 | DType::F32 | DType::F16 | DType::BF16 | DType::Flex32 => {
-                    PowerType::Float
-                }
+            ArgType::Tensor(t) => match &t.dtype {
+                dtype if dtype.is_int() => PowerType::Int,
+                dtype if dtype.is_float() => PowerType::Float,
                 _ => panic!("pow function requires RHS to be int or float type"),
             },
             ArgType::Scalar(dtype) => match dtype {
-                DType::I64 | DType::I32 | DType::I16 | DType::I8 => PowerType::Int,
-                DType::F64 | DType::F32 | DType::F16 | DType::BF16 | DType::Flex32 => {
-                    PowerType::Float
-                }
+                dtype if dtype.is_int() => PowerType::Int,
+                dtype if dtype.is_float() => PowerType::Float,
                 _ => panic!("pow function requires RHS to be int or float type"),
             },
             _ => panic!("pow function only supports RHS scalar or tensor types"),

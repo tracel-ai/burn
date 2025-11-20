@@ -24,16 +24,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
                 let output = arg_to_ident(output_arg);
 
                 // Check if the cast is a no-op within the same dtype "family"
-                let is_noop = matches!(
-                    (input_dtype, &self.config.to),
-                    (DType::F64, DType::F64)
-                        | (DType::F32 | DType::F16, DType::F32 | DType::F16)
-                        | (
-                            DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8,
-                            DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8,
-                        )
-                        | (DType::Bool, DType::Bool)
-                );
+                let is_noop = input_dtype == &self.config.to
+                    || (input_dtype.is_float()
+                        && self.config.to.is_float()
+                        && input_dtype != &DType::F64
+                        && self.config.to != DType::F64)
+                    || ((input_dtype.is_int() || input_dtype.is_uint())
+                        && (self.config.to.is_int() || self.config.to.is_uint()));
 
                 if is_noop {
                     // No-op cast within same scalar "family".
@@ -68,10 +65,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
 
                 // Map ONNX element types to Burn TensorKind categories.
                 // Burn only distinguishes Float / Int / Bool at the Tensor level.
-                let target_kind = match self.config.to {
-                    DType::F32 | DType::F64 | DType::F16 => TensorKind::Float,
-                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => TensorKind::Int,
-                    DType::Bool => TensorKind::Bool,
+                let target_kind = match &self.config.to {
+                    dtype if dtype.is_float() => TensorKind::Float,
+                    dtype if dtype.is_int() || dtype.is_uint() => TensorKind::Int,
+                    dtype if dtype.is_bool() => TensorKind::Bool,
                     _ => panic!("Unsupported DType for Cast: {:?}", self.config.to),
                 };
 
@@ -116,8 +113,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
                 let output = arg_to_ident(output_arg);
                 let rank = *input_rank;
 
-                match self.config.to {
-                    DType::F32 | DType::F64 | DType::F16 => {
+                match &self.config.to {
+                    dtype if dtype.is_float() => {
                         // Emit f32 tensor; Float64 target collapses to f32 at runtime side.
                         quote! {
                             let #output = {
@@ -130,7 +127,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
                             };
                         }
                     }
-                    DType::Bool => {
+                    dtype if dtype.is_bool() => {
                         quote! {
                             let #output = {
                                 let shape_array = #input as [i64; #rank];
@@ -144,7 +141,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
                     }
                     // For all integer widths (Int32, Int64, Int8, Uint8), we keep Shape as Shape
                     // in onnx-ir and shouldn't go through Shape->Tensor here.
-                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => {
+                    dtype if dtype.is_int() || dtype.is_uint() => {
                         panic!(
                             "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
                         )
@@ -170,7 +167,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
             (ArgType::Shape(_), ArgType::Tensor(_)) => {
                 imports.register("burn::tensor::TensorData");
                 // Bool is only needed for Shape -> Bool tensor
-                if matches!(self.config.to, DType::Bool) {
+                if self.config.to.is_bool() {
                     imports.register("burn::tensor::Bool");
                 }
             }
