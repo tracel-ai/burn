@@ -172,58 +172,93 @@ mod tests {
     use super::super::test_helpers::*;
     use burn::tensor::DType;
     use insta::assert_snapshot;
-    use onnx_ir::reshape::{ReshapeConfig, ReshapeInput, ReshapeNode, ReshapeNodeBuilder};
+    use onnx_ir::ir::RuntimeInputRef;
+    use onnx_ir::reshape::{ReshapeConfig, ReshapeInput, ReshapeNodeBuilder};
 
-    fn create_reshape_node_static(
-        name: &str,
-        input_rank: usize,
-        shape: Vec<i64>,
-        output_rank: usize,
-    ) -> ReshapeNode {
+    // Static Tensor -> Tensor reshapes
+    #[test]
+    fn test_reshape_static_tensor_to_tensor() {
         let config = ReshapeConfig {
-            shape: ReshapeInput::Static(shape),
+            shape: ReshapeInput::Static(vec![2, 3]),
         };
-
-        ReshapeNodeBuilder::new(name)
-            .input_tensor("input", input_rank, DType::F32)
-            .output_tensor("output", output_rank, DType::F32)
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("data", 3, DType::F32)
+            .output_tensor("reshaped", 2, DType::F32)
             .config(config)
-            .build()
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let reshaped = data.reshape([2, 3]);");
     }
 
     #[test]
-    fn test_reshape_forward_static() {
-        let node = create_reshape_node_static("reshape1", 3, vec![2, 3], 2);
+    fn test_reshape_static_with_neg_one() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![2, -1]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("tensor", 3, DType::F32)
+            .output_tensor("result", 2, DType::F32)
+            .config(config)
+            .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.reshape([2, 3]);");
+        assert_snapshot!(code, @"let result = tensor.reshape([2, -1]);");
     }
 
     #[test]
-    fn test_reshape_forward_static_neg_one() {
-        let node = create_reshape_node_static("reshape1", 3, vec![2, -1], 2);
+    fn test_reshape_3d_to_1d() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![-1]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("flattened", 1, DType::F32)
+            .config(config)
+            .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.reshape([2, -1]);");
+        assert_snapshot!(code, @"let flattened = input.reshape([-1]);");
     }
 
-    #[test]
-    fn test_reshape_forward_3d_to_1d() {
-        let node = create_reshape_node_static("reshape1", 3, vec![-1], 1);
-        let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.reshape([-1]);");
-    }
-
+    // Static Tensor -> Scalar (all scalar types)
     #[test]
     fn test_reshape_tensor_to_scalar_f32() {
         let config = ReshapeConfig {
             shape: ReshapeInput::Static(vec![]),
         };
         let node = ReshapeNodeBuilder::new("reshape1")
-            .input_tensor("input", 1, DType::F32)
-            .output_scalar("output", DType::F32)
+            .input_tensor("tensor", 1, DType::F32)
+            .output_scalar("scalar", DType::F32)
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.into_scalar().elem::<f32>();");
+        assert_snapshot!(code, @"let scalar = tensor.into_scalar().elem::<f32>();");
+    }
+
+    #[test]
+    fn test_reshape_tensor_to_scalar_f64() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("input", 1, DType::F64)
+            .output_scalar("value", DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let value = input.into_scalar().elem::<f64>();");
+    }
+
+    #[test]
+    fn test_reshape_tensor_to_scalar_i32() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("data", 1, DType::I32)
+            .output_scalar("int_val", DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let int_val = data.into_scalar().elem::<i32>();");
     }
 
     #[test]
@@ -233,10 +268,217 @@ mod tests {
         };
         let node = ReshapeNodeBuilder::new("reshape1")
             .input_tensor("input", 1, DType::I64)
-            .output_scalar("output", DType::I64)
+            .output_scalar("long_val", DType::I64)
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.into_scalar().elem::<i64>();");
+        assert_snapshot!(code, @"let long_val = input.into_scalar().elem::<i64>();");
+    }
+
+    #[test]
+    fn test_reshape_tensor_to_scalar_bool() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("mask", 1, DType::Bool)
+            .output_scalar("flag", DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let flag = mask.into_scalar().elem::<bool>();");
+    }
+
+    // Static Shape -> Scalar
+    #[test]
+    fn test_reshape_shape_to_scalar_i64() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_shape("shape_in")
+            .output_scalar("dim", DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let dim = shape_in[0] as i64;");
+    }
+
+    #[test]
+    fn test_reshape_shape_to_scalar_i32() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_shape("shape_data")
+            .output_scalar("size", DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let size = shape_data[0] as i32;");
+    }
+
+    // Static Shape -> Shape (same rank)
+    #[test]
+    fn test_reshape_shape_to_shape_same_rank() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_shape("input_shape")
+            .output_shape("output_shape")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output_shape = input_shape;");
+    }
+
+    // Static Shape -> Shape (different rank)
+    #[test]
+    fn test_reshape_shape_to_shape_expand() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_shape("small_shape")
+            .output_shape("large_shape")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let large_shape = small_shape;");
+    }
+
+    #[test]
+    fn test_reshape_shape_to_shape_shrink() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_shape("big_shape")
+            .output_shape("tiny_shape")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let tiny_shape = big_shape;");
+    }
+
+    // Static Shape -> Tensor
+    #[test]
+    fn test_reshape_shape_to_tensor() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![3]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_shape("dims")
+            .output_tensor("tensor_dims", 1, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let tensor_dims = {
+                let shape_array = dims as [i64; 1usize];
+                Tensor::<B, 1, Int>::from_data(TensorData::from(shape_array), &self.device)
+            }
+                .reshape([3]);
+        ");
+    }
+
+    // Runtime shape with Shape argument
+    #[test]
+    fn test_reshape_runtime_with_shape_arg() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Runtime(RuntimeInputRef {
+                name: "target_shape".to_string(),
+                input_index: 1,
+            }),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("data", 3, DType::F32)
+            .input_shape("target_shape")
+            .output_tensor("reshaped", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let reshaped = data.reshape(target_shape);");
+    }
+
+    // Runtime shape with Tensor argument (rank 2)
+    #[test]
+    fn test_reshape_runtime_with_tensor_rank2() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Runtime(RuntimeInputRef {
+                name: "new_shape".to_string(),
+                input_index: 1,
+            }),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("x", 3, DType::F32)
+            .input_tensor("new_shape", 1, DType::I64)
+            .output_tensor("y", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let shape_data = new_shape.to_data();
+            let shape_array = shape_data.as_slice::<i64>().unwrap();
+            let y = x.reshape([shape_array[0] as usize, shape_array[1] as usize]);
+        ");
+    }
+
+    // Runtime shape with Tensor argument (rank 3)
+    #[test]
+    fn test_reshape_runtime_with_tensor_rank3() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Runtime(RuntimeInputRef {
+                name: "shape_tensor".to_string(),
+                input_index: 1,
+            }),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("input", 4, DType::F32)
+            .input_tensor("shape_tensor", 1, DType::I64)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let shape_data = shape_tensor.to_data();
+            let shape_array = shape_data.as_slice::<i64>().unwrap();
+            let output = input
+                .reshape([
+                    shape_array[0] as usize,
+                    shape_array[1] as usize,
+                    shape_array[2] as usize,
+                ]);
+        ");
+    }
+
+    // Runtime shape with Tensor argument (rank 4)
+    #[test]
+    fn test_reshape_runtime_with_tensor_rank4() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Runtime(RuntimeInputRef {
+                name: "dims".to_string(),
+                input_index: 1,
+            }),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("tensor_in", 2, DType::F32)
+            .input_tensor("dims", 1, DType::I64)
+            .output_tensor("tensor_out", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let shape_data = dims.to_data();
+            let shape_array = shape_data.as_slice::<i64>().unwrap();
+            let tensor_out = tensor_in
+                .reshape([
+                    shape_array[0] as usize,
+                    shape_array[1] as usize,
+                    shape_array[2] as usize,
+                    shape_array[3] as usize,
+                ]);
+        ");
     }
 }
