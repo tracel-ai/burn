@@ -5,9 +5,12 @@ use super::{
 use crate::{
     CubeFusionHandle,
     engine::{
-        launcher::HandleInput,
+        launcher::{
+            HandleInput,
+            runner::{Vectorization, VectorizationHandle},
+        },
         settings::VectorizationSetting,
-        trace::{FuseResources, TensorView, Vectorization, VectorizationHandle, block::FuseBlock},
+        trace::{FuseResources, TensorView, block::FuseBlock},
     },
 };
 use burn_fusion::stream::Context;

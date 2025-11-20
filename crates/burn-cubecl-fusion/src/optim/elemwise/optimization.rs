@@ -6,7 +6,8 @@ use crate::{
             ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
             kernel::{fuse_on_write, init_locals},
         },
-        trace::{FuseTrace, TraceRunner, Vectorization},
+        launcher::runner::{TraceRunner, Vectorization},
+        trace::FuseTrace,
     },
 };
 use burn_fusion::stream::Context;

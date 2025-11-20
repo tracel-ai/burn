@@ -4,9 +4,10 @@ use crate::{
         codegen::ir::{FuseArg, FuseType},
         launcher::{
             HandleInput, HandleOutput, LaunchPlan, executor::LaunchPlanExecutor,
-            input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner,
+            input::InputPlanner, output::OutputPlanner, runner::TraceRunner,
+            vectorization::VectorizationPlanner,
         },
-        trace::{TraceRunner, block::FuseBlock},
+        trace::block::FuseBlock,
     },
 };
 use burn_fusion::stream::Context;

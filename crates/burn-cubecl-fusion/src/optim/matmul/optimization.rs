@@ -1,13 +1,15 @@
 use super::args::FusedMatmulInputLaunch;
 use super::tune::fused_matmul_autotune;
-use crate::engine::{
-    codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
-    launcher::{HandleInput, LaunchPlan},
-    trace::{FuseTrace, TraceRunner},
-};
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    engine::trace::{TraceError, TuneOutput, Vectorization, VectorizationAxis},
+    engine::{
+        codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
+        launcher::{
+            HandleInput, LaunchPlan,
+            runner::{TraceRunner, Vectorization, VectorizationAxis},
+        },
+        trace::{FuseTrace, TraceError, TuneOutput},
+    },
     optim::{
         elemwise::ElemwiseRunner,
         matmul::args::{FusedMatmulArgs, MatmulArg},
