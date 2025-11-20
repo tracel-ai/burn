@@ -6,7 +6,10 @@ use crate::{
             ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
             kernel::{fuse_on_write, init_locals},
         },
-        launch::runner::{TraceRunner, Vectorization},
+        launch::{
+            FuseTraceLauncher,
+            runner::{TraceRunner, Vectorization},
+        },
         trace::FuseTrace,
     },
 };
@@ -33,12 +36,9 @@ pub struct ElemwiseOptimizationState {
 impl<R: Runtime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
-        match self.trace.run::<R, BT, ElemwiseRunner>(
-            &self.client,
-            &self.device,
-            context,
-            &ElemwiseRunner,
-        ) {
+        let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
+
+        match launcher.run::<BT>(&self.client, &self.device, context) {
             Ok(_) => (),
             Err(err) => {
                 panic!("{err:?} - {:?}", self.trace);

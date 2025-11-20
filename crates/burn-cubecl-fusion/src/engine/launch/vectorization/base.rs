@@ -25,13 +25,6 @@ impl Vect {
     pub fn is_broadcast(&self) -> bool {
         matches!(self, Vect::Broadcasted)
     }
-
-    pub fn limit_to_one(&self) -> Self {
-        match self {
-            Vect::Broadcasted => Vect::Broadcasted,
-            Vect::Aligned(_) => Vect::Aligned(1),
-        }
-    }
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
@@ -120,7 +113,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
             let (handle, id) = match input {
                 VectorizationHandle::NormalInput(handle, tensor_ir) => (handle, &tensor_ir.id),
                 VectorizationHandle::QuantValues(..) => panic!("Can't be swapped"),
-                VectorizationHandle::QuantParams(..) => panic!("Can't be swapped"),
+                VectorizationHandle::QuantParams => panic!("Can't be swapped"),
             };
             let val = vectorization_swapped::<R>(
                 handle,
@@ -164,7 +157,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                     };
                     vectorizations.insert(tensor_ir.id, val);
                 }
-                VectorizationHandle::QuantParams(..) => {
+                VectorizationHandle::QuantParams => {
                     // Doesn't have vectorization for now.
                 }
             };

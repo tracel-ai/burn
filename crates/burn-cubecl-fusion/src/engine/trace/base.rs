@@ -1,16 +1,7 @@
-use crate::{
-    CubeFusionHandle,
-    engine::{
-        codegen::ir::{FuseArg, FuseType},
-        launch::{
-            HandleInput, HandleOutput, LaunchPlan, executor::LaunchPlanExecutor,
-            input::InputPlanner, output::OutputPlanner, runner::TraceRunner,
-            vectorization::VectorizationPlanner,
-        },
-        trace::block::FuseBlock,
-    },
+use crate::engine::{
+    codegen::ir::{FuseArg, FuseType},
+    trace::block::FuseBlock,
 };
-use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -162,70 +153,6 @@ pub enum TensorView {
         original: TensorId,
         dims: (u32, u32),
     },
-}
-
-impl FuseTrace {
-    /// Run a trace with the given [runner](TraceRunner).
-    pub fn run<R: Runtime, BT: CubeElement, Runner: TraceRunner<R>>(
-        &self,
-        client: &ComputeClient<R::Server>,
-        device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        runner: &Runner,
-    ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
-        let mut plan = LaunchPlan::<R>::new(&self.blocks);
-
-        InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);
-
-        OutputPlanner::<R>::new(&self.resources, &self.blocks)
-            .run::<BT>(client, device, context, &mut plan);
-
-        VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
-            .run(runner, context, &mut plan);
-
-        match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
-            .execute::<_, BT>(client, runner, context, plan)
-        {
-            Err(err) => {
-                self.rollback(context, err.handles_input, err.handles_output);
-                Err(err.error)
-            }
-            Ok(val) => Ok(val),
-        }
-    }
-
-    fn rollback<R: Runtime>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        handle_inputs: Vec<HandleInput<R>>,
-        handle_outputs: Vec<HandleOutput<R>>,
-    ) {
-        for input in handle_inputs {
-            match input {
-                HandleInput::Normal(input) => {
-                    context
-                        .handles
-                        .register_handle(input.global_ir.id, input.handle_rollback());
-                }
-                HandleInput::QuantValues(input) => {
-                    context
-                        .handles
-                        .register_handle(input.global_ir.id, input.handle);
-                }
-                HandleInput::QuantParams(_) => {
-                    // The scales are part of the quant data handle.
-                }
-            };
-        }
-        for output in handle_outputs {
-            if let HandleOutput::Owned {
-                global_id, handle, ..
-            } = output
-            {
-                context.handles.register_handle(global_id, handle);
-            }
-        }
-    }
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]

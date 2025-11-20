@@ -140,9 +140,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                             HandleInput::QuantValues(h) => {
                                 VectorizationHandle::QuantValues(&h.handle, &h.global_ir)
                             }
-                            HandleInput::QuantParams(h) => {
-                                VectorizationHandle::QuantParams(&h.handle)
-                            }
+                            HandleInput::QuantParams(_) => VectorizationHandle::QuantParams,
                         })
                     } else {
                         None

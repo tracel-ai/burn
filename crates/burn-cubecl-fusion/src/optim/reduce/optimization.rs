@@ -2,6 +2,7 @@ use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
 use super::tune::fused_reduce_autotune;
+use crate::engine::launch::FuseTraceLauncher;
 use crate::engine::launch::runner::{TraceRunner, Vectorization};
 use crate::{
     CubeFusionHandle, FallbackOperation,
@@ -125,55 +126,35 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.info.trace,
-            &self.info.client,
-            &self.info.device,
-            context,
-            &self.info.reduce,
-        )
+        let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce);
+        launcher.run::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fused_reduce_plane<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.info.trace,
-            &self.info.client,
-            &self.info.device,
-            context,
-            &self.info.reduce_plane,
-        )
+        let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce_plane);
+        launcher.run::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.info.trace,
-            &self.info.client,
-            &self.info.device,
-            context,
-            &self.info.reduce_shared_plane,
-        )
+        let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce_shared_plane);
+        launcher.run::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fallback<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
+        let launcher = FuseTraceLauncher::new(&self.info.trace_read_fallback, &ElemwiseRunner);
+
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
-        let mut output_read = self
-            .info
-            .trace_read_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.info.client,
-                &self.info.device,
-                context,
-                &ElemwiseRunner,
-            )
+        let mut output_read = launcher
+            .run::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
 
         self.fallback.run(context);
@@ -191,15 +172,10 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
             );
         }
 
-        let output_write = self
-            .info
-            .trace_write_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.info.client,
-                &self.info.device,
-                context,
-                &ElemwiseRunner,
-            )
+        let launcher = FuseTraceLauncher::new(&self.info.trace_write_fallback, &ElemwiseRunner);
+
+        let output_write = launcher
+            .run::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
 
         output_read.merge(output_write)

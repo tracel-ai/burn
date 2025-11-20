@@ -34,7 +34,7 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
 pub enum VectorizationHandle<'a, R: Runtime> {
     NormalInput(&'a CubeFusionHandle<R>, &'a TensorIr),
     QuantValues(&'a CubeFusionHandle<R>, &'a TensorIr),
-    QuantParams(&'a CubeFusionHandle<R>),
+    QuantParams,
 }
 
 impl<'a, R: Runtime> VectorizationHandle<'a, R> {
@@ -43,7 +43,7 @@ impl<'a, R: Runtime> VectorizationHandle<'a, R> {
         match self {
             VectorizationHandle::NormalInput(_, tensor_ir) => tensor_ir.id == id,
             VectorizationHandle::QuantValues(_, tensor_ir) => tensor_ir.id == id,
-            VectorizationHandle::QuantParams(_) => false,
+            VectorizationHandle::QuantParams => false,
         }
     }
 }

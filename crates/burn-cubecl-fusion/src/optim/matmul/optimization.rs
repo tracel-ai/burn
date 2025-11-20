@@ -5,7 +5,7 @@ use crate::{
     engine::{
         codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
         launch::{
-            HandleInput, LaunchPlan,
+            FuseTraceLauncher, HandleInput, LaunchPlan,
             runner::{TraceRunner, Vectorization, VectorizationAxis},
         },
         trace::{FuseTrace, TraceError, TuneOutput},
@@ -160,12 +160,9 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
-        self.info.trace.run::<R, BT, FusedMatmul>(
-            &self.info.client,
-            &self.info.device,
-            context,
-            S::select(&self.info.variants),
-        )
+        let launcher = FuseTraceLauncher::new(&self.info.trace, S::select(&self.info.variants));
+
+        launcher.run::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fallback<BT: CubeElement>(
@@ -197,15 +194,9 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
             );
         }
 
-        let output_write = self
-            .info
-            .trace_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.info.client,
-                &self.info.device,
-                context,
-                &ElemwiseRunner,
-            )
+        let launcher = FuseTraceLauncher::new(&self.info.trace_fallback, &ElemwiseRunner);
+        let output_write = launcher
+            .run::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
 
         output.merge(output_write)
