@@ -95,7 +95,8 @@ pub struct GraphState {
 
 impl GraphState {
     /// Create new GraphState from ONNX proto structures
-    pub(crate) fn new(
+    #[doc(hidden)]
+    pub fn new(
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
@@ -254,8 +255,8 @@ impl GraphState {
     }
 
     /// Register a test constant in GraphState
-    #[cfg(test)]
-    pub(crate) fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
+    #[doc(hidden)]
+    pub fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
         let (constant_node, _) = create_test_constant(name, tensor_data, &mut self.tensor_store);
         self.processed_nodes.push(constant_node);
     }
@@ -292,8 +293,8 @@ impl GraphState {
     }
 
     /// Alias for get_constant_data_id_by_output (for test utilities)
-    #[cfg(test)]
-    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<DataId> {
+    #[doc(hidden)]
+    pub fn get_constant_data_id(&self, name: &str) -> Option<DataId> {
         self.get_constant_data_id_by_output(name)
     }
 }
@@ -352,7 +353,6 @@ fn process_initializers(
         .collect()
 }
 
-#[cfg(test)]
 /// Create a test constant node with tensor data
 fn create_test_constant(
     name: String,

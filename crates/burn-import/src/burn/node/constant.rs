@@ -184,5 +184,225 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
 
 #[cfg(test)]
 mod tests {
-    // Constant node tests require value handling which is better tested through integration tests
+    use super::super::test_helpers::*;
+    use insta::assert_snapshot;
+    use onnx_ir::GraphState;
+    use onnx_ir::ir::{
+        ArgType, Argument, DType, TensorData, TensorDataExt, TensorType, ValueSource,
+    };
+    use onnx_ir::node::constant::ConstantNode;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// Helper function to create a ConstantNode with tensor data for testing
+    fn create_constant_node(
+        name: &str,
+        tensor_data: TensorData,
+        output_ty: ArgType,
+    ) -> ConstantNode {
+        // Create GraphState and register the constant
+        let mut graph_data = GraphState::new(&[], &[], &[], &[]);
+        graph_data.register_test_constant("const_value".to_string(), tensor_data.clone());
+
+        // Get the data_id from the registered constant
+        let data_id = graph_data
+            .get_constant_data_id("const_value")
+            .expect("Test constant should have data_id");
+
+        // Attach GraphState
+        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+
+        // Determine input type based on tensor data
+        let input_ty = if tensor_data.shape.is_empty() {
+            ArgType::Scalar(tensor_data.elem_type())
+        } else {
+            ArgType::Tensor(TensorType {
+                dtype: tensor_data.elem_type(),
+                rank: tensor_data.shape.len(),
+                static_shape: Some(tensor_data.shape.to_vec()),
+            })
+        };
+
+        // Create input argument with Static value
+        let mut input = Argument::new(String::new(), input_ty);
+        input.value_source = ValueSource::Static(data_id);
+        input.set_value_store(Some(graph_data_rc.clone()));
+
+        // Create output argument
+        let mut output = Argument::new(format!("{}_out", name), output_ty);
+        output.value_source = ValueSource::Constant;
+        output.set_value_store(Some(graph_data_rc));
+
+        ConstantNode {
+            name: name.to_string(),
+            inputs: vec![input],
+            outputs: vec![output],
+        }
+    }
+
+    // ==================== Tensor Output Tests ====================
+
+    #[test]
+    fn test_constant_tensor_f32_rank2() {
+        let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], vec![2, 2]);
+        let node = create_constant_node(
+            "weights",
+            data,
+            ArgType::Tensor(TensorType {
+                dtype: DType::F32,
+                rank: 2,
+                static_shape: Some(vec![2, 2]),
+            }),
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let weights_out = self.weights.val();");
+    }
+
+    #[test]
+    fn test_constant_tensor_f64_rank3() {
+        let data = TensorData::new(vec![0.5f64; 8], vec![2, 2, 2]);
+        let node = create_constant_node(
+            "bias_tensor",
+            data,
+            ArgType::Tensor(TensorType {
+                dtype: DType::F64,
+                rank: 3,
+                static_shape: Some(vec![2, 2, 2]),
+            }),
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let bias_tensor_out = self.bias_tensor.val();");
+    }
+
+    #[test]
+    fn test_constant_tensor_i32_rank1() {
+        let data = TensorData::new(vec![10i32, 20, 30], vec![3]);
+        let node = create_constant_node(
+            "indices",
+            data,
+            ArgType::Tensor(TensorType {
+                dtype: DType::I32,
+                rank: 1,
+                static_shape: Some(vec![3]),
+            }),
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let indices_out = self.indices.val();");
+    }
+
+    #[test]
+    fn test_constant_tensor_i64_rank4() {
+        let data = TensorData::new(vec![1i64; 16], vec![2, 2, 2, 2]);
+        let node = create_constant_node(
+            "shape_data",
+            data,
+            ArgType::Tensor(TensorType {
+                dtype: DType::I64,
+                rank: 4,
+                static_shape: Some(vec![2, 2, 2, 2]),
+            }),
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let shape_data_out = self.shape_data.val();");
+    }
+
+    #[test]
+    fn test_constant_tensor_bool_rank2() {
+        let data = TensorData::new(vec![true, false, true, false], vec![2, 2]);
+        let node = create_constant_node(
+            "mask",
+            data,
+            ArgType::Tensor(TensorType {
+                dtype: DType::Bool,
+                rank: 2,
+                static_shape: Some(vec![2, 2]),
+            }),
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let mask_out = self.mask.val();");
+    }
+
+    // ==================== Scalar Output Tests ====================
+
+    #[test]
+    fn test_constant_scalar_f32() {
+        let data = TensorData::new(vec![3.14f32], vec![]);
+        let node = create_constant_node("pi", data, ArgType::Scalar(DType::F32));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let pi_out = 3.14f32;");
+    }
+
+    #[test]
+    fn test_constant_scalar_f64() {
+        let data = TensorData::new(vec![2.718f64], vec![]);
+        let node = create_constant_node("euler", data, ArgType::Scalar(DType::F64));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let euler_out = 2.718f64;");
+    }
+
+    #[test]
+    fn test_constant_scalar_i32() {
+        let data = TensorData::new(vec![42i32], vec![]);
+        let node = create_constant_node("answer", data, ArgType::Scalar(DType::I32));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let answer_out = 42i32;");
+    }
+
+    #[test]
+    fn test_constant_scalar_i64() {
+        let data = TensorData::new(vec![1000i64], vec![]);
+        let node = create_constant_node("count", data, ArgType::Scalar(DType::I64));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let count_out = 1000i64;");
+    }
+
+    #[test]
+    fn test_constant_scalar_bool_true() {
+        let data = TensorData::new(vec![true], vec![]);
+        let node = create_constant_node("flag", data, ArgType::Scalar(DType::Bool));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let flag_out = true;");
+    }
+
+    #[test]
+    fn test_constant_scalar_bool_false() {
+        let data = TensorData::new(vec![false], vec![]);
+        let node = create_constant_node("enabled", data, ArgType::Scalar(DType::Bool));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let enabled_out = false;");
+    }
+
+    // ==================== Shape Output Tests ====================
+
+    #[test]
+    fn test_constant_shape_rank1() {
+        let data = TensorData::new(vec![10i64], vec![1]);
+        let node = create_constant_node("single_dim", data, ArgType::Shape(1));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let single_dim_out: [i64; 1] = [10i64];");
+    }
+
+    #[test]
+    fn test_constant_shape_rank2() {
+        let data = TensorData::new(vec![5i64, 10], vec![2]);
+        let node = create_constant_node("dims", data, ArgType::Shape(2));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let dims_out: [i64; 2] = [5i64, 10i64];");
+    }
+
+    #[test]
+    fn test_constant_shape_rank3() {
+        let data = TensorData::new(vec![2i64, 3, 4], vec![3]);
+        let node = create_constant_node("shape_vec", data, ArgType::Shape(3));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let shape_vec_out: [i64; 3] = [2i64, 3i64, 4i64];");
+    }
+
+    #[test]
+    fn test_constant_shape_rank4() {
+        let data = TensorData::new(vec![1i64, 2, 3, 4], vec![4]);
+        let node = create_constant_node("full_shape", data, ArgType::Shape(4));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let full_shape_out: [i64; 4] = [1i64, 2i64, 3i64, 4i64];");
+    }
 }

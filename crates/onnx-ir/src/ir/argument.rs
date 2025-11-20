@@ -197,6 +197,15 @@ impl Argument {
         }
     }
 
+    /// Set the value store (for testing)
+    #[doc(hidden)]
+    pub fn set_value_store(
+        &mut self,
+        value_store: Option<std::rc::Rc<std::cell::RefCell<crate::graph_state::GraphState>>>,
+    ) {
+        self.value_store = value_store;
+    }
+
     /// Check if this is a static constant (embedded value)
     pub fn is_static(&self) -> bool {
         matches!(self.value_source, ValueSource::Static(_))
