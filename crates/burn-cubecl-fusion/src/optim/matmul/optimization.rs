@@ -4,7 +4,7 @@ use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
         codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
-        launcher::{
+        launch::{
             HandleInput, LaunchPlan,
             runner::{TraceRunner, Vectorization, VectorizationAxis},
         },

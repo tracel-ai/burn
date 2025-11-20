@@ -1,6 +1,6 @@
 use crate::{
     CubeFusionHandle,
-    engine::launcher::runner::{VectorizationAxis, VectorizationHandle},
+    engine::launch::runner::{VectorizationAxis, VectorizationHandle},
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};

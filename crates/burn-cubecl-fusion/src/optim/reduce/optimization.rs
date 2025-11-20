@@ -2,7 +2,7 @@ use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
 use super::tune::fused_reduce_autotune;
-use crate::engine::launcher::runner::{TraceRunner, Vectorization};
+use crate::engine::launch::runner::{TraceRunner, Vectorization};
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{

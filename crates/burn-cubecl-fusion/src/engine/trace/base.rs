@@ -2,7 +2,7 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseType},
-        launcher::{
+        launch::{
             HandleInput, HandleOutput, LaunchPlan, executor::LaunchPlanExecutor,
             input::InputPlanner, output::OutputPlanner, runner::TraceRunner,
             vectorization::VectorizationPlanner,

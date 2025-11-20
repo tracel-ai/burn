@@ -1,7 +1,7 @@
 use super::super::codegen::ir::{FuseBlockConfig, GlobalArgsLaunch};
 use crate::{
     CubeFusionHandle,
-    engine::launcher::{
+    engine::launch::{
         LaunchPlan,
         vectorization::{Vect, vectorization_default},
     },

@@ -1,5 +1,5 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
-use crate::engine::launcher::runner::TraceRunner;
+use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
     CubeFusionHandle, elem_dtype,

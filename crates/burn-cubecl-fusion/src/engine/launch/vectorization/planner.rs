@@ -5,7 +5,7 @@ use super::{
 use crate::{
     CubeFusionHandle,
     engine::{
-        launcher::{
+        launch::{
             HandleInput,
             runner::{Vectorization, VectorizationHandle},
         },

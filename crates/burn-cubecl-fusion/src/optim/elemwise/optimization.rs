@@ -6,7 +6,7 @@ use crate::{
             ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
             kernel::{fuse_on_write, init_locals},
         },
-        launcher::runner::{TraceRunner, Vectorization},
+        launch::runner::{TraceRunner, Vectorization},
         trace::FuseTrace,
     },
 };

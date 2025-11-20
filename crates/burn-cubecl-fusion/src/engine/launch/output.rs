@@ -6,7 +6,7 @@ use crate::{
     CubeFusionHandle, elem_dtype,
     engine::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
-        launcher::HandleInput,
+        launch::HandleInput,
         settings::RefLayoutSetting,
         trace::{FuseResources, RegisterTensor, TensorView, block::FuseBlock},
     },
