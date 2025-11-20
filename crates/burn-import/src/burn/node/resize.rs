@@ -179,3 +179,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Resize node tests are complex and better tested through integration tests
+}

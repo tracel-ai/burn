@@ -60,3 +60,62 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pow::PowNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::pow::{PowNode, PowNodeBuilder};
+
+    fn create_pow_node_tensor_tensor(name: &str, base_dtype: DType, exp_dtype: DType) -> PowNode {
+        PowNodeBuilder::new(name)
+            .input_tensor("base", 2, base_dtype)
+            .input_tensor("exponent", 2, exp_dtype)
+            .output_tensor("output", 2, base_dtype)
+            .build()
+    }
+
+    fn create_pow_node_tensor_scalar(name: &str, base_dtype: DType, exp_dtype: DType) -> PowNode {
+        PowNodeBuilder::new(name)
+            .input_tensor("base", 2, base_dtype)
+            .input_scalar("exponent", exp_dtype)
+            .output_tensor("output", 2, base_dtype)
+            .build()
+    }
+
+    #[test]
+    fn test_pow_float_tensor_float_tensor() {
+        let node = create_pow_node_tensor_tensor("pow1", DType::F32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = base.powf(exponent);");
+    }
+
+    #[test]
+    fn test_pow_float_tensor_int_tensor() {
+        let node = create_pow_node_tensor_tensor("pow1", DType::F32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = base.powi(exponent);");
+    }
+
+    #[test]
+    fn test_pow_float_tensor_int_scalar() {
+        let node = create_pow_node_tensor_scalar("pow1", DType::F32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = base.powi_scalar(exponent);");
+    }
+
+    #[test]
+    fn test_pow_float_tensor_float_scalar() {
+        let node = create_pow_node_tensor_scalar("pow1", DType::F32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = base.powf_scalar(exponent);");
+    }
+
+    #[test]
+    fn test_pow_int_tensor_int_scalar() {
+        let node = create_pow_node_tensor_scalar("pow1", DType::I32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = base.powi_scalar(exponent);");
+    }
+}

@@ -166,3 +166,77 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::reshape::{ReshapeConfig, ReshapeInput, ReshapeNode, ReshapeNodeBuilder};
+
+    fn create_reshape_node_static(
+        name: &str,
+        input_rank: usize,
+        shape: Vec<i64>,
+        output_rank: usize,
+    ) -> ReshapeNode {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(shape),
+        };
+
+        ReshapeNodeBuilder::new(name)
+            .input_tensor("input", input_rank, DType::F32)
+            .output_tensor("output", output_rank, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_reshape_forward_static() {
+        let node = create_reshape_node_static("reshape1", 3, vec![2, 3], 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.reshape([2, 3]);");
+    }
+
+    #[test]
+    fn test_reshape_forward_static_neg_one() {
+        let node = create_reshape_node_static("reshape1", 3, vec![2, -1], 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.reshape([2, -1]);");
+    }
+
+    #[test]
+    fn test_reshape_forward_3d_to_1d() {
+        let node = create_reshape_node_static("reshape1", 3, vec![-1], 1);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.reshape([-1]);");
+    }
+
+    #[test]
+    fn test_reshape_tensor_to_scalar_f32() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("input", 1, DType::F32)
+            .output_scalar("output", DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.into_scalar().elem::<f32>();");
+    }
+
+    #[test]
+    fn test_reshape_tensor_to_scalar_i64() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_tensor("input", 1, DType::I64)
+            .output_scalar("output", DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.into_scalar().elem::<i64>();");
+    }
+}

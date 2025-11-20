@@ -58,3 +58,79 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::shape::ShapeNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{ArgType, Argument, TensorType};
+    use onnx_ir::shape::{ShapeConfig, ShapeNode};
+
+    #[test]
+    fn test_shape_full() {
+        let config = ShapeConfig { start: 0, end: 3 };
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 3, None)),
+        );
+
+        let node = ShapeNode {
+            name: "shape1".to_string(),
+            inputs: vec![input],
+            outputs: vec![Argument::new("output", ArgType::Shape(3))],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output: [i64; 3] = input
+                .dims()[0..3]
+                .iter()
+                .map(|&x| x as i64)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_shape_partial() {
+        let config = ShapeConfig { start: 1, end: 3 };
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 4, None)),
+        );
+
+        let node = ShapeNode {
+            name: "shape2".to_string(),
+            inputs: vec![input],
+            outputs: vec![Argument::new("output", ArgType::Shape(2))],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output: [i64; 2] = input
+                .dims()[1..3]
+                .iter()
+                .map(|&x| x as i64)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_shape_of_shape() {
+        let config = ShapeConfig { start: 0, end: 1 };
+        let input = Argument::new("input", ArgType::Shape(3));
+
+        let node = ShapeNode {
+            name: "shape3".to_string(),
+            inputs: vec![input],
+            outputs: vec![Argument::new("output", ArgType::Shape(1))],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output: [i64; 1] = [3i64];");
+    }
+}

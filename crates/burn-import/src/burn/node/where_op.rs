@@ -142,3 +142,47 @@ fn where_input_as_tensor(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::where_op::WhereNodeBuilder;
+
+    #[test]
+    fn test_where_tensor_tensor_tensor() {
+        let node = WhereNodeBuilder::new("where1")
+            .input_tensor("condition", 2, DType::Bool)
+            .input_tensor("x", 2, DType::F32)
+            .input_tensor("y", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = y.mask_where(condition, x);");
+    }
+
+    #[test]
+    fn test_where_tensor_scalar_tensor() {
+        let node = WhereNodeBuilder::new("where1")
+            .input_tensor("condition", 2, DType::Bool)
+            .input_scalar("x", DType::F32)
+            .input_tensor("y", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = y.mask_fill(condition, x);");
+    }
+
+    #[test]
+    fn test_where_scalar_scalar_scalar() {
+        let node = WhereNodeBuilder::new("where1")
+            .input_scalar("condition", DType::Bool)
+            .input_scalar("x", DType::F32)
+            .input_scalar("y", DType::F32)
+            .output_scalar("output", DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = if condition { x } else { y };");
+    }
+}

@@ -33,3 +33,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::topk::TopKNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::topk::{TopKConfig, TopKInput, TopKNodeBuilder};
+
+    #[test]
+    fn test_top_k() {
+        let config = TopKConfig::new(1, TopKInput::Static(5));
+        let node = TopKNodeBuilder::new("topk1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("values", 2, DType::F32)
+            .output_tensor("indices", 2, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let (values, indices) = input.topk_with_indices(5, 1);");
+    }
+}

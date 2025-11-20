@@ -180,3 +180,78 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::cast::{CastConfig, CastNode, CastNodeBuilder};
+
+    fn create_cast_node_tensor(name: &str, input_dtype: DType, output_dtype: DType) -> CastNode {
+        let config = CastConfig::new(output_dtype);
+        CastNodeBuilder::new(name)
+            .input_tensor("input", 2, input_dtype)
+            .output_tensor("output", 2, output_dtype)
+            .config(config)
+            .build()
+    }
+
+    fn create_cast_node_scalar(name: &str, input_dtype: DType, output_dtype: DType) -> CastNode {
+        let config = CastConfig::new(output_dtype);
+        CastNodeBuilder::new(name)
+            .input_scalar("input", input_dtype)
+            .output_scalar("output", output_dtype)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_cast_int_to_float() {
+        let node = create_cast_node_tensor("cast1", DType::I32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.float();");
+    }
+
+    #[test]
+    fn test_cast_float_to_int() {
+        let node = create_cast_node_tensor("cast1", DType::F32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.int();");
+    }
+
+    #[test]
+    fn test_cast_float_to_bool() {
+        let node = create_cast_node_tensor("cast1", DType::F32, DType::Bool);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.bool();");
+    }
+
+    #[test]
+    fn test_cast_noop_float32_to_float32() {
+        let node = create_cast_node_tensor("cast1", DType::F32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input;");
+    }
+
+    #[test]
+    fn test_cast_scalar_int_to_float() {
+        let node = create_cast_node_scalar("cast1", DType::I32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input as f32;");
+    }
+
+    #[test]
+    fn test_cast_scalar_float_to_int() {
+        let node = create_cast_node_scalar("cast1", DType::F32, DType::I64);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input as i64;");
+    }
+
+    #[test]
+    fn test_cast_scalar_noop() {
+        let node = create_cast_node_scalar("cast1", DType::F32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input;");
+    }
+}

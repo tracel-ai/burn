@@ -78,3 +78,48 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::AddNo
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::arithmetic::{AddNode, AddNodeBuilder};
+
+    fn create_add_node_tensor_tensor(name: &str, lhs_rank: usize, rhs_rank: usize) -> AddNode {
+        AddNodeBuilder::new(name)
+            .input_tensor("lhs", lhs_rank, DType::F32)
+            .input_tensor("rhs", rhs_rank, DType::F32)
+            .output_tensor("output", lhs_rank.max(rhs_rank), DType::F32)
+            .build()
+    }
+
+    fn create_add_node_tensor_scalar(name: &str) -> AddNode {
+        AddNodeBuilder::new(name)
+            .input_tensor("lhs", 2, DType::F32)
+            .input_scalar("rhs", DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build()
+    }
+
+    #[test]
+    fn test_add_forward_tensor_tensor() {
+        let node = create_add_node_tensor_tensor("add1", 2, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.add(rhs);");
+    }
+
+    #[test]
+    fn test_add_forward_tensor_scalar() {
+        let node = create_add_node_tensor_scalar("add1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.add_scalar(rhs);");
+    }
+
+    #[test]
+    fn test_add_forward_broadcast() {
+        let node = create_add_node_tensor_tensor("add1", 3, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.add(rhs.unsqueeze_dims(&[0isize]));");
+    }
+}

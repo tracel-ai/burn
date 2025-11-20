@@ -44,3 +44,41 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::nonzero::NonZeroNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::nonzero::NonZeroNodeBuilder;
+
+    #[test]
+    fn test_nonzero_float() {
+        let node = NonZeroNodeBuilder::new("nz1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.not_equal_elem(0.0).argwhere().transpose();");
+    }
+
+    #[test]
+    fn test_nonzero_int() {
+        let node = NonZeroNodeBuilder::new("nz2")
+            .input_tensor("input", 2, DType::I32)
+            .output_tensor("output", 2, DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.not_equal_elem(0).argwhere().transpose();");
+    }
+
+    #[test]
+    fn test_nonzero_bool() {
+        let node = NonZeroNodeBuilder::new("nz3")
+            .input_tensor("input", 2, DType::Bool)
+            .output_tensor("output", 2, DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.argwhere().transpose();");
+    }
+}

@@ -135,3 +135,9 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
         register_subgraph_imports(&self.config.else_branch);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // If node tests require complex OnnxGraph construction which is better tested
+    // through integration tests
+}

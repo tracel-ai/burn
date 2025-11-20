@@ -181,3 +181,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Constant node tests require value handling which is better tested through integration tests
+}

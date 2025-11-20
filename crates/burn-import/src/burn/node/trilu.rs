@@ -26,3 +26,35 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::trilu::TriluNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::trilu::{TriluConfig, TriluNodeBuilder};
+
+    #[test]
+    fn test_trilu_upper() {
+        let config = TriluConfig::new(true, 0);
+        let node = TriluNodeBuilder::new("triu1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.triu(0);");
+    }
+
+    #[test]
+    fn test_trilu_lower() {
+        let config = TriluConfig::new(false, 1);
+        let node = TriluNodeBuilder::new("tril1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.tril(1);");
+    }
+}

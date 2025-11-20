@@ -48,3 +48,39 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::concat::ConcatNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::concat::{ConcatConfig, ConcatNode, ConcatNodeBuilder};
+
+    fn create_concat_node(name: &str, num_inputs: usize, axis: usize) -> ConcatNode {
+        let config = ConcatConfig { axis };
+        let mut builder = ConcatNodeBuilder::new(name);
+
+        for i in 0..num_inputs {
+            builder = builder.input_tensor(&format!("input{}", i), 2, DType::F32);
+        }
+
+        builder
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_concat_two_tensors() {
+        let node = create_concat_node("concat1", 2, 0);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = burn::tensor::Tensor::cat([input0, input1].into(), 0);");
+    }
+
+    #[test]
+    fn test_concat_three_tensors() {
+        let node = create_concat_node("concat1", 3, 1);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = burn::tensor::Tensor::cat([input0, input1, input2].into(), 1);");
+    }
+}

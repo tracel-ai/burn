@@ -70,3 +70,66 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {
         imports.register("burn::nn::LinearConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{ArgType, Argument, TensorType};
+    use onnx_ir::linear::{LinearConfig, LinearNode};
+
+    #[test]
+    fn test_linear_forward() {
+        let config = LinearConfig::new(128, 64, true);
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+        let weight = Argument::new(
+            "weight",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+        let bias = Argument::new(
+            "bias",
+            ArgType::Tensor(TensorType::new(DType::F32, 1, None)),
+        );
+
+        let node = LinearNode {
+            name: "linear1".to_string(),
+            inputs: vec![input, weight, bias],
+            outputs: vec![Argument::new(
+                "output",
+                ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+            )],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.linear1.forward(input);");
+    }
+
+    #[test]
+    fn test_linear_forward_no_bias() {
+        let config = LinearConfig::new(128, 64, false);
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+        let weight = Argument::new(
+            "weight",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+
+        let node = LinearNode {
+            name: "linear2".to_string(),
+            inputs: vec![input, weight],
+            outputs: vec![Argument::new(
+                "output",
+                ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+            )],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.linear2.forward(input);");
+    }
+}

@@ -338,3 +338,9 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Loop node tests require complex OnnxGraph construction which is better tested
+    // through integration tests
+}

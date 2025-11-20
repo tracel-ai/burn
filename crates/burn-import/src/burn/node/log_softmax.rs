@@ -23,3 +23,35 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::log_softmax::LogSoftmax
         imports.register("burn::tensor::activation::log_softmax");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::log_softmax::{LogSoftmaxConfig, LogSoftmaxNode, LogSoftmaxNodeBuilder};
+
+    fn create_log_softmax_node(name: &str, axis: usize) -> LogSoftmaxNode {
+        let config = LogSoftmaxConfig::new(axis);
+
+        LogSoftmaxNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_log_softmax_forward_last_axis() {
+        let node = create_log_softmax_node("log_softmax1", 1);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = log_softmax(input, 1);");
+    }
+
+    #[test]
+    fn test_log_softmax_forward_axis_0() {
+        let node = create_log_softmax_node("log_softmax1", 0);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = log_softmax(input, 0);");
+    }
+}

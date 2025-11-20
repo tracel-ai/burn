@@ -97,3 +97,37 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         imports.register("burn::nn::conv::ConvTranspose1dConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::conv_transpose1d::{
+        ConvTranspose1dConfig, ConvTranspose1dNode, ConvTranspose1dNodeBuilder,
+    };
+
+    fn create_conv_transpose_1d_node(name: &str) -> ConvTranspose1dNode {
+        let config = ConvTranspose1dConfig::new(3, 64, 3, 1, 1, 1, true, 1, 0);
+
+        ConvTranspose1dNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_conv_transpose_1d_forward() {
+        let node = create_conv_transpose_1d_node("conv_transpose1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.conv_transpose1.forward(input);");
+    }
+
+    #[test]
+    fn test_conv_transpose_1d_forward_with_clone() {
+        let node = create_conv_transpose_1d_node("conv_transpose1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.conv_transpose1.forward(input.clone());");
+    }
+}

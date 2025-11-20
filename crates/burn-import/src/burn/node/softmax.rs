@@ -21,3 +21,42 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::softmax::SoftmaxNode {
 
     // No need to register imports since we use the fully qualified path
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::softmax::{SoftmaxConfig, SoftmaxNode, SoftmaxNodeBuilder};
+
+    fn create_softmax_node(name: &str, axis: usize) -> SoftmaxNode {
+        let config = SoftmaxConfig::new(axis);
+
+        SoftmaxNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_softmax_forward_last_axis() {
+        let node = create_softmax_node("softmax1", 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = burn::tensor::activation::softmax(input, 2);");
+    }
+
+    #[test]
+    fn test_softmax_forward_axis_0() {
+        let node = create_softmax_node("softmax1", 0);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = burn::tensor::activation::softmax(input, 0);");
+    }
+
+    #[test]
+    fn test_softmax_forward_axis_1() {
+        let node = create_softmax_node("softmax1", 1);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = burn::tensor::activation::softmax(input, 1);");
+    }
+}

@@ -52,3 +52,77 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwisexor::Bitwi
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::bitwisexor::BitwiseXorNodeBuilder;
+
+    #[test]
+    fn test_bitwisexor_tensor() {
+        let node = BitwiseXorNodeBuilder::new("xor1")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bitwise_xor(rhs);");
+    }
+
+    #[test]
+    fn test_bitwisexor_scalar() {
+        let node = BitwiseXorNodeBuilder::new("xor2")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bitwise_xor_scalar((rhs as i64).elem());");
+    }
+
+    #[test]
+    fn test_bitwisexor_scalar_tensor() {
+        let node = BitwiseXorNodeBuilder::new("xor3")
+            .input_scalar("lhs", DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = rhs.bitwise_xor_scalar((lhs as i64).elem());");
+    }
+
+    #[test]
+    fn test_bitwisexor_scalar_scalar() {
+        let node = BitwiseXorNodeBuilder::new("xor4")
+            .input_scalar("lhs", DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_scalar("output", DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs ^ rhs;");
+    }
+
+    #[test]
+    fn test_bitwisexor_broadcast_lhs_higher() {
+        let node = BitwiseXorNodeBuilder::new("xor5")
+            .input_tensor("lhs", 3, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bitwise_xor(rhs.unsqueeze_dims(&[0isize]));");
+    }
+
+    #[test]
+    fn test_bitwisexor_broadcast_rhs_higher() {
+        let node = BitwiseXorNodeBuilder::new("xor6")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 3, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.unsqueeze_dims(&[0isize]).bitwise_xor(rhs);");
+    }
+}

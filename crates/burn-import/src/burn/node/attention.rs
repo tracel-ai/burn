@@ -259,3 +259,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNod
         imports.register("burn::tensor::activation::softmax");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Attention tests require complex config construction which is better tested through integration tests
+}

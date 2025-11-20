@@ -31,3 +31,32 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random::RandomUni
         imports.register("burn::tensor::Distribution");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::random::{RandomUniformConfig, RandomUniformNodeBuilder};
+
+    #[test]
+    fn test_random_uniform() {
+        let config = RandomUniformConfig {
+            low: 0.0,
+            high: 1.0,
+            shape: vec![3, 4],
+        };
+        let node = RandomUniformNodeBuilder::new("rand1")
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = Tensor::random(
+                Shape::new([3usize, 4usize]),
+                Distribution::Uniform(0f64, 1f64),
+                &*self.device,
+            );
+        ");
+    }
+}

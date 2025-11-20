@@ -86,3 +86,52 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::DivNo
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::arithmetic::DivNodeBuilder;
+
+    #[test]
+    fn test_div_forward_tensor_tensor() {
+        let node = DivNodeBuilder::new("div1")
+            .input_tensor("lhs", 2, DType::F32)
+            .input_tensor("rhs", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.div(rhs);");
+    }
+
+    #[test]
+    fn test_div_forward_tensor_scalar() {
+        let node = DivNodeBuilder::new("div1")
+            .input_tensor("lhs", 2, DType::F32)
+            .input_scalar("rhs", DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.div_scalar(rhs);");
+    }
+
+    #[test]
+    fn test_div_forward_scalar_tensor() {
+        let node = DivNodeBuilder::new("div1")
+            .input_scalar("lhs", DType::F32)
+            .input_tensor("rhs", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let scalar_tensor = Tensor::<
+                    B,
+                    1,
+                >::from_data([lhs.elem::<B::FloatElem>()], &*self.device);
+                scalar_tensor.div(rhs)
+            };
+        ");
+    }
+}

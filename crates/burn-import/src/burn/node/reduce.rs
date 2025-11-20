@@ -379,3 +379,74 @@ impl_reduce_node!(
     onnx_ir::node::reduce::ReduceSumSquareNode,
     ReductionType::SumSquare
 );
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::reduce::{
+        ReduceConfig, ReduceMaxNode, ReduceMaxNodeBuilder, ReduceMeanNodeBuilder,
+        ReduceSumNodeBuilder,
+    };
+
+    fn create_reduce_max_node(name: &str, config: ReduceConfig) -> ReduceMaxNode {
+        ReduceMaxNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_reduce_max_keepdims() {
+        let config = ReduceConfig::new(vec![1], true);
+        let node = create_reduce_max_node("reduce_max1", config);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = { input.max_dim(1usize) };");
+    }
+
+    #[test]
+    fn test_reduce_mean_keepdims() {
+        let config = ReduceConfig::new(vec![1], true);
+        let node = ReduceMeanNodeBuilder::new("reduce_mean1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = { input.mean_dim(1usize) };");
+    }
+
+    #[test]
+    fn test_reduce_sum_keepdims() {
+        let config = ReduceConfig::new(vec![1], true);
+        let node = ReduceSumNodeBuilder::new("reduce_sum1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = { input.sum_dim(1usize) };");
+    }
+
+    #[test]
+    fn test_reduce_max_multiple_dims() {
+        let config = ReduceConfig::new(vec![1, 2], true);
+        let node = create_reduce_max_node("reduce_max1", config);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = { input.max_dim(1usize).max_dim(2usize) };");
+    }
+
+    #[test]
+    fn test_reduce_sum_multiple_dims_no_keepdims() {
+        let config = ReduceConfig::new(vec![1, 2], false);
+        let node = ReduceSumNodeBuilder::new("reduce_sum1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = { input.sum_dim(1usize).sum_dim(2usize).squeeze_dims(&[1, 2]) };");
+    }
+}

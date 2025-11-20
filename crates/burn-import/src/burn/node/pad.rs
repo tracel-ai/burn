@@ -38,3 +38,39 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pad::PadNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::pad::{ConstantValueInput, PadConfig, PadInput, PadMode, PadNode, PadNodeBuilder};
+
+    fn create_pad_node(name: &str, pads: Vec<usize>, constant_value: f32) -> PadNode {
+        let config = PadConfig {
+            pads: PadInput::Static(pads),
+            constant_value: ConstantValueInput::Static(constant_value),
+            mode: PadMode::Constant,
+        };
+
+        PadNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_pad_simple() {
+        let node = create_pad_node("pad1", vec![1, 1, 1, 1], 0.0);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.pad((1, 1, 1, 1), 0_f32);");
+    }
+
+    #[test]
+    fn test_pad_asymmetric() {
+        let node = create_pad_node("pad1", vec![0, 2, 1, 0], 5.5);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.pad((0, 2, 1, 0), 5.5_f32);");
+    }
+}

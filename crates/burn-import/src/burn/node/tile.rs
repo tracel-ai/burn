@@ -27,3 +27,37 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::tile::TileNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::tile::{TileConfig, TileInput, TileNode, TileNodeBuilder};
+
+    fn create_tile_node(name: &str, repeats: Vec<usize>) -> TileNode {
+        let config = TileConfig {
+            repeats: TileInput::Static(repeats),
+        };
+
+        TileNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_tile_simple() {
+        let node = create_tile_node("tile1", vec![2, 3]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.repeat(&[2, 3]);");
+    }
+
+    #[test]
+    fn test_tile_single_repeat() {
+        let node = create_tile_node("tile1", vec![1, 2, 3]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.repeat(&[1, 2, 3]);");
+    }
+}

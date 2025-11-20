@@ -36,3 +36,51 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLike
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::eye_like::{EyeLikeConfig, EyeLikeNodeBuilder};
+
+    #[test]
+    fn test_eye_like_float() {
+        let config = EyeLikeConfig::new(None, 0);
+        let node = EyeLikeNodeBuilder::new("eye1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = Tensor::diag_mask(input.shape(), 0i64, &*self.device)
+                .bool_not()
+                .float();
+        ");
+    }
+
+    #[test]
+    fn test_eye_like_int() {
+        let config = EyeLikeConfig::new(None, 1);
+        let node = EyeLikeNodeBuilder::new("eye2")
+            .input_tensor("input", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = Tensor::diag_mask(input.shape(), 1i64, &*self.device).bool_not().int();");
+    }
+
+    #[test]
+    fn test_eye_like_bool() {
+        let config = EyeLikeConfig::new(None, 0);
+        let node = EyeLikeNodeBuilder::new("eye3")
+            .input_tensor("input", 2, DType::Bool)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = Tensor::diag_mask(input.shape(), 0i64, &*self.device).bool_not();");
+    }
+}

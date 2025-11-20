@@ -74,3 +74,83 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::gemm::{GemmConfig, GemmNode, GemmNodeBuilder};
+
+    fn create_gemm_node_ab(
+        name: &str,
+        alpha: f32,
+        beta: f32,
+        trans_a: i64,
+        trans_b: i64,
+        has_c: bool,
+    ) -> GemmNode {
+        let config = GemmConfig::new(alpha, beta, trans_a, trans_b);
+        let mut builder = GemmNodeBuilder::new(name)
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32);
+
+        if has_c {
+            builder = builder.input_tensor("c", 2, DType::F32);
+        }
+
+        builder
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_gemm_basic_ab() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 0, 0, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.matmul(b);");
+    }
+
+    #[test]
+    fn test_gemm_with_alpha() {
+        let node = create_gemm_node_ab("gemm1", 2.5, 1.0, 0, 0, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.matmul(b) * 2.5f32;");
+    }
+
+    #[test]
+    fn test_gemm_with_alpha_and_c() {
+        let node = create_gemm_node_ab("gemm1", 2.5, 1.0, 0, 0, true);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.matmul(b) * 2.5f32 + c.unsqueeze();");
+    }
+
+    #[test]
+    fn test_gemm_with_alpha_beta_c() {
+        let node = create_gemm_node_ab("gemm1", 2.0, 3.0, 0, 0, true);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.matmul(b) * 2f32 + (c.unsqueeze()) * 3f32;");
+    }
+
+    #[test]
+    fn test_gemm_with_trans_a() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 1, 0, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.transpose().matmul(b);");
+    }
+
+    #[test]
+    fn test_gemm_with_trans_b() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 0, 1, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.matmul(b.transpose());");
+    }
+
+    #[test]
+    fn test_gemm_with_trans_a_and_b() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 1, 1, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.transpose().matmul(b.transpose());");
+    }
+}

@@ -43,3 +43,51 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bernoulli::Bernou
         imports.register("burn::tensor::Distribution");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::bernoulli::BernoulliNodeBuilder;
+
+    #[test]
+    fn test_bernoulli_bool() {
+        let node = BernoulliNodeBuilder::new("bernoulli1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input);");
+    }
+
+    #[test]
+    fn test_bernoulli_int() {
+        let node = BernoulliNodeBuilder::new("bernoulli2")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input).int();");
+    }
+
+    #[test]
+    fn test_bernoulli_float() {
+        let node = BernoulliNodeBuilder::new("bernoulli3")
+            .input_tensor("input", 2, DType::F64)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input).float();");
+    }
+
+    #[test]
+    fn test_bernoulli_int64() {
+        let node = BernoulliNodeBuilder::new("bernoulli4")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input).int();");
+    }
+}

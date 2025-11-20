@@ -46,3 +46,36 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool2d::MaxPool2dNo
         imports.register("burn::nn::PaddingConfig2d");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::max_pool2d::{MaxPool2dConfig, MaxPool2dNode, MaxPool2dNodeBuilder};
+    use onnx_ir::padding::PaddingConfig2d;
+
+    fn create_max_pool2d_node(name: &str) -> MaxPool2dNode {
+        let config = MaxPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, [1, 1]);
+
+        MaxPool2dNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_max_pool2d_forward() {
+        let node = create_max_pool2d_node("pool1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input);");
+    }
+
+    #[test]
+    fn test_max_pool2d_forward_with_clone() {
+        let node = create_max_pool2d_node("pool1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input.clone());");
+    }
+}

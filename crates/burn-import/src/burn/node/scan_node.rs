@@ -293,3 +293,9 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Scan node tests require complex OnnxGraph construction which is better tested
+    // through integration tests
+}

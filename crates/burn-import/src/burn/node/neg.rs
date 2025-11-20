@@ -28,3 +28,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::neg::NegNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::neg::NegNodeBuilder;
+
+    #[test]
+    fn test_neg_forward() {
+        let node = NegNodeBuilder::new("neg1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.neg();");
+    }
+}

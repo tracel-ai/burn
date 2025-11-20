@@ -75,3 +75,37 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         imports.register("burn::nn::InstanceNormConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::instance_norm::{
+        InstanceNormConfig, InstanceNormalizationNode, InstanceNormalizationNodeBuilder,
+    };
+
+    fn create_instance_norm_node(name: &str) -> InstanceNormalizationNode {
+        let config = InstanceNormConfig::new(32, 1e-5);
+
+        InstanceNormalizationNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_instance_norm_forward() {
+        let node = create_instance_norm_node("instance_norm1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.instance_norm1.forward(input);");
+    }
+
+    #[test]
+    fn test_instance_norm_forward_with_clone() {
+        let node = create_instance_norm_node("instance_norm1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.instance_norm1.forward(input.clone());");
+    }
+}

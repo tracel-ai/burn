@@ -43,3 +43,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::dropout::DropoutNode {
         imports.register("burn::nn::DropoutConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::dropout::{DropoutConfig, DropoutInput, DropoutNodeBuilder};
+
+    #[test]
+    fn test_dropout_forward() {
+        let config = DropoutConfig::new(DropoutInput::Static(0.5));
+        let node = DropoutNodeBuilder::new("dropout1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.dropout1.forward(input);");
+    }
+}

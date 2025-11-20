@@ -84,3 +84,49 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::group_norm::Group
         imports.register("burn::nn::GroupNormConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::group_norm::{
+        GroupNormConfig, GroupNormalizationNode, GroupNormalizationNodeBuilder,
+    };
+
+    fn create_group_norm_node(name: &str) -> GroupNormalizationNode {
+        let config = GroupNormConfig::new(64, 8, 1e-5, true);
+
+        GroupNormalizationNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_group_norm_forward() {
+        let node = create_group_norm_node("group_norm1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let dtype = input.dtype();
+                self.group_norm1.forward(input.cast(burn::tensor::DType::F32)).cast(dtype)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_group_norm_forward_with_clone() {
+        let node = create_group_norm_node("group_norm1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let dtype = input.clone().dtype();
+                self.group_norm1
+                    .forward(input.clone().cast(burn::tensor::DType::F32))
+                    .cast(dtype)
+            };
+        ");
+    }
+}

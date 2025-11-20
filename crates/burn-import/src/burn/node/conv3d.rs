@@ -91,3 +91,44 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv3d::Conv3dNode {
         imports.register("burn::nn::conv::Conv3dConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::conv3d::{Conv3dConfig, Conv3dNode, Conv3dNodeBuilder};
+    use onnx_ir::padding::PaddingConfig3d;
+
+    fn create_conv3d_node(name: &str) -> Conv3dNode {
+        let config = Conv3dConfig::new(
+            [3, 64],
+            [3, 3, 3],
+            [1, 1, 1],
+            [1, 1, 1],
+            1,
+            true,
+            PaddingConfig3d::Explicit(1, 1, 1),
+        );
+
+        Conv3dNodeBuilder::new(name)
+            .input_tensor("input", 5, DType::F32)
+            .output_tensor("output", 5, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_conv3d_forward() {
+        let node = create_conv3d_node("conv1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.conv1.forward(input);");
+    }
+
+    #[test]
+    fn test_conv3d_forward_with_clone() {
+        let node = create_conv3d_node("conv1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.conv1.forward(input.clone());");
+    }
+}

@@ -52,3 +52,77 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwiseor::Bitwis
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::bitwiseor::BitwiseOrNodeBuilder;
+
+    #[test]
+    fn test_bitwiseor_tensor() {
+        let node = BitwiseOrNodeBuilder::new("or1")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bitwise_or(rhs);");
+    }
+
+    #[test]
+    fn test_bitwiseor_scalar() {
+        let node = BitwiseOrNodeBuilder::new("or2")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bitwise_or_scalar((rhs as i64).elem());");
+    }
+
+    #[test]
+    fn test_bitwiseor_scalar_tensor() {
+        let node = BitwiseOrNodeBuilder::new("or3")
+            .input_scalar("lhs", DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = rhs.bitwise_or_scalar((lhs as i64).elem());");
+    }
+
+    #[test]
+    fn test_bitwiseor_scalar_scalar() {
+        let node = BitwiseOrNodeBuilder::new("or4")
+            .input_scalar("lhs", DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_scalar("output", DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs | rhs;");
+    }
+
+    #[test]
+    fn test_bitwiseor_broadcast_lhs_higher() {
+        let node = BitwiseOrNodeBuilder::new("or5")
+            .input_tensor("lhs", 3, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bitwise_or(rhs.unsqueeze_dims(&[0isize]));");
+    }
+
+    #[test]
+    fn test_bitwiseor_broadcast_rhs_higher() {
+        let node = BitwiseOrNodeBuilder::new("or6")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 3, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.unsqueeze_dims(&[0isize]).bitwise_or(rhs);");
+    }
+}

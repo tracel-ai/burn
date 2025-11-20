@@ -27,3 +27,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::min::MinNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::min::MinNodeBuilder;
+
+    #[test]
+    fn test_min() {
+        let node = MinNodeBuilder::new("min1")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.min_pair(b);");
+    }
+}

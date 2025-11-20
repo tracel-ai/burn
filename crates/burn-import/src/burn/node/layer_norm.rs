@@ -84,3 +84,49 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::Layer
         imports.register("burn::nn::LayerNormConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::layer_norm::{
+        LayerNormConfig, LayerNormalizationNode, LayerNormalizationNodeBuilder,
+    };
+
+    fn create_layer_norm_node(name: &str) -> LayerNormalizationNode {
+        let config = LayerNormConfig::new(512, 1e-5, true);
+
+        LayerNormalizationNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_layer_norm_forward() {
+        let node = create_layer_norm_node("layer_norm1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let dtype = input.dtype();
+                self.layer_norm1.forward(input.cast(burn::tensor::DType::F32)).cast(dtype)
+            };
+        ");
+    }
+
+    #[test]
+    fn test_layer_norm_forward_with_clone() {
+        let node = create_layer_norm_node("layer_norm1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let dtype = input.clone().dtype();
+                self.layer_norm1
+                    .forward(input.clone().cast(burn::tensor::DType::F32))
+                    .cast(dtype)
+            };
+        ");
+    }
+}

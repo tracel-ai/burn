@@ -46,3 +46,53 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::argmin::ArgMinNod
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::argmin::{ArgMinConfig, ArgMinNodeBuilder};
+
+    #[test]
+    fn test_argmin_keepdims() {
+        let config = ArgMinConfig::new(1, true);
+        let node = ArgMinNodeBuilder::new("argmin1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.argmin(1);");
+    }
+
+    #[test]
+    fn test_argmin_no_keepdims() {
+        let config = ArgMinConfig::new(0, false);
+        let node = ArgMinNodeBuilder::new("argmin2")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 1, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let argmin_result = input.argmin(0);
+            let output = argmin_result.squeeze_dim::<1usize>(0);
+        ");
+    }
+
+    #[test]
+    fn test_argmin_scalar_output() {
+        let config = ArgMinConfig::new(0, false);
+        let node = ArgMinNodeBuilder::new("argmin3")
+            .input_tensor("input", 1, DType::F32)
+            .output_scalar("output", DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let argmin_result = input.argmin(0);
+            let output = argmin_result.into_scalar().elem::<i64>();
+        ");
+    }
+}

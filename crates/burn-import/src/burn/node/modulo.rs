@@ -91,3 +91,115 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::modulo::{ModConfig, ModNodeBuilder};
+
+    #[test]
+    fn test_modulo_remainder() {
+        let config = ModConfig::new(false);
+        let node = ModNodeBuilder::new("mod1")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.remainder(b);");
+    }
+
+    #[test]
+    fn test_modulo_fmod() {
+        let config = ModConfig::new(true);
+        let node = ModNodeBuilder::new("mod2")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.fmod(b);");
+    }
+
+    #[test]
+    fn test_modulo_tensor_scalar_remainder() {
+        let config = ModConfig::new(false);
+        let node = ModNodeBuilder::new("mod3")
+            .input_tensor("a", 2, DType::F32)
+            .input_scalar("b", DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.remainder_scalar(b);");
+    }
+
+    #[test]
+    fn test_modulo_tensor_scalar_fmod() {
+        let config = ModConfig::new(true);
+        let node = ModNodeBuilder::new("mod4")
+            .input_tensor("a", 2, DType::F32)
+            .input_scalar("b", DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.fmod_scalar(b);");
+    }
+
+    #[test]
+    fn test_modulo_broadcast_lhs_smaller_remainder() {
+        let config = ModConfig::new(false);
+        let node = ModNodeBuilder::new("mod5")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.unsqueeze_dims(&[0isize]).remainder(b);");
+    }
+
+    #[test]
+    fn test_modulo_broadcast_rhs_smaller_remainder() {
+        let config = ModConfig::new(false);
+        let node = ModNodeBuilder::new("mod6")
+            .input_tensor("a", 3, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.remainder(b.unsqueeze_dims(&[0isize]));");
+    }
+
+    #[test]
+    fn test_modulo_broadcast_lhs_smaller_fmod() {
+        let config = ModConfig::new(true);
+        let node = ModNodeBuilder::new("mod7")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.unsqueeze_dims(&[0isize]).fmod(b);");
+    }
+
+    #[test]
+    fn test_modulo_broadcast_rhs_smaller_fmod() {
+        let config = ModConfig::new(true);
+        let node = ModNodeBuilder::new("mod8")
+            .input_tensor("a", 3, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = a.fmod(b.unsqueeze_dims(&[0isize]));");
+    }
+}

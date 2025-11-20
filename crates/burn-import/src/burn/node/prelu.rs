@@ -63,3 +63,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {
         imports.register("burn::nn::PReluConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::prelu::PReluNodeBuilder;
+
+    #[test]
+    fn test_prelu_forward() {
+        let node = PReluNodeBuilder::new("prelu1")
+            .input_tensor("input", 2, DType::F32)
+            .input_tensor("slope", 1, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.prelu1.forward(input);");
+    }
+}

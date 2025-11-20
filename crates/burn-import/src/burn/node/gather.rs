@@ -207,3 +207,40 @@ fn forward_tensor_gather(
         _ => panic!("Gather needs Tensor output, got {:?}!", output_arg.ty),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::gather::{GatherConfig, GatherNodeBuilder};
+
+    #[test]
+    fn test_gather_scalar_index() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("gather1")
+            .input_tensor("data", 2, DType::F32)
+            .input_scalar("indices", DType::I32)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let sliced = data.slice(s![(indices as usize).. ((indices as usize) + 1), ..]);
+            let output = sliced.squeeze_dim::<1usize>(0);
+        ");
+    }
+
+    #[test]
+    fn test_gather_tensor_index() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("gather1")
+            .input_tensor("data", 2, DType::F32)
+            .input_tensor("indices", 1, DType::I64)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = data.take::<1, 2>(1, indices);");
+    }
+}

@@ -45,3 +45,36 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::expand::ExpandNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::expand::{ExpandConfig, ExpandNode, ExpandNodeBuilder};
+
+    fn create_expand_node_static(name: &str, shape: Vec<i64>) -> ExpandNode {
+        let output_rank = shape.len();
+        let config = ExpandConfig::Static(shape);
+
+        ExpandNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", output_rank, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_expand_static() {
+        let node = create_expand_node_static("expand1", vec![2, 3, 4]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.expand([2, 3, 4]);");
+    }
+
+    #[test]
+    fn test_expand_broadcast() {
+        let node = create_expand_node_static("expand1", vec![1, 5, 10]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.expand([1, 5, 10]);");
+    }
+}

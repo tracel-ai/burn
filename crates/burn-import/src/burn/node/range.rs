@@ -71,3 +71,26 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::range::RangeNode 
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::range::{RangeConfig, RangeInput, RangeNodeBuilder};
+
+    #[test]
+    fn test_range_static() {
+        let config = RangeConfig::new(
+            RangeInput::Static(0),
+            RangeInput::Static(10),
+            RangeInput::Static(2),
+        );
+        let node = RangeNodeBuilder::new("range1")
+            .output_tensor("output", 1, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = Tensor::arange_step(0i64..10i64, 2i64 as usize, &*self.device);");
+    }
+}

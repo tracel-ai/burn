@@ -600,3 +600,58 @@ fn get_scalar_expr(arg: &Argument) -> TokenStream {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::slice::{SliceConfig, SliceInput, SliceNode, SliceNodeBuilder};
+
+    fn create_slice_node_static(
+        name: &str,
+        starts: Vec<i64>,
+        ends: Vec<i64>,
+        axes: Option<Vec<i64>>,
+    ) -> SliceNode {
+        // Determine how many step values we need
+        let num_steps = match &axes {
+            Some(axes) => axes.len(),
+            None => starts.len(),
+        };
+
+        let config = SliceConfig {
+            starts: SliceInput::Static(starts),
+            ends: SliceInput::Static(ends),
+            axes: axes.map(SliceInput::Static),
+            steps: Some(SliceInput::Static(vec![1; num_steps])),
+        };
+
+        SliceNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_slice_static_simple() {
+        let node = create_slice_node_static("slice1", vec![0], vec![2], None);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.slice(s![0..2, .., ..]);");
+    }
+
+    #[test]
+    fn test_slice_static_with_axes() {
+        let node = create_slice_node_static("slice1", vec![1], vec![3], Some(vec![1]));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.slice(s![.., 1..3, ..]);");
+    }
+
+    #[test]
+    fn test_slice_static_multiple() {
+        let node = create_slice_node_static("slice1", vec![0, 1, 0], vec![2, 3, 3], None);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.slice(s![0..2, 1..3, 0..3]);");
+    }
+}

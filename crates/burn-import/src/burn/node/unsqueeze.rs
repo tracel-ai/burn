@@ -124,3 +124,42 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::unsqueeze::{UnsqueezeConfig, UnsqueezeNode, UnsqueezeNodeBuilder};
+
+    fn create_unsqueeze_node(name: &str, axes: Vec<i64>) -> UnsqueezeNode {
+        let config = UnsqueezeConfig::Static(axes);
+
+        UnsqueezeNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_unsqueeze_forward_single_axis() {
+        let node = create_unsqueeze_node("unsqueeze1", vec![0]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[0]);");
+    }
+
+    #[test]
+    fn test_unsqueeze_forward_axis_1() {
+        let node = create_unsqueeze_node("unsqueeze1", vec![1]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[1]);");
+    }
+
+    #[test]
+    fn test_unsqueeze_forward_axis_2() {
+        let node = create_unsqueeze_node("unsqueeze1", vec![2]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[2]);");
+    }
+}

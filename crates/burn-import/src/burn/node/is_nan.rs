@@ -25,3 +25,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::is_nan::IsNaNNode {
         // No special imports needed - is_nan() is a tensor method
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::is_nan::IsNaNNodeBuilder;
+
+    #[test]
+    fn test_is_nan() {
+        let node = IsNaNNodeBuilder::new("isnan1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.is_nan();");
+    }
+}

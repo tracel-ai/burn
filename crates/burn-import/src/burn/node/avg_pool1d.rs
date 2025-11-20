@@ -46,3 +46,36 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::avg_pool1d::Avera
         imports.register("burn::nn::PaddingConfig1d");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::avg_pool1d::{AveragePool1dNode, AveragePool1dNodeBuilder, AvgPool1dConfig};
+    use onnx_ir::padding::PaddingConfig1d;
+
+    fn create_avg_pool1d_node(name: &str) -> AveragePool1dNode {
+        let config = AvgPool1dConfig::new(3, 1, PaddingConfig1d::Valid, false, 1);
+
+        AveragePool1dNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_avg_pool1d_forward() {
+        let node = create_avg_pool1d_node("pool1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input);");
+    }
+
+    #[test]
+    fn test_avg_pool1d_forward_with_clone() {
+        let node = create_avg_pool1d_node("pool1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input.clone());");
+    }
+}

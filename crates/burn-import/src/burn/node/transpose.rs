@@ -19,3 +19,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::transpose::TransposeNod
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::transpose::{TransposeConfig, TransposeNodeBuilder};
+
+    #[test]
+    fn test_transpose_forward() {
+        let config = TransposeConfig::new(vec![0, 2, 3, 1]);
+        let node = TransposeNodeBuilder::new("transpose1")
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.permute([0, 2, 3, 1]);");
+    }
+}

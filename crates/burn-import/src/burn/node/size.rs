@@ -18,3 +18,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::size::SizeNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::size::SizeNodeBuilder;
+
+    #[test]
+    fn test_size_forward() {
+        let node = SizeNodeBuilder::new("size1")
+            .input_tensor("input", 2, DType::F32)
+            .output_scalar("output", DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.shape.num_elements();");
+    }
+}

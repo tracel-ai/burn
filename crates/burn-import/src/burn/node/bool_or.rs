@@ -46,3 +46,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::or::OrNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::or::OrNodeBuilder;
+
+    #[test]
+    fn test_or_forward() {
+        let node = OrNodeBuilder::new("or1")
+            .input_tensor("lhs", 2, DType::Bool)
+            .input_tensor("rhs", 2, DType::Bool)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.bool_or(rhs);");
+    }
+}

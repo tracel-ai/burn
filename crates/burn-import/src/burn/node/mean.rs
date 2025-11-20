@@ -20,3 +20,34 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::mean::MeanNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::mean::MeanNodeBuilder;
+
+    #[test]
+    fn test_mean() {
+        let node = MeanNodeBuilder::new("mean1")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .input_tensor("c", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = (a + b + c) / 3u32;");
+    }
+
+    #[test]
+    fn test_mean_two_inputs() {
+        let node = MeanNodeBuilder::new("mean2")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = (a + b) / 2u32;");
+    }
+}

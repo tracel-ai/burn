@@ -77,3 +77,107 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::one_hot::OneHotNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::one_hot::{OneHotConfig, OneHotDepthInput, OneHotNodeBuilder, OneHotValuesInput};
+
+    #[test]
+    fn test_one_hot() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(10),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            -1,
+        );
+        let node = OneHotNodeBuilder::new("onehot1")
+            .input_tensor("indices", 1, DType::I32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = indices.one_hot_fill(10usize, 1f32, 0f32, -1i64).float();");
+    }
+
+    #[test]
+    fn test_one_hot_int_to_int() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            -1,
+        );
+        let node = OneHotNodeBuilder::new("onehot2")
+            .input_tensor("indices", 1, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64);");
+    }
+
+    #[test]
+    fn test_one_hot_float_to_float() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            0,
+        );
+        let node = OneHotNodeBuilder::new("onehot3")
+            .input_tensor("indices", 1, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64);");
+    }
+
+    #[test]
+    fn test_one_hot_float_to_int() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            0,
+        );
+        let node = OneHotNodeBuilder::new("onehot4")
+            .input_tensor("indices", 1, DType::F32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).int();");
+    }
+
+    #[test]
+    fn test_one_hot_int_to_bool() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            -1,
+        );
+        let node = OneHotNodeBuilder::new("onehot5")
+            .input_tensor("indices", 1, DType::I32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64).bool();");
+    }
+
+    #[test]
+    fn test_one_hot_float_to_bool() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            0,
+        );
+        let node = OneHotNodeBuilder::new("onehot6")
+            .input_tensor("indices", 1, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).bool();");
+    }
+}

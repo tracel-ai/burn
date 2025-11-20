@@ -49,3 +49,52 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::split::SplitNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::split::{SplitConfig, SplitNodeBuilder, SplitSizesInput};
+
+    #[test]
+    fn test_split_equal() {
+        let config = SplitConfig {
+            axis: 0,
+            split_size: Some(2),
+            split_sizes: None,
+        };
+        let node = SplitNodeBuilder::new("split1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output0", 2, DType::F32)
+            .output_tensor("output1", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let split_tensors = input.split(2, 0);
+            let [output0, output1] = split_tensors.try_into().unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_split_sizes() {
+        let config = SplitConfig {
+            axis: 1,
+            split_size: None,
+            split_sizes: Some(SplitSizesInput::Static(vec![1, 3, 2])),
+        };
+        let node = SplitNodeBuilder::new("split1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output0", 2, DType::F32)
+            .output_tensor("output1", 2, DType::F32)
+            .output_tensor("output2", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let split_tensors = input.split_with_sizes(vec![1, 3, 2], 1);
+            let [output0, output1, output2] = split_tensors.try_into().unwrap();
+        ");
+    }
+}

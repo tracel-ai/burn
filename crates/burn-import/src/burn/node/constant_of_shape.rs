@@ -115,3 +115,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // ConstantOfShape tests require complex config construction which is better tested through integration tests
+}

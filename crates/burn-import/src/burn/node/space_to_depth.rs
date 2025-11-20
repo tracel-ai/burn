@@ -25,3 +25,31 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::space_to_depth::SpaceTo
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::space_to_depth::{SpaceToDepthConfig, SpaceToDepthNodeBuilder};
+
+    #[test]
+    fn test_space_to_depth() {
+        let config = SpaceToDepthConfig::new(2);
+        let node = SpaceToDepthNodeBuilder::new("s2d1")
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let [b, c, h, w] = input.shape().dims();
+                input
+                    .reshape([b, c, h / 2usize, 2usize, w / 2usize, 2usize])
+                    .permute([0, 3, 5, 1, 2, 4])
+                    .reshape([b, c * 2usize * 2usize, h / 2usize, w / 2usize])
+            };
+        ");
+    }
+}

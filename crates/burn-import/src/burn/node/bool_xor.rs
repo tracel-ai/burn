@@ -47,3 +47,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::xor::XorNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::xor::XorNodeBuilder;
+
+    #[test]
+    fn test_xor_forward() {
+        let node = XorNodeBuilder::new("xor1")
+            .input_tensor("lhs", 2, DType::Bool)
+            .input_tensor("rhs", 2, DType::Bool)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = lhs.not_equal(rhs);");
+    }
+}

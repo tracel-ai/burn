@@ -60,3 +60,53 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         imports.register("burn::nn::pool::AdaptiveAvgPool2dConfig");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::global_avg_pool::{GlobalAveragePoolNode, GlobalAveragePoolNodeBuilder};
+
+    fn create_global_avg_pool_node_3d(name: &str) -> GlobalAveragePoolNode {
+        GlobalAveragePoolNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .build()
+    }
+
+    fn create_global_avg_pool_node_4d(name: &str) -> GlobalAveragePoolNode {
+        GlobalAveragePoolNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .build()
+    }
+
+    #[test]
+    fn test_global_avg_pool_forward_3d() {
+        let node = create_global_avg_pool_node_3d("pool1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input);");
+    }
+
+    #[test]
+    fn test_global_avg_pool_forward_4d() {
+        let node = create_global_avg_pool_node_4d("pool1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input);");
+    }
+
+    #[test]
+    fn test_global_avg_pool_forward_with_clone_3d() {
+        let node = create_global_avg_pool_node_3d("pool1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input.clone());");
+    }
+
+    #[test]
+    fn test_global_avg_pool_forward_with_clone_4d() {
+        let node = create_global_avg_pool_node_4d("pool1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.pool1.forward(input.clone());");
+    }
+}

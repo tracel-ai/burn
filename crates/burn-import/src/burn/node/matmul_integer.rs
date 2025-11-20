@@ -103,3 +103,144 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmulinteger::MatMulIn
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::matmulinteger::MatMulIntegerNodeBuilder;
+
+    #[test]
+    fn test_matmul_integer_same_rank() {
+        let node = MatMulIntegerNodeBuilder::new("mmint1")
+            .input_tensor("a", 2, DType::I32)
+            .input_tensor("b", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub(Tensor::zeros_like(&a)))
+                .matmul((b).sub(Tensor::zeros_like(&b)));
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_with_zero_points() {
+        let node = MatMulIntegerNodeBuilder::new("mmint2")
+            .input_tensor("a", 2, DType::I32)
+            .input_tensor("b", 2, DType::I32)
+            .input_tensor("a_zero_point", 2, DType::I32)
+            .input_tensor("b_zero_point", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub((a_zero_point).unsqueeze::<2usize>()))
+                .matmul((b).sub((b_zero_point).unsqueeze::<2usize>()));
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_lhs_zero_point_only() {
+        let node = MatMulIntegerNodeBuilder::new("mmint3")
+            .input_tensor("a", 2, DType::I32)
+            .input_tensor("b", 2, DType::I32)
+            .input_tensor("a_zero_point", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub((a_zero_point).unsqueeze::<2usize>()))
+                .matmul((b).sub(Tensor::zeros_like(&b)));
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_lhs_greater_rank() {
+        let node = MatMulIntegerNodeBuilder::new("mmint4")
+            .input_tensor("a", 3, DType::I32)
+            .input_tensor("b", 2, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub(Tensor::zeros_like(&a)))
+                .matmul(((b).sub(Tensor::zeros_like(&b))).unsqueeze::<3usize>());
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_rhs_greater_rank() {
+        let node = MatMulIntegerNodeBuilder::new("mmint5")
+            .input_tensor("a", 2, DType::I32)
+            .input_tensor("b", 3, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub(Tensor::zeros_like(&a)))
+                .unsqueeze::<3usize>()
+                .matmul((b).sub(Tensor::zeros_like(&b)));
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_matrix_vector() {
+        let node = MatMulIntegerNodeBuilder::new("mmint6")
+            .input_tensor("a", 2, DType::I32)
+            .input_tensor("b", 1, DType::I32)
+            .output_tensor("output", 1, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub(Tensor::zeros_like(&a)))
+                .matmul(((b).sub(Tensor::zeros_like(&b))).unsqueeze_dims(&[-1isize]))
+                .squeeze_dim::<1usize>(1usize);
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_vector_matrix() {
+        let node = MatMulIntegerNodeBuilder::new("mmint7")
+            .input_tensor("a", 1, DType::I32)
+            .input_tensor("b", 2, DType::I32)
+            .output_tensor("output", 1, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub(Tensor::zeros_like(&a)))
+                .unsqueeze::<2usize>()
+                .matmul((b).sub(Tensor::zeros_like(&b)))
+                .squeeze_dim::<1usize>(0usize);
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_3d_vector() {
+        let node = MatMulIntegerNodeBuilder::new("mmint8")
+            .input_tensor("a", 3, DType::I32)
+            .input_tensor("b", 1, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = ((a).sub(Tensor::zeros_like(&a)))
+                .matmul(((b).sub(Tensor::zeros_like(&b))).unsqueeze_dims(&[-1isize, 0isize]))
+                .squeeze_dim::<2usize>(2usize);
+        ");
+    }
+
+    #[test]
+    fn test_matmul_integer_zero_points_scalar_rank1() {
+        let node = MatMulIntegerNodeBuilder::new("mmint9")
+            .input_tensor("a", 1, DType::I32)
+            .input_tensor("b", 1, DType::I32)
+            .input_tensor("a_zero_point", 1, DType::I32)
+            .input_tensor("b_zero_point", 1, DType::I32)
+            .output_tensor("output", 1, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = ((a).sub(a_zero_point)).matmul((b).sub(b_zero_point));");
+    }
+}

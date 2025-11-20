@@ -99,3 +99,49 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::squeeze::{SqueezeConfig, SqueezeInput, SqueezeNode, SqueezeNodeBuilder};
+
+    fn create_squeeze_node_static(name: &str, axes: Vec<i64>) -> SqueezeNode {
+        let config = SqueezeConfig {
+            axes: Some(SqueezeInput::Static(axes)),
+        };
+
+        SqueezeNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_squeeze_forward_static_axes() {
+        let node = create_squeeze_node_static("squeeze1", vec![1]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.squeeze_dims::<2>(&[1]);");
+    }
+
+    #[test]
+    fn test_squeeze_forward_multiple_axes() {
+        let node = create_squeeze_node_static("squeeze1", vec![0, 2]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.squeeze_dims::<2>(&[0, 2]);");
+    }
+
+    #[test]
+    fn test_squeeze_forward_all_axes() {
+        let config = SqueezeConfig { axes: None };
+        let node = SqueezeNodeBuilder::new("squeeze1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = input.squeeze::<1>();");
+    }
+}

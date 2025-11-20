@@ -31,3 +31,32 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random::RandomNor
         imports.register("burn::tensor::Distribution");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::random::{RandomNormalConfig, RandomNormalNodeBuilder};
+
+    #[test]
+    fn test_random_normal() {
+        let config = RandomNormalConfig {
+            mean: 0.0,
+            scale: 1.0,
+            shape: vec![2, 3, 4],
+        };
+        let node = RandomNormalNodeBuilder::new("rand1")
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = Tensor::random(
+                Shape::new([2usize, 3usize, 4usize]),
+                Distribution::Normal(0f64, 1f64),
+                &*self.device,
+            );
+        ");
+    }
+}
