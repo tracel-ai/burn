@@ -24,7 +24,7 @@ pub struct GlobalTensor {
     pub broadcasted: bool,
 }
 
-// Everything bellow is to implement [LaunchArg].
+// Everything below is to implement [LaunchArg].
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalTensorCompilationArg {

@@ -1,4 +1,4 @@
-//! This module declare input-output primitives to read and write values during kernel expansion.
+//! This module declares input-output primitives to read and write values during kernel expansion.
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use burn_tensor::quantization::QuantScheme;
 use cubecl::{
@@ -18,23 +18,23 @@ use serde::{Deserialize, Serialize};
 pub enum Transform {
     /// A reshape operation has been registered on a tensor.
     ///
-    /// This enum entry contains a sequence of [arguments](Arg) that points to global scalars representing the
+    /// This enum entry contains a sequence of [arguments](FuseArg) that points to global scalars representing the
     /// new shape for the current tensor.
     Reshape(Sequence<FuseArg>),
-    /// Two axis has been swapped on a tensor.
+    /// Two axes have been swapped on a tensor.
     ///
-    /// The enum entry contains those two axis.
+    /// The enum entry contains those two axes.
     SwapDims(u32, u32),
 }
 
-/// Reads the value from the [arg](Arg) and cast it to the generic cube primitive.
+/// Reads the value from the [arg](FuseArg) and cast it to the generic cube primitive.
 ///
 /// # Notes
 ///
 /// The [global arguments](GlobalArgs) for both inputs and outputs as well as the
 /// [local arguments](LocalArgs) need to be passed to this function.
 ///
-/// This is because the [argument](Arg) might point to a global input, output or local variable
+/// This is because the [argument](FuseArg) might point to a global input, output or local variable
 /// created during kernel expansion.
 #[cube]
 pub fn read<C: CubePrimitive>(

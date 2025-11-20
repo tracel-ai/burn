@@ -395,8 +395,8 @@ pub struct BinaryFuseArgs {
 )]
 /// Precisions supported by [element wise operations](ElemwiseOp).
 ///
-/// The reason we have a custom type here instead of [ElemType] in for it to implement [CubeType]
-/// as well as removing some types that we don't support for fusion.
+/// This is a custom type instead of [ElemType] so it can implement [CubeType]
+/// and restricts the supported types for fusion.
 pub enum FuseType {
     F64,
     F32,
@@ -433,7 +433,7 @@ pub enum RefLayout {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
+/// A virtual layout is always contiguous and retrieves its shape from either a reshaped tensor or a
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.

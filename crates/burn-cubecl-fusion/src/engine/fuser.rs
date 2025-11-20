@@ -23,7 +23,7 @@ use cubecl::ir::ElemType;
 ///
 /// # Notes
 ///
-/// It is responsable to translate [OperationIr] into [FuseOp] and it uses the [TraceFuser]
+/// It is responsible to translate [OperationIr] into [FuseOp] and it uses the [TraceFuser]
 /// to actually fuse the [FuseOp] when possible.
 #[derive(Debug, Clone)]
 pub(crate) struct TraceOperationFuser {
