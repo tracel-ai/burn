@@ -1,8 +1,3 @@
-use std::marker::PhantomData;
-
-use burn_fusion::stream::Context;
-use cubecl::{CubeElement, Runtime, client::ComputeClient};
-
 use crate::{
     CubeFusionHandle,
     engine::{
@@ -14,7 +9,11 @@ use crate::{
         trace::{FuseTrace, TraceError, TuneOutput},
     },
 };
+use burn_fusion::stream::Context;
+use cubecl::{CubeElement, Runtime, client::ComputeClient};
+use std::marker::PhantomData;
 
+/// The launcher is responsable to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
 pub struct FuseTraceLauncher<'a, R: Runtime, Runner: TraceRunner<R>> {
     trace: &'a FuseTrace,
     runner: &'a Runner,
@@ -30,8 +29,8 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
             _runtime: PhantomData,
         }
     }
-    /// Run a trace with the given [runner](TraceRunner).
-    pub fn run<BT: CubeElement>(
+    /// Launches the fuse kernel on the given device modifying the context.
+    pub fn launch<BT: CubeElement>(
         &self,
         client: &ComputeClient<R::Server>,
         device: &R::Device,

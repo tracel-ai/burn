@@ -162,7 +162,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         let launcher = FuseTraceLauncher::new(&self.info.trace, S::select(&self.info.variants));
 
-        launcher.run::<BT>(&self.info.client, &self.info.device, context)
+        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fallback<BT: CubeElement>(
@@ -196,7 +196,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
 
         let launcher = FuseTraceLauncher::new(&self.info.trace_fallback, &ElemwiseRunner);
         let output_write = launcher
-            .run::<BT>(&self.info.client, &self.info.device, context)
+            .launch::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
 
         output.merge(output_write)

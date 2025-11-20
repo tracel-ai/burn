@@ -38,7 +38,7 @@ impl<R: Runtime> ElemwiseOptimization<R> {
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
-        match launcher.run::<BT>(&self.client, &self.device, context) {
+        match launcher.launch::<BT>(&self.client, &self.device, context) {
             Ok(_) => (),
             Err(err) => {
                 panic!("{err:?} - {:?}", self.trace);

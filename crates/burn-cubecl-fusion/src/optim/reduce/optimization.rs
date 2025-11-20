@@ -127,7 +127,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce);
-        launcher.run::<BT>(&self.info.client, &self.info.device, context)
+        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fused_reduce_plane<BT: CubeElement>(
@@ -135,7 +135,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce_plane);
-        launcher.run::<BT>(&self.info.client, &self.info.device, context)
+        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
@@ -143,7 +143,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce_shared_plane);
-        launcher.run::<BT>(&self.info.client, &self.info.device, context)
+        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fallback<BT: CubeElement>(
@@ -154,7 +154,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = launcher
-            .run::<BT>(&self.info.client, &self.info.device, context)
+            .launch::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
 
         self.fallback.run(context);
@@ -175,7 +175,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         let launcher = FuseTraceLauncher::new(&self.info.trace_write_fallback, &ElemwiseRunner);
 
         let output_write = launcher
-            .run::<BT>(&self.info.client, &self.info.device, context)
+            .launch::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
 
         output_read.merge(output_write)
