@@ -52,6 +52,7 @@ tracing-subscriber = { workspace = true }
 zip = { workspace = true, optional = true }
 
 [dev-dependencies]
+insta = { workspace = true }
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
 

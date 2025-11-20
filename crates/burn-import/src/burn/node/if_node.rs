@@ -51,7 +51,8 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
 
     // Generate forward code for each node
     for (idx, node) in subgraph.nodes.iter().enumerate() {
-        let node_code = <Node as NodeCodegen<PS>>::forward(node, scope, node_position + idx + 1);
+        let mut scope_at_pos = scope.at_position(node_position + idx + 1);
+        let node_code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
         body.extend(node_code);
     }
 
@@ -77,7 +78,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         // Get condition input
         let cond_arg = self.inputs.first().unwrap();
 
@@ -87,7 +88,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
                 quote! { #name }
             }
             ArgType::Tensor(_) => {
-                let cond_tensor = scope.tensor_use_owned(cond_arg, node_position);
+                let cond_tensor = scope.arg(cond_arg);
                 // Convert tensor to bool - assume it's a scalar tensor
                 quote! { #cond_tensor.into_scalar().elem::<bool>() }
             }
@@ -95,10 +96,11 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
         };
 
         // Generate code for then and else branches
+        let node_position = scope.node_position();
         let (then_body, then_output) =
-            generate_subgraph_code::<PS>(&self.config.then_branch, scope, node_position);
+            generate_subgraph_code::<PS>(&self.config.then_branch, scope.scope(), node_position);
         let (else_body, else_output) =
-            generate_subgraph_code::<PS>(&self.config.else_branch, scope, node_position);
+            generate_subgraph_code::<PS>(&self.config.else_branch, scope.scope(), node_position);
 
         // Generate output variable declarations
         let output_names: Vec<_> = self.outputs.iter().map(arg_to_ident).collect();

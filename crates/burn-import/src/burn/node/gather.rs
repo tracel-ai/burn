@@ -10,12 +10,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gather::GatherNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> proc_macro2::TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> proc_macro2::TokenStream {
         let input_arg = self.inputs.first().unwrap();
 
         match &input_arg.ty {
             ArgType::Shape(_) => forward_shape_gather(self),
-            ArgType::Tensor(_) => forward_tensor_gather(self, scope, node_position),
+            ArgType::Tensor(_) => forward_tensor_gather(self, scope),
             _ => panic!(
                 "Gather needs Tensor or Shape input, got {:?}!",
                 input_arg.ty
@@ -123,8 +123,7 @@ fn forward_shape_gather(node: &onnx_ir::gather::GatherNode) -> proc_macro2::Toke
 
 fn forward_tensor_gather(
     node: &onnx_ir::gather::GatherNode,
-    scope: &mut Scope,
-    node_position: usize,
+    scope: &mut super::super::scope::ScopeAtPosition<'_>,
 ) -> proc_macro2::TokenStream {
     let dim = node.config.axis.to_tokens();
     let input_arg = node.inputs.first().unwrap();
@@ -135,7 +134,7 @@ fn forward_tensor_gather(
         ArgType::Tensor(tensor) => tensor.rank,
         _ => unreachable!(),
     };
-    let input = scope.tensor_use_owned(input_arg, node_position);
+    let input = scope.arg(input_arg);
     let output = arg_to_ident(output_arg);
 
     match &output_arg.ty {
@@ -181,7 +180,7 @@ fn forward_tensor_gather(
                     }
                 }
                 ArgType::Tensor(idx_tensor) => {
-                    let index = scope.tensor_use_owned(index_arg, node_position);
+                    let index = scope.arg(index_arg);
                     let index_rank = idx_tensor.rank;
                     let output_rank = index_rank + input_rank - 1;
                     let final_rank = output_rank.max(1); // Ensure minimum rank of 1

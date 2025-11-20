@@ -3,7 +3,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 
-use crate::burn::{BurnImports, Scope};
+use crate::burn::BurnImports;
 
 /// A field in the generated model struct
 #[derive(Debug, Clone)]
@@ -79,10 +79,9 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     ///
     /// # Notes
     ///
-    /// The [Scope](Scope) struct should be used for [input tensor type](Type::Tensor) access.
-    /// The method [use_owned_tensor](Scope::use_owned_tensor) keeps track of tensor reference
-    /// count and insert `clone` with necessary.
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
+    /// The [ScopeAtPosition](super::scope::ScopeAtPosition) encapsulates both the scope and node position.
+    /// Use `scope.arg()` to automatically handle Tensor/Scalar/Shape arguments with proper clone tracking.
+    fn forward(&self, scope: &mut super::scope::ScopeAtPosition<'_>) -> TokenStream;
 
     /// Register the necessary imports.
     fn register_imports(&self, _imports: &mut BurnImports) {}

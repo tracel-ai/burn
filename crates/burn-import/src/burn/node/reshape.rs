@@ -11,7 +11,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let input_arg = self.inputs.first().unwrap();
         let output_arg = self.outputs.first().unwrap();
         let output = arg_to_ident(output_arg);
@@ -23,7 +23,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
                 use onnx_ir::ir::ArgType;
                 match &input_arg.ty {
                     ArgType::Tensor(_) => {
-                        let input = scope.tensor_use_owned(input_arg, node_position);
+                        let input = scope.arg(input_arg);
 
                         // Check if output is a scalar
                         match &output_arg.ty {
@@ -117,7 +117,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
                 let shape_arg = &self.inputs[shape_ref.input_index];
                 use onnx_ir::ir::ArgType;
 
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
 
                 match &shape_arg.ty {
                     ArgType::Shape(_) => {

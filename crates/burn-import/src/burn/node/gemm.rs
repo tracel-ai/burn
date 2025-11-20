@@ -9,9 +9,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let a = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
-        let b = scope.tensor_use_owned(self.inputs.get(1).unwrap(), node_position);
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let a = scope.arg(self.inputs.first().unwrap());
+        let b = scope.arg(self.inputs.get(1).unwrap());
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         let alpha = self.config.alpha;
@@ -47,7 +47,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
             // Get C as either tensor or scalar depending on its type
             let c = match &c_input.ty {
                 onnx_ir::ir::ArgType::Tensor(_) => {
-                    let c_tensor = scope.tensor_use_owned(c_input, node_position);
+                    let c_tensor = scope.arg(c_input);
                     quote! { #c_tensor.unsqueeze() }
                 }
                 onnx_ir::ir::ArgType::Scalar(_) => {

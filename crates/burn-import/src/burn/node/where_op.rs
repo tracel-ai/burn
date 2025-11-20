@@ -9,7 +9,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::where_op::WhereNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let condition_arg = &self.inputs[0];
         let x_arg = &self.inputs[1];
         let y_arg = &self.inputs[2];
@@ -21,11 +21,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::where_op::WhereNode {
                 let broadcast_rank = out_tensor.rank;
 
                 // Get condition as tensor
-                let cond =
-                    where_input_as_tensor(condition_arg, broadcast_rank, scope, node_position);
+                let cond = where_input_as_tensor(condition_arg, broadcast_rank, scope);
 
                 // Get y as tensor
-                let y_tensor = where_input_as_tensor(y_arg, broadcast_rank, scope, node_position);
+                let y_tensor = where_input_as_tensor(y_arg, broadcast_rank, scope);
 
                 // Check if x is a scalar - if so, use mask_fill
                 if let ArgType::Scalar(_) = &x_arg.ty {
@@ -35,8 +34,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::where_op::WhereNode {
                     }
                 } else {
                     // x is tensor or shape - use mask_where
-                    let x_tensor =
-                        where_input_as_tensor(x_arg, broadcast_rank, scope, node_position);
+                    let x_tensor = where_input_as_tensor(x_arg, broadcast_rank, scope);
                     quote! {
                         let #output = #y_tensor.mask_where(#cond, #x_tensor);
                     }
@@ -102,12 +100,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::where_op::WhereNode {
 fn where_input_as_tensor(
     arg: &Argument,
     broadcast_rank: usize,
-    scope: &mut Scope,
-    node_position: usize,
+    scope: &mut super::super::scope::ScopeAtPosition<'_>,
 ) -> TokenStream {
     match &arg.ty {
         ArgType::Tensor(t) => {
-            let tensor = scope.tensor_use_owned(arg, node_position);
+            let tensor = scope.arg(arg);
             let rank = t.rank;
 
             if rank < broadcast_rank {

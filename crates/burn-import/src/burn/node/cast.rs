@@ -11,7 +11,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let input_arg = self.inputs.first().unwrap();
         let output_arg = self.outputs.first().unwrap();
 
@@ -63,7 +63,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
             // Tensor -> Tensor
             // -----------------------
             (ArgType::Tensor(input_tensor), ArgType::Tensor(_output_tensor)) => {
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
                 let output = arg_to_ident(output_arg);
 
                 // Map ONNX element types to Burn TensorKind categories.

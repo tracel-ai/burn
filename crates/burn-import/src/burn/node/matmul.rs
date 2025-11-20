@@ -12,7 +12,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let lhs_arg = self.inputs.first().unwrap();
         let rhs_arg = self.inputs.get(1).unwrap();
         let output_arg = self.outputs.first().unwrap();
@@ -27,8 +27,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
             panic!("MatMul lhs must be a tensor");
         }
 
-        let lhs = scope.tensor_use_owned(lhs_arg, node_position);
-        let rhs = scope.tensor_use_owned(rhs_arg, node_position);
+        let lhs = scope.arg(lhs_arg);
+        let rhs = scope.arg(rhs_arg);
         let output = arg_to_ident(output_arg);
 
         // Get ranks from tensor types

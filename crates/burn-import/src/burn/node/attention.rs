@@ -10,14 +10,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNod
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         // For the description of the algorithm, see ONNX docs (https://onnx.ai/onnx/operators/onnx__Attention.html)
         // or the reference implementation in onnx/reference/ops/op_attention.py
 
         // Get Q, K, V inputs (required)
-        let q = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
-        let k = scope.tensor_use_owned(self.inputs.get(1).unwrap(), node_position);
-        let v = scope.tensor_use_owned(self.inputs.get(2).unwrap(), node_position);
+        let q = scope.arg(self.inputs.first().unwrap());
+        let k = scope.arg(self.inputs.get(1).unwrap());
+        let v = scope.arg(self.inputs.get(2).unwrap());
 
         // Get output names
         let output_y = arg_to_ident(self.outputs.first().unwrap());
@@ -100,8 +100,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNod
 
         // Handle past/present key-value caching
         if past_kv && present_kv {
-            let past_k = scope.tensor_use_owned(self.inputs.get(4).unwrap(), node_position);
-            let past_v = scope.tensor_use_owned(self.inputs.get(5).unwrap(), node_position);
+            let past_k = scope.arg(self.inputs.get(4).unwrap());
+            let past_v = scope.arg(self.inputs.get(5).unwrap());
             let present_k = arg_to_ident(self.outputs.get(1).unwrap());
             let present_v = arg_to_ident(self.outputs.get(2).unwrap());
 
@@ -131,7 +131,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNod
 
         // Handle attention mask input
         let mut attn_mask = if let Some(mask_input) = self.inputs.get(3) {
-            let mask_arg = scope.tensor_use_owned(mask_input, node_position);
+            let mask_arg = scope.arg(mask_input);
             let mask = match &mask_input.ty {
                 onnx_ir::ir::ArgType::Tensor(t) => match t.dtype {
                     onnx_ir::ir::DType::I32 | onnx_ir::ir::DType::I64 => {

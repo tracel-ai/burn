@@ -12,13 +12,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::slice::SliceNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let output = arg_to_ident(self.outputs.first().unwrap());
         let input_arg = self.inputs.first().unwrap();
 
         match &input_arg.ty {
             ArgType::Tensor(tensor) => {
-                generate_tensor_slice(self, input_arg, tensor.rank, scope, node_position, &output)
+                generate_tensor_slice(self, input_arg, tensor.rank, scope, &output)
             }
             ArgType::Shape(shape_rank) => {
                 generate_shape_slice(self, input_arg, *shape_rank, &output)
@@ -32,11 +32,10 @@ fn generate_tensor_slice(
     node: &onnx_ir::slice::SliceNode,
     input_arg: &Argument,
     rank: usize,
-    scope: &mut Scope,
-    node_position: usize,
+    scope: &mut super::super::scope::ScopeAtPosition<'_>,
     output: &proc_macro2::Ident,
 ) -> TokenStream {
-    let input = scope.tensor_use_owned(input_arg, node_position);
+    let input = scope.arg(input_arg);
     let mut ranges = vec![quote! { .. }; rank];
 
     // Build slice ranges based on parameter types

@@ -4,6 +4,10 @@
 // Prelude module with common imports for node implementations
 pub(crate) mod prelude;
 
+// Test helpers for node code generation tests
+#[cfg(test)]
+pub(crate) mod test_helpers;
+
 pub(crate) mod abs;
 pub(crate) mod add;
 pub(crate) mod argmax;

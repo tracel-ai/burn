@@ -48,7 +48,8 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
 
     // Generate forward code for each node
     for (idx, node) in subgraph.nodes.iter().enumerate() {
-        let node_code = <Node as NodeCodegen<PS>>::forward(node, scope, node_position + idx + 1);
+        let mut scope_at_pos = scope.at_position(node_position + idx + 1);
+        let node_code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
         body.extend(node_code);
     }
 
@@ -64,7 +65,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let num_scan_inputs = self.config.num_scan_inputs as usize;
         let num_state_vars = self.inputs.len() - num_scan_inputs;
 
@@ -168,7 +169,9 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
         }
 
         // Generate body code
-        let body_code = generate_scan_body_code::<PS>(&self.config.body, scope, node_position);
+        let node_position = scope.node_position();
+        let body_code =
+            generate_scan_body_code::<PS>(&self.config.body, scope.scope(), node_position);
 
         // Update state variables and collect scan outputs
         let mut update_stmts = quote! {};

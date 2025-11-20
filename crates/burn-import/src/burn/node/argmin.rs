@@ -9,13 +9,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::argmin::ArgMinNod
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         // NOTE: select_last_index=1 is not supported (will panic during conversion)
         let axis = self.config.axis.to_tokens();
         let input_arg = self.inputs.first().unwrap();
         let output_arg = self.outputs.first().unwrap();
 
-        let input = scope.tensor_use_owned(input_arg, node_position);
+        let input = scope.arg(input_arg);
         let output = arg_to_ident(output_arg);
 
         match &output_arg.ty {

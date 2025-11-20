@@ -107,7 +107,7 @@ macro_rules! impl_reduce_node {
                 &self.outputs
             }
 
-            fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+            fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
                 let input_arg = self.inputs.first().unwrap();
                 let output_arg = self.outputs.first().unwrap();
 
@@ -126,7 +126,7 @@ macro_rules! impl_reduce_node {
                     _ => panic!("Reduce node output must be tensor or scalar"),
                 };
 
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
                 let output = arg_to_ident(output_arg);
 
                 let dims = self.config.dims.clone();

@@ -9,8 +9,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::split::SplitNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
         let axis = self.config.axis.to_tokens();
 
         let outputs = self.outputs.iter().map(arg_to_ident).collect::<Vec<_>>();

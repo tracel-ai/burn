@@ -11,7 +11,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::range::RangeNode 
         &self.outputs
     }
 
-    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+    fn forward(&self, _scope: &mut super::super::scope::ScopeAtPosition<'_>) -> TokenStream {
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         // Generate values for start, limit, and delta based on Static or Runtime

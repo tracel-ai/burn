@@ -76,9 +76,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv2d::Conv2dNode {
         item.serialize(serializer)
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
-        let output = Ident::new(&self.outputs.first().unwrap().name, Span::call_site());
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
         let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
@@ -89,5 +89,46 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv2d::Conv2dNode {
         imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::conv2d::{Conv2dConfig, Conv2dNode, Conv2dNodeBuilder};
+    use onnx_ir::padding::PaddingConfig2d;
+
+    fn create_conv2d_node(name: &str) -> Conv2dNode {
+        let config = Conv2dConfig::new(
+            [3, 64],
+            [3, 3],
+            [1, 1],
+            PaddingConfig2d::Explicit(1, 1),
+            [1, 1],
+            1,
+            true,
+        );
+
+        Conv2dNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    #[test]
+    fn test_conv2d_forward() {
+        let node = create_conv2d_node("conv1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.conv1.forward(input);");
+    }
+
+    #[test]
+    fn test_conv2d_forward_with_clone() {
+        let node = create_conv2d_node("conv1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @"let output = self.conv1.forward(input.clone());");
     }
 }

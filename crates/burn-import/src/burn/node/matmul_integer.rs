@@ -9,9 +9,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmulinteger::MatMulIn
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
-        let rhs = scope.tensor_use_owned(self.inputs.get(1).unwrap(), node_position);
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs = scope.arg(self.inputs.first().unwrap());
+        let rhs = scope.arg(self.inputs.get(1).unwrap());
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         // Get ranks for handling broadcasting
@@ -26,7 +26,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmulinteger::MatMulIn
 
         // Handle zero-points: synthesize when missing, otherwise lift to input rank
         let lhs_zp = if let Some(zp_input) = self.inputs.get(2) {
-            let zp = scope.tensor_use_owned(zp_input, node_position);
+            let zp = scope.arg(zp_input);
             if lhs_rank > 1 {
                 quote! { (#zp).unsqueeze::<#lhs_rank>() }
             } else {
@@ -37,7 +37,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmulinteger::MatMulIn
         };
 
         let rhs_zp = if let Some(zp_input) = self.inputs.get(3) {
-            let zp = scope.tensor_use_owned(zp_input, node_position);
+            let zp = scope.arg(zp_input);
             if rhs_rank > 1 {
                 quote! { (#zp).unsqueeze::<#rhs_rank>() }
             } else {

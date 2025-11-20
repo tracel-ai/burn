@@ -5,7 +5,7 @@ use onnx_ir::{Argument, Node};
 use proc_macro2::TokenStream;
 
 use super::node_traits::NodeCodegen;
-use crate::burn::{BurnImports, Field, Scope};
+use crate::burn::{BurnImports, Field};
 
 /// Macro to implement NodeCodegen<PS> on onnx_ir::Node by dispatching to individual node impls
 macro_rules! impl_node_codegen_dispatch {
@@ -25,9 +25,9 @@ macro_rules! impl_node_codegen_dispatch {
                 }
             }
 
-            fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+            fn forward(&self, scope: &mut crate::burn::scope::ScopeAtPosition<'_>) -> TokenStream {
                 match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::forward(n, scope, node_position),)*
+                    $(Node::$variant(n) => NodeCodegen::<PS>::forward(n, scope),)*
                     _ => panic!("Unsupported node type for forward: {:?}", self),
                 }
             }

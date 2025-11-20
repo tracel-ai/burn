@@ -9,7 +9,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         use onnx_ir::ir::ArgType;
 
         let input_arg = self.inputs.first().unwrap();
@@ -38,7 +38,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::unsqueeze::UnsqueezeNod
 
         match (&input_arg.ty, &output_arg.ty) {
             (ArgType::Tensor(_input_tensor), ArgType::Tensor(output_tensor)) => {
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
                 let output_rank = output_tensor.rank.to_tokens();
 
                 // Generate the correct output type based on the tensor kind

@@ -9,7 +9,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         use onnx_ir::ir::ArgType;
 
         let input_arg = self.inputs.first().unwrap();
@@ -18,7 +18,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
 
         match (&input_arg.ty, &output_arg.ty) {
             (ArgType::Tensor(_), ArgType::Tensor(output_tensor)) => {
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
 
                 match &self.config.axes {
                     Some(onnx_ir::squeeze::SqueezeInput::Static(axes_vec)) => {
@@ -76,7 +76,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
             }
             (ArgType::Tensor(_), ArgType::Scalar(elem_type)) => {
                 // Single-element tensor to scalar conversion
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
 
                 use onnx_ir::ir::DType;
                 let elem_cast = match elem_type {

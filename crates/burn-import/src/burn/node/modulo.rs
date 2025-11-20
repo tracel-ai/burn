@@ -10,7 +10,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         let lhs_arg = &self.inputs[0];
@@ -18,8 +18,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
 
         match (&lhs_arg.ty, &rhs_arg.ty) {
             (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
-                let lhs = scope.tensor_use_owned(lhs_arg, node_position);
-                let rhs = scope.tensor_use_owned(rhs_arg, node_position);
+                let lhs = scope.arg(lhs_arg);
+                let rhs = scope.arg(rhs_arg);
 
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
@@ -71,7 +71,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
                 }
             }
             (ArgType::Tensor(_), ArgType::Scalar(_)) => {
-                let lhs = scope.tensor_use_owned(lhs_arg, node_position);
+                let lhs = scope.arg(lhs_arg);
                 let rhs = Ident::new(&rhs_arg.name, Span::call_site());
 
                 let mod_op = if self.config.fmod {

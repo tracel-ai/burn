@@ -9,28 +9,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::bitshift::BitShiftNode 
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let lhs_arg = self.inputs.first().unwrap();
         let rhs_arg = self.inputs.get(1).unwrap();
         let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let lhs = match &lhs_arg.ty {
-            ArgType::Tensor(_) => scope.tensor_use_owned(lhs_arg, node_position),
-            ArgType::Scalar(_) => {
-                let name = arg_to_ident(lhs_arg);
-                quote! { #name }
-            }
-            _ => panic!("BitShift lhs must be a tensor or scalar"),
-        };
+        let lhs = scope.arg(lhs_arg);
 
-        let rhs = match &rhs_arg.ty {
-            ArgType::Tensor(_) => scope.tensor_use_owned(rhs_arg, node_position),
-            ArgType::Scalar(_) => {
-                let name = arg_to_ident(rhs_arg);
-                quote! { #name }
-            }
-            _ => panic!("BitShift rhs must be a tensor or scalar"),
-        };
+        let rhs = scope.arg(rhs_arg);
 
         // Determine operation based on direction
         let operation = match self.config.direction {

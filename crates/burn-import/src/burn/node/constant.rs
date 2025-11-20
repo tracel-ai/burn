@@ -113,7 +113,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
         }
     }
 
-    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+    fn forward(&self, _scope: &mut super::super::scope::ScopeAtPosition<'_>) -> TokenStream {
         let output = arg_to_ident(self.outputs.first().unwrap());
         let output_ty = &self.outputs.first().unwrap().ty;
 

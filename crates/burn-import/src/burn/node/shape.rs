@@ -9,7 +9,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::shape::ShapeNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         use onnx_ir::ir::ArgType;
 
         let input_arg = self.inputs.first().unwrap();
@@ -26,7 +26,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::shape::ShapeNode {
 
         let function = match &input_arg.ty {
             ArgType::Tensor(_) => {
-                let input = scope.tensor_use_owned(input_arg, node_position);
+                let input = scope.arg(input_arg);
                 quote! {
                     #input.dims()[#start_dim_tok..#end_dim_tok]
                         .iter()

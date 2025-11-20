@@ -9,26 +9,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::comparison::EqualNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let lhs = self.inputs.first().unwrap();
         let rhs = self.inputs.get(1).unwrap();
         let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let lhs_value = match &lhs.ty {
-            ArgType::Tensor(_) => scope.tensor_use_owned(lhs, node_position),
-            ArgType::Scalar(_) | ArgType::Shape(_) => {
-                let name = arg_to_ident(lhs);
-                quote! { #name }
-            }
-        };
+        let lhs_value = scope.arg(lhs);
 
-        let rhs_value = match &rhs.ty {
-            ArgType::Tensor(_) => scope.tensor_use_owned(rhs, node_position),
-            ArgType::Scalar(_) | ArgType::Shape(_) => {
-                let name = arg_to_ident(rhs);
-                quote! { #name }
-            }
-        };
+        let rhs_value = scope.arg(rhs);
 
         let function = match (&lhs.ty, &rhs.ty) {
             (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {

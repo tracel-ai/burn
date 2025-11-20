@@ -109,11 +109,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
         S::serialize_none(serializer)
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         use onnx_ir::node::resize::{ResizeMode, ResizeScales, ResizeSizes};
 
         let input_arg = self.inputs.first().unwrap();
-        let input = scope.tensor_use_owned(input_arg, node_position);
+        let input = scope.arg(input_arg);
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         // Check if this is static (has field) or runtime resize
@@ -157,7 +157,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
                             }
                         }
                         ArgType::Tensor(_) => {
-                            let sizes_name = scope.tensor_use_owned(sizes_arg, node_position);
+                            let sizes_name = scope.arg(sizes_arg);
                             quote! {
                                 let sizes_data = #sizes_name.to_data().convert::<i64>();
                                 let sizes_array = sizes_data.as_slice::<i64>().unwrap();

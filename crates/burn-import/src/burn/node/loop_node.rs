@@ -48,7 +48,8 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
 
     // Generate forward code for each node
     for (idx, node) in subgraph.nodes.iter().enumerate() {
-        let node_code = <Node as NodeCodegen<PS>>::forward(node, scope, node_position + idx + 1);
+        let mut scope_at_pos = scope.at_position(node_position + idx + 1);
+        let node_code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
         body.extend(node_code);
     }
 
@@ -64,7 +65,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         // Inputs: [M (max_trip_count), cond (initial condition), v_initial...]
         // Per ONNX spec, M and cond can be empty strings (optional)
         let max_trip_count_arg = &self.inputs[0];
@@ -81,7 +82,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
                     quote! { #name }
                 }
                 ArgType::Tensor(_) => {
-                    let tensor = scope.tensor_use_owned(max_trip_count_arg, node_position);
+                    let tensor = scope.arg(max_trip_count_arg);
                     quote! { #tensor.into_scalar().elem::<i64>() }
                 }
                 _ => panic!("Loop max_trip_count must be scalar i64"),
@@ -98,7 +99,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
                     quote! { #name }
                 }
                 ArgType::Tensor(_) => {
-                    let tensor = scope.tensor_use_owned(init_cond_arg, node_position);
+                    let tensor = scope.arg(init_cond_arg);
                     quote! { #tensor.into_scalar().elem::<bool>() }
                 }
                 _ => panic!("Loop condition must be scalar bool"),
@@ -173,7 +174,9 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
         }
 
         // Generate loop body code
-        let body_code = generate_loop_body_code::<PS>(&self.config.body, scope, node_position);
+        let node_position = scope.node_position();
+        let body_code =
+            generate_loop_body_code::<PS>(&self.config.body, scope.scope(), node_position);
 
         // Extract body outputs
         let cond_out_name = arg_to_ident(&self.config.body.outputs[0]);

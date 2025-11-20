@@ -9,7 +9,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::max::MaxNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let lhs_arg = self.inputs.first().unwrap();
         let rhs_arg = self.inputs.get(1).unwrap();
         let output = arg_to_ident(self.outputs.first().unwrap());
@@ -18,15 +18,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::max::MaxNode {
         // TODO: ONNX Max spec supports variadic inputs (2+ tensors), currently only handles 2
         // TODO: Add proper error handling for non-tensor inputs
 
-        let lhs = match &lhs_arg.ty {
-            ArgType::Tensor(_) => scope.tensor_use_owned(lhs_arg, node_position),
-            _ => panic!("lhs must be a tensor"),
-        };
+        let lhs = scope.arg(lhs_arg);
 
-        let rhs = match &rhs_arg.ty {
-            ArgType::Tensor(_) => scope.tensor_use_owned(rhs_arg, node_position),
-            _ => panic!("rhs must be a tensor"),
-        };
+        let rhs = scope.arg(rhs_arg);
 
         quote! {
             let #output = #lhs.max_pair(#rhs);

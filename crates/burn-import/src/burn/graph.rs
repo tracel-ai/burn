@@ -567,11 +567,11 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
         }
 
         let mut body = quote! {};
-        self.nodes
-            .iter()
-            .enumerate()
-            .map(|(index, node)| <Node as NodeCodegen<PS>>::forward(node, &mut self.scope, index))
-            .for_each(|code| body.extend(code));
+        for (index, node) in self.nodes.iter().enumerate() {
+            let mut scope_at_pos = self.scope.at_position(index);
+            let code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
+            body.extend(code);
+        }
 
         // TODO Return the result without a `let` binding from a block,
         // otherwise let_and_return error will be triggered by clippy.

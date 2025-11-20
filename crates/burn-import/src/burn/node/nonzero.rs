@@ -10,8 +10,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::nonzero::NonZeroNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(self.inputs.first().unwrap(), node_position);
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         // Determine input tensor kind

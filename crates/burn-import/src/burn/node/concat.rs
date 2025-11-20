@@ -9,7 +9,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::concat::ConcatNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let output = arg_to_ident(self.outputs.first().unwrap());
         let dim = self.config.axis.to_tokens();
 
@@ -17,10 +17,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::concat::ConcatNode {
         match &self.outputs.first().unwrap().ty {
             ArgType::Tensor(_) => {
                 // Tensor concatenation
-                let inputs = self
-                    .inputs
-                    .iter()
-                    .map(|arg| scope.tensor_use_owned(arg, node_position));
+                let inputs = self.inputs.iter().map(|arg| scope.arg(arg));
 
                 quote! {
                     let #output = burn::tensor::Tensor::cat([#(#inputs),*].into(), #dim);

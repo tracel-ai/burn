@@ -61,6 +61,7 @@ hashbrown = "0.15.5"
 hound = "3.5.1"
 image = "0.25.8"
 indicatif = "0.18.0"
+insta = "1.43.2"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.28" }

@@ -9,11 +9,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::sum::SumNode {
         &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|arg| scope.tensor_use_owned(arg, node_position));
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let inputs = self.inputs.iter().map(|arg| scope.arg(arg));
 
         let output = arg_to_ident(self.outputs.first().unwrap());
 

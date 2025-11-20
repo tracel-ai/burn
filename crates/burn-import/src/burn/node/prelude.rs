@@ -14,6 +14,7 @@
 pub(crate) use super::{NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data};
 
 // Re-export common burn-import types
+pub(crate) use crate::burn::scope::ScopeAtPosition;
 pub(crate) use crate::burn::{BurnImports, Field, Scope, ToTokens};
 
 // Re-export common burn types
