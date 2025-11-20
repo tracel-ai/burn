@@ -153,9 +153,14 @@ impl MetricEarlyStoppingStrategy {
     }
 
     /// Set the warmup epochs.
-    pub fn with_warmup_epochs(self, warmup: impl Into<Option<usize>>) -> Self {
+    ///
+    /// Early stopping will not trigger during the warmup epochs.
+    ///
+    /// # Arguments
+    /// - `warmup`: the number of warmup epochs, or None.
+    pub fn with_warmup_epochs(self, warmup: Option<usize>) -> Self {
         Self {
-            warmup_epochs: warmup.into(),
+            warmup_epochs: warmup,
             ..self
         }
     }
