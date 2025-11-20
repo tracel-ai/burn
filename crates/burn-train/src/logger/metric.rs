@@ -22,6 +22,7 @@ pub trait MetricLogger: Send {
     /// * `epoch` - Current epoch.
     /// * `split` - Current dataset split.
     /// * `iteration` - Current iteration.
+    /// * `tag` - Optional, additional tag for the split.
     fn log(
         &mut self,
         items: Vec<MetricEntry>,
