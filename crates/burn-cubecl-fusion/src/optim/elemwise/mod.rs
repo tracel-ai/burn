@@ -1,5 +1,5 @@
-mod builder;
+mod fuser;
 mod optimization;
 
-pub use builder::*;
+pub use fuser::*;
 pub use optimization::*;

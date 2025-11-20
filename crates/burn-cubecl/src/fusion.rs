@@ -4,9 +4,9 @@ use burn_cubecl_fusion::{
     CubeFusionHandle, FallbackOperation,
     optim::{
         CubeOptimization, CubeOptimizationState,
-        elemwise::{ElementWiseBuilder, ElemwiseOptimization},
-        matmul::{MatmulBuilder, MatmulOptimization},
-        reduce::{ReduceBuilder, ReduceOptimization},
+        elemwise::{ElementWiseFuser, ElemwiseOptimization},
+        matmul::{MatmulFuser, MatmulOptimization},
+        reduce::{ReduceFuser, ReduceOptimization},
     },
 };
 use burn_fusion::{
@@ -128,19 +128,17 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
     type FusionDevice = R::CubeDevice;
     type BoolRepr = BT;
 
-    fn optimizations(
-        device: R::Device,
-    ) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
+    fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            Box::new(ElementWiseBuilder::<R>::new(
+            Box::new(ElementWiseFuser::<R>::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
-            Box::new(MatmulBuilder::<R>::new(
+            Box::new(MatmulFuser::<R>::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
-            Box::new(ReduceBuilder::<R>::new(
+            Box::new(ReduceFuser::<R>::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),

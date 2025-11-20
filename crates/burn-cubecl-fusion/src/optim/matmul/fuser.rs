@@ -1,6 +1,6 @@
 use super::optimization::{FusedMatmul, MatmulOptimization};
 use crate::{
-    engine::{builder::FuseTraceCompiler, ir::FuseType, settings::FuseSettings},
+    engine::{fuser::TraceFuser, ir::FuseType, settings::FuseSettings},
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };
@@ -10,25 +10,25 @@ use burn_tensor::DType;
 use cubecl::Runtime;
 
 /// Fused element wise operations that are normally memory bound.
-pub struct MatmulBuilder<R: Runtime> {
-    builder: FuseTraceCompiler,
-    builder_fallback: FuseTraceCompiler,
+pub struct MatmulFuser<R: Runtime> {
+    fuser: TraceFuser,
+    fuser_fallback: TraceFuser,
     device: R::Device,
     matmul: Option<FusedMatmul>,
 }
 
-impl<R: Runtime> Clone for MatmulBuilder<R> {
+impl<R: Runtime> Clone for MatmulFuser<R> {
     fn clone(&self) -> Self {
         Self {
-            builder: self.builder.clone(),
-            builder_fallback: self.builder_fallback.clone(),
+            fuser: self.fuser.clone(),
+            fuser_fallback: self.fuser_fallback.clone(),
             device: self.device.clone(),
             matmul: self.matmul.clone(),
         }
     }
 }
 
-impl<R: Runtime> MatmulBuilder<R> {
+impl<R: Runtime> MatmulFuser<R> {
     pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
         let client = R::client(&device);
         let props = client.properties();
@@ -40,21 +40,17 @@ impl<R: Runtime> MatmulBuilder<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            builder: FuseTraceCompiler::new(max_bindings, bool_precision, settings_matmul),
-            builder_fallback: FuseTraceCompiler::new(
-                max_bindings,
-                bool_precision,
-                settings_fallback,
-            ),
+            fuser: TraceFuser::new(max_bindings, bool_precision, settings_matmul),
+            fuser_fallback: TraceFuser::new(max_bindings, bool_precision, settings_fallback),
             device,
             matmul: None,
         }
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        if let FuserStatus::Closed = self.builder.status() {
+        if let FuserStatus::Closed = self.fuser.status() {
             return;
         }
 
@@ -63,8 +59,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
                 // Precision shouldn't be hardcoded but I don't know how to get float precision of the backend
                 let lhs = match op.lhs.dtype {
                     DType::QFloat(scheme) => {
-                        let (data, scales) =
-                            self.builder.input_quantized_unhandled(&op.lhs).unwrap();
+                        let (data, scales) = self.fuser.input_quantized_unhandled(&op.lhs).unwrap();
                         MatmulArg::Quantized {
                             data,
                             scales,
@@ -72,12 +67,11 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
                             scheme,
                         }
                     }
-                    _ => MatmulArg::Normal(self.builder.input_unhandled(&op.lhs)),
+                    _ => MatmulArg::Normal(self.fuser.input_unhandled(&op.lhs)),
                 };
                 let rhs = match op.rhs.dtype {
                     DType::QFloat(scheme) => {
-                        let (data, scales) =
-                            self.builder.input_quantized_unhandled(&op.rhs).unwrap();
+                        let (data, scales) = self.fuser.input_quantized_unhandled(&op.rhs).unwrap();
                         MatmulArg::Quantized {
                             data,
                             scales,
@@ -85,10 +79,10 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
                             scheme,
                         }
                     }
-                    _ => MatmulArg::Normal(self.builder.input_unhandled(&op.rhs)),
+                    _ => MatmulArg::Normal(self.fuser.input_unhandled(&op.rhs)),
                 };
 
-                let out = self.builder.output_unhandled(&op.out);
+                let out = self.fuser.output_unhandled(&op.out);
 
                 self.matmul = Some(FusedMatmul::new(
                     lhs,
@@ -98,21 +92,21 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
                     Default::default(),
                 ));
             } else {
-                self.builder.close();
-                self.builder_fallback.close();
+                self.fuser.close();
+                self.fuser_fallback.close();
             }
         } else {
-            let can_register = self.builder.can_register(operation)
-                && self.builder_fallback.can_register(operation);
+            let can_register =
+                self.fuser.can_register(operation) && self.fuser_fallback.can_register(operation);
 
             match can_register {
                 true => {
-                    self.builder.fuse(operation);
-                    self.builder_fallback.fuse(operation);
+                    self.fuser.fuse(operation);
+                    self.fuser_fallback.fuse(operation);
                 }
                 false => {
-                    self.builder.close();
-                    self.builder_fallback.close();
+                    self.fuser.close();
+                    self.fuser_fallback.close();
                 }
             };
         }
@@ -120,8 +114,8 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
 
     fn finish(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.builder.finish();
-        let trace_fallback = self.builder_fallback.finish();
+        let trace = self.fuser.finish();
+        let trace_fallback = self.fuser_fallback.finish();
 
         let matmul = MatmulOptimization::<R>::new(
             trace,
@@ -136,24 +130,24 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
     }
 
     fn reset(&mut self) {
-        self.builder.reset();
-        self.builder_fallback.reset();
+        self.fuser.reset();
+        self.fuser_fallback.reset();
         self.matmul = None;
     }
 
     fn status(&self) -> burn_fusion::FuserStatus {
-        self.builder.status()
+        self.fuser.status()
     }
 
     fn properties(&self) -> burn_fusion::FuserProperties {
-        let mut properties = self.builder.properties();
+        let mut properties = self.fuser.properties();
         properties.score += 1;
         properties
     }
 
     fn len(&self) -> usize {
-        // Matmul operation isn't registered in the builder
-        self.builder.len() + 1
+        // Matmul operation isn't registered in the fuser
+        self.fuser.len() + 1
     }
 
     fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {

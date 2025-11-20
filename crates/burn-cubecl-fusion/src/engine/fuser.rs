@@ -14,14 +14,14 @@ use cubecl::ir::ElemType;
 
 /// The base optimization compiler that can be used to fuse [all supported fuse operations](FuseOp).
 ///
-/// This builder doesn't create a ready-to-execute kernel, but rather generates a
+/// This fuser doesn't create a ready-to-execute kernel, but rather generates a
 /// [trace](FuseTrace) that be used with a [runner](super::trace::TraceRunner).
 ///
-/// Since this builder supports fusing multiple blocks, you can fuse any compute-bound operations
+/// Since this fuser supports fusing multiple blocks, you can fuse any compute-bound operations
 /// with the combination of fuse-on-read and fuse-on-write strategy.
 #[derive(Debug, Clone)]
-pub(crate) struct FuseTraceCompiler {
-    builder: TryFuseBuilder,
+pub(crate) struct TraceFuser {
+    fuser: TryTraceFuser,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Vec<usize>,
     status: FuserStatus,
@@ -30,20 +30,20 @@ pub(crate) struct FuseTraceCompiler {
     max_bindings: u32,
 }
 
-impl FuseTraceCompiler {
-    /// Checks if the [operation](OperationIr) can be fused with the current builder.
+impl TraceFuser {
+    /// Checks if the [operation](OperationIr) can be fused with the current fuser.
     pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
         let len_previous = self.len();
-        let mut builder_cloned = self.clone();
+        let mut fuser_cloned = self.clone();
 
-        builder_cloned.fuse(op);
-        let len_after = builder_cloned.len();
+        fuser_cloned.fuse(op);
+        let len_after = fuser_cloned.len();
 
         len_after > len_previous
     }
 }
 
-impl OperationFuser<FuseTrace> for FuseTraceCompiler {
+impl OperationFuser<FuseTrace> for TraceFuser {
     fn fuse(&mut self, op: &OperationIr) {
         if let FuserStatus::Closed = self.status {
             return;
@@ -56,7 +56,7 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
                     return;
                 }
 
-                self.builder.builder.register_dropped(tensor.id);
+                self.fuser.fuser.register_dropped(tensor.id);
             }
             OperationIr::BaseFloat(ops) => {
                 if !self.register_base(ops) {
@@ -105,7 +105,7 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
     }
 
     fn finish(&self) -> FuseTrace {
-        self.builder.build(self.current_output_shape.clone())
+        self.fuser.finish(self.current_output_shape.clone())
     }
 
     fn len(&self) -> usize {
@@ -115,9 +115,9 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
     fn reset(&mut self) {
         self.num_ops = 0;
         self.status = FuserStatus::Open;
-        self.builder = TryFuseBuilder::new(
+        self.fuser = TryTraceFuser::new(
             self.max_bindings,
-            self.builder.builder.bool_precision,
+            self.fuser.fuser.bool_precision,
             self.settings,
         );
         self.current_output_shape.clear();
@@ -141,11 +141,11 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
     }
 }
 
-impl FuseTraceCompiler {
-    /// Creates a new builder.
+impl TraceFuser {
+    /// Creates a new fuser.
     pub fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
-            builder: TryFuseBuilder::new(max_bindings, bool_precision, settings),
+            fuser: TryTraceFuser::new(max_bindings, bool_precision, settings),
             settings,
             num_ops: 0,
             num_views: 0,
@@ -155,7 +155,7 @@ impl FuseTraceCompiler {
         }
     }
 
-    /// Closes the builder.
+    /// Closes the fuser.
     pub fn close(&mut self) {
         self.status = FuserStatus::Closed;
     }
@@ -166,7 +166,7 @@ impl FuseTraceCompiler {
     ///
     /// - The argument that maps to the tensor to be used during kernel expansion.
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
-        self.builder.builder.input_unhandled(tensor)
+        self.fuser.fuser.input_unhandled(tensor)
     }
 
     /// Declares an input quantized tensor argument where the kernel is responsible to load.
@@ -178,7 +178,7 @@ impl FuseTraceCompiler {
     /// - The argument that maps to the tensor values to be used during kernel expansion.
     /// - The argument that maps to the tensor params to be used during kernel expansion.
     pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(FuseArg, FuseArg)> {
-        self.builder.builder.input_quantized_unhandled(tensor)
+        self.fuser.fuser.input_quantized_unhandled(tensor)
     }
 
     /// Declares an output tensor argument where the kernel is responsible to write values.
@@ -199,7 +199,7 @@ impl FuseTraceCompiler {
             self.current_output_shape = tensor.shape.dims.clone();
         }
 
-        self.builder.builder.output_unhandled(tensor)
+        self.fuser.fuser.output_unhandled(tensor)
     }
 
     /// Closes the previous block and declares a new one.
@@ -223,14 +223,14 @@ impl FuseTraceCompiler {
         let args = arguments.map(|arg| {
             // We need to register the argument as input in the current block so that we retrieve
             // its value locally.
-            let input = self.builder.builder.input(arg);
+            let input = self.fuser.fuser.input(arg);
 
             if input.is_none() {
                 is_success = false;
             } else {
                 // This flag the new input local value as local output to be used in a following
                 // block.
-                self.builder.builder.block_local_output(arg);
+                self.fuser.fuser.block_local_output(arg);
             }
 
             input
@@ -244,9 +244,7 @@ impl FuseTraceCompiler {
 
         let current_output_shape = core::mem::take(&mut self.current_output_shape);
 
-        self.builder
-            .builder
-            .next_block(current_output_shape, settings);
+        self.fuser.fuser.next_block(current_output_shape, settings);
 
         self.settings = settings;
         self.status = FuserStatus::Open;
@@ -269,7 +267,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                if self.builder.register(|build| {
+                if self.fuser.register(|build| {
                     build.input_swap_dims(
                         &desc.input,
                         &desc.out,
@@ -300,7 +298,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                if self.builder.register(|build| {
+                if self.fuser.register(|build| {
                     build.input_reshaped(&desc.input, &desc.out)?;
                     Some(())
                 }) {
@@ -319,7 +317,7 @@ impl FuseTraceCompiler {
                 let precision = elem.into();
                 let input = FuseArg::Literal(1, precision);
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
@@ -336,7 +334,7 @@ impl FuseTraceCompiler {
                 let precision = elem.into();
                 let input = FuseArg::Literal(0, precision);
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
@@ -381,7 +379,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let qinput = build.input_quantized(&desc.input)?;
                     let out = build.output(&desc.out)?;
 
@@ -483,7 +481,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let cond = build.input(&desc.mask)?;
                     let rhs = build.input(&desc.tensor)?;
                     let lhs = build.input(&desc.value)?;
@@ -504,7 +502,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let cond = build.input(&desc.mask)?;
                     let lhs = build.scalar(&desc.value, desc.out.dtype);
                     let rhs = build.input(&desc.tensor)?;
@@ -525,7 +523,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let input = build.scalar(&desc.value, desc.out.dtype);
                     let out = build.output(&desc.out)?;
 
@@ -539,7 +537,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
                     let output = build.output(&desc.out)?;
@@ -559,7 +557,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
                     let output = build.output(&desc.out)?;
@@ -589,7 +587,7 @@ impl FuseTraceCompiler {
                     return false;
                 }
 
-                self.builder.register(|build| {
+                self.fuser.register(|build| {
                     let input = build.input(&desc.tensor)?;
                     let min = build.scalar(&desc.min, desc.out.dtype);
                     let max = build.scalar(&desc.max, desc.out.dtype);
@@ -617,7 +615,7 @@ impl FuseTraceCompiler {
             return false;
         }
 
-        self.builder.register(|build| {
+        self.fuser.register(|build| {
             let lhs = build.input(&desc.lhs)?;
             let rhs = build.input(&desc.rhs)?;
             let out = build.output(&desc.out)?;
@@ -643,7 +641,7 @@ impl FuseTraceCompiler {
             return false;
         }
 
-        self.builder.register(|build| {
+        self.fuser.register(|build| {
             let input = build.input(input)?;
             let out = build.output(out)?;
             build.register_operation(func(input, out));
@@ -659,7 +657,7 @@ impl FuseTraceCompiler {
             return false;
         }
 
-        self.builder.register(|build| {
+        self.fuser.register(|build| {
             let elem = desc.lhs.dtype;
             let lhs = build.input(&desc.lhs)?;
             let rhs = build.scalar(&desc.rhs, elem);
@@ -731,17 +729,17 @@ impl FuseTraceCompiler {
 
 #[derive(Debug, Clone)]
 /// Builder wrapper to limit the number of bindings in generated kernels.
-struct TryFuseBuilder {
-    builder: FuseTraceBuilder,
+struct TryTraceFuser {
+    fuser: FuseTraceBuilder,
     max_bindings: u32,
     max_ops: u32,
     added_ops: bool,
 }
 
-impl TryFuseBuilder {
+impl TryTraceFuser {
     fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
-            builder: FuseTraceBuilder::new(bool_precision, settings),
+            fuser: FuseTraceBuilder::new(bool_precision, settings),
             max_bindings,
             // A good default, avoid errors with for loops over only memory
             // bound operations.
@@ -751,7 +749,7 @@ impl TryFuseBuilder {
     }
 
     fn register(&mut self, add_ops: impl FnOnce(&mut FuseTraceBuilder) -> Option<()>) -> bool {
-        if self.builder.num_ops_fused() > self.max_ops {
+        if self.fuser.num_ops_fused() > self.max_ops {
             return false;
         }
 
@@ -759,13 +757,13 @@ impl TryFuseBuilder {
         if !self.added_ops {
             self.added_ops = true;
 
-            if add_ops(&mut self.builder).is_none() {
+            if add_ops(&mut self.fuser).is_none() {
                 return false;
             }
             return true;
         }
 
-        let mut cloned = self.builder.clone();
+        let mut cloned = self.fuser.clone();
         if add_ops(&mut cloned).is_none() {
             return false;
         }
@@ -774,11 +772,11 @@ impl TryFuseBuilder {
             return false;
         }
 
-        self.builder = cloned;
+        self.fuser = cloned;
         true
     }
 
-    fn build(&self, shape: Vec<usize>) -> FuseTrace {
-        self.builder.build(shape)
+    fn finish(&self, shape: Vec<usize>) -> FuseTrace {
+        self.fuser.finish(shape)
     }
 }

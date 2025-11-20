@@ -244,8 +244,8 @@ impl FuseTraceBuilder {
         FuseArg::Scalar(new_index, precision)
     }
 
-    /// Build into a trace.
-    pub fn build(&self, shape_ref: Vec<usize>) -> FuseTrace {
+    /// Finish fusing and returns the created trace.
+    pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
         let mut blocks = Vec::new();

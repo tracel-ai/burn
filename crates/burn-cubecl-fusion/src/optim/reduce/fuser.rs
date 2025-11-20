@@ -1,7 +1,7 @@
 use super::optimization::{FusedReduce, ReduceInstruction, ReduceOptimization};
 use crate::{
     engine::{
-        builder::FuseTraceCompiler,
+        fuser::TraceFuser,
         ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
@@ -11,22 +11,22 @@ use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
 use cubecl::{Runtime, reduce::ReduceStrategy};
 
-/// Fused element wise operations that are normally memory bound.
-pub struct ReduceBuilder<R: Runtime> {
-    builder: FuseTraceCompiler,
-    builder_read_fallback: FuseTraceCompiler,
-    builder_write_fallback: FuseTraceCompiler,
+/// Fuses element wise operations around a reduce operation.
+pub struct ReduceFuser<R: Runtime> {
+    fuser: TraceFuser,
+    fuser_read_fallback: TraceFuser,
+    fuser_write_fallback: TraceFuser,
     settings_write: FuseSettings,
     device: R::Device,
     reduce: Option<FusedReduce>,
 }
 
-impl<R: Runtime> Clone for ReduceBuilder<R> {
+impl<R: Runtime> Clone for ReduceFuser<R> {
     fn clone(&self) -> Self {
         Self {
-            builder: self.builder.clone(),
-            builder_read_fallback: self.builder_read_fallback.clone(),
-            builder_write_fallback: self.builder_write_fallback.clone(),
+            fuser: self.fuser.clone(),
+            fuser_read_fallback: self.fuser_read_fallback.clone(),
+            fuser_write_fallback: self.fuser_write_fallback.clone(),
             settings_write: self.settings_write,
             device: self.device.clone(),
             reduce: self.reduce.clone(),
@@ -34,7 +34,7 @@ impl<R: Runtime> Clone for ReduceBuilder<R> {
     }
 }
 
-impl<R: Runtime> ReduceBuilder<R> {
+impl<R: Runtime> ReduceFuser<R> {
     pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
         let client = R::client(&device);
         let props = client.properties();
@@ -52,17 +52,9 @@ impl<R: Runtime> ReduceBuilder<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            builder: FuseTraceCompiler::new(max_bindings, bool_precision, settings_read),
-            builder_read_fallback: FuseTraceCompiler::new(
-                max_bindings,
-                bool_precision,
-                settings_fallback,
-            ),
-            builder_write_fallback: FuseTraceCompiler::new(
-                max_bindings,
-                bool_precision,
-                settings_fallback,
-            ),
+            fuser: TraceFuser::new(max_bindings, bool_precision, settings_read),
+            fuser_read_fallback: TraceFuser::new(max_bindings, bool_precision, settings_fallback),
+            fuser_write_fallback: TraceFuser::new(max_bindings, bool_precision, settings_fallback),
             settings_write,
             device,
             reduce: None,
@@ -70,19 +62,19 @@ impl<R: Runtime> ReduceBuilder<R> {
     }
 
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        if self.builder.current_output_shape != op.input.shape.dims {
-            self.builder.close();
-            self.builder_read_fallback.close();
+        if self.fuser.current_output_shape != op.input.shape.dims {
+            self.fuser.close();
+            self.fuser_read_fallback.close();
             return;
         }
 
-        let Some([input]) = self.builder.next_block([&op.input], self.settings_write) else {
-            self.builder.close();
-            self.builder_read_fallback.close();
+        let Some([input]) = self.fuser.next_block([&op.input], self.settings_write) else {
+            self.fuser.close();
+            self.fuser_read_fallback.close();
             return;
         };
 
-        let output = self.builder.output_unhandled(&op.out);
+        let output = self.fuser.output_unhandled(&op.out);
         let axis = op.axis;
 
         // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
@@ -92,7 +84,7 @@ impl<R: Runtime> ReduceBuilder<R> {
         let fuse_on_write_activated = axis != op.input.shape.rank() - 1;
 
         if !fuse_on_write_activated {
-            self.builder.close();
+            self.fuser.close();
         }
 
         let acc = match inst {
@@ -119,45 +111,45 @@ impl<R: Runtime> ReduceBuilder<R> {
             },
             inst,
         ));
-        self.builder_read_fallback.close();
+        self.fuser_read_fallback.close();
     }
 
     fn on_elemwise_read(&mut self, operation: &OperationIr) {
-        let can_register = self.builder.can_register(operation)
-            && self.builder_read_fallback.can_register(operation);
+        let can_register =
+            self.fuser.can_register(operation) && self.fuser_read_fallback.can_register(operation);
 
         match can_register {
             true => {
-                self.builder.fuse(operation);
-                self.builder_read_fallback.fuse(operation);
+                self.fuser.fuse(operation);
+                self.fuser_read_fallback.fuse(operation);
             }
             false => {
-                self.builder.close();
-                self.builder_read_fallback.close();
+                self.fuser.close();
+                self.fuser_read_fallback.close();
             }
         };
     }
 
     fn on_elemwise_write(&mut self, operation: &OperationIr) {
-        let can_register = self.builder.can_register(operation)
-            && self.builder_write_fallback.can_register(operation);
+        let can_register =
+            self.fuser.can_register(operation) && self.fuser_write_fallback.can_register(operation);
 
         match can_register {
             true => {
-                self.builder.fuse(operation);
-                self.builder_write_fallback.fuse(operation);
+                self.fuser.fuse(operation);
+                self.fuser_write_fallback.fuse(operation);
             }
             false => {
-                self.builder.close();
-                self.builder_write_fallback.close();
+                self.fuser.close();
+                self.fuser_write_fallback.close();
             }
         };
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        if let FuserStatus::Closed = self.builder.status() {
+        if let FuserStatus::Closed = self.fuser.status() {
             return;
         }
 
@@ -232,9 +224,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
 
     fn finish(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.builder.finish();
-        let trace_read_fallback = self.builder_read_fallback.finish();
-        let trace_write_fallback = self.builder_write_fallback.finish();
+        let trace = self.fuser.finish();
+        let trace_read_fallback = self.fuser_read_fallback.finish();
+        let trace_write_fallback = self.fuser_write_fallback.finish();
         let fuse_reduce = self.reduce.as_ref().unwrap();
 
         let reduce = ReduceOptimization::<R>::new(
@@ -244,7 +236,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
             client,
             self.device.clone(),
             self.len(),
-            self.builder_read_fallback.len(),
+            self.fuser_read_fallback.len(),
             fuse_reduce.clone(),
         );
 
@@ -252,18 +244,18 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
     }
 
     fn reset(&mut self) {
-        self.builder.reset();
-        self.builder_read_fallback.reset();
-        self.builder_write_fallback.reset();
+        self.fuser.reset();
+        self.fuser_read_fallback.reset();
+        self.fuser_write_fallback.reset();
         self.reduce = None;
     }
 
     fn status(&self) -> burn_fusion::FuserStatus {
-        self.builder.status()
+        self.fuser.status()
     }
 
     fn properties(&self) -> burn_fusion::FuserProperties {
-        let mut properties = self.builder.properties();
+        let mut properties = self.fuser.properties();
 
         if self.reduce.is_some() {
             properties.ready = true;
@@ -276,7 +268,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
     }
 
     fn len(&self) -> usize {
-        self.builder.len() + if self.reduce.is_some() { 1 } else { 0 }
+        self.fuser.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 
     fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {

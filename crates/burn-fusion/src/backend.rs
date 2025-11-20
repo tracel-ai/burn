@@ -80,7 +80,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 }
 
-/// The status of a [builder](OptimizationBuilder).
+/// The status of a [fuser](OperationFuser).
 #[derive(Clone, Debug, Copy)]
 pub enum FuserStatus {
     /// No more operations can be fused.
@@ -89,7 +89,7 @@ pub enum FuserStatus {
     Open,
 }
 
-/// The properties of a [builder](OptimizationProperties).
+/// The properties of a [fuser](OperationFuser).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FuserProperties {
     /// The score of the optimization, higher is better.
@@ -108,7 +108,7 @@ pub struct FuserProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
+/// Also, it is important to return (FuserStatus::Closed) when no more registered operation can
 /// improve the performance.
 pub trait OperationFuser<O>: Send {
     /// Register a new [tensor operation](OperationIr).
@@ -117,9 +117,9 @@ pub trait OperationFuser<O>: Send {
     fn finish(&self) -> O;
     /// Reset the state.
     fn reset(&mut self);
-    /// Return the builder [status](OptimizationStatus).
+    /// Return the builder [status](FuserStatus).
     fn status(&self) -> FuserStatus;
-    /// Return the builder [properties](OptimizationProperties).
+    /// Return the builder [properties](FuserProperties).
     fn properties(&self) -> FuserProperties;
     /// The number of operation fused.
     fn len(&self) -> usize;
@@ -141,9 +141,9 @@ pub trait NumOperations: core::fmt::Debug {
     }
 }
 
-/// The operation created from the [builder](OptimizationBuilder).
+/// The optimization created from a [fuser](OperationFuser).
 pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
-    /// Execute the operation.
+    /// Execute the optimization.
     fn execute(
         &mut self,
         context: &mut Context<'_, R::FusionHandle>,
@@ -176,10 +176,8 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     /// The type that represents booleans on the backend.
     type BoolRepr: Element;
 
-    /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(
-        device: Self::FusionDevice,
-    ) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
+    /// The list of fusers that will be used to optimize the computational graph.
+    fn fusers(device: Self::FusionDevice) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
