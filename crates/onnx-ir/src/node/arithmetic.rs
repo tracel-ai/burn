@@ -31,9 +31,10 @@ use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError, same_as_input_broadcast,
 };
+use onnx_ir_derive::NodeBuilder as NodeBuilderDerive;
 
 /// Node representation for Add operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct AddNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -41,7 +42,7 @@ pub struct AddNode {
 }
 
 /// Node representation for Sub operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SubNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -49,7 +50,7 @@ pub struct SubNode {
 }
 
 /// Node representation for Mul operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct MulNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -57,7 +58,7 @@ pub struct MulNode {
 }
 
 /// Node representation for Div operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct DivNode {
     pub name: String,
     pub inputs: Vec<Argument>,
