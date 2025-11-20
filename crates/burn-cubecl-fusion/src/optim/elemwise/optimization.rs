@@ -1,9 +1,11 @@
 use crate::{
     CubeFusionHandle,
     engine::{
-        compiler::io::ref_len,
-        compiler::ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
-        compiler::kernel::{fuse_on_write, init_locals},
+        codegen::{
+            io::ref_len,
+            ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
+            kernel::{fuse_on_write, init_locals},
+        },
         trace::{FuseTrace, TraceRunner, Vectorization},
     },
 };

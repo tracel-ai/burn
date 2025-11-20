@@ -1,9 +1,9 @@
 use super::{
-    compiler::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, UnaryFuseArgs},
+    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, UnaryFuseArgs},
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
-use crate::engine::compiler::ir::QuantSchemeFuse;
+use crate::engine::codegen::ir::QuantSchemeFuse;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,

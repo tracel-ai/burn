@@ -5,10 +5,10 @@ use super::{
 use crate::{
     CubeFusionHandle, elem_dtype,
     engine::{
-        compiler::ir::{
+        codegen::ir::{
             FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch, RefLayout, VirtualLayout,
         },
-        compiler::tensor::GlobalTensorArg,
+        codegen::tensor::GlobalTensorArg,
         trace::HandleInput,
     },
 };

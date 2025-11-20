@@ -1,5 +1,5 @@
 use super::{
-    super::compiler::ir::{FuseBlockConfig, GlobalArgsLaunch},
+    super::codegen::ir::{FuseBlockConfig, GlobalArgsLaunch},
     vectorization::{Vect, vectorization_default},
 };
 use crate::{CubeFusionHandle, engine::trace::LaunchPlan};

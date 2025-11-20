@@ -1,5 +1,5 @@
 use crate::engine::{
-    compiler::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
+    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};

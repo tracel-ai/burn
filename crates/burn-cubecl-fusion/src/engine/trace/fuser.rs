@@ -1,6 +1,6 @@
 use super::{
     super::{
-        compiler::ir::{FuseArg, FuseOp, FuseType, LayoutInfo},
+        codegen::ir::{FuseArg, FuseOp, FuseType, LayoutInfo},
         settings::FuseSettings,
     },
     FuseResources, RegisterTensor,

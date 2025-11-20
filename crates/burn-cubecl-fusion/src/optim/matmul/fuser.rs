@@ -1,6 +1,6 @@
 use super::optimization::{FusedMatmul, MatmulOptimization};
 use crate::{
-    engine::{compiler::ir::FuseType, fuser::TraceOperationFuser, settings::FuseSettings},
+    engine::{codegen::ir::FuseType, fuser::TraceOperationFuser, settings::FuseSettings},
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };

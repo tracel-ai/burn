@@ -1,7 +1,7 @@
 use super::optimization::ElemwiseOptimization;
 use crate::{
     engine::{
-        compiler::ir::FuseType,
+        codegen::ir::FuseType,
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
