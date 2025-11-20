@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
 /// Derive macro for generating node builders
 ///
@@ -37,9 +37,10 @@ pub fn node_builder_derive(input: TokenStream) -> TokenStream {
     // Check if the struct has a config field
     let has_config = if let Data::Struct(data) = &input.data {
         if let Fields::Named(fields) = &data.fields {
-            fields.named.iter().any(|f| {
-                f.ident.as_ref().map(|i| i == "config").unwrap_or(false)
-            })
+            fields
+                .named
+                .iter()
+                .any(|f| f.ident.as_ref().map(|i| i == "config").unwrap_or(false))
         } else {
             false
         }
@@ -51,7 +52,9 @@ pub fn node_builder_derive(input: TokenStream) -> TokenStream {
     let config_type = if has_config {
         if let Data::Struct(data) = &input.data {
             if let Fields::Named(fields) = &data.fields {
-                fields.named.iter()
+                fields
+                    .named
+                    .iter()
                     .find(|f| f.ident.as_ref().map(|i| i == "config").unwrap_or(false))
                     .map(|f| &f.ty)
             } else {
