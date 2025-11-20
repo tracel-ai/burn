@@ -1,8 +1,7 @@
 use crate::{
-    CubeRuntime, IntElement,
-    element::CubeElement,
+    CubeRuntime,
     kernel::into_contiguous,
-    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -18,6 +17,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
     args: &PoolBackwardArgs,
     #[comptime] kernel_size_0: i32,
     #[comptime] kernel_size_1: i32,
+    #[define(E, I)] _dtypes: [StorageType; 2],
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -86,7 +86,7 @@ fn loop_ranges(
     (oh_start, oh_end, ow_start, ow_end)
 }
 
-pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I: IntElement>(
+pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     x: CubeTensor<R>,
     grad: CubeTensor<R>,
     indices: CubeTensor<R>,
@@ -107,13 +107,13 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
     };
 
     let out_shape = Shape::new([batches, height, width, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);
+    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), out_shape, x.dtype);
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        max_pool2d_with_indices_backward_kernel::launch_unchecked::<E, I, R>(
+        max_pool2d_with_indices_backward_kernel::launch_unchecked::<R>(
             &x.client,
             cube_count,
             cube_dim,
@@ -130,6 +130,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
             ),
             kernel_size[0] as i32,
             kernel_size[1] as i32,
+            [x.dtype.into(), indices.dtype.into()],
         )
     };
 

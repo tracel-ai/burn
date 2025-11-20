@@ -1,15 +1,18 @@
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::into_contiguous,
-    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
-fn adaptive_avg_pool2d_direct<E: Numeric>(input: &Tensor<Line<E>>, output: &mut Tensor<Line<E>>) {
+fn adaptive_avg_pool2d_direct<E: Numeric>(
+    input: &Tensor<Line<E>>,
+    output: &mut Tensor<Line<E>>,
+    #[define(E)] _dtype: StorageType,
+) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
@@ -76,7 +79,7 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     }
 }
 
-pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
 ) -> CubeTensor<R> {
@@ -87,17 +90,23 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
 
     let output_shape = Shape::new([batch_size, output_size[0], output_size[1], channels]);
     let num_elems: usize = output_shape.num_elements();
-    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), output_shape);
+    let output = empty_device_dtype::<R>(
+        input.client.clone(),
+        input.device.clone(),
+        output_shape,
+        input.dtype,
+    );
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    adaptive_avg_pool2d_direct::launch::<E, R>(
+    adaptive_avg_pool2d_direct::launch::<R>(
         &input.client,
         cube_count,
         cube_dim,
         input.as_tensor_arg(line_size),
         output.as_tensor_arg(line_size),
+        output.dtype.into(),
     );
 
     permute_nhwc_to_nchw(output)

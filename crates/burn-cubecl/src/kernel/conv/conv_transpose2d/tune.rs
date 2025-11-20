@@ -1,17 +1,14 @@
-use burn_tensor::{ElementConversion, Shape, ops::ConvTransposeOptions};
+use burn_tensor::ops::ConvTransposeOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 
 use crate::{
-    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
-    kernel::{
-        conv::{ConvTranspose2dAutotuneKey, conv_transpose2d_col2im, conv_transpose2d_direct},
-        prng::random_uniform,
-    },
+    CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    kernel::conv::{ConvTranspose2dAutotuneKey, conv_transpose2d_col2im, conv_transpose2d_direct},
     tensor::CubeTensor,
 };
 
 /// Executes autotune on conv2d operations
-pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
+pub fn conv_transpose2d_autotune<R: CubeRuntime>(
     input: CubeTensor<R>,
     weights: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -22,9 +19,9 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_set = TUNER.init(|| {
-        TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
-            .with(Tunable::new(conv_transpose2d_direct::<R, E>))
-            .with(Tunable::new(conv_transpose2d_col2im::<R, E>))
+        TunableSet::new(create_key::<R>, create_transpose2d_input::<R>)
+            .with(Tunable::new(conv_transpose2d_direct::<R>))
+            .with(Tunable::new(conv_transpose2d_col2im::<R>))
     });
 
     TUNER.execute(
@@ -35,11 +32,11 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
     )
 }
 
-pub fn create_transpose2d_input<R: CubeRuntime, E: FloatElement>(
-    key: &CubeAutotuneKey,
+pub fn create_transpose2d_input<R: CubeRuntime>(
+    _key: &CubeAutotuneKey,
     input: &CubeTensor<R>,
-    _weights: &CubeTensor<R>,
-    _bias: &Option<CubeTensor<R>>,
+    weights: &CubeTensor<R>,
+    bias: &Option<CubeTensor<R>>,
     options: &ConvTransposeOptions<2>,
 ) -> (
     CubeTensor<R>,
@@ -47,27 +44,15 @@ pub fn create_transpose2d_input<R: CubeRuntime, E: FloatElement>(
     Option<CubeTensor<R>>,
     ConvTransposeOptions<2>,
 ) {
-    let key = match key {
-        CubeAutotuneKey::ConvTranspose2d(key) => key,
-        _ => unreachable!(),
-    };
-    let device = &input.device;
-
-    let random_bounds: (E, E) = ((-1.0).elem::<E>(), (1.0).elem::<E>());
-    let input_shape = Shape::new([key.batch_size, key.in_channels, key.height, key.width]);
-    let input = random_uniform(input_shape, device, random_bounds.0, random_bounds.1);
-    let c_per_grp = key.in_channels / key.groups;
-    let [kernel_h, kernel_w] = key.kernel_size;
-    let weight_shape = Shape::new([key.out_channels, c_per_grp, kernel_h, kernel_w]);
-    let weights = random_uniform(weight_shape, device, random_bounds.0, random_bounds.1);
-    let bias_shape = Shape::new([key.out_channels]);
-    let bias = key
-        .has_bias
-        .then(|| random_uniform(bias_shape, device, random_bounds.0, random_bounds.1));
-    (input, weights, bias, options.clone())
+    (
+        input.clone(),
+        weights.clone(),
+        bias.clone(),
+        options.clone(),
+    )
 }
 
-fn create_key<R: CubeRuntime, E: FloatElement>(
+fn create_key<R: CubeRuntime>(
     input: &CubeTensor<R>,
     weights: &CubeTensor<R>,
     bias: &Option<CubeTensor<R>>,
@@ -95,6 +80,6 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
         width,
         batch_size,
         bias.is_some(),
-        E::dtype(),
+        input.dtype,
     ))
 }

@@ -219,7 +219,7 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
     match arg {
         Arg::Scalar(pos, _precision) => {
             let scalar = inputs.scalars.index(pos);
-            scalar.read::<C>()
+            scalar.get::<C>()
         }
         _ => comptime![panic!("Not a scalar")],
     }

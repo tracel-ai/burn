@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_cubecl::kernel::{MaskWhereStrategy, mask_where};
-    use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive, backend::Backend};
+    use burn_tensor::{Bool, Distribution, Element, Tensor, TensorPrimitive, backend::Backend};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -20,17 +20,15 @@ mod tests {
     #[test]
     fn mask_where_inplace_lhs_should_match_reference_backend() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
+        let dtype_bool = <<TestBackend as Backend>::BoolElem as Element>::dtype();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where::<
-                _,
-                <TestBackend as Backend>::FloatElem,
-                <TestBackend as Backend>::BoolElem,
-            >(
+            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where::<_>(
                 tensor.into_primitive().tensor(),
                 mask.into_primitive(),
                 value.into_primitive().tensor(),
                 MaskWhereStrategy::InplaceLhs,
+                dtype_bool,
             )));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
@@ -42,17 +40,15 @@ mod tests {
     #[test]
     fn mask_where_inplace_rhs_should_match_reference_backend() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
+        let dtype_bool = <<TestBackend as Backend>::BoolElem as Element>::dtype();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where::<
-                _,
-                <TestBackend as Backend>::FloatElem,
-                <TestBackend as Backend>::BoolElem,
-            >(
+            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where::<_>(
                 tensor.into_primitive().tensor(),
                 mask.into_primitive(),
                 value.into_primitive().tensor(),
                 MaskWhereStrategy::InplaceRhs,
+                dtype_bool,
             )));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 

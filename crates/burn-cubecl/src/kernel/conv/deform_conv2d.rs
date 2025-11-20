@@ -1,4 +1,7 @@
-use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*,
+    std::scalar::InputScalar,
+};
 
 use burn_tensor::{
     Shape,
@@ -6,26 +9,26 @@ use burn_tensor::{
 };
 
 use crate::{
-    CubeRuntime, FloatElement,
+    CubeRuntime,
     kernel::{
         AddOp, into_contiguous, launch_binop,
         matmul::{MatmulStrategy, matmul},
     },
     ops::{
-        numeric::{ones_device, zeros_device},
+        numeric::{ones_client, zeros_client},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
 };
 
 #[derive(CubeLaunch, CubeType)]
-struct DeformConv2dArgs<F: Float> {
+struct DeformConv2dArgs {
     conv_stride_h: u32,
     conv_stride_w: u32,
     dilation_h: u32,
     dilation_w: u32,
-    padding_h: F,
-    padding_w: F,
+    padding_h: InputScalar,
+    padding_w: InputScalar,
     offset_groups: u32,
 
     kernel_height: u32,
@@ -42,10 +45,11 @@ fn deform_im2col_kernel<F: Float>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
     columns: &mut Tensor<F>,
-    args: &DeformConv2dArgs<F>,
+    args: &DeformConv2dArgs,
     #[comptime] kernel_h_unroll: Option<u32>,
     #[comptime] kernel_w_unroll: Option<u32>,
     #[comptime] use_mask: bool,
+    #[define(F)] _dtype: StorageType,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -112,10 +116,10 @@ fn deform_im2col_kernel<F: Float>(
                 + out_y * offset.stride(2)
                 + out_x * offset.stride(3)];
             let y = F::cast_from(out_y * args.conv_stride_h + kernel_y * args.dilation_h)
-                - args.padding_h
+                - args.padding_h.get::<F>()
                 + offset_y;
             let x = F::cast_from(out_x * args.conv_stride_w + kernel_x * args.dilation_w)
-                - args.padding_w
+                - args.padding_w.get::<F>()
                 + offset_x;
 
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
@@ -185,7 +189,7 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     result
 }
 
-pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
+pub(crate) fn deform_im2col<R: CubeRuntime>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
@@ -195,6 +199,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
+    let dtype = input.dtype;
 
     let [batch_size, in_channels, _, _] = input.shape.dims();
     let (out_height, out_width) = out_dims;
@@ -205,10 +210,10 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
         batch_size * out_height * out_width,
     ]);
 
-    let output = zeros_device::<R, E>(client.clone(), device.clone(), shape_out.clone());
+    let output = zeros_client::<R>(client.clone(), device.clone(), shape_out.clone(), dtype);
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_device::<R, E>(
+        ones_client::<R>(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -217,6 +222,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
                 offset.shape[2],
                 offset.shape[3],
             ]),
+            dtype,
         )
     });
 
@@ -224,7 +230,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_kernels, cube_dim);
 
-    deform_im2col_kernel::launch::<E, R>(
+    deform_im2col_kernel::launch::<R>(
         &input.client,
         cube_count,
         cube_dim,
@@ -237,8 +243,14 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
             ScalarArg::new(options.stride[1] as u32),
             ScalarArg::new(options.dilation[0] as u32),
             ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(E::from_elem(options.padding[0] as f32)),
-            ScalarArg::new(E::from_elem(options.padding[1] as f32)),
+            {
+                let val = options.padding[0] as f32;
+                InputScalar::new(val, dtype)
+            },
+            {
+                let val = options.padding[1] as f32;
+                InputScalar::new(val, dtype)
+            },
             ScalarArg::new(options.offset_groups as u32),
             ScalarArg::new(kernel_height as u32),
             ScalarArg::new(kernel_width as u32),
@@ -249,12 +261,13 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
         Some(kernel_height as u32),
         Some(kernel_width as u32),
         use_mask,
+        dtype.into(),
     );
 
     output
 }
 
-pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
+pub(crate) fn deform_conv2d<R: CubeRuntime>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -288,23 +301,23 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     );
     let out_dims = (out_h, out_w);
 
-    let columns =
-        deform_im2col::<R, E>(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
+    let columns = deform_im2col::<R>(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
 
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 
+    let dtype = weight.dtype;
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let out = matmul::<R>(weight, columns, None, MatmulStrategy::default(), E::dtype())?;
+    let out = matmul::<R>(weight, columns, None, MatmulStrategy::default(), dtype)?;
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        Ok(launch_binop::<R, E, AddOp>(out, bias))
+        Ok(launch_binop::<R, AddOp>(out, bias))
     } else {
         Ok(out)
     }

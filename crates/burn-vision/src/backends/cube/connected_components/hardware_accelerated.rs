@@ -9,7 +9,7 @@ use crate::{
 };
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
-    ops::{into_data_sync, numeric::zeros_device},
+    ops::{into_data_sync, numeric::zeros_client},
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, cast::ToElement, ops::IntTensorOps};
@@ -490,7 +490,12 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
 
     let [rows, cols] = img.shape.dims();
 
-    let labels = zeros_device::<R, I>(client.clone(), device.clone(), img.shape.clone());
+    let labels = zeros_client::<R>(
+        client.clone(),
+        device.clone(),
+        img.shape.clone(),
+        I::dtype(),
+    );
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
@@ -579,7 +584,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 (cols as u32).div_ceil(cube_dim.x),
                 (rows as u32).div_ceil(cube_dim.y),
             );
-            stats.max_label = zeros_device::<R, I>(client.clone(), device.clone(), Shape::new([1]));
+            stats.max_label =
+                zeros_client::<R>(client.clone(), device.clone(), Shape::new([1]), I::dtype());
             unsafe {
                 compact_labels::launch_unchecked::<I, R>(
                     &client,
