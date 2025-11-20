@@ -438,16 +438,6 @@ mod tests {
 
     const TOLERANCE: f64 = 1e-8;
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
-        let device = Default::default();
-        let record = LinearRecord {
-            weight: Param::from_data(weight, &device),
-            bias: Some(Param::from_data(bias, &device)),
-        };
-
-        LinearConfig::new(4, 4).init(&device).load_record(record)
-    }
-
     fn given_linear_layer_no_bias(weight: TensorData) -> Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = LinearRecord {
