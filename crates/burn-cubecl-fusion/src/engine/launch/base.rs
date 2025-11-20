@@ -13,7 +13,7 @@ use burn_fusion::stream::Context;
 use cubecl::{CubeElement, Runtime, client::ComputeClient};
 use std::marker::PhantomData;
 
-/// The launcher is responsable to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
+/// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
 pub struct FuseTraceLauncher<'a, R: Runtime, Runner: TraceRunner<R>> {
     trace: &'a FuseTrace,
     runner: &'a Runner,
