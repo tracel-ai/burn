@@ -15,7 +15,6 @@ use burn_fusion::{FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
-use half::{bf16, f16};
 use std::sync::Arc;
 
 impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for CubeOptimization<R>
@@ -163,18 +162,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
     type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
 
     fn cast_float(tensor: burn_tensor::ops::FloatTensor<Self>, dtype: DType) -> Self::Handle {
-        fn cast<R: CubeRuntime, F: FloatElement, FTarget: FloatElement>(
-            tensor: CubeTensor<R>,
-        ) -> CubeFusionHandle<R> {
-            CubeFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
-        }
-
-        match dtype {
-            DType::F32 | DType::Flex32 => cast::<R, F, f32>(tensor),
-            DType::F16 => cast::<R, F, f16>(tensor),
-            DType::BF16 => cast::<R, F, bf16>(tensor),
-            _ => panic!("Casting error: {dtype:?} unsupported."),
-        }
+        kernel::cast::<R>(tensor, dtype).into()
     }
 }
 

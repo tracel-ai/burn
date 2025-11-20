@@ -8,9 +8,8 @@
 //!
 //! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
-use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct AttentionConfig {
@@ -45,17 +44,18 @@ impl AttentionConfig {
     }
 }
 
-impl NodeConfig for AttentionConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Attention operation
+#[derive(Debug, Clone)]
+pub struct AttentionNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: AttentionConfig,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AttentionQkMatmulOutputMode {
+    #[default]
     Matmul,
     MatmulPlusAttentionMask,
     MatmulAfterSoftcap,
@@ -77,12 +77,14 @@ fn extract_tensor<'a>(
     }
 }
 
-pub struct AttentionProcessor;
+pub(crate) struct AttentionProcessor;
 
 impl NodeProcessor for AttentionProcessor {
+    type Config = AttentionConfig;
+
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -145,33 +147,10 @@ impl NodeProcessor for AttentionProcessor {
         // TODO: Add test for negative scale values - spec doesn't specify if scale can be negative
         // TODO: Add test for very large qk_matmul_output dimensions - potential memory issues not validated
 
-        // Validate unexpected attributes and qk_matmul_output_mode before config extraction
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "is_causal" | "kv_num_heads" | "q_num_heads" | "scale" | "softcap"
-                | "softmax_precision" => {}
-                "qk_matmul_output_mode" => match value.clone().into_i64() {
-                    0..=3 => {}
-                    v => {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "qk_matmul_output_mode".to_string(),
-                            reason: format!(
-                                "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
-                            ),
-                        });
-                    }
-                },
-                _ => {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: key.clone(),
-                        reason: format!("Unexpected attribute for Attention: {key}"),
-                    });
-                }
-            }
-        }
-
         // Get reference to config for validation
-        let config = node.config::<AttentionConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         if q.rank == 3 && (config.kv_num_heads.is_none() || config.q_num_heads.is_none()) {
             return Err(ProcessError::Custom(
@@ -221,9 +200,9 @@ impl NodeProcessor for AttentionProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let _q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
             ProcessError::Custom("Attention: Q input must be present".to_string())
         })?;
@@ -236,24 +215,41 @@ impl NodeProcessor for AttentionProcessor {
         let mut softcap = 0.0;
         let mut softmax_precision = None;
 
+        // Extract and validate attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "is_causal" => is_causal = value.clone().into_i64() != 0,
                 "kv_num_heads" => kv_num_heads = Some(value.clone().into_i64() as usize),
                 "q_num_heads" => q_num_heads = Some(value.clone().into_i64() as usize),
                 "qk_matmul_output_mode" => {
-                    qk_matmul_output_mode = match value.clone().into_i64() {
+                    let mode_value = value.clone().into_i64();
+                    // Validate qk_matmul_output_mode range
+                    if !(0..=3).contains(&mode_value) {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "qk_matmul_output_mode".to_string(),
+                            reason: format!(
+                                "Unexpected value for attribute qk_matmul_output_mode for Attention: {mode_value}"
+                            ),
+                        });
+                    }
+                    qk_matmul_output_mode = match mode_value {
                         0 => AttentionQkMatmulOutputMode::Matmul,
                         1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
                         2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
                         3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
-                        _ => AttentionQkMatmulOutputMode::Matmul, // Use default for unknown values
+                        _ => unreachable!(), // Already validated above
                     }
                 }
                 "scale" => scale = Some(value.clone().into_f32() as f64),
                 "softcap" => softcap = value.clone().into_f32() as f64,
                 "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
-                _ => {}
+                _ => {
+                    // Validate that no unknown attributes are present
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Attention: {key}"),
+                    });
+                }
             }
         }
 
@@ -266,7 +262,20 @@ impl NodeProcessor for AttentionProcessor {
             softcap,
             softmax_precision,
         );
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Attention(AttentionNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -274,7 +283,7 @@ impl NodeProcessor for AttentionProcessor {
 #[allow(clippy::too_many_arguments)]
 mod tests {
     use super::*;
-    use crate::{DType, NodeType, node::test_utils::NodeBuilder};
+    use crate::{ir::DType, ir::NodeType, node::test_utils::TestNodeBuilder};
     use rstest::rstest;
 
     fn create_test_node(
@@ -295,8 +304,8 @@ mod tests {
         scale: Option<f32>,
         softcap: Option<f32>,
         softmax_precision: Option<i64>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Attention, "test_attention");
+    ) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Attention, "test_attention");
 
         if let Some(rank) = q {
             builder = builder.input_tensor_f32("q", rank, None);
@@ -369,7 +378,7 @@ mod tests {
         scale: Option<f32>,
         softcap: Option<f32>,
         softmax_precision: Option<i64>,
-    ) -> Node {
+    ) -> NodeBuilder {
         create_test_node(
             Some(4),
             Some(4),
@@ -440,8 +449,7 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 23).unwrap();
         let result = processor.infer_types(&mut node, 23, &prefs);
         assert!(result.is_err());
     }
@@ -453,9 +461,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert_eq!(config.softcap, 2.0);
     }
 
@@ -466,9 +472,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert_eq!(config.scale, Some(2.0));
     }
 
@@ -479,9 +483,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert!(config.is_causal);
     }
 
@@ -496,9 +498,7 @@ mod tests {
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 23).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
-        let config = node.config::<AttentionConfig>();
         assert_eq!(config.qk_matmul_output_mode, mode);
     }
 }

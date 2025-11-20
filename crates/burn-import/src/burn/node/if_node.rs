@@ -30,7 +30,7 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
         .iter()
         .map(|node| {
             try_convert_onnx_node::<PS>(node.clone())
-                .unwrap_or_else(|| panic!("Unsupported op in subgraph: {:?}", node.node_type))
+                .unwrap_or_else(|| panic!("Unsupported op in subgraph: {}", node.name()))
         })
         .collect();
 
@@ -214,11 +214,17 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for IfNode {
 
 impl OnnxIntoNode for IfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        // Extract condition input (always first input)
-        let condition = Type::from(node.inputs.first().unwrap());
-
         // Get then_branch and else_branch from config
-        let config = node.config::<onnx_ir::node::if_node::IfConfig>();
+        let onnx_ir::Node::If(n) = &node else {
+            panic!("Expected If node");
+        };
+        let node_inputs = &n.inputs;
+        let node_outputs = &n.outputs;
+        let config = &n.config;
+
+        // Extract condition input (always first input)
+        let condition = Type::from(node_inputs.first().unwrap());
+
         let then_branch = config.then_branch.clone();
         let else_branch = config.else_branch.clone();
 
@@ -238,7 +244,7 @@ impl OnnxIntoNode for IfNode {
         // So we collect all subgraph inputs and add them as explicit inputs to the If node.
 
         // Collect explicit inputs from ONNX If node (after condition)
-        let mut inputs: Vec<Type> = node.inputs.iter().skip(1).map(Type::from).collect();
+        let mut inputs: Vec<Type> = node_inputs.iter().skip(1).map(Type::from).collect();
 
         // Add captured variables from subgraph inputs
         // Use then_branch as canonical (both branches should have same inputs)
@@ -247,7 +253,7 @@ impl OnnxIntoNode for IfNode {
         }
 
         // Extract outputs from node
-        let outputs: Vec<Type> = node.outputs.iter().map(Type::from).collect();
+        let outputs: Vec<Type> = node_outputs.iter().map(Type::from).collect();
 
         Self::new(condition, inputs, outputs, then_branch, else_branch)
     }

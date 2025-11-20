@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, Node},
+    ir::{ArgType, NodeBuilder},
     processor::{ArgPreference, ProcessError, get_processor_registry},
 };
 
@@ -33,7 +33,7 @@ pub(crate) fn infer_types(
 ///
 /// This allows runtime preference collection (e.g., Concat requests Shape after seeing Shape inputs).
 pub(super) fn iterative_type_inference_with_preferences(
-    nodes: &mut [Node],
+    nodes: &mut [NodeBuilder],
     opset: usize,
 ) -> Result<(), ProcessError> {
     let registry = get_processor_registry();

@@ -21,11 +21,10 @@
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for InstanceNorm operations
 #[derive(Debug, Clone)]
@@ -46,19 +45,20 @@ impl InstanceNormConfig {
     }
 }
 
-impl NodeConfig for InstanceNormConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for InstanceNormalization operation
+#[derive(Debug, Clone)]
+pub struct InstanceNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: InstanceNormConfig,
 }
 
-pub struct InstanceNormProcessor;
+pub(crate) struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
+    type Config = InstanceNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -68,7 +68,7 @@ impl NodeProcessor for InstanceNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -82,7 +82,7 @@ impl NodeProcessor for InstanceNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -111,9 +111,9 @@ impl NodeProcessor for InstanceNormProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -133,7 +133,20 @@ impl NodeProcessor for InstanceNormProcessor {
         }
 
         let config = InstanceNormConfig::new(num_features, epsilon as f64);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::InstanceNormalization(InstanceNormalizationNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -141,13 +154,13 @@ impl NodeProcessor for InstanceNormProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(epsilon: f32, num_features: usize) -> NodeBuilder {
+    fn create_test_node(epsilon: f32, num_features: usize) -> TestNodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
-        NodeBuilder::new(NodeType::InstanceNormalization, "test_instancenorm")
+        TestNodeBuilder::new(NodeType::InstanceNormalization, "test_instancenorm")
             .input_tensor_f32("X", 3, None)
             .input_tensor_f32_data("scale", weight_data, vec![num_features])
             .input_tensor_f32_data("bias", bias_data, vec![num_features])
@@ -162,9 +175,7 @@ mod tests {
         let processor = InstanceNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<InstanceNormConfig>();
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);

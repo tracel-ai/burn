@@ -37,7 +37,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
         let block_size = self.config.block_size;
 
         let output_expr = match self.config.mode {
-            DepthToSpaceMode::DCR => {
+            DepthToSpaceMode::Dcr => {
                 quote! {
                     let [b, c, h, w] = #input.shape().dims();
                     #input
@@ -46,7 +46,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
                         .reshape([b, c / (#block_size * #block_size), h * #block_size, w * #block_size])
                 }
             }
-            DepthToSpaceMode::CRD => {
+            DepthToSpaceMode::Crd => {
                 quote! {
                     let [b, c, h, w] = #input.shape().dims();
                     #input
@@ -70,10 +70,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
 
 impl OnnxIntoNode for DepthToSpaceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::depth_to_space::DepthToSpaceConfig>();
-        Self::new(input, output, config.clone())
+        let onnx_ir::Node::DepthToSpace(n) = node else {
+            panic!("Expected DepthToSpace node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config)
     }
 }
 
@@ -90,7 +92,7 @@ mod tests {
         graph.register(DepthToSpaceNode::new(
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            DepthToSpaceConfig::new(DepthToSpaceMode::DCR, 2),
+            DepthToSpaceConfig::new(DepthToSpaceMode::Dcr, 2),
         ));
 
         graph.register_input_output(
@@ -139,7 +141,7 @@ mod tests {
         graph.register(DepthToSpaceNode::new(
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            DepthToSpaceConfig::new(DepthToSpaceMode::CRD, 2),
+            DepthToSpaceConfig::new(DepthToSpaceMode::Crd, 2),
         ));
 
         graph.register_input_output(

@@ -7,8 +7,9 @@
 //! ## Opset Versions
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
+use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -16,9 +17,19 @@ use crate::processor::{
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
-pub struct BernoulliProcessor;
+/// Node representation for Bernoulli operation
+#[derive(Debug, Clone)]
+pub struct BernoulliNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+pub(crate) struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 15,
@@ -30,7 +41,7 @@ impl NodeProcessor for BernoulliProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -73,17 +84,25 @@ impl NodeProcessor for BernoulliProcessor {
 
         Ok(())
     }
+
+    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+        Node::Bernoulli(BernoulliNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: Option<i32>, static_shape: Option<Vec<usize>>) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Bernoulli, "test_bernoulli")
+    fn create_test_node(dtype: Option<i32>, static_shape: Option<Vec<usize>>) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Bernoulli, "test_bernoulli")
             .input_tensor_f32("input", 4, static_shape) // Rank 0 will be updated
             .output_tensor_f32("output", 0, None); // Rank 0 will be updated
 

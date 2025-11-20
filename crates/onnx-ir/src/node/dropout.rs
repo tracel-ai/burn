@@ -15,11 +15,19 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
-use std::any::Any;
+
+/// Node representation for Dropout operation
+#[derive(Debug, Clone)]
+pub struct DropoutNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: DropoutConfig,
+}
 
 /// Represents either a static value or a runtime argument for dropout ratio.
 #[derive(Debug, Clone)]
@@ -30,6 +38,12 @@ pub enum DropoutInput {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for DropoutInput {
+    fn default() -> Self {
+        Self::Static(0.0)
+    }
+}
+
 /// Configuration for Dropout operations
 #[derive(Debug, Clone)]
 pub struct DropoutConfig {
@@ -37,18 +51,11 @@ pub struct DropoutConfig {
     pub prob: DropoutInput,
 }
 
-impl NodeConfig for DropoutConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct DropoutProcessor;
+pub(crate) struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
+    type Config = DropoutConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -61,7 +68,7 @@ impl NodeProcessor for DropoutProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // For opset 12+, ratio is an input (input[1])
         // Only lift it if it's a static constant (has a value)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -78,7 +85,7 @@ impl NodeProcessor for DropoutProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -104,9 +111,9 @@ impl NodeProcessor for DropoutProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // TODO: Validate 'seed' attribute mentioned in spec (opset 12+) - currently not handled
         // TODO: Validate ratio value is in range [0.0, 1.0] per ONNX spec - Missing constraint validation - Should return error for invalid ratios
         // Opset 7 and older store probability as an attribute
@@ -115,7 +122,7 @@ impl NodeProcessor for DropoutProcessor {
             let config = DropoutConfig {
                 prob: DropoutInput::Static(prob as f64),
             };
-            return Ok(Some(Box::new(config)));
+            return Ok(config);
         }
 
         // Opset 12+ uses input for ratio
@@ -146,7 +153,20 @@ impl NodeProcessor for DropoutProcessor {
         };
 
         let config = DropoutConfig { prob };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Dropout(DropoutNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -154,17 +174,17 @@ impl NodeProcessor for DropoutProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node_with_attr(ratio: f32) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+    fn create_test_node_with_attr(ratio: f32) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)
             .attr_float("ratio", ratio)
     }
 
-    fn create_test_node_with_input(ratio: f32) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+    fn create_test_node_with_input(ratio: f32) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .input_scalar_tensor_f32("ratio", Some(ratio))
             .output_tensor_f32("output", 3, None)
@@ -177,9 +197,7 @@ mod tests {
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.3) < 1e-6));
     }
 
@@ -190,14 +208,12 @@ mod tests {
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.5) < 1e-6));
     }
 
-    fn create_test_node_with_runtime_input() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+    fn create_test_node_with_runtime_input() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .input_tensor_f32("ratio", 0, None) // Runtime input - no static value
             .output_tensor_f32("output", 3, None)
@@ -210,9 +226,7 @@ mod tests {
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Runtime(arg) if arg.name == "ratio"));
     }
 

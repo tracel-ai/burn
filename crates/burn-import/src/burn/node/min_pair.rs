@@ -51,9 +51,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MinPairNode {
 
 impl OnnxIntoNode for MinPairNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Min(n) = node else {
+            panic!("Expected Min node");
+        };
+        let lhs = Type::from(n.inputs.first().unwrap());
+        let rhs = Type::from(n.inputs.get(1).unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(lhs, rhs, output)
     }
 }

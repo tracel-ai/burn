@@ -2,10 +2,11 @@ use burn_tensor::DType;
 use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
 use cubecl::prelude::*;
+use cubecl::std::scalar::InputScalar;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-use super::tensor::{GlobalScalar, GlobalTensor};
+use super::tensor::GlobalTensor;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to a [fuse operation](FuseOp).
@@ -185,7 +186,7 @@ impl FuseOp {
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
-    pub scalars: Sequence<GlobalScalar>,
+    pub scalars: Sequence<InputScalar>,
     pub reshapes: Sequence<u32>,
 }
 

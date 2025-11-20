@@ -26,27 +26,16 @@
 //!
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
-use crate::ir::{ArgType, Argument, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Reshape operation.
 #[derive(Debug, Clone)]
 pub struct ReshapeConfig {
     pub shape: ReshapeInput,
-}
-
-impl NodeConfig for ReshapeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Represents either a static value or a runtime argument for reshape shape.
@@ -58,27 +47,24 @@ pub enum ReshapeInput {
     Runtime(RuntimeInputRef),
 }
 
-/// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
-pub fn reshape_update_outputs(node: &mut Node) {
-    // Extract input information
-    let input_info = extract_input_info(&node.inputs[0]);
+impl Default for ReshapeInput {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
+}
 
-    // Determine output rank
-    let output_rank = infer_reshape_output_rank(node);
-
-    // Get static shape if available
-    let static_shape = match &node.outputs[0].ty {
-        ArgType::Tensor(t) => t.static_shape.clone(),
-        _ => None,
-    };
-
-    // Set output type based on rank and input type
-    node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
+/// Node representation for Reshape operation
+#[derive(Debug, Clone)]
+pub struct ReshapeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReshapeConfig,
 }
 
 /// Extract relevant information from input argument
 struct InputInfo {
-    dtype: crate::DType,
+    dtype: crate::ir::DType,
     is_shape: bool,
     shape_size: Option<usize>,
 }
@@ -91,7 +77,7 @@ fn extract_input_info(input: &Argument) -> InputInfo {
             shape_size: None,
         },
         ArgType::Shape(size) => InputInfo {
-            dtype: crate::DType::I64,
+            dtype: crate::ir::DType::I64,
             is_shape: true,
             shape_size: Some(*size),
         },
@@ -107,7 +93,7 @@ fn determine_output_type(
     input_info: &InputInfo,
     output_rank: usize,
     static_shape: Option<Vec<usize>>,
-    node: &Node,
+    node: &NodeBuilder,
 ) -> ArgType {
     // Case 1: Scalar output (rank 0)
     if output_rank == 0 {
@@ -115,7 +101,7 @@ fn determine_output_type(
     }
 
     // Case 2: Shape input -> Shape output (optimization)
-    if input_info.is_shape && output_rank == 1 && input_info.dtype == crate::DType::I64 {
+    if input_info.is_shape && output_rank == 1 && input_info.dtype == crate::ir::DType::I64 {
         let output_size =
             calculate_shape_output_size(input_info.shape_size.unwrap_or(1), node, &static_shape);
 
@@ -133,7 +119,7 @@ fn determine_output_type(
 /// Calculate the output size for Shape type outputs
 fn calculate_shape_output_size(
     input_size: usize,
-    node: &Node,
+    node: &NodeBuilder,
     static_shape: &Option<Vec<usize>>,
 ) -> usize {
     // Try to get size from static reshape parameter
@@ -159,7 +145,7 @@ fn calculate_shape_output_size(
 }
 
 /// Infer output rank for reshape operation from available information
-fn infer_reshape_output_rank(node: &Node) -> usize {
+fn infer_reshape_output_rank(node: &NodeBuilder) -> usize {
     // Try sources in order of preference
 
     // 1. Static shape from constant shape input
@@ -186,7 +172,7 @@ fn infer_reshape_output_rank(node: &Node) -> usize {
 }
 
 /// Get rank from shape input if available
-fn get_rank_from_shape_input(node: &Node) -> Option<usize> {
+fn get_rank_from_shape_input(node: &NodeBuilder) -> Option<usize> {
     if node.inputs.len() != 2 {
         return None;
     }
@@ -203,7 +189,7 @@ fn get_rank_from_shape_input(node: &Node) -> Option<usize> {
 }
 
 /// Get rank from output tensor if available
-fn get_rank_from_output(node: &Node) -> Option<usize> {
+fn get_rank_from_output(node: &NodeBuilder) -> Option<usize> {
     match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => Some(tensor.rank),
         ArgType::Scalar(_) => Some(0),
@@ -212,7 +198,7 @@ fn get_rank_from_output(node: &Node) -> Option<usize> {
 }
 
 /// Extract static shape from reshape node if available
-fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
+fn get_static_shape(node: &NodeBuilder) -> Option<Vec<i64>> {
     // Check shape input
     if node.inputs.len() == 2
         && let Some(value) = node.inputs[1].value()
@@ -223,40 +209,12 @@ fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
     None
 }
 
-/// Extract shape input as either static or runtime
-fn extract_shape_input(node: &Node) -> ReshapeInput {
-    match &node.inputs[1].ty {
-        ArgType::Tensor(_) => extract_tensor_shape(node),
-        ArgType::Shape(_) => {
-            // Runtime input - store reference instead of cloning the argument
-            ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
-        }
-        _ => panic!("Reshape: second input must be either a Tensor or Shape type"),
-    }
-}
-
-/// Extract shape from tensor input
-fn extract_tensor_shape(node: &Node) -> ReshapeInput {
-    match node.inputs[1].value() {
-        Some(tensor_data) => {
-            assert_eq!(
-                tensor_data.shape.len(),
-                1,
-                "Reshape: shape tensor must be 1D"
-            );
-            ReshapeInput::Static(tensor_data.to_vec::<i64>().unwrap())
-        }
-        None => {
-            // Runtime input - store reference instead of cloning the argument
-            ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
-        }
-    }
-}
-
 /// Node processor for Reshape operation
-pub struct ReshapeProcessor;
+pub(crate) struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
+    type Config = ReshapeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 5,
@@ -266,7 +224,7 @@ impl NodeProcessor for ReshapeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // If it's a runtime argument (no value), it should remain in the graph
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -278,7 +236,7 @@ impl NodeProcessor for ReshapeProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -295,7 +253,7 @@ impl NodeProcessor for ReshapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -327,7 +285,7 @@ impl NodeProcessor for ReshapeProcessor {
                         t.rank
                     )));
                 }
-                if t.dtype != crate::DType::I64 {
+                if t.dtype != crate::ir::DType::I64 {
                     return Err(ProcessError::TypeMismatch {
                         expected: "Shape tensor with dtype I64".to_string(),
                         actual: format!("Shape tensor with dtype {:?}", t.dtype),
@@ -378,11 +336,6 @@ impl NodeProcessor for ReshapeProcessor {
             }
         }
 
-        // Extract and validate shape input
-        let shape = extract_shape_input(node);
-        let config = ReshapeConfig { shape };
-        node.config = Some(Box::new(config));
-
         // Extract input information
         let input_info = extract_input_info(&node.inputs[0]);
 
@@ -403,9 +356,9 @@ impl NodeProcessor for ReshapeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract shape input as either static or runtime
         let shape = match &node.inputs[1].ty {
             ArgType::Tensor(_tensor) => {
@@ -441,19 +394,32 @@ impl NodeProcessor for ReshapeProcessor {
         };
 
         let config = ReshapeConfig { shape };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Reshape(ReshapeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(allowzero: i64, shape_vec: Vec<i64>) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Reshape, "test_reshape")
+    fn create_test_node(allowzero: i64, shape_vec: Vec<i64>) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Reshape, "test_reshape")
             .input_tensor_f32("data", 4, None)
             .input_tensor_i64_data("shape", shape_vec.clone(), vec![shape_vec.len()])
             .output_tensor_f32("reshaped", 2, None);
@@ -465,15 +431,15 @@ mod tests {
         builder
     }
 
-    fn create_runtime_reshape_node() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Reshape, "test_runtime_reshape")
+    fn create_runtime_reshape_node() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Reshape, "test_runtime_reshape")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("shape", 0, None) // No static value - runtime input
             .output_tensor_f32("reshaped", 2, None)
     }
 
-    fn create_reshape_with_shape_input() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Reshape, "test_reshape_with_shape")
+    fn create_reshape_with_shape_input() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Reshape, "test_reshape_with_shape")
             .input_tensor_f32("data", 4, None)
             .add_input("shape", ArgType::Shape(2))
             .output_tensor_f32("reshaped", 2, None)
@@ -483,7 +449,8 @@ mod tests {
     fn test_reshape_config_basic() {
         let node = create_test_node(0, vec![2, 3]).process(ReshapeProcessor, 16);
 
-        let config = node.config::<ReshapeConfig>();
+        let processor = ReshapeProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         match &config.shape {
             ReshapeInput::Static(shape) => assert_eq!(shape, &vec![2, 3]),
             _ => panic!("Expected static shape"),
@@ -501,7 +468,8 @@ mod tests {
     fn test_reshape_config_runtime() {
         let node = create_runtime_reshape_node().process(ReshapeProcessor, 16);
 
-        let config = node.config::<ReshapeConfig>();
+        let processor = ReshapeProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         match &config.shape {
             ReshapeInput::Runtime(runtime_ref) => assert_eq!(runtime_ref.name, "shape"),
             _ => panic!("Expected runtime shape"),
@@ -528,7 +496,7 @@ mod tests {
     #[should_panic(expected = "shape tensor must be 1D")]
     fn test_reshape_config_invalid_shape_dim() {
         // Create a node with 2D shape tensor (should trigger panic)
-        let _node = NodeBuilder::new(NodeType::Reshape, "test_reshape")
+        let node = TestNodeBuilder::new(NodeType::Reshape, "test_reshape")
             .input_tensor_f32("data", 4, None)
             .input_tensor_with_data(
                 "shape",
@@ -537,85 +505,21 @@ mod tests {
                 crate::ir::TensorData::new(vec![2i64, 3], vec![2, 1]), // 2D shape - this should cause panic
             )
             .output_tensor_f32("reshaped", 2, None)
-            .process(ReshapeProcessor, 16);
-    }
-
-    #[test]
-    fn test_reshape_update_outputs_basic() {
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
-
-        reshape_update_outputs(&mut node);
-        match &node.outputs[0].ty {
-            ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.static_shape, None);
-                assert_eq!(tensor.dtype, DType::F32);
-                assert_eq!(tensor.rank, 2);
-            }
-            _ => panic!("Expected tensor output"),
-        }
-    }
-
-    #[test]
-    fn test_reshape_update_outputs_int() {
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
-        node.inputs[0].ty = ArgType::Tensor(TensorType {
-            dtype: DType::I32,
-            rank: 4,
-            static_shape: None,
-        });
-
-        reshape_update_outputs(&mut node);
-        match &node.outputs[0].ty {
-            ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.static_shape, None);
-                assert_eq!(tensor.dtype, DType::I32);
-                assert_eq!(tensor.rank, 2);
-            }
-            _ => panic!("Expected tensor output"),
-        }
+            .build_with_graph_data(16);
+        let processor = ReshapeProcessor;
+        // This should panic when validating the shape tensor is 1D
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]
     fn test_reshape_config_with_shape_type() {
         let node = create_reshape_with_shape_input().process(ReshapeProcessor, 16);
 
-        let config = node.config::<ReshapeConfig>();
+        let processor = ReshapeProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         match &config.shape {
             ReshapeInput::Runtime(runtime_ref) => assert_eq!(runtime_ref.name, "shape"),
             _ => panic!("Expected runtime shape"),
-        }
-    }
-
-    #[test]
-    fn test_reshape_update_outputs_with_shape_type() {
-        let mut node = create_reshape_with_shape_input().build();
-
-        reshape_update_outputs(&mut node);
-        match &node.outputs[0].ty {
-            ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.static_shape, None);
-                assert_eq!(tensor.dtype, DType::F32);
-                assert_eq!(tensor.rank, 2); // Should get rank from Shape(2) input
-            }
-            _ => panic!("Expected tensor output"),
-        }
-    }
-
-    #[test]
-    fn test_reshape_to_scalar() {
-        // Test reshaping to a scalar (rank 0)
-        let mut node = NodeBuilder::new(NodeType::Reshape, "test_reshape_scalar")
-            .input_tensor_f32("data", 2, None)
-            .input_tensor_i64_data("shape", vec![], vec![0]) // Empty shape = scalar
-            .output_tensor_f32("reshaped", 0, None)
-            .build_with_graph_data(16);
-
-        reshape_update_outputs(&mut node);
-        match &node.outputs[0].ty {
-            ArgType::Scalar(elem_type) => {
-                assert_eq!(*elem_type, DType::F32);
-            }
-            _ => panic!("Expected scalar output"),
         }
     }
 
@@ -626,7 +530,7 @@ mod tests {
         // This simulates real-world models where shape is computed by other nodes (e.g., Concat)
         // but the ONNX model's value_info already specifies the output rank.
 
-        let mut node = NodeBuilder::new(NodeType::Reshape, "test_dynamic_reshape")
+        let node = TestNodeBuilder::new(NodeType::Reshape, "test_dynamic_reshape")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("shape", 1, None) // Dynamic shape input - no static value
             .output_tensor_f32("reshaped", 4, None) // Output has rank 4 but no static_shape
@@ -646,18 +550,6 @@ mod tests {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 4);
                 assert_eq!(tensor.static_shape, None); // No static shape, just rank
-            }
-            _ => panic!("Expected tensor output"),
-        }
-
-        // This should succeed by using the output's rank field
-        reshape_update_outputs(&mut node);
-
-        // Verify the output still has the correct rank
-        match &node.outputs[0].ty {
-            ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.rank, 4);
-                assert_eq!(tensor.dtype, DType::F32);
             }
             _ => panic!("Expected tensor output"),
         }

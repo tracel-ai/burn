@@ -13,6 +13,7 @@ functionality.
 | [Acos][2]                        | ❌             | ❌           |
 | [Acosh][3]                       | ❌             | ❌           |
 | [Add][4]                         | ✅             | ✅           |
+| [AffineGrid][195]                | ❌             | ❌           |
 | [And][5]                         | ✅             | ✅           |
 | [ArgMax][6]                      | ✅             | ✅           |
 | [ArgMin][7]                      | ✅             | ✅           |
@@ -91,6 +92,7 @@ functionality.
 | [Identity][76]                   | ✅             | ✅           |
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |
+| [ImageDecoder][197]              | ❌             | ❌           |
 | [InstanceNormalization][79]      | ✅             | ✅           |
 | [IsInf][80]                      | ✅             | ✅           |
 | [IsNaN][81]                      | ✅             | ✅           |
@@ -137,6 +139,8 @@ functionality.
 | [QLinearConv][123]               | ❌             | ❌           |
 | [QLinearMatMul][124]             | ❌             | ❌           |
 | [QuantizeLinear][125]            | ❌             | ❌           |
+| [RMSNormalization][198]          | ❌             | ❌           |
+| [RNN][145]                       | ❌             | ✅           |
 | [RandomNormal][126]              | ✅             | ✅           |
 | [RandomNormalLike][127]          | ✅             | ✅           |
 | [RandomUniform][128]             | ✅             | ✅           |
@@ -152,12 +156,13 @@ functionality.
 | [ReduceProd][138]                | ✅             | ✅           |
 | [ReduceSum][139]                 | ✅             | ✅           |
 | [ReduceSumSquare][140]           | ✅             | ✅           |
+| [RegexFullMatch][199]            | ❌             | ❌           |
 | [Relu][141]                      | ✅             | ✅           |
 | [Reshape][142]                   | ✅             | ✅           |
 | [Resize][143]                    | ✅             | ✅           |
 | [ReverseSequence][144]           | ❌             | ❌           |
-| [RNN][145]                       | ❌             | ✅           |
 | [RoiAlign][146]                  | ❌             | ❌           |
+| [RotaryEmbedding][200]           | ❌             | ❌           |
 | [Round][147]                     | ✅             | ✅           |
 | [Scan][148]                      | ✅             | ✅           |
 | [Scatter][149]                   | ❌             | ✅           |
@@ -189,11 +194,15 @@ functionality.
 | [Sqrt][175]                      | ✅             | ✅           |
 | [Squeeze][176]                   | ✅             | ✅           |
 | [STFT][177]                      | ❌             | ❌           |
+| [StringConcat][201]              | ❌             | ❌           |
 | [StringNormalizer][178]          | ❌             | ❌           |
+| [StringSplit][202]               | ❌             | ❌           |
 | [Sub][179]                       | ✅             | ✅           |
 | [Sum][180]                       | ✅             | ✅           |
+| [Swish][203]                     | ❌             | ❌           |
 | [Tan][181]                       | ✅             | ✅           |
 | [Tanh][182]                      | ✅             | ✅           |
+| [TensorScatter][204]             | ❌             | ❌           |
 | [TfIdfVectorizer][183]           | ❌             | ❌           |
 | [ThresholdedRelu][184]           | ❌             | ❌           |
 | [Tile][185]                      | ✅             | ✅           |
@@ -395,4 +404,13 @@ functionality.
 [192]: https://onnx.ai/onnx/operators/onnx__Xor.html "ONNX Xor"
 [193]: https://onnx.ai/onnx/operators/onnx__Unsqueeze.html "ONNX Unsqueeze"
 [194]: https://onnx.ai/onnx/operators/onnx__Attention.html "ONNX Attention"
+[195]: https://onnx.ai/onnx/operators/onnx__AffineGrid.html "ONNX AffineGrid"
 [196]: https://onnx.ai/onnx/operators/onnx__DeformConv.html "ONNX DeformConv"
+[197]: https://onnx.ai/onnx/operators/onnx__ImageDecoder.html "ONNX ImageDecoder"
+[198]: https://onnx.ai/onnx/operators/onnx__RMSNormalization.html "ONNX RMSNormalization"
+[199]: https://onnx.ai/onnx/operators/onnx__RegexFullMatch.html "ONNX RegexFullMatch"
+[200]: https://onnx.ai/onnx/operators/onnx__RotaryEmbedding.html "ONNX RotaryEmbedding"
+[201]: https://onnx.ai/onnx/operators/onnx__StringConcat.html "ONNX StringConcat"
+[202]: https://onnx.ai/onnx/operators/onnx__StringSplit.html "ONNX StringSplit"
+[203]: https://onnx.ai/onnx/operators/onnx__Swish.html "ONNX Swish"
+[204]: https://onnx.ai/onnx/operators/onnx__TensorScatter.html "ONNX TensorScatter"

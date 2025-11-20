@@ -2,8 +2,8 @@ use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Node, NodeType, TensorData, TensorDataExt,
-    TensorType,
+    ArgType, Argument, AttributeValue, Attributes, NodeBuilder, NodeType, TensorData,
+    TensorDataExt, TensorType,
 };
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
@@ -406,7 +406,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> NodeBuilder {
     let name = sanitize_name(&node.name);
 
     let inputs = node.input.iter().map(|x| graph_data.init_in(x)).collect();
@@ -416,7 +416,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
         .iter()
         .map(|output_name| {
             // Sanitize the output name for Rust compatibility
-            let mut arg = Argument::new(sanitize_name(output_name));
+            let mut arg = Argument::from_name(sanitize_name(output_name));
             // Try to get type from: 1) graph outputs, 2) value_info (intermediate values)
             // Note: lookups use original ONNX names (unsanitized)
             if let Some(graph_output_type) = graph_data.get_output_type(output_name) {
@@ -432,13 +432,12 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
 
     let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
-    Node {
+    NodeBuilder {
         node_type,
         name,
         inputs,
         outputs,
         attrs,
-        config: None,
     }
 }
 
@@ -464,7 +463,7 @@ pub fn convert_graph_attributes(
     opset_version: usize,
     parent_registry: Option<crate::graph_state::NameRegistry>,
 ) -> Attributes {
-    use crate::pipeline::build_graph_from_proto_with_registry;
+    use crate::pipeline::build_graph_builder_from_proto;
 
     let mut result = Attributes::new();
 
@@ -477,21 +476,24 @@ pub fn convert_graph_attributes(
             match attr_type {
                 AttributeType::GRAPH => {
                     if let Some(graph_proto) = attr.g.as_ref() {
-                        let onnx_graph = build_graph_from_proto_with_registry(
+                        let graph_builder = build_graph_builder_from_proto(
                             graph_proto,
                             opset_version,
                             Some(name_registry.clone()),
                         )
                         .expect("Failed to build subgraph from ONNX GraphProto");
-                        result.insert(attr.name.clone(), AttributeValue::Graph(onnx_graph));
+                        result.insert(
+                            attr.name.clone(),
+                            AttributeValue::GraphBuilder(graph_builder),
+                        );
                     }
                 }
                 AttributeType::GRAPHS => {
-                    let graphs: Vec<_> = attr
+                    let graph_builders: Vec<_> = attr
                         .graphs
                         .iter()
                         .map(|graph_proto| {
-                            build_graph_from_proto_with_registry(
+                            build_graph_builder_from_proto(
                                 graph_proto,
                                 opset_version,
                                 Some(name_registry.clone()),
@@ -499,7 +501,10 @@ pub fn convert_graph_attributes(
                             .expect("Failed to build subgraph from ONNX GraphProto")
                         })
                         .collect();
-                    result.insert(attr.name.clone(), AttributeValue::Graphs(graphs));
+                    result.insert(
+                        attr.name.clone(),
+                        AttributeValue::GraphBuilders(graph_builders),
+                    );
                 }
                 _ => {}
             }

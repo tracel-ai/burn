@@ -49,8 +49,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NegNode {
 
 impl OnnxIntoNode for NegNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Neg(n) = node else {
+            panic!("Expected Neg node");
+        };
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }

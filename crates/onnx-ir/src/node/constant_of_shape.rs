@@ -9,12 +9,21 @@
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
 use crate::ir::{
-    ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
+    ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorData, TensorDataExt,
+    TensorType,
 };
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
+
+/// Node representation for ConstantOfShape operation
+#[derive(Debug, Clone)]
+pub struct ConstantOfShapeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConstantOfShapeConfig,
+}
 
 /// Configuration for the ConstantOfShape operation.
 #[derive(Debug, Clone)]
@@ -34,19 +43,17 @@ pub enum ConstantOfShapeShape {
     Runtime(RuntimeInputRef),
 }
 
-impl NodeConfig for ConstantOfShapeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
+impl Default for ConstantOfShapeShape {
+    fn default() -> Self {
+        Self::Static(vec![])
     }
 }
 
-pub struct ConstantOfShapeProcessor;
+pub(crate) struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
+    type Config = ConstantOfShapeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -56,7 +63,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[0]) if it has a static value
         // Runtime shapes should remain in the graph
         if !node.inputs.is_empty() && node.inputs[0].is_constant() {
@@ -68,7 +75,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -105,6 +112,10 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         // TODO: Add test for negative shape values - spec says "all values must be >= 0"
         // TODO: Add test for very large shape dimensions - potential memory/overflow issues
         // TODO: Add test for opset 20+ types (bfloat16, int4, uint4, float8) - mentioned in spec
+        let _config = self
+            .extract_config(node, _opset)
+            .expect("Config extraction failed");
+
         let value_type = node
             .attrs
             .get("value")
@@ -178,9 +189,9 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Check if we have static values or need runtime resolution
         let shape = match node.inputs[0].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
@@ -202,7 +213,20 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         let value = node.attrs.get("value").map(|v| v.clone().into_tensor());
 
         let config = ConstantOfShapeConfig { shape, value };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::ConstantOfShape(ConstantOfShapeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -210,10 +234,10 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 mod tests {
     use super::*;
     use crate::ir::{AttributeValue, NodeType, TensorData};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(input_ty: ArgType) -> NodeBuilder {
-        NodeBuilder::new(NodeType::ConstantOfShape, "test_constantofshape")
+    fn create_test_node(input_ty: ArgType) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::ConstantOfShape, "test_constantofshape")
             .add_input("shape", input_ty)
             .output_tensor_f32("output", 0, None) // Will be updated
     }
@@ -288,7 +312,7 @@ mod tests {
     fn test_no_static_shapes_with_value_attr() {
         // Simulates the scenario after constant lifting where the input has a value
 
-        let mut node = NodeBuilder::new(NodeType::ConstantOfShape, "constantofshape1")
+        let mut node = TestNodeBuilder::new(NodeType::ConstantOfShape, "constantofshape1")
             .input_tensor_i64_data("constant180_out1", vec![2, 3, 4], vec![3])
             .output_default("/model/encoder/patch_encoder/ConstantOfShape_output_0")
             .attr_tensor("value", TensorData::new(vec![1i64], vec![1]))

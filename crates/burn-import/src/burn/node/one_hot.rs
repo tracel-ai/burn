@@ -64,12 +64,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
 
 impl OnnxIntoNode for OneHotNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::one_hot::OneHotConfig>();
+        let onnx_ir::Node::OneHot(n) = node else {
+            panic!("Expected OneHot node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
 
         // Extract num_classes from config.depth
-        let num_classes = match config.depth {
+        let num_classes = match n.config.depth {
             onnx_ir::node::one_hot::OneHotDepthInput::Static(d) => d,
             onnx_ir::node::one_hot::OneHotDepthInput::Runtime(_) => {
                 panic!("OneHot with runtime depth is not supported in burn-import")
@@ -77,14 +79,14 @@ impl OnnxIntoNode for OneHotNode {
         };
 
         // Extract values from config.values
-        let values = match config.values {
+        let values = match n.config.values {
             onnx_ir::node::one_hot::OneHotValuesInput::Static(v) => v,
             onnx_ir::node::one_hot::OneHotValuesInput::Runtime(_) => {
                 panic!("OneHot with runtime values is not supported in burn-import")
             }
         };
 
-        let axis = config.axis;
+        let axis = n.config.axis;
         Self::new(input, output, num_classes, values, axis)
     }
 }

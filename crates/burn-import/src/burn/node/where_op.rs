@@ -66,10 +66,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
 
 impl OnnxIntoNode for WhereNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let condition = Type::from(node.inputs.first().unwrap());
-        let x = Type::from(node.inputs.get(1).unwrap());
-        let y = Type::from(node.inputs.get(2).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Where(n) = node else {
+            panic!("Expected Where node");
+        };
+        let condition = Type::from(n.inputs.first().unwrap());
+        let x = Type::from(n.inputs.get(1).unwrap());
+        let y = Type::from(n.inputs.get(2).unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(condition, x, y, output)
     }
 }

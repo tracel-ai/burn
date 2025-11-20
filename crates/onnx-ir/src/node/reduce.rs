@@ -19,26 +19,15 @@
 //! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, NodeType, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{ArgType, Node, NodeConfig, TensorType};
-use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
-}
-
-impl NodeConfig for ReduceConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 impl ReduceConfig {
@@ -47,9 +36,101 @@ impl ReduceConfig {
     }
 }
 
-pub struct ReduceProcessor;
+/// Node representation for ReduceMax operation
+#[derive(Debug, Clone)]
+pub struct ReduceMaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceMin operation
+#[derive(Debug, Clone)]
+pub struct ReduceMinNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceMean operation
+#[derive(Debug, Clone)]
+pub struct ReduceMeanNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceSum operation
+#[derive(Debug, Clone)]
+pub struct ReduceSumNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceProd operation
+#[derive(Debug, Clone)]
+pub struct ReduceProdNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceSumSquare operation
+#[derive(Debug, Clone)]
+pub struct ReduceSumSquareNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceL1 operation
+#[derive(Debug, Clone)]
+pub struct ReduceL1Node {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceL2 operation
+#[derive(Debug, Clone)]
+pub struct ReduceL2Node {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceLogSum operation
+#[derive(Debug, Clone)]
+pub struct ReduceLogSumNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+/// Node representation for ReduceLogSumExp operation
+#[derive(Debug, Clone)]
+pub struct ReduceLogSumExpNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ReduceConfig,
+}
+
+pub(crate) struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
+    type Config = ReduceConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -59,7 +140,7 @@ impl NodeProcessor for ReduceProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -70,8 +151,8 @@ impl NodeProcessor for ReduceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Add validation for maximum input count
@@ -118,12 +199,11 @@ impl NodeProcessor for ReduceProcessor {
         };
 
         // Get config values before using them
-        let dims = node.config::<ReduceConfig>().dims.clone();
-        let keepdims = if node.config::<ReduceConfig>().keepdims {
-            1
-        } else {
-            0
-        };
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
+        let dims = config.dims.clone();
+        let keepdims = if config.keepdims { 1 } else { 0 };
 
         // Determine if the output should be a scalar
         let should_be_scalar = keepdims == 0 && (dims.is_empty() || dims.len() == tensor_rank);
@@ -171,9 +251,9 @@ impl NodeProcessor for ReduceProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Validate input type and extract tensor info
         let tensor_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -217,7 +297,77 @@ impl NodeProcessor for ReduceProcessor {
         dims.sort();
 
         let config = ReduceConfig::new(dims, keepdims == 1);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        match builder.node_type {
+            NodeType::ReduceMax => Node::ReduceMax(ReduceMaxNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceMin => Node::ReduceMin(ReduceMinNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceMean => Node::ReduceMean(ReduceMeanNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceSum => Node::ReduceSum(ReduceSumNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceProd => Node::ReduceProd(ReduceProdNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceSumSquare => Node::ReduceSumSquare(ReduceSumSquareNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceL1 => Node::ReduceL1(ReduceL1Node {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceL2 => Node::ReduceL2(ReduceL2Node {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceLogSum => Node::ReduceLogSum(ReduceLogSumNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            NodeType::ReduceLogSumExp => Node::ReduceLogSumExp(ReduceLogSumExpNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config,
+            }),
+            _ => panic!("ReduceProcessor called with unsupported node type"),
+        }
     }
 }
 
@@ -226,11 +376,11 @@ mod tests {
     #![allow(clippy::bool_assert_comparison)]
 
     use super::*;
-    use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
+    use NodeType;
 
-    fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::ReduceMax, "test_reduce_max")
+    fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> NodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::ReduceMax, "test_reduce_max")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("reduced", 3, None);
 
@@ -252,10 +402,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, true);
@@ -269,10 +416,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
@@ -286,10 +430,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, Vec::<usize>::new());
         assert_eq!(config.keepdims, true);
@@ -303,10 +444,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [0, 1]);
         assert_eq!(config.keepdims, true);
@@ -320,10 +458,7 @@ mod tests {
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, false);
@@ -335,8 +470,7 @@ mod tests {
         let mut node = create_test_node(None, Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -358,8 +492,7 @@ mod tests {
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -381,8 +514,7 @@ mod tests {
         let mut node = create_test_node(Some(vec![1]), Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -405,8 +537,7 @@ mod tests {
         let mut node = create_test_node(None, Some(1));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -427,7 +558,7 @@ mod tests {
     fn test_reduce_update_outputs_partial_static_shape_keepdims() {
         // Regression test for partial static_shape with keepdims=true
         // This was causing "index out of bounds" panic before the fix
-        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+        let mut node = TestNodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
             .input_tensor_f32("data", 3, Some(vec![768])) // Rank 3 but only last dim known
             .output_tensor_f32("reduced", 3, None)
             .attr_ints("axes", vec![2]) // Reduce on dimension 2
@@ -437,8 +568,7 @@ mod tests {
         // This should not panic
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -457,7 +587,7 @@ mod tests {
     #[test]
     fn test_reduce_update_outputs_partial_static_shape_no_keepdims() {
         // Regression test for partial static_shape without keepdims
-        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+        let mut node = TestNodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
             .input_tensor_f32("data", 3, Some(vec![768])) // Rank 3 but only last dim known
             .output_tensor_f32("reduced", 3, None)
             .attr_ints("axes", vec![1]) // Reduce on dimension 1
@@ -467,8 +597,7 @@ mod tests {
         // This should not panic
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -487,7 +616,7 @@ mod tests {
     #[test]
     fn test_reduce_update_outputs_complete_static_shape_keepdims() {
         // Test that complete static_shape is properly updated with keepdims=true
-        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+        let mut node = TestNodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
             .input_tensor_f32("data", 3, Some(vec![2, 4, 768])) // Complete shape
             .output_tensor_f32("reduced", 3, None)
             .attr_ints("axes", vec![2]) // Reduce on dimension 2
@@ -496,8 +625,7 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

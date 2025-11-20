@@ -8,12 +8,20 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
+
+/// Node representation for Conv2d operation
+#[derive(Debug, Clone)]
+pub struct Conv2dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: Conv2dConfig,
+}
 
 /// Configuration for Conv2d operations
 #[derive(Debug, Clone)]
@@ -57,20 +65,12 @@ impl Conv2dConfig {
     }
 }
 
-impl NodeConfig for Conv2dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
 /// Node processor for Conv2d operation
-pub struct Conv2dProcessor;
+pub(crate) struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
+    type Config = Conv2dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -80,7 +80,7 @@ impl NodeProcessor for Conv2dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -94,7 +94,7 @@ impl NodeProcessor for Conv2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -216,9 +216,9 @@ impl NodeProcessor for Conv2dProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
@@ -274,7 +274,20 @@ impl NodeProcessor for Conv2dProcessor {
             bias,
         );
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Conv2d(Conv2dNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -282,7 +295,7 @@ impl NodeProcessor for Conv2dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -292,7 +305,7 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         // Weight tensor data - not important for the test
         // [output_channels, input_channels/groups, k_h, k_w]
         let weight_shape = vec![4, 2, 2, 2];
@@ -300,7 +313,7 @@ mod tests {
 
         let has_kernel_shape = !kernel_shape.is_empty();
 
-        let mut builder = NodeBuilder::new(NodeType::Conv2d, "test_conv2d")
+        let mut builder = TestNodeBuilder::new(NodeType::Conv2d, "test_conv2d")
             .input_tensor_f32("data", 4, None)
             .input_tensor_f32_data("weight", weight_data.clone(), weight_shape)
             .output_tensor_f32("output", 4, None)
@@ -340,9 +353,7 @@ mod tests {
         let processor = Conv2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.channels, [2, 4]);
         assert_eq!(config.kernel_size, [2, 2]);
@@ -369,9 +380,7 @@ mod tests {
         let processor = Conv2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
@@ -393,9 +402,7 @@ mod tests {
         let processor = Conv2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.groups, 2);
         assert_eq!(config.channels, [4, 4]); // channels_in is adjusted by groups
@@ -417,9 +424,7 @@ mod tests {
         let processor = Conv2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv2dConfig>();
 
         assert!(config.bias);
     }
@@ -440,9 +445,7 @@ mod tests {
         let processor = Conv2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
@@ -483,9 +486,7 @@ mod tests {
         let processor = Conv2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]); // Inferred via weight tensor shape
     }

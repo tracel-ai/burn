@@ -1,13 +1,14 @@
-use std::marker::PhantomData;
-
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
-    ops::{max_line_size, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise, intrinsic,
+    prelude::*,
+    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
+};
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
     type BinaryOp<C: Numeric>: BinaryOp<C>;
@@ -26,16 +27,7 @@ pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
 pub(crate) struct AndOp;
 pub(crate) struct OrOp;
-
-/// Since Powf only works on float, but we still want to implement the numeric binary op family, we
-/// set another precision in the family type to cast, when necessary, the input value to a valid
-/// float.
-///
-/// Because of this we won't benefit from the cubecl rust compilation speed improvement from using
-/// the family pattern for [PowOp], but at least we don't duplicate code.
-pub(crate) struct PowOp<F: Float> {
-    _f: PhantomData<F>,
-}
+pub(crate) struct PowOp;
 
 impl BinaryOpFamily for AddOp {
     type BinaryOp<C: Numeric> = Self;
@@ -57,7 +49,7 @@ impl BinaryOpFamily for RemainderOp {
     type BinaryOp<C: Numeric> = Self;
 }
 
-impl<F: Float> BinaryOpFamily for PowOp<F> {
+impl BinaryOpFamily for PowOp {
     type BinaryOp<C: Numeric> = Self;
 }
 
@@ -105,13 +97,41 @@ impl<N: Numeric> BinaryOp<N> for RemainderOp {
 }
 
 #[cube]
-impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
+impl<N: Numeric> BinaryOp<N> for PowOp {
+    #[allow(unused)]
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        let lhs = Line::<F>::cast_from(lhs);
-        let rhs = Line::<F>::cast_from(rhs);
-        let out = Line::powf(lhs, rhs);
+        intrinsic!(|scope| {
+            let elem = N::as_type(scope).elem_type();
 
-        Line::cast_from(out)
+            if let cubecl::ir::ElemType::Float(kind) = elem {
+                match kind {
+                    cubecl::ir::FloatKind::F16 => {
+                        let lhs = <Line<half::f16> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<half::f16> as Cast>::__expand_cast_from(scope, rhs);
+                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                    }
+                    cubecl::ir::FloatKind::BF16 => {
+                        let lhs = <Line<half::bf16> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<half::bf16> as Cast>::__expand_cast_from(scope, rhs);
+                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                    }
+                    cubecl::ir::FloatKind::F64 => {
+                        let lhs = <Line<f64> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<f64> as Cast>::__expand_cast_from(scope, rhs);
+                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                    }
+                    _ => {}
+                }
+            };
+
+            let lhs = <Line<f32> as Cast>::__expand_cast_from(scope, lhs);
+            let rhs = <Line<f32> as Cast>::__expand_cast_from(scope, rhs);
+            let out = Powf::__expand_powf(scope, lhs, rhs);
+            return <Line<N> as Cast>::__expand_cast_from(scope, out);
+        })
     }
 }
 
@@ -132,14 +152,16 @@ impl<N: Numeric> BinaryOp<N> for OrOp {
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
     input: &LinearView<Line<C>>,
-    scalar: C,
+    scalar: InputScalar,
     output: &mut LinearView<Line<C>, ReadWrite>,
+    #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
+    output[ABSOLUTE_POS] =
+        O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar.get::<C>()));
 }
 
 #[cube(launch_unchecked)]
@@ -147,6 +169,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
     lhs: &LinearView<Line<C>>,
     rhs: &LinearView<Line<C>>,
     out: &mut LinearView<Line<C>, ReadWrite>,
+    #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -155,7 +178,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
     out[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
 }
 
-pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
+pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -164,6 +187,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
     let line_size = Ord::min(line_size_lhs, line_size_rhs);
 
     let shape_out = broadcast_shape(&[&lhs, &rhs]);
+    let dtype = lhs.dtype;
 
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
@@ -173,37 +197,41 @@ pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<E, O, R>(
+            kernel_binop::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view(&lhs, line_size),
                 linear_view_ref(&rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
+                dtype.into(),
             );
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<E, O, R>(
+            kernel_binop::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view_ref(&lhs, &rhs, line_size),
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
+                dtype.into(),
             );
 
             rhs
         } else {
-            let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
+            let output =
+                empty_device_dtype::<R>(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
 
-            kernel_binop::launch_unchecked::<E, O, R>(
+            kernel_binop::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view_ref(&lhs, &output, line_size),
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
+                dtype.into(),
             );
 
             output
@@ -211,44 +239,48 @@ pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
+pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
     tensor: CubeTensor<R>,
-    scalar: E,
+    scalar: InputScalar,
 ) -> CubeTensor<R> {
     // Vectorization is only enabled when the last dimension is contiguous.
     let line_size = max_line_size(&tensor);
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
+    let dtype = tensor.dtype;
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     unsafe {
         if tensor.can_mut() && tensor.is_contiguous_buffer() {
-            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view(&tensor, line_size),
-                ScalarArg::new(scalar),
+                scalar,
                 linear_view_alias(&tensor, line_size, 0),
+                dtype.into(),
             );
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_dtype::<R>(
                 tensor.client.clone(),
                 tensor.device.clone(),
                 tensor.shape.clone(),
+                dtype,
             );
 
-            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 CubeDim::default(),
                 linear_view(&tensor, line_size),
-                ScalarArg::new(scalar),
+                scalar,
                 linear_view(&output, line_size),
+                dtype.into(),
             );
 
             output

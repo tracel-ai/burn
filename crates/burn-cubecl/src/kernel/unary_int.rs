@@ -1,14 +1,14 @@
 use crate::{
-    CubeRuntime, IntElement,
+    CubeRuntime,
     kernel::utils::{linear_view, linear_view_alias},
-    ops::{max_line_size, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait IntUnaryOpFamily: 'static + Send + Sync {
-    type Options<I: Int>: LaunchArg;
-    type Unary<I: Int>: IntUnaryOp<I, Options = Self::Options<I>>;
+    type Options: LaunchArg;
+    type Unary<I: Int>: IntUnaryOp<I, Options = Self::Options>;
 }
 
 #[cube]
@@ -22,7 +22,8 @@ pub(crate) trait IntUnaryOp<I: CubePrimitive>: 'static + Send + Sync {
 pub(crate) fn unary_int<I: Int, O: IntUnaryOpFamily>(
     input: &LinearView<Line<I>>,
     output: &mut LinearView<Line<I>, ReadWrite>,
-    options: &O::Options<I>,
+    options: &O::Options,
+    #[define(I)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -31,11 +32,10 @@ pub(crate) fn unary_int<I: Int, O: IntUnaryOpFamily>(
     output[ABSOLUTE_POS] = O::Unary::<I>::execute(input[ABSOLUTE_POS], options);
 }
 
-pub(crate) fn launch_unary_int<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+pub(crate) fn launch_unary_int<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options<E>, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options, R>,
     R: CubeRuntime,
-    E: IntElement + Int,
     O: IntUnaryOpFamily,
 {
     let line_size = max_line_size(&tensor);
@@ -47,30 +47,33 @@ where
 
     unsafe {
         if tensor.can_mut() && tensor.is_contiguous_buffer() {
-            unary_int::launch_unchecked::<E, O, R>(
+            unary_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view(&tensor, line_size),
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
+                tensor.dtype.into(),
             );
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_dtype::<R>(
                 tensor.client.clone(),
                 tensor.device.clone(),
                 tensor.shape.clone(),
+                tensor.dtype,
             );
 
-            unary_int::launch_unchecked::<E, O, R>(
+            unary_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 CubeDim::default(),
                 linear_view(&tensor, line_size),
                 linear_view(&output, line_size),
                 args(&()),
+                tensor.dtype.into(),
             );
             output
         }
@@ -81,13 +84,12 @@ pub(crate) mod unary_basic_int {
 
     use super::*;
 
-    pub(crate) fn launch<R, Args, I>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+    pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
     where
         R: CubeRuntime,
         for<'a> Args: FnOnce(&'a ()) -> BasicIntUnaryKind,
-        I: IntElement,
     {
-        launch_unary_int::<R, I, BasicIntUnary, _>(tensor, |input| {
+        launch_unary_int::<R, BasicIntUnary, _>(tensor, |input| {
             BasicIntUnaryOptionsLaunch::new(args(input))
         })
     }
@@ -116,7 +118,7 @@ pub(crate) mod unary_basic_int {
     }
 
     impl IntUnaryOpFamily for BasicIntUnary {
-        type Options<I: Int> = BasicIntUnaryOptions;
+        type Options = BasicIntUnaryOptions;
         type Unary<I: Int> = Self;
     }
 }

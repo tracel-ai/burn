@@ -9,10 +9,9 @@
 //! - **Opset 9**: Added scan_input_axes
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
+use crate::ir::Argument;
 
-use std::any::Any;
-
-use crate::ir::{ArgType, Node, NodeConfig, OnnxGraph};
+use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
@@ -26,30 +25,33 @@ pub struct ScanConfig {
     pub scan_output_axes: Vec<i64>,
 }
 
-impl NodeConfig for ScanConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Scan operation
+#[derive(Debug, Clone)]
+pub struct ScanNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ScanConfig,
 }
 
 /// Scan node processor
-pub struct ScanProcessor;
+pub(crate) struct ScanProcessor;
 
 impl NodeProcessor for ScanProcessor {
+    type Config = ScanConfig;
+
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 8)?;
 
         // Get config to determine number of state variables and scan inputs
-        let config = node.config::<ScanConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let num_scan_inputs = config.num_scan_inputs as usize;
 
         // Total inputs = num_state_vars + num_scan_inputs
@@ -146,16 +148,35 @@ impl NodeProcessor for ScanProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
-        let body = node
+        let body_attr = node
             .attrs
             .get("body")
             .ok_or_else(|| ProcessError::MissingAttribute("body".to_string()))?
-            .clone()
-            .into_graph();
+            .clone();
+
+        // Handle both Graph and GraphBuilder
+        let body = match body_attr {
+            crate::ir::AttributeValue::Graph(g) => g,
+            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
+                // Convert NodeBuilders to Nodes
+                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                crate::ir::OnnxGraph {
+                    nodes,
+                    inputs: std::mem::take(&mut builder.inputs),
+                    outputs: std::mem::take(&mut builder.outputs),
+                    _graph_data: builder._graph_data.clone(),
+                }
+            }
+            _ => {
+                return Err(ProcessError::Custom(
+                    "Expected Graph or GraphBuilder for body".to_string(),
+                ));
+            }
+        };
 
         // Extract num_scan_inputs (required)
         let num_scan_inputs = node
@@ -190,14 +211,27 @@ impl NodeProcessor for ScanProcessor {
             .map(|v| v.clone().into_i64s())
             .unwrap_or_default();
 
-        Ok(Some(Box::new(ScanConfig {
+        Ok(ScanConfig {
             body,
             num_scan_inputs,
             scan_input_directions,
             scan_output_directions,
             scan_input_axes,
             scan_output_axes,
-        })))
+        })
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Scan(ScanNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -206,7 +240,7 @@ mod tests {
     use super::*;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, DType, NodeType, OnnxGraph, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_body(num_state_vars: usize, num_scan_inputs: usize) -> OnnxGraph {
         let mut body_inputs = Vec::new();
@@ -279,7 +313,7 @@ mod tests {
         let num_scan_inputs = 1;
         let body = create_test_body(num_state_vars, num_scan_inputs);
 
-        let mut node = NodeBuilder::new(NodeType::Scan, "test_scan")
+        let mut node = TestNodeBuilder::new(NodeType::Scan, "test_scan")
             .input_tensor_f32("initial_state", 2, Some(vec![2, 3]))
             .input_tensor_f32("scan_input_seq", 3, Some(vec![4, 2, 3]))
             .build();
@@ -291,8 +325,7 @@ mod tests {
 
         let processor = ScanProcessor;
         // Extract config first
-        let config = processor.extract_config(&node, 8).unwrap().unwrap();
-        node.config = Some(config);
+        let _config = processor.extract_config(&node, 8).unwrap();
 
         let result = processor.infer_types(&mut node, 8, &OutputPreferences::default());
 

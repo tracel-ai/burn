@@ -12,7 +12,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
+use crate::ir::{ArgType, Argument, DataId, NodeBuilder, NodeType, TensorData};
 use crate::proto_conversion::argument_from_initializer;
 use crate::protos::{TensorProto, ValueInfoProto};
 
@@ -76,7 +76,7 @@ impl NameRegistry {
 #[derive(Debug)]
 pub struct GraphState {
     /// The nodes that have been processed, used to copy the outputs to a child node
-    pub(super) processed_nodes: Vec<Node>,
+    pub(super) processed_nodes: Vec<NodeBuilder>,
     /// The inputs of the graph
     inputs: Vec<Argument>,
     /// The outputs of the graph
@@ -186,12 +186,12 @@ impl GraphState {
             self.processed_nodes[node_idx].outputs[output_idx].clone()
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
-            Argument::new(sanitized)
+            Argument::from_name(sanitized)
         }
     }
 
     /// Add a node (maps outputs, renames outputs)
-    pub(super) fn add_node(&mut self, mut node: Node) {
+    pub(super) fn add_node(&mut self, mut node: NodeBuilder) {
         let node_idx = self.processed_nodes.len();
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
@@ -215,7 +215,7 @@ impl GraphState {
     }
 
     /// Consume and return (nodes, inputs, outputs)
-    pub(super) fn consume(self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+    pub(super) fn consume(self) -> (Vec<NodeBuilder>, Vec<Argument>, Vec<Argument>) {
         let outputs = self
             .outputs
             .into_iter()
@@ -262,22 +262,22 @@ impl GraphState {
 
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
-    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> TensorId {
+    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
         self.tensor_store.store(data)
     }
 
     /// Get tensor data by ID from central store
-    pub(crate) fn get_tensor_data(&self, id: TensorId) -> Option<&TensorData> {
+    pub(crate) fn get_tensor_data(&self, id: DataId) -> Option<&TensorData> {
         self.tensor_store.get(id)
     }
 
     /// Get mutable tensor data by ID from central store
-    pub(crate) fn get_tensor_data_mut(&mut self, id: TensorId) -> Option<&mut TensorData> {
+    pub(crate) fn get_tensor_data_mut(&mut self, id: DataId) -> Option<&mut TensorData> {
         self.tensor_store.get_mut(id)
     }
 
     /// Get data_id for a constant by output name
-    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<TensorId> {
+    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<DataId> {
         self.processed_nodes
             .iter()
             .find(|node| {
@@ -293,7 +293,7 @@ impl GraphState {
 
     /// Alias for get_constant_data_id_by_output (for test utilities)
     #[cfg(test)]
-    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<TensorId> {
+    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<DataId> {
         self.get_constant_data_id_by_output(name)
     }
 }
@@ -303,9 +303,9 @@ fn create_constant_node(
     node_name: String,
     output_name: String,
     ty: ArgType,
-    data_id: TensorId,
-) -> Node {
-    Node {
+    data_id: DataId,
+) -> NodeBuilder {
+    NodeBuilder {
         node_type: NodeType::Constant,
         name: node_name,
         inputs: vec![Argument {
@@ -321,7 +321,6 @@ fn create_constant_node(
             value_store: None,
         }],
         attrs: HashMap::new(),
-        config: None,
     }
 }
 
@@ -330,7 +329,7 @@ fn process_initializers(
     initializers: &[TensorProto],
     tensor_store: &mut TensorStore,
     name_registry: Option<&NameRegistry>,
-) -> Vec<Node> {
+) -> Vec<NodeBuilder> {
     initializers
         .iter()
         .enumerate()
@@ -359,7 +358,7 @@ fn create_test_constant(
     name: String,
     tensor_data: TensorData,
     tensor_store: &mut TensorStore,
-) -> (Node, usize) {
+) -> (NodeBuilder, usize) {
     use crate::ir::TensorDataExt;
     let elem_type = tensor_data.elem_type();
     let shape = tensor_data.shape.to_vec();

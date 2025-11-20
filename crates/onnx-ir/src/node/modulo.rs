@@ -16,13 +16,11 @@
 //! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
-use crate::ir::{AttributeValue, Node, NodeConfig};
+use crate::ir::{Argument, AttributeValue, Node, NodeBuilder};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for Mod operations
 #[derive(Debug, Clone)]
@@ -33,6 +31,15 @@ pub struct ModConfig {
     pub fmod: bool,
 }
 
+/// Node representation for Mod operation
+#[derive(Debug, Clone)]
+pub struct ModNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ModConfig,
+}
+
 impl ModConfig {
     /// Create a new ModConfig
     pub fn new(fmod: bool) -> Self {
@@ -40,18 +47,11 @@ impl ModConfig {
     }
 }
 
-impl NodeConfig for ModConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct ModuloProcessor;
+pub(crate) struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
+    type Config = ModConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 10,
@@ -63,7 +63,7 @@ impl NodeProcessor for ModuloProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -101,7 +101,7 @@ impl NodeProcessor for ModuloProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut NodeBuilder,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -117,9 +117,9 @@ impl NodeProcessor for ModuloProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract fmod attribute
         let fmod = match node.attrs.get("fmod") {
             Some(AttributeValue::Int64(value)) => {
@@ -130,7 +130,20 @@ impl NodeProcessor for ModuloProcessor {
         };
 
         let config = ModConfig::new(fmod);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Mod(ModNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -139,10 +152,10 @@ impl NodeProcessor for ModuloProcessor {
 mod tests {
     use super::*;
     use crate::ir::{AttributeValue, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node() -> crate::ir::Node {
-        NodeBuilder::new(NodeType::Mod, "test_mod")
+    fn create_test_node() -> crate::ir::NodeBuilder {
+        TestNodeBuilder::new(NodeType::Mod, "test_mod")
             .input_tensor_f32("A", 2, None)
             .input_tensor_f32("B", 2, None)
             .output_tensor_f32("result", 2, None)
@@ -156,9 +169,7 @@ mod tests {
         let processor = ModuloProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false); // Should default to false
     }
 
@@ -171,9 +182,7 @@ mod tests {
         let processor = ModuloProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false);
     }
 
@@ -186,9 +195,7 @@ mod tests {
         let processor = ModuloProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, true);
     }
 }

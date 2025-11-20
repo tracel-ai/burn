@@ -8,37 +8,37 @@
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)
 
+use crate::ir::{
+    ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType,
+};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use crate::{
-    DType,
-    ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
-};
-use std::any::Any;
+
+/// Node representation for Expand operation
+#[derive(Debug, Clone)]
+pub struct ExpandNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ExpandConfig,
+}
 
 /// Shape information for the Expand operation.
 #[derive(Debug, Clone)]
-pub enum ExpandShape {
+// TODO rename ExpandConfig to ExpandConfig
+pub enum ExpandConfig {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
     /// Runtime shape determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 
-impl NodeConfig for ExpandShape {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct ExpandProcessor;
+pub(crate) struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
+    type Config = ExpandConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 8,
@@ -48,7 +48,7 @@ impl NodeProcessor for ExpandProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // Runtime shapes should remain in the graph
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -60,8 +60,8 @@ impl NodeProcessor for ExpandProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut NodeBuilder,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Validate no unexpected attributes - Expand has no attributes per spec - Missing attribute validation
@@ -92,7 +92,9 @@ impl NodeProcessor for ExpandProcessor {
         }
 
         // Get reference to config for type inference
-        let config = node.config::<ExpandShape>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Get input element type - Expand should preserve the input's element type
         let input_elem_type = match &node.inputs[0].ty {
@@ -107,7 +109,7 @@ impl NodeProcessor for ExpandProcessor {
 
         // Determine output type based on config
         match config {
-            ExpandShape::Static(shape) => {
+            ExpandConfig::Static(shape) => {
                 // TODO: Validate shape values are positive or -1 per ONNX spec - Negative values other than -1 are invalid - Missing constraint validation
                 // TODO: Validate broadcasting rules - Per spec, input shape and target shape must be compatible for broadcasting - Missing broadcast validation
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -116,7 +118,7 @@ impl NodeProcessor for ExpandProcessor {
                     static_shape: Some(shape.iter().map(|&dim| dim as usize).collect()),
                 });
             }
-            ExpandShape::Runtime(_) => {
+            ExpandConfig::Runtime(_) => {
                 // When the shape cannot be determined statically, infer the rank from the shape input
                 let output_rank = match &node.inputs[1].ty {
                     ArgType::Shape(rank) => *rank,
@@ -157,13 +159,13 @@ impl NodeProcessor for ExpandProcessor {
 
     fn extract_config(
         &self,
-        node: &Node,
+        node: &NodeBuilder,
         _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    ) -> Result<Self::Config, ProcessError> {
         // Extract config
         let config = match node.inputs[1].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
-                Ok(shape) => ExpandShape::Static(shape),
+                Ok(shape) => ExpandConfig::Static(shape),
                 Err(_) => {
                     return Err(ProcessError::Custom(
                         "Expand: shape data type must be int32 or int64".to_string(),
@@ -172,10 +174,23 @@ impl NodeProcessor for ExpandProcessor {
             },
             None => {
                 // Runtime shape - store reference instead of cloning the argument
-                ExpandShape::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
+                ExpandConfig::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
             }
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Expand(ExpandNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -183,14 +198,14 @@ impl NodeProcessor for ExpandProcessor {
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         input_rank: usize,
         shape_value: Option<Vec<i64>>,
         shape_type: Option<ArgType>,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Expand, "test_expand")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", 0, None); // Rank 0 will be updated
 
@@ -213,8 +228,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -233,8 +247,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -274,15 +287,13 @@ mod tests {
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ExpandShape>();
 
         match config {
-            ExpandShape::Static(shape) => {
+            ExpandConfig::Static(shape) => {
                 assert_eq!(*shape, vec![2, 3, 4]);
             }
-            ExpandShape::Runtime(_) => panic!("Expected Static config, got Runtime"),
+            ExpandConfig::Runtime(_) => panic!("Expected Static config, got Runtime"),
         }
     }
 
@@ -293,13 +304,11 @@ mod tests {
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ExpandShape>();
 
         match config {
-            ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
-            ExpandShape::Runtime(name) => {
+            ExpandConfig::Static(_) => panic!("Expected Runtime config, got Static"),
+            ExpandConfig::Runtime(name) => {
                 assert_eq!(name.name, "shape");
             }
         }
@@ -313,13 +322,11 @@ mod tests {
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ExpandShape>();
 
         match config {
-            ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
-            ExpandShape::Runtime(name) => {
+            ExpandConfig::Static(_) => panic!("Expected Runtime config, got Static"),
+            ExpandConfig::Runtime(name) => {
                 assert_eq!(name.name, "shape");
             }
         }
@@ -336,8 +343,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -353,8 +359,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -366,8 +371,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -375,7 +379,7 @@ mod tests {
     #[test]
     fn test_expand_config_with_invalid_value_type() {
         // Create a node with shape input that has Float32 type instead of Int64
-        let node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", 2, None)
             .input_tensor_f32_data("shape", vec![2.0, 3.0, 4.0], vec![3]) // Wrong type - Float32 instead of Int64
             .output_tensor_f32("output", 0, None)
@@ -397,8 +401,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -414,7 +417,7 @@ mod tests {
     #[test]
     fn test_expand_update_outputs_with_shape_input_static_value() {
         // Test Expand with shape input that has static values
-        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", 2, None)
             .input_tensor_i64_data("shape", vec![5, 10, 15], vec![3]) // Static shape values
             .output_tensor_f32("output", 0, None)
@@ -422,8 +425,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -442,7 +444,7 @@ mod tests {
 
         // Test Float32 -> Float32
         {
-            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_f32("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_f32("output", 0, None)
@@ -457,8 +459,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
-            let config = processor.extract_config(&node, 16).unwrap();
-            node.config = config;
+            let _config = processor.extract_config(&node, 16).unwrap();
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -476,7 +477,7 @@ mod tests {
 
         // Test Int64 -> Int64
         {
-            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_i64("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_i64("output", 0, None)
@@ -491,8 +492,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
-            let config = processor.extract_config(&node, 16).unwrap();
-            node.config = config;
+            let _config = processor.extract_config(&node, 16).unwrap();
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -510,7 +510,7 @@ mod tests {
 
         // Test Bool -> Bool
         {
-            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_bool("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_bool("output", 0, None)
@@ -525,8 +525,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
-            let config = processor.extract_config(&node, 16).unwrap();
-            node.config = config;
+            let _config = processor.extract_config(&node, 16).unwrap();
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -547,7 +546,7 @@ mod tests {
     fn test_expand_with_mismatched_output_type() {
         // Test that Expand corrects output type even when initially set incorrectly
         // This simulates the case where ONNX might have wrong type info
-        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_i64("input", 2, None) // Input is Int64
             .input_tensor_i64_data("shape", vec![2, 3], vec![2])
             .output_tensor_f32("output", 0, None) // Output incorrectly set to Float32
@@ -555,8 +554,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
