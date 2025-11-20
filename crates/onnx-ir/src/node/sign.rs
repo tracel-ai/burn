@@ -12,7 +12,7 @@
 //! - **Opset 9+**: Initial version
 //! - **Opset 13+**: Added support for bfloat16
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -21,7 +21,7 @@ use crate::processor::{
 };
 
 /// Node representation for Sign operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SignNode {
     pub name: String,
     pub inputs: Vec<Argument>,

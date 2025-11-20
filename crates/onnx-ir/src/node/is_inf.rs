@@ -13,7 +13,7 @@
 //! - **Opset 20+**: Extended type support (added float8 variants)
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -28,7 +28,7 @@ pub struct IsInfConfig {
 }
 
 /// Node representation for IsInf operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct IsInfNode {
     pub name: String,
     pub inputs: Vec<Argument>,

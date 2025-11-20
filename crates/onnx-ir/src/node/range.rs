@@ -24,7 +24,7 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -57,7 +57,7 @@ impl Default for RangeInput {
 }
 
 /// Node representation for Range operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct RangeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

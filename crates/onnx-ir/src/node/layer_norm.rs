@@ -20,7 +20,7 @@
 //! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -53,7 +53,7 @@ impl LayerNormConfig {
 }
 
 /// Node representation for LayerNormalization operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct LayerNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

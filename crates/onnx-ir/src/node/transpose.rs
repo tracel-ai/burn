@@ -17,7 +17,7 @@
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -32,7 +32,7 @@ pub struct TransposeConfig {
 }
 
 /// Node representation for Transpose operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct TransposeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

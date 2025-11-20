@@ -18,7 +18,7 @@
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -44,7 +44,7 @@ pub struct ClipConfig {
 }
 
 /// Node representation for Clip operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ClipNode {
     pub name: String,
     pub inputs: Vec<Argument>,

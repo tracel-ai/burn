@@ -10,7 +10,7 @@
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -29,7 +29,7 @@ pub struct ArgMinConfig {
 }
 
 /// Node representation for ArgMin operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ArgMinNode {
     pub name: String,
     pub inputs: Vec<Argument>,

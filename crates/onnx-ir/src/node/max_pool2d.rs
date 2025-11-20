@@ -25,7 +25,7 @@
 //! - TODO: No test validating input is 4D (N x C x H x W) - Lower/higher rank should be rejected
 //! - TODO: No test for asymmetric kernel sizes - e.g., kernel=[3, 5]
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
@@ -47,7 +47,7 @@ pub struct MaxPool2dConfig {
 }
 
 /// Node representation for MaxPool2d operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct MaxPool2dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

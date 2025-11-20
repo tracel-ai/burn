@@ -25,7 +25,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 /// Configuration for LogSoftmax operations
 #[derive(Debug, Clone, new)]
@@ -35,7 +35,7 @@ pub struct LogSoftmaxConfig {
 }
 
 /// Node representation for LogSoftmax operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct LogSoftmaxNode {
     pub name: String,
     pub inputs: Vec<Argument>,

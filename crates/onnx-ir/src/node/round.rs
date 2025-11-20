@@ -11,7 +11,7 @@
 //! ## Opset Versions
 //! - **Opset 11+**: Initial version with rounding mode support
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -20,7 +20,7 @@ use crate::processor::{
 };
 
 /// Node representation for Round operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct RoundNode {
     pub name: String,
     pub inputs: Vec<Argument>,

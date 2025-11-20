@@ -9,7 +9,7 @@
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 
@@ -19,7 +19,7 @@ use crate::processor::{
 };
 
 /// Node representation for Conv3d operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct Conv3dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

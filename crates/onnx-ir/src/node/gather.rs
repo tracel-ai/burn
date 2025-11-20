@@ -25,7 +25,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -40,7 +40,7 @@ pub struct GatherConfig {
 }
 
 /// Node representation for Gather operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct GatherNode {
     pub name: String,
     pub inputs: Vec<Argument>,

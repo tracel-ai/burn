@@ -11,7 +11,7 @@
 //! ## Opset Versions
 //! - **Opset 18+**: Bitwise operations introduced
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -20,7 +20,7 @@ use crate::processor::{
 };
 
 /// Node representation for BitwiseAnd operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct BitwiseAndNode {
     pub name: String,
     pub inputs: Vec<Argument>,

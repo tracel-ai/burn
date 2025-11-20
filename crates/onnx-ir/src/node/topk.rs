@@ -20,7 +20,7 @@
 //! - **I**: tensor(int64) for indices output
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
@@ -52,7 +52,7 @@ pub struct TopKConfig {
 }
 
 /// Node representation for TopK operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct TopKNode {
     pub name: String,
     pub inputs: Vec<Argument>,

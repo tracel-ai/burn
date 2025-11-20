@@ -10,7 +10,7 @@
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -38,7 +38,7 @@ pub struct AvgPool1dConfig {
 }
 
 /// Node representation for AveragePool1d operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct AveragePool1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

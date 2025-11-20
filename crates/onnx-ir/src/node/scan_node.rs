@@ -10,7 +10,7 @@
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -29,7 +29,7 @@ pub struct ScanConfig {
 }
 
 /// Node representation for Scan operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ScanNode {
     pub name: String,
     pub inputs: Vec<Argument>,

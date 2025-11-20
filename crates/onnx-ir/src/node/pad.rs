@@ -25,7 +25,7 @@
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -101,7 +101,7 @@ pub struct PadConfig {
 }
 
 /// Node representation for Pad operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct PadNode {
     pub name: String,
     pub inputs: Vec<Argument>,

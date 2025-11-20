@@ -12,7 +12,7 @@
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
@@ -46,7 +46,7 @@ pub struct SplitConfig {
 }
 
 /// Node representation for Split operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SplitNode {
     pub name: String,
     pub inputs: Vec<Argument>,

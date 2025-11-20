@@ -31,7 +31,7 @@ use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError, same_as_input_broadcast,
 };
-use onnx_ir_derive::NodeBuilder as NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilderDerive;
 
 /// Node representation for Add operation
 #[derive(Debug, Clone, NodeBuilderDerive)]

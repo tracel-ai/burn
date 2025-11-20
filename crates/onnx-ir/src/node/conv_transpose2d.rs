@@ -14,7 +14,7 @@
 //! - Padding order: See FIXME at line 163 regarding padding order verification
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 
@@ -23,7 +23,7 @@ use crate::processor::{
 };
 
 /// Node representation for ConvTranspose2d operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ConvTranspose2dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

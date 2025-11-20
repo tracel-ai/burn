@@ -10,7 +10,7 @@
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -31,7 +31,7 @@ pub struct GroupNormConfig {
 }
 
 /// Node representation for GroupNormalization operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct GroupNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

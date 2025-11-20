@@ -11,7 +11,7 @@
 //! - **Opset 16**: Further refinements
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -54,7 +54,7 @@ pub struct LoopConfig {
 }
 
 /// Node representation for Loop operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct LoopNode {
     pub name: String,
     pub inputs: Vec<Argument>,

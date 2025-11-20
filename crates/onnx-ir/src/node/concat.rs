@@ -10,7 +10,7 @@
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -27,7 +27,7 @@ pub struct ConcatConfig {
 }
 
 /// Node representation for Concat operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ConcatNode {
     pub name: String,
     pub inputs: Vec<Argument>,

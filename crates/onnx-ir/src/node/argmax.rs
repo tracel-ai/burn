@@ -10,7 +10,7 @@
 //! - **Opset 12**: Added `select_last_index` attribute
 //! - **Opset 11**: Changed `axis` range to support negative indices [-r, r-1]
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -29,7 +29,7 @@ pub struct ArgMaxConfig {
 }
 
 /// Node representation for ArgMax operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ArgMaxNode {
     pub name: String,
     pub inputs: Vec<Argument>,

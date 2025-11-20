@@ -13,7 +13,7 @@
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -28,7 +28,7 @@ pub struct FlattenConfig {
 }
 
 /// Node representation for Flatten operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct FlattenNode {
     pub name: String,
     pub inputs: Vec<Argument>,

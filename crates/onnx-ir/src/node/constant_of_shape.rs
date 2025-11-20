@@ -9,7 +9,7 @@
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{
     ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorData, TensorDataExt,
@@ -20,7 +20,7 @@ use crate::processor::{
 };
 
 /// Node representation for ConstantOfShape operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ConstantOfShapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

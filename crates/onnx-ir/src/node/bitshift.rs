@@ -17,7 +17,7 @@
 //! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
 //! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -51,7 +51,7 @@ pub struct BitShiftConfig {
 }
 
 /// Node representation for BitShift operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct BitShiftNode {
     pub name: String,
     pub inputs: Vec<Argument>,

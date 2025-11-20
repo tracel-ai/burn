@@ -32,7 +32,7 @@
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -50,7 +50,7 @@ pub struct GemmConfig {
 }
 
 /// Node representation for Gemm operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct GemmNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -17,7 +17,7 @@
 //! - **Opset 11**: Added optional `steps` input for strided slicing.
 //! - **Opset 13**: Added bfloat16 and additional type support.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
@@ -34,7 +34,7 @@ pub struct SliceConfig {
 }
 
 /// Node representation for Slice operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SliceNode {
     pub name: String,
     pub inputs: Vec<Argument>,

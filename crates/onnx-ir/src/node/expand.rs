@@ -7,7 +7,7 @@
 //! ## Opset Versions
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{
     ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType,
@@ -17,7 +17,7 @@ use crate::processor::{
 };
 
 /// Node representation for Expand operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ExpandNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -11,7 +11,7 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -20,7 +20,7 @@ use crate::processor::{
 };
 
 /// Node representation for Sinh operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SinhNode {
     pub name: String,
     pub inputs: Vec<Argument>,

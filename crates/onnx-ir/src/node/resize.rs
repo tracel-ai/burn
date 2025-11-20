@@ -13,7 +13,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -118,7 +118,7 @@ impl Default for ResizeSizes {
 }
 
 /// Node representation for Resize operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ResizeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

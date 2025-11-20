@@ -25,7 +25,7 @@
 //! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -34,7 +34,7 @@ use crate::processor::{
 use core::cmp::max;
 
 /// Node representation for MatMul operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct MatMulNode {
     pub name: String,
     pub inputs: Vec<Argument>,

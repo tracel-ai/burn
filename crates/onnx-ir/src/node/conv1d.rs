@@ -9,7 +9,7 @@
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -19,7 +19,7 @@ use crate::processor::{
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
 /// Node representation for Conv1d operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct Conv1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

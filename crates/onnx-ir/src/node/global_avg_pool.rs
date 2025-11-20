@@ -6,7 +6,7 @@
 //!
 //! ## Opset Versions
 //! - **Opset 1**: Initial version
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -14,7 +14,7 @@ use crate::processor::{
 };
 
 /// Node representation for GlobalAveragePool operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct GlobalAveragePoolNode {
     pub name: String,
     pub inputs: Vec<Argument>,

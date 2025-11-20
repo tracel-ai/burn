@@ -16,7 +16,7 @@
 //! - According to spec, operator exists since opset 1
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -25,7 +25,7 @@ use crate::processor::{
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 
 /// Node representation for DepthToSpace operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct DepthToSpaceNode {
     pub name: String,
     pub inputs: Vec<Argument>,

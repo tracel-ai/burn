@@ -21,7 +21,7 @@
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -36,7 +36,7 @@ pub struct ShapeConfig {
 }
 
 /// Node representation for Shape operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ShapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

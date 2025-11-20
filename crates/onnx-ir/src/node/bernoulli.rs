@@ -7,7 +7,7 @@
 //! ## Opset Versions
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -20,7 +20,7 @@ use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
 /// Node representation for Bernoulli operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct BernoulliNode {
     pub name: String,
     pub inputs: Vec<Argument>,

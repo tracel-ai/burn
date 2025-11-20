@@ -21,7 +21,7 @@
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -38,7 +38,7 @@ pub struct InstanceNormConfig {
 }
 
 /// Node representation for InstanceNormalization operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct InstanceNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -22,7 +22,7 @@
 //! - TODO: No test for higher-rank tensors (3D, 4D) - Only 2D tensor tested
 //! - TODO: No test for positive/negative NaN variants - Some platforms distinguish signaling/quiet NaN
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -30,7 +30,7 @@ use crate::processor::{
 };
 
 /// Node representation for IsNaN operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct IsNaNNode {
     pub name: String,
     pub inputs: Vec<Argument>,

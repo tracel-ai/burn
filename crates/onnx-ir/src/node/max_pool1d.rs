@@ -24,7 +24,7 @@
 //! - TODO: No test for edge case: kernel larger than input dimension
 //! - TODO: No test validating input is 3D (N x C x L) - Lower/higher rank should be rejected
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -50,7 +50,7 @@ pub struct MaxPool1dConfig {
 }
 
 /// Node representation for MaxPool1d operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct MaxPool1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,

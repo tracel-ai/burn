@@ -19,7 +19,7 @@
 //! Location: infer_types method after validate_input_count
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
@@ -53,7 +53,7 @@ pub struct OneHotConfig {
 }
 
 /// Node representation for OneHot operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct OneHotNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -26,7 +26,7 @@ use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 /// Configuration for LeakyRelu operations
 #[derive(Debug, Clone, new)]
@@ -36,7 +36,7 @@ pub struct LeakyReluConfig {
 }
 
 /// Node representation for LeakyRelu operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct LeakyReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,

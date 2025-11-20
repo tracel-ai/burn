@@ -13,7 +13,7 @@
 //! - **Opset 6+**: Improved shape inference
 //! - **Opset 13+**: Added support for bfloat16
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -22,7 +22,7 @@ use crate::processor::{
 };
 
 /// Node representation for Sqrt operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SqrtNode {
     pub name: String,
     pub inputs: Vec<Argument>,

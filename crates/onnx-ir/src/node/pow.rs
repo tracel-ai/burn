@@ -14,7 +14,7 @@
 //! - **Opset 12-14**: Extended type support (bfloat16)
 //! - **Opset 15+**: Extended integer type support
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
@@ -23,7 +23,7 @@ use crate::processor::{
 };
 
 /// Node representation for Pow operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct PowNode {
     pub name: String,
     pub inputs: Vec<Argument>,

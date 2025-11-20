@@ -11,7 +11,7 @@
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -32,7 +32,7 @@ pub struct BatchNormConfig {
 }
 
 /// Node representation for BatchNormalization operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct BatchNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,

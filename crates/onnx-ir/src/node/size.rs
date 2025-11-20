@@ -8,7 +8,7 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder};
 use crate::processor::{
@@ -16,7 +16,7 @@ use crate::processor::{
 };
 
 /// Node representation for Size operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SizeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

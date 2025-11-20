@@ -17,7 +17,7 @@
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilder;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::Argument;
 
@@ -35,7 +35,7 @@ pub struct CastConfig {
 }
 
 /// Node representation for Cast operation
-#[derive(Debug, Clone, NodeBuilder)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct CastNode {
     pub name: String,
     pub inputs: Vec<Argument>,
