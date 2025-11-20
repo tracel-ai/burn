@@ -146,29 +146,31 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
                             let sizes_name = arg_to_ident(sizes_arg);
                             // Extract the last 2 dimensions from the shape (H, W for 2D resize)
                             quote! {
-                                let target_height = #sizes_name[2] as usize;
-                                let target_width = #sizes_name[3] as usize;
-
-                                let #output = burn::tensor::module::interpolate(
-                                    #input,
-                                    [target_height, target_width],
-                                    burn::tensor::ops::InterpolateOptions::new(#mode)
-                                );
+                                let #output = {
+                                    let target_height = #sizes_name[2] as usize;
+                                    let target_width = #sizes_name[3] as usize;
+                                    burn::tensor::module::interpolate(
+                                        #input,
+                                        [target_height, target_width],
+                                        burn::tensor::ops::InterpolateOptions::new(#mode)
+                                    )
+                                };
                             }
                         }
                         ArgType::Tensor(_) => {
                             let sizes_name = scope.arg(sizes_arg);
                             quote! {
-                                let sizes_data = #sizes_name.to_data().convert::<i64>();
-                                let sizes_array = sizes_data.as_slice::<i64>().unwrap();
-                                let target_height = sizes_array[2] as usize;
-                                let target_width = sizes_array[3] as usize;
-
-                                let #output = burn::tensor::module::interpolate(
-                                    #input,
-                                    [target_height, target_width],
-                                    burn::tensor::ops::InterpolateOptions::new(#mode)
-                                );
+                                let #output = {
+                                    let sizes_data = #sizes_name.to_data().convert::<i64>();
+                                    let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                                    let target_height = sizes_array[2] as usize;
+                                    let target_width = sizes_array[3] as usize;
+                                    burn::tensor::module::interpolate(
+                                        #input,
+                                        [target_height, target_width],
+                                        burn::tensor::ops::InterpolateOptions::new(#mode)
+                                    )
+                                };
                             }
                         }
                         _ => panic!("Runtime resize sizes must be Shape or Tensor"),
@@ -181,6 +183,377 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
 }
 
 #[cfg(test)]
+#[cfg(test)]
 mod tests {
-    // Resize node tests are complex and better tested through integration tests
+    use super::super::test_helpers::*;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{DType, RuntimeInputRef};
+    use onnx_ir::node::resize::{
+        ResizeConfig, ResizeMode, ResizeNodeBuilder, ResizeScales, ResizeSizes,
+    };
+
+    // ==================== Static Resize - Rank 3 (1D) Tests ====================
+
+    #[test]
+    fn test_resize_1d_static_sizes_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: Some(ResizeSizes::Static(vec![64])),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("upsample")
+            .input_tensor("signal", 3, DType::F32)
+            .output_tensor("upsampled", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let upsampled = self.upsample.forward(signal);");
+    }
+
+    #[test]
+    fn test_resize_1d_static_scales_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: Some(ResizeScales::Static(vec![2.0])),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("interpolate")
+            .input_tensor("audio", 3, DType::F32)
+            .output_tensor("resampled", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let resampled = self.interpolate.forward(audio);");
+    }
+
+    #[test]
+    fn test_resize_1d_static_sizes_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: None,
+            sizes: Some(ResizeSizes::Static(vec![128])),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("resize1d")
+            .input_tensor("waveform", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output = self.resize1d.forward(waveform);");
+    }
+
+    // ==================== Static Resize - Rank 4 (2D) Tests ====================
+
+    #[test]
+    fn test_resize_2d_static_sizes_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: Some(ResizeSizes::Static(vec![224, 224])),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("resize")
+            .input_tensor("image", 4, DType::F32)
+            .output_tensor("resized", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let resized = self.resize.forward(image);");
+    }
+
+    #[test]
+    fn test_resize_2d_static_sizes_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: None,
+            sizes: Some(ResizeSizes::Static(vec![512, 512])),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("upscale")
+            .input_tensor("input_img", 4, DType::F32)
+            .output_tensor("output_img", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output_img = self.upscale.forward(input_img);");
+    }
+
+    #[test]
+    fn test_resize_2d_static_sizes_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: None,
+            sizes: Some(ResizeSizes::Static(vec![128, 256])),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bicubic_resize")
+            .input_tensor("features", 4, DType::F32)
+            .output_tensor("scaled", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let scaled = self.bicubic_resize.forward(features);");
+    }
+
+    #[test]
+    fn test_resize_2d_static_scales_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: Some(ResizeScales::Static(vec![2.0, 2.0])),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("double_size")
+            .input_tensor("tensor", 4, DType::F32)
+            .output_tensor("doubled", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let doubled = self.double_size.forward(tensor);");
+    }
+
+    #[test]
+    fn test_resize_2d_static_scales_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: Some(ResizeScales::Static(vec![0.5, 0.5])),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("downsample")
+            .input_tensor("hires", 4, DType::F32)
+            .output_tensor("lores", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let lores = self.downsample.forward(hires);");
+    }
+
+    #[test]
+    fn test_resize_2d_static_scales_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: Some(ResizeScales::Static(vec![1.5, 1.5])),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("scale_up")
+            .input_tensor("data", 4, DType::F32)
+            .output_tensor("result", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let result = self.scale_up.forward(data);");
+    }
+
+    // ==================== Runtime Resize with Shape Input Tests ====================
+
+    #[test]
+    fn test_resize_runtime_shape_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: Some(ResizeSizes::Runtime(RuntimeInputRef {
+                name: "target_size".to_string(),
+                input_index: 1,
+            })),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("dynamic_resize")
+            .input_tensor("input", 4, DType::F32)
+            .input_shape("target_size")
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output = {
+                let target_height = target_size[2] as usize;
+                let target_width = target_size[3] as usize;
+                burn::tensor::module::interpolate(
+                    input,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Nearest,
+                    ),
+                )
+            };
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_shape_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: None,
+            sizes: Some(ResizeSizes::Runtime(RuntimeInputRef {
+                name: "new_dims".to_string(),
+                input_index: 1,
+            })),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bilinear_resize")
+            .input_tensor("img", 4, DType::F32)
+            .input_shape("new_dims")
+            .output_tensor("resized_img", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let resized_img = {
+                let target_height = new_dims[2] as usize;
+                let target_width = new_dims[3] as usize;
+                burn::tensor::module::interpolate(
+                    img,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bilinear,
+                    ),
+                )
+            };
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_shape_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: None,
+            sizes: Some(ResizeSizes::Runtime(RuntimeInputRef {
+                name: "output_shape".to_string(),
+                input_index: 1,
+            })),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("cubic_interp")
+            .input_tensor("source", 4, DType::F32)
+            .input_shape("output_shape")
+            .output_tensor("dest", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let dest = {
+                let target_height = output_shape[2] as usize;
+                let target_width = output_shape[3] as usize;
+                burn::tensor::module::interpolate(
+                    source,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bicubic,
+                    ),
+                )
+            };
+        ");
+    }
+
+    // ==================== Runtime Resize with Tensor Input Tests ====================
+
+    #[test]
+    fn test_resize_runtime_tensor_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: Some(ResizeSizes::Runtime(RuntimeInputRef {
+                name: "size_tensor".to_string(),
+                input_index: 1,
+            })),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("resize_op")
+            .input_tensor("x", 4, DType::F32)
+            .input_tensor("size_tensor", 1, DType::I64)
+            .output_tensor("y", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let y = {
+                let sizes_data = size_tensor.to_data().convert::<i64>();
+                let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                let target_height = sizes_array[2] as usize;
+                let target_width = sizes_array[3] as usize;
+                burn::tensor::module::interpolate(
+                    x,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Nearest,
+                    ),
+                )
+            };
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_tensor_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: None,
+            sizes: Some(ResizeSizes::Runtime(RuntimeInputRef {
+                name: "dims_tensor".to_string(),
+                input_index: 1,
+            })),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("interp2d")
+            .input_tensor("frame", 4, DType::F32)
+            .input_tensor("dims_tensor", 1, DType::I64)
+            .output_tensor("resampled_frame", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let resampled_frame = {
+                let sizes_data = dims_tensor.to_data().convert::<i64>();
+                let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                let target_height = sizes_array[2] as usize;
+                let target_width = sizes_array[3] as usize;
+                burn::tensor::module::interpolate(
+                    frame,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bilinear,
+                    ),
+                )
+            };
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_tensor_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: None,
+            sizes: Some(ResizeSizes::Runtime(RuntimeInputRef {
+                name: "target_dims".to_string(),
+                input_index: 1,
+            })),
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bicubic_op")
+            .input_tensor("input_data", 4, DType::F32)
+            .input_tensor("target_dims", 1, DType::I64)
+            .output_tensor("output_data", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let output_data = {
+                let sizes_data = target_dims.to_data().convert::<i64>();
+                let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                let target_height = sizes_array[2] as usize;
+                let target_width = sizes_array[3] as usize;
+                burn::tensor::module::interpolate(
+                    input_data,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bicubic,
+                    ),
+                )
+            };
+        ");
+    }
 }

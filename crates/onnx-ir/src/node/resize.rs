@@ -61,13 +61,30 @@ pub struct ResizeConfig {
     /// Cubic coefficient for cubic interpolation (default: -0.75)
     pub cubic_coeff_a: f32,
     /// Nearest mode rounding strategy (default: "round_prefer_floor")
-    pub nearest_mode: String,
+    pub nearest_mode: String, // TODO convert to enum
     /// Exclude outside weights (default: 0)
     pub exclude_outside: i32,
     /// Extrapolation value for tf_crop_and_resize mode (default: 0.0)
     pub extrapolation_value: f32,
     /// Antialias flag (default: 0) - opset 13+
     pub antialias: i32,
+    // FIXME add other missing fields
+}
+
+impl Default for ResizeConfig {
+    fn default() -> Self {
+        Self {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: None,
+            coordinate_transformation_mode: "half_pixel".to_string(),
+            cubic_coeff_a: -0.75,
+            nearest_mode: "round_prefer_floor".to_string(), // TODO convert to enum
+            exclude_outside: 0,
+            extrapolation_value: 0.0,
+            antialias: 0,
+        }
+    }
 }
 
 /// Represents either a static value or a runtime argument for resize scales.
@@ -321,10 +338,10 @@ impl NodeProcessor for ResizeProcessor {
                     });
                 }
                 "coordinate_transformation_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CoordinateTransformationMode::HalfPixel
                 }
                 "cubic_coeff_a" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CubicCoeffA::HalfPixel
                 }
                 "exclude_outside" => {
                     if value.clone().into_i32() != 0 {
@@ -353,9 +370,11 @@ impl NodeProcessor for ResizeProcessor {
                         });
                     }
                 }
-                "mode" => {} // Validated in extract_config
+                "mode" => {
+                    // FIXME: Implement conversion to enum
+                } // Validated in extract_config
                 "nearest_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum
                 }
                 _ => {}
             }
