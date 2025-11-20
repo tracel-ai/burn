@@ -260,6 +260,10 @@ impl GraphMemoryManagement {
             None => panic!("Node should be in the nodes map"),
         }
     }
+
+    pub(crate) fn maybe_useful(&self) -> bool {
+        self.nodes.keys().any(|node| Arc::strong_count(node) > 1)
+    }
 }
 
 /// Wrapper over hash set for fast popping of any node

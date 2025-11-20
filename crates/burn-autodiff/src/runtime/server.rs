@@ -136,4 +136,8 @@ impl AutodiffServer {
 
         grads
     }
+
+    pub(crate) fn maybe_useful(&self) -> bool {
+        self.memory_management.maybe_useful()
+    }
 }

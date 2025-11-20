@@ -8,9 +8,15 @@ use crate::{
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::sync::Arc;
-use burn_common::stub::Mutex;
+use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 use hashbrown::{HashMap, HashSet};
+
+#[cfg(feature = "std")]
+use parking_lot::{Mutex, MutexGuard};
+
+#[cfg(not(feature = "std"))]
+use spin::{Mutex, MutexGuard};
 
 /// A client for managing multiple graphs using mutex-based synchronization.
 ///
@@ -40,7 +46,6 @@ pub struct GraphLocator {
     /// This is to ensure that when merging graphs, we correctly move all previous graphs to
     /// the new merged one.
     keys: HashMap<NodeId, HashSet<NodeId>>,
-    untracked_nodes: HashSet<NodeId>,
 }
 
 /// Represents a single computation graph with a mutex-protected server.
@@ -65,7 +70,7 @@ impl core::fmt::Debug for Graph {
     }
 }
 
-static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
+static STATE: Mutex<Option<GraphLocator>> = Mutex::new(None);
 
 impl GraphMutexClient {
     /// Retrieves or creates a graph for the given [NodeId] and parent dependencies.
@@ -95,26 +100,9 @@ impl AutodiffClient for GraphMutexClient {
     fn register(&self, node_id_ref: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let node_id = *node_id_ref;
         let graph = GraphMutexClient::graph(node_id, step.parents());
-        let mut state = graph.state.lock().unwrap();
+        let mut state = graph.state.lock();
 
         state.server.register(node_id_ref, step, actions);
-    }
-
-    fn register_untracked(
-        &self,
-        node_id_ref: NodeRefCount,
-        step: StepBoxed,
-        actions: CheckpointerBuilder,
-    ) {
-        let node_id = *node_id_ref;
-        // Register normally (might be needed by tracked children, required for checkpointing)
-        self.register(node_id_ref, step, actions);
-
-        // But mark this node for cleanup after backward
-        let mut state = STATE.lock();
-        if let Some(locator) = state.as_mut() {
-            locator.mark_untracked(node_id);
-        }
     }
 
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
@@ -122,37 +110,51 @@ impl AutodiffClient for GraphMutexClient {
         let graph = GraphMutexClient::graph(root.node.id, &[]);
 
         let grads = Gradients::new::<B>(root.node, root.primitive);
-        let mut state = graph.state.lock().unwrap();
+        let grads = {
+            let mut state = graph.state.lock();
+            state.server.backward::<GraphCleaner>(grads, node_id)
+        }; // lock released
 
-        let grads = state.server.backward::<GraphCleaner>(grads, node_id);
-
-        let mut cleaner = GraphCleaner::init();
-        cleaner.cleanup_orphaned_entries();
+        GraphCleaner::cleanup_orphaned_entries();
 
         grads
     }
 }
 
 struct GraphCleaner<'a> {
-    guard: spin::MutexGuard<'a, Option<GraphLocator>>,
+    guard: MutexGuard<'a, Option<GraphLocator>>,
 }
 
 impl<'a> GraphCleaner<'a> {
-    fn cleanup_orphaned_entries(&mut self) {
-        if let Some(state) = self.guard.as_mut() {
-            // Clean untracked nodes
-            state.cleanup_untracked();
+    fn cleanup_orphaned_entries() {
+        let graphs = {
+            // Get the available graphs and release the lock
+            match STATE.lock().as_ref() {
+                Some(state) => state.graphs.clone(),
+                None => return,
+            }
+        };
 
-            // Clean unused roots
-            let graphs = state.graphs.values().fold(HashMap::new(), |mut m, g| {
-                m.entry(g.origin).or_insert_with(|| Arc::clone(g)); // deduplicate graphs by origin
-                m
-            });
-            for (_origin, graph) in graphs {
-                let mut graph_state = graph.state.lock().unwrap();
-                graph_state
-                    .server
-                    .free_unused_roots(|node| state.remove_entry(&node));
+        let mut should_remove = Vec::new();
+        for graph in graphs.values() {
+            {
+                let mut guard = graph.state.lock();
+                // Double safety: in case it was marked as no longer useful, but other
+                // nodes are still relevant, we only check which nodes can safely be removed.
+                if !guard.server.maybe_useful() {
+                    guard
+                        .server
+                        .free_unused_roots(|node| should_remove.push(*node));
+                }
+            }
+        }
+
+        if !should_remove.is_empty() {
+            let mut state = STATE.lock();
+            if let Some(state) = state.as_mut() {
+                for node in should_remove {
+                    state.graphs.remove(&node);
+                }
             }
         }
     }
@@ -243,7 +245,7 @@ impl GraphLocator {
         let main = graphs.next().expect("At least one graph");
         self.register_key(main.origin, node);
 
-        let mut state = main.state.lock().unwrap();
+        let mut state = main.state.lock();
 
         for graph in graphs {
             self.merge_two(&mut state, &main, graph);
@@ -272,7 +274,7 @@ impl GraphLocator {
 
     /// Merges two graphs by combining their states and updating graph mappings.
     fn merge_two(&mut self, main_state: &mut GraphState, main: &Arc<Graph>, merged: Arc<Graph>) {
-        let mut locked = merged.state.lock().unwrap();
+        let mut locked = merged.state.lock();
         let mut state_old = GraphState::default();
         core::mem::swap(&mut state_old, &mut locked);
         main_state.server.extend(state_old.server);
@@ -303,18 +305,6 @@ impl GraphLocator {
         self.graphs.insert(origin, graph.clone());
         self.keys.insert(origin, HashSet::new());
         graph
-    }
-
-    fn mark_untracked(&mut self, node_id: NodeId) {
-        self.untracked_nodes.insert(node_id);
-    }
-
-    /// Clean up untracked nodes.
-    fn cleanup_untracked(&mut self) {
-        let mut nodes = core::mem::take(&mut self.untracked_nodes);
-        for node in nodes.drain() {
-            self.remove_entry(&node);
-        }
     }
 
     fn remove_entry(&mut self, node: &NodeId) {
