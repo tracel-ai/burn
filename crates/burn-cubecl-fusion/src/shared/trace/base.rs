@@ -1,7 +1,7 @@
 use crate::{
     CubeFusionHandle,
     shared::{
-        ir::{Arg, FusePrecision},
+        ir::{FuseArg, FuseType},
         trace::HandleInput,
     },
 };
@@ -134,11 +134,11 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub scalars: Vec<(FusePrecision, u64)>,
+    pub scalars: Vec<(FuseType, u64)>,
     pub views: Vec<TensorView>,
-    pub indexed: BTreeMap<TensorId, Arg>,
+    pub indexed: BTreeMap<TensorId, FuseArg>,
     pub inputs_unhandled: Vec<TensorId>,
-    pub outputs_unhandled: Vec<Arg>,
+    pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
     pub dropped: HashSet<TensorId>,
 }
@@ -235,13 +235,13 @@ pub struct RegisteredTensors {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum RegisterTensor {
-    Normal(TensorIr, FusePrecision),
+    Normal(TensorIr, FuseType),
     QuantValues(TensorIr),
     QuantParams(TensorId),
 }
 
 impl RegisterTensor {
-    pub fn as_normal_tensor(&self) -> Option<(&TensorIr, &FusePrecision)> {
+    pub fn as_normal_tensor(&self) -> Option<(&TensorIr, &FuseType)> {
         match self {
             RegisterTensor::Normal(tensor_ir, precision) => Some((tensor_ir, precision)),
             RegisterTensor::QuantValues(_) => None,
@@ -302,7 +302,7 @@ impl RegisteredTensors {
     }
 
     /// Doesn't return quantized tensor.
-    pub fn get(&self, tensor_id: TensorId) -> Option<(&TensorIr, &FusePrecision)> {
+    pub fn get(&self, tensor_id: TensorId) -> Option<(&TensorIr, &FuseType)> {
         self.tensors
             .iter()
             .find(|entry| match entry {
@@ -344,7 +344,7 @@ impl RegisteredTensors {
     }
 
     /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
-    pub fn insert(&mut self, precision: FusePrecision, tensor: TensorIr) -> u32 {
+    pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> u32 {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
             _ => false,

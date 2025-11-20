@@ -1,3 +1,4 @@
+use super::DYN_ELEM_ID;
 use cubecl::{
     ir::{ElemType, Type},
     prelude::*,
@@ -5,16 +6,25 @@ use cubecl::{
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
-use super::DYN_ELEM_ID;
-
+/// Represents a global tensor with the given [element type](ElemType).
+///
+/// # Warning
+///
+/// The `tensor` field type [Line<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
+/// use.
 #[derive(CubeType, Clone)]
 pub struct GlobalTensor {
+    /// The global tensor type.
     pub tensor: Tensor<Line<NumericExpand<DYN_ELEM_ID>>>,
+    /// The element type of the tensor.
     #[cube(comptime)]
     pub elem: ElemType,
+    /// Whether the current tensor is logically broadcasted.
     #[cube(comptime)]
     pub broadcasted: bool,
 }
+
+// Everything bellow is to implement [LaunchArg].
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalTensorCompilationArg {

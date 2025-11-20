@@ -5,7 +5,7 @@ use crate::{
     CubeOptimization,
     shared::{
         builder::FuseOptimizationBuilder,
-        ir::FusePrecision,
+        ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
@@ -28,7 +28,7 @@ impl<R: Runtime> Clone for ElementWiseBuilder<R> {
 }
 
 impl<R: Runtime> ElementWiseBuilder<R> {
-    pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
+    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;

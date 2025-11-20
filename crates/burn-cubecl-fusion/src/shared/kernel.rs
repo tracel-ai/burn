@@ -14,14 +14,26 @@ use cubecl_quant::scheme::QuantMode;
 #[cube]
 /// Fuse element-wise operations at the given write position.
 ///
-/// You can start by writing some elements using `write_values` and `write_args`.
+/// # Arguments
+///
+/// - `inputs`: Contains all readonly global kernel arguments.
+/// - `outputs`: Contains all readwrite global kernel arguments.
+/// - `locals`: Contains all local variables defined during kernel expansion.
+/// - `write_pos`: The logical position the values are written to.
+/// - `write_values`: The explicit values to write at the given position.
+/// - `write_args`: The arguments associated to the `writes_values`.
+/// - `config`: The current [fuse block configuration](FuseBlockConfig).
+///
+/// # Notes
+///
+/// The function will start by writing `write_values`.
 pub fn fuse_on_write<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     write_pos: u32,
-    write_values: Registry<Arg, Line<E>>,
-    #[comptime] write_args: Sequence<Arg>,
+    write_values: Registry<FuseArg, Line<E>>,
+    #[comptime] write_args: Sequence<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) {
     // Write the values given as arguments.
@@ -38,12 +50,25 @@ pub fn fuse_on_write<E: CubePrimitive>(
 
 #[cube]
 /// Fuse element-wise operations at the given read position.
+///
+/// # Arguments
+///
+/// - `inputs`: Contains all readonly global kernel arguments.
+/// - `outputs`: Contains all readwrite global kernel arguments.
+/// - `locals`: Contains all local variables defined during kernel expansion.
+/// - `read_pos`: The logical position the values are read from.
+/// - `read_args`: The arguments associated to the `read_pos`.
+/// - `config`: The current [fuse block configuration](FuseBlockConfig).
+///
+/// # Returns
+///
+/// - A sequence of values associated to the given `read_args`.  
 pub fn fuse_on_read<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     read_pos: u32,
-    #[comptime] read_args: Sequence<Arg>,
+    #[comptime] read_args: Sequence<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) -> Sequence<Line<E>> {
     fuse(inputs, outputs, locals, read_pos, config);
@@ -82,6 +107,12 @@ pub fn fuse_on_read<E: CubePrimitive>(
 }
 
 #[cube]
+/// Initializes [LocalArgs] given the input and output [arguments](GlobalArgs) with the [FuseBlockConfig].
+///
+/// # Notes
+///
+/// The goal is to resolve and cache the reference shape and strides, as it is used in many
+/// different function during kernel expansion.
 pub fn init_locals(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -92,7 +123,7 @@ pub fn init_locals(
 
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
-            Arg::Input(index, ..) => {
+            FuseArg::Input(index, ..) => {
                 let layout = inputs.tensors.index(index);
 
                 #[unroll]
@@ -107,7 +138,7 @@ pub fn init_locals(
                     layout.tensor.line_size(),
                 )
             }
-            Arg::Output(index, ..) => {
+            FuseArg::Output(index, ..) => {
                 let layout = outputs.tensors.index(index);
 
                 #[unroll]
@@ -127,8 +158,8 @@ pub fn init_locals(
         RefLayout::Virtual(layout) => match layout {
             VirtualLayout::SwapDims(original, dims) => {
                 let layout = match comptime![original.clone()] {
-                    Arg::Input(pos, ..) => inputs.tensors.index(pos),
-                    Arg::Output(pos, ..) => outputs.tensors.index(pos),
+                    FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
+                    FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
                     _ => comptime![panic!("Unsupported")],
                 };
 
@@ -164,7 +195,7 @@ pub fn init_locals(
                 #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
                     let reverse = reverse_index(config.rank, i);
-                    let arg = comptime![Arg::ScalarShape(start + reverse)];
+                    let arg = comptime![FuseArg::ScalarShape(start + reverse)];
                     let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
 
                     ref_shape[comptime![reverse]] = shape;
@@ -177,8 +208,8 @@ pub fn init_locals(
             }
             VirtualLayout::Shape(original, line_size) => {
                 let layout = match comptime![original.clone()] {
-                    Arg::Input(pos, ..) => inputs.tensors.index(pos),
-                    Arg::Output(pos, ..) => outputs.tensors.index(pos),
+                    FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
+                    FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
                     _ => comptime![panic!("Unsupported")],
                 };
                 let mut stride_curr = 1u32;
@@ -202,6 +233,7 @@ pub fn init_locals(
 }
 
 #[cube]
+/// Expands all [operations](FuseOp) registered in the [block config](FuseBlockConfig].
 fn fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -433,22 +465,22 @@ fn gather<C: Numeric>(
     locals: &mut LocalArgs,
     write_pos: u32,
     #[comptime] dim: u32,
-    #[comptime] input: Arg,
-    #[comptime] indices: Arg,
-    #[comptime] output: Arg,
+    #[comptime] input: FuseArg,
+    #[comptime] indices: FuseArg,
+    #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
     let line_size = locals.ref_line_size;
 
     let pos_input = comptime! {
         match input {
-            Arg::Input(pos, ..) => pos,
+            FuseArg::Input(pos, ..) => pos,
             _ => panic!("Input tensor isn't an input"),
         }
     };
     let pos_indices = comptime! {
         match indices {
-            Arg::Input(pos, ..) => pos,
+            FuseArg::Input(pos, ..) => pos,
             _ => panic!("Indices tensor isn't an input"),
         }
     };
@@ -562,9 +594,9 @@ fn select_indices<C: Numeric>(
     locals: &mut LocalArgs,
     write_pos: u32,
     #[comptime] dim: u32,
-    #[comptime] input: Arg,
-    #[comptime] indices: Arg,
-    #[comptime] output: Arg,
+    #[comptime] input: FuseArg,
+    #[comptime] indices: FuseArg,
+    #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
     let (line_size_ref, stride_dim_ref, shape_dim_ref) = (
@@ -575,12 +607,12 @@ fn select_indices<C: Numeric>(
 
     let pos_input = comptime! {
         match input {
-            Arg::Input(pos, ..) => pos,
+            FuseArg::Input(pos, ..) => pos,
             _ => panic!("Input tensor isn't an input"),
         }
     };
     let pos_indices = match indices {
-        Arg::Input(pos, ..) => pos,
+        FuseArg::Input(pos, ..) => pos,
         _ => panic!("Indices tensor isn't an input"),
     };
 
@@ -717,10 +749,10 @@ fn conditional_assign<C: CubePrimitive>(
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     write_pos: u32,
-    #[comptime] cond: Arg,
-    #[comptime] lhs: Arg,
-    #[comptime] rhs: Arg,
-    #[comptime] out: Arg,
+    #[comptime] cond: FuseArg,
+    #[comptime] lhs: FuseArg,
+    #[comptime] rhs: FuseArg,
+    #[comptime] out: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
     let cond = read::<bool>(inputs, outputs, locals, write_pos, cond, config);
@@ -737,10 +769,10 @@ fn clamp<C: Numeric>(
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     write_pos: u32,
-    #[comptime] input: Arg,
-    #[comptime] min: Arg,
-    #[comptime] max: Arg,
-    #[comptime] out: Arg,
+    #[comptime] input: FuseArg,
+    #[comptime] min: FuseArg,
+    #[comptime] max: FuseArg,
+    #[comptime] out: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
     let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
@@ -758,9 +790,9 @@ fn dequantize<C: Float>(
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     write_pos: u32,
-    #[comptime] input: Arg,
-    #[comptime] scales: Arg,
-    #[comptime] output: Arg,
+    #[comptime] input: FuseArg,
+    #[comptime] scales: FuseArg,
+    #[comptime] output: FuseArg,
     #[comptime] scheme: QuantScheme,
     #[comptime] config: &FuseBlockConfig,
 ) {
@@ -795,11 +827,11 @@ fn dequantize<C: Float>(
     }]);
 
     let tensor_pos = comptime!(match input {
-        Arg::Input(pos, _, _) => pos,
+        FuseArg::Input(pos, _, _) => pos,
         _ => panic!("Not supported"),
     });
     let pos = comptime!(match scales {
-        Arg::Input(pos, ..) => pos,
+        FuseArg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
     let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(

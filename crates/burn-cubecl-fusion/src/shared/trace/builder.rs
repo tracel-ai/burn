@@ -2,7 +2,7 @@ use crate::shared::trace::block::QuantInput;
 
 use super::{
     super::{
-        ir::{Arg, FuseOp, FusePrecision, LayoutInfo},
+        ir::{FuseArg, FuseOp, FuseType, LayoutInfo},
         settings::FuseSettings,
     },
     FuseResources, RegisterTensor,
@@ -21,7 +21,7 @@ use cubecl_quant::scheme::QuantParam;
 /// delegates most of the work to the [block builder](FuseBlockBuilder).
 pub struct FuseTraceBuilder {
     settings: FuseSettings,
-    pub bool_precision: FusePrecision,
+    pub bool_precision: FuseType,
     // The tensors returned by the block that don't need to be written to global memory.
     block_current: FuseBlockBuilder,
     blocks_previous: Vec<(FuseBlockBuilder, Vec<usize>)>,
@@ -30,7 +30,7 @@ pub struct FuseTraceBuilder {
 
 impl FuseTraceBuilder {
     /// Create a new trace builder with the given bool precision and [fuse settings](FuseSettings).
-    pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
+    pub fn new(bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
             settings,
             bool_precision,
@@ -95,7 +95,7 @@ impl FuseTraceBuilder {
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
     /// It is therefore the responsibility of the operation to write the result to given tensor.
-    pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
+    pub fn output_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
         let arg = self
             .output(tensor)
             .expect("Can't add a new output that is already used in an index operation");
@@ -107,7 +107,7 @@ impl FuseTraceBuilder {
     /// Register an input tensor that won't be automatically read into a local variable.
     ///
     /// It is therefore the responsibility of the operation to read the given tensor.
-    pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
+    pub fn input_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
@@ -115,21 +115,21 @@ impl FuseTraceBuilder {
         let precision = tensor.dtype.into();
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
-            FusePrecision::Bool => self.bool_precision,
+            FuseType::Bool => self.bool_precision,
             _ => precision,
         };
         let new_input = self
             .resources
             .inputs
             .insert(precision_input, tensor.clone());
-        let arg = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+        let arg = FuseArg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
         self.resources.inputs_unhandled.push(tensor.id);
         arg
     }
 
     /// Register an input tensor.
-    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(Arg, Arg)> {
+    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(FuseArg, FuseArg)> {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
@@ -137,9 +137,9 @@ impl FuseTraceBuilder {
         let precision = tensor.dtype.into();
         let precision_scales = match tensor.dtype {
             DType::QFloat(scheme) => match scheme.param {
-                QuantParam::F32 => FusePrecision::F32,
-                QuantParam::F16 => FusePrecision::F16,
-                QuantParam::BF16 => FusePrecision::BF16,
+                QuantParam::F32 => FuseType::F32,
+                QuantParam::F16 => FuseType::F16,
+                QuantParam::BF16 => FuseType::BF16,
                 QuantParam::UE8M0 | QuantParam::UE4M3 => {
                     unimplemented!("Unsupported fuse precision");
                 }
@@ -148,15 +148,15 @@ impl FuseTraceBuilder {
         };
 
         let (new_input, q_index) = self.resources.inputs.insert_quant(tensor.clone());
-        let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
-        let scales = Arg::Input(q_index, precision_scales, LayoutInfo::Unknown);
+        let input = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);
+        let scales = FuseArg::Input(q_index, precision_scales, LayoutInfo::Unknown);
 
         self.resources.inputs_unhandled.push(tensor.id);
         Some((input, scales))
     }
 
     /// Register an input tensor.
-    pub fn input(&mut self, tensor: &TensorIr) -> Option<Arg> {
+    pub fn input(&mut self, tensor: &TensorIr) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
@@ -170,7 +170,7 @@ impl FuseTraceBuilder {
     }
 
     /// Register an output tensor.
-    pub fn output(&mut self, tensor: &TensorIr) -> Option<Arg> {
+    pub fn output(&mut self, tensor: &TensorIr) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
@@ -178,7 +178,7 @@ impl FuseTraceBuilder {
     }
 
     /// Register an input that will be accessed using custom indexing with no vectorization.
-    pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
+    pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
@@ -207,7 +207,7 @@ impl FuseTraceBuilder {
         tensor: &TensorIr,
         output: &TensorIr,
         dims: (u32, u32),
-    ) -> Option<Arg> {
+    ) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
@@ -216,7 +216,7 @@ impl FuseTraceBuilder {
     }
 
     /// Register an input that is reshaped.
-    pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<Arg> {
+    pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
@@ -226,7 +226,7 @@ impl FuseTraceBuilder {
     }
 
     /// Register a scalar value.
-    pub fn scalar(&mut self, elem: &ScalarIr, dtype: DType) -> Arg {
+    pub fn scalar(&mut self, elem: &ScalarIr, dtype: DType) -> FuseArg {
         let precision = dtype.into();
         let id = if let ScalarIr::U64(value) = elem {
             ScalarId { value: *value }
@@ -236,13 +236,13 @@ impl FuseTraceBuilder {
 
         // Bool scalars are encoded as bool_precision.
         let precision = match precision {
-            FusePrecision::Bool => self.bool_precision,
+            FuseType::Bool => self.bool_precision,
             _ => precision,
         };
         let new_index = self.resources.scalars.len() as u32;
 
         self.resources.scalars.push((precision, id.value));
-        Arg::Scalar(new_index, precision)
+        FuseArg::Scalar(new_index, precision)
     }
 
     /// Build into a trace.

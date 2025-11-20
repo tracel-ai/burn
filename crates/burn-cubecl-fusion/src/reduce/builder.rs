@@ -7,7 +7,7 @@ use crate::{
     CubeOptimization,
     shared::{
         builder::FuseOptimizationBuilder,
-        ir::FusePrecision,
+        ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
@@ -38,7 +38,7 @@ impl<R: Runtime> Clone for ReduceBuilder<R> {
 }
 
 impl<R: Runtime> ReduceBuilder<R> {
-    pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
+    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
@@ -101,9 +101,9 @@ impl<R: Runtime> ReduceBuilder<R> {
         let acc = match inst {
             ReduceInstruction::Mean | ReduceInstruction::Prod | ReduceInstruction::Sum => {
                 match input.precision() {
-                    FusePrecision::F16 | FusePrecision::BF16 => FusePrecision::F32,
-                    FusePrecision::I16 | FusePrecision::I8 => FusePrecision::I32,
-                    FusePrecision::U16 | FusePrecision::U8 => FusePrecision::U32,
+                    FuseType::F16 | FuseType::BF16 => FuseType::F32,
+                    FuseType::I16 | FuseType::I8 => FuseType::I32,
+                    FuseType::U16 | FuseType::U8 => FuseType::U32,
                     _ => input.precision(),
                 }
             }

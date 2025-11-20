@@ -1,7 +1,7 @@
 use super::{block::FuseBlock, vectorization::Vect};
 use crate::{
     CubeFusionHandle,
-    shared::ir::{Arg, FuseOp, FusePrecision},
+    shared::ir::{FuseArg, FuseOp, FuseType},
 };
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
@@ -50,19 +50,19 @@ pub enum ReferenceSelection {
     Searching,
     NotFound,
     Concrete {
-        layout: Arg,
+        layout: FuseArg,
         shape: Vec<usize>,
         strides: Vec<usize>,
     },
     SwapDims {
-        original: Arg,
+        original: FuseArg,
         dims: (u32, u32),
     },
     Reshaped {
         reshape_pos: usize,
     },
     VirtualShape {
-        original: Arg,
+        original: FuseArg,
         shape: Vec<usize>,
         strides: Vec<usize>,
     },
@@ -124,14 +124,14 @@ pub struct HandleOutputAliasDebugInfo<R: Runtime> {
 pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,
-        precision: FusePrecision,
+        precision: FuseType,
         #[cfg(feature = "autotune-checks")]
         debug_info: HandleOutputAliasDebugInfo<R>,
     },
     Owned {
         global_id: TensorId,
         relative_id: TensorId,
-        precision: FusePrecision,
+        precision: FuseType,
         handle: CubeFusionHandle<R>,
         global_shape: Vec<usize>,
         vectorization: u8,
@@ -142,7 +142,7 @@ pub enum HandleOutput<R: Runtime> {
 pub struct NormalHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
-    pub precision: FusePrecision,
+    pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
     pub vectorization: u8,
     pub broadcated: bool,
@@ -154,14 +154,14 @@ pub struct NormalHandleInput<R: Runtime> {
 pub struct QuantValuesHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
-    pub precision: FusePrecision,
+    pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
     pub vectorization: u8,
 }
 
 #[derive(Debug)]
 pub struct QuantParamsHandleInput<R: Runtime> {
-    pub precision: FusePrecision,
+    pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
     pub shape: Vec<usize>,
 }
@@ -186,7 +186,7 @@ impl<R: Runtime> NormalHandleInput<R> {
     pub fn new(
         tensor_global: TensorIr,
         tensor_relative: &TensorIr,
-        precision: FusePrecision,
+        precision: FuseType,
         mut handle: CubeFusionHandle<R>,
         mut strides: Vec<usize>,
     ) -> Self {

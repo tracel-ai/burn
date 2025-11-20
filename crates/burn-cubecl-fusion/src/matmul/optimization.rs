@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::matmul::args::FusedMatmulArgs;
-use crate::shared::ir::FusePrecision;
+use crate::shared::ir::FuseType;
 use crate::shared::ir::RefLayout;
 use crate::shared::trace::HandleInput;
 use crate::shared::trace::LaunchPlan;
@@ -38,7 +38,7 @@ use cubecl::{client::ComputeClient, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
     trace::{FuseTrace, TraceRunner},
 };
 
@@ -324,7 +324,7 @@ impl Default for FusedMatmulSelector {
 pub struct FusedMatmul {
     lhs: MatmulArg,
     rhs: MatmulArg,
-    out: Arg,
+    out: FuseArg,
     pub(crate) op: BinaryOpIr,
     pub(crate) selector: FusedMatmulSelector,
 }
@@ -479,8 +479,8 @@ impl FusedMatmul {
             rhs: inputs.line_size(self.rhs.data()),
             out: match &config.ref_layout {
                 RefLayout::Concrete(arg) => match arg {
-                    Arg::Input(..) => inputs.line_size(arg),
-                    Arg::Output(..) => outputs.line_size(arg),
+                    FuseArg::Input(..) => inputs.line_size(arg),
+                    FuseArg::Output(..) => outputs.line_size(arg),
                     _ => panic!("Invalid ref layout"),
                 },
                 RefLayout::Virtual(_) => 1,
@@ -570,7 +570,7 @@ impl FusedMatmul {
             }),
             FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
                 let row_count = match self.lhs.precision() {
-                    FusePrecision::F16 | FusePrecision::BF16 => 8,
+                    FuseType::F16 | FuseType::BF16 => 8,
                     _ => 4,
                 };
 

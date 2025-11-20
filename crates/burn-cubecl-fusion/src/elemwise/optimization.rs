@@ -9,7 +9,7 @@ use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prel
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
     trace::{FuseTrace, TraceRunner},
 };
 
@@ -85,8 +85,8 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         let config = &configs[0];
         let shape = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
-                Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
-                Arg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
+                FuseArg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+                FuseArg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
                 _ => panic!("Invalid concreate ref layout"),
             },
             RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
@@ -117,8 +117,8 @@ fn elemwise_fuse(
     #[comptime] config: &FuseBlockConfig,
 ) {
     // We write no values for this fusion.
-    let values = Registry::<Arg, Line<f32>>::new();
-    let args = comptime![Sequence::<Arg>::new()];
+    let values = Registry::<FuseArg, Line<f32>>::new();
+    let args = comptime![Sequence::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
 
     let mut locals = init_locals(inputs, outputs, config);

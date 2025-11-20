@@ -6,7 +6,7 @@ use cubecl::Runtime;
 use crate::{
     CubeOptimization,
     matmul::args::MatmulArg,
-    shared::{builder::FuseOptimizationBuilder, ir::FusePrecision, settings::FuseSettings},
+    shared::{builder::FuseOptimizationBuilder, ir::FuseType, settings::FuseSettings},
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
@@ -31,7 +31,7 @@ impl<R: Runtime> Clone for MatmulBuilder<R> {
 }
 
 impl<R: Runtime> MatmulBuilder<R> {
-    pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
+    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;

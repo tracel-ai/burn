@@ -5,7 +5,7 @@ use super::{
 use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
-        ir::{FuseBlockConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
+        ir::{FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch, RefLayout, VirtualLayout},
         tensor::GlobalTensorArg,
         trace::HandleInput,
     },
@@ -217,9 +217,9 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 let arg = handle.as_tensor_arg(global_shape, *vectorization);
 
                 let elem = match precision {
-                    FusePrecision::Bool => match elem_dtype::<BT>() {
-                        DType::U32 => FusePrecision::U32.into_elem(),
-                        DType::U8 => FusePrecision::U8.into_elem(),
+                    FuseType::Bool => match elem_dtype::<BT>() {
+                        DType::U32 => FuseType::U32.into_elem(),
+                        DType::U8 => FuseType::U8.into_elem(),
                         _ => todo!(),
                     },
                     _ => precision.into_elem(),
@@ -237,14 +237,14 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
 }
 
 fn register_scalars<'h, R: Runtime>(
-    scalars: impl Iterator<Item = &'h (FusePrecision, u64)>,
+    scalars: impl Iterator<Item = &'h (FuseType, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<'_, CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
     for (precision, id) in scalars {
         match precision {
-            FusePrecision::F64 => {
+            FuseType::F64 => {
                 inputs.scalars.push(InputScalar::F64(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::F64(val)) => *val,
@@ -252,7 +252,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::F32 | FusePrecision::Flex32 => {
+            FuseType::F32 | FuseType::Flex32 => {
                 inputs.scalars.push(InputScalar::F32(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::F32(val)) => *val,
@@ -260,7 +260,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::F16 => {
+            FuseType::F16 => {
                 inputs.scalars.push(InputScalar::F16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::F16(val)) => *val,
@@ -268,7 +268,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::BF16 => {
+            FuseType::BF16 => {
                 inputs.scalars.push(InputScalar::BF16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::BF16(val)) => *val,
@@ -276,7 +276,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::I64 => {
+            FuseType::I64 => {
                 inputs.scalars.push(InputScalar::I64(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I64(val)) => *val,
@@ -284,7 +284,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::I32 => {
+            FuseType::I32 => {
                 inputs.scalars.push(InputScalar::I32(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I32(val)) => *val,
@@ -292,7 +292,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::I16 => {
+            FuseType::I16 => {
                 inputs.scalars.push(InputScalar::I16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I16(val)) => *val,
@@ -300,7 +300,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::I8 => {
+            FuseType::I8 => {
                 inputs.scalars.push(InputScalar::I8(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::I8(val)) => *val,
@@ -308,7 +308,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::U64 => {
+            FuseType::U64 => {
                 inputs.scalars.push(InputScalar::U64(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U64(val)) => *val,
@@ -316,7 +316,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::U32 => {
+            FuseType::U32 => {
                 inputs.scalars.push(InputScalar::U32(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U32(val)) => *val,
@@ -324,7 +324,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::U16 => {
+            FuseType::U16 => {
                 inputs.scalars.push(InputScalar::U16(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U16(val)) => *val,
@@ -332,7 +332,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::U8 => {
+            FuseType::U8 => {
                 inputs.scalars.push(InputScalar::U8(
                     match context.scalars.get(&ScalarId { value: *id }) {
                         Some(ScalarIr::U8(val)) => *val,
@@ -340,7 +340,7 @@ fn register_scalars<'h, R: Runtime>(
                     },
                 ));
             }
-            FusePrecision::Bool => todo!(),
+            FuseType::Bool => todo!(),
         }
     }
 

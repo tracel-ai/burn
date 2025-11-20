@@ -21,11 +21,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::reduce::args::FusedReduceArgs;
-use crate::shared::ir::{FusePrecision, RefLayout};
+use crate::shared::ir::{FuseType, RefLayout};
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
-    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
     trace::FuseTrace,
 };
 use crate::{CubeFusionHandle, FallbackOperation};
@@ -96,9 +96,9 @@ impl core::fmt::Debug for ReduceOptimizationState {
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
 pub struct FusedReduce {
-    input: Arg,
-    output: Arg,
-    pub(crate) acc: FusePrecision,
+    input: FuseArg,
+    output: FuseArg,
+    pub(crate) acc: FuseType,
     pub(crate) axis: usize,
     pub(crate) op: ReduceDimOpIr,
     strategy: ReduceStrategy,
@@ -335,7 +335,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
 
         let strategy = self.strategy;
         let shape = match &config_read.ref_layout {
-            RefLayout::Concrete(Arg::Output(..)) => {
+            RefLayout::Concrete(FuseArg::Output(..)) => {
                 outputs.shape_ref(&config_read.ref_layout, config_read.rank as usize)
             }
             _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
@@ -409,8 +409,8 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     config_reduce: ReduceConfig,
     config_fuse_read: FuseBlockConfig,
     config_fuse_write: FuseBlockConfig,
-    input: Arg,
-    output: Arg,
+    input: FuseArg,
+    output: FuseArg,
 }
 
 fn launch_reduce_mixed_precision<Run: Runtime>(

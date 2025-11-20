@@ -18,7 +18,7 @@ use crate::shared::{
         Transform, global_buffer_len, global_line_size, input_as_slice, read_input,
         read_input_window, ref_buffer_len, ref_len,
     },
-    ir::{Arg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
     kernel::fuse_on_write,
 };
 
@@ -44,12 +44,12 @@ impl GlobalInput {
     pub fn new(
         inputs: &GlobalArgs,
         locals: &LocalArgs,
-        #[comptime] arg: Arg,
+        #[comptime] arg: FuseArg,
         #[comptime] config: FuseBlockConfig,
         #[comptime] transform: Option<Transform>,
     ) -> GlobalInput {
         let (pos, ty, layout) = comptime![match arg {
-            Arg::Input(pos, prec, layout) => (pos, prec.into_type(), layout),
+            FuseArg::Input(pos, prec, layout) => (pos, prec.into_type(), layout),
             _ => unreachable!("Must be concrete input"),
         }];
 
@@ -180,7 +180,7 @@ pub struct FusedOutput {
     inputs: GlobalArgs,
     outputs: GlobalArgs,
     locals: LocalArgs,
-    arg: Arg,
+    arg: FuseArg,
     #[cube(comptime)]
     config: FuseBlockConfig,
 }
@@ -191,7 +191,7 @@ impl FusedOutput {
         inputs: &GlobalArgs,
         outputs: &mut GlobalArgs,
         locals: &mut LocalArgs,
-        arg: Arg,
+        arg: FuseArg,
         #[comptime] config: FuseBlockConfig,
     ) -> Self {
         FusedOutput {
@@ -309,8 +309,8 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
         pos: ExpandElementTyped<u32>,
         value: <Line<E> as CubeType>::ExpandType,
     ) {
-        let values = Registry::<Arg, Line<E>>::__expand_new(scope);
-        let mut args = comptime![Sequence::<Arg>::new()];
+        let values = Registry::<FuseArg, Line<E>>::__expand_new(scope);
+        let mut args = comptime![Sequence::<FuseArg>::new()];
 
         values
             .clone()

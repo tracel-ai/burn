@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::shared::{
     io::ref_line_size,
-    ir::{Arg, FuseBlockConfig, FusePrecision, GlobalArgs, LocalArgs},
+    ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs},
     kernel::init_locals,
     view::{FusedOutput, GlobalInput, GlobalInputExpand},
 };
@@ -51,7 +51,7 @@ pub struct FusedMatmulInput {
     #[cube(comptime)]
     c: Option<MatmulArg>,
     #[cube(comptime)]
-    out: Arg,
+    out: FuseArg,
 }
 
 #[cube]
@@ -242,7 +242,7 @@ fn global_view<E: Numeric>(
     let rank = comptime![config.rank];
     let data = comptime![arg.data().clone()];
     let data_tensor = match comptime![data.clone()] {
-        Arg::Input(pos, ..) => inputs.tensors.index(pos),
+        FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
         _ => panic!("Input must be concrete"),
     };
 
@@ -333,7 +333,7 @@ fn input_batch_layout(
     match comptime![arg.clone()] {
         MatmulArg::Normal(arg) => {
             let data_tensor = match comptime![arg.clone()] {
-                Arg::Input(pos, ..) => inputs.tensors.index(pos),
+                FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                 _ => panic!("Input must be concrete"),
             };
 
@@ -356,7 +356,7 @@ fn global_layout(
     inputs: &GlobalArgs,
     shape: Coords2d,
     batch_layout: VirtualLayout<u32, u32>,
-    #[comptime] arg: Arg,
+    #[comptime] arg: FuseArg,
     #[comptime] config: FuseBlockConfig,
     #[comptime] line_size: u32,
     #[comptime] layout_config: GlobalLayoutConfig,
@@ -364,7 +364,7 @@ fn global_layout(
 ) -> GlobalLayout {
     let rank = comptime![config.rank];
     let data_tensor = match comptime![arg.clone()] {
-        Arg::Input(pos, ..) => inputs.tensors.index(pos),
+        FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
         _ => panic!("Input must be concrete"),
     };
 
@@ -466,7 +466,7 @@ pub struct FusedMatmulState {
     #[cube(comptime)]
     c: Option<MatmulArg>,
     #[cube(comptime)]
-    out: Arg,
+    out: FuseArg,
     #[cube(comptime)]
     lhs_layout_config: GlobalLayoutConfig,
     #[cube(comptime)]
@@ -517,17 +517,17 @@ impl FusedMatmulState {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to a matmul operation.
 pub enum MatmulArg {
-    Normal(Arg),
+    Normal(FuseArg),
     Quantized {
-        data: Arg,
-        scales: Arg,
-        precision: FusePrecision,
+        data: FuseArg,
+        scales: FuseArg,
+        precision: FuseType,
         scheme: QuantScheme,
     },
 }
 
 impl MatmulArg {
-    pub fn data(&self) -> &Arg {
+    pub fn data(&self) -> &FuseArg {
         match self {
             MatmulArg::Normal(arg) => arg,
             MatmulArg::Quantized { data, .. } => data,
@@ -541,7 +541,7 @@ impl MatmulArg {
         }
     }
 
-    pub fn precision(&self) -> FusePrecision {
+    pub fn precision(&self) -> FuseType {
         match self {
             MatmulArg::Normal(arg) => arg.precision(),
             MatmulArg::Quantized { precision, .. } => *precision,

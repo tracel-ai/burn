@@ -1,5 +1,5 @@
 use crate::shared::{
-    ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, LayoutInfo, UnaryFuseArgs},
+    ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
@@ -39,10 +39,10 @@ pub struct FuseBlockBuilder {
     locals: LocalVariablePool,
     pub ops: Vec<FuseOp>,
     reads: BTreeMap<TensorId, Vec<FuseOp>>,
-    bool_precision: FusePrecision,
+    bool_precision: FuseType,
     // Output declared in this block alone.
     outputs: RegisteredTensors,
-    pub outputs_unhandled: Vec<Arg>,
+    pub outputs_unhandled: Vec<FuseArg>,
     pub local_outputs: Vec<TensorId>,
 }
 
@@ -51,13 +51,13 @@ pub struct FuseBlockBuilder {
 pub enum QuantInput {
     /// If already dequantized, we cache the dequantization and returns the local variable
     /// corresponding to the float value.
-    AlreadyDequantized { local: Arg },
+    AlreadyDequantized { local: FuseArg },
     /// Otherwise we return the information necessary to dequantize the tensor.
-    Quantized { values: Arg, params: Arg },
+    Quantized { values: FuseArg, params: FuseArg },
 }
 
 impl FuseBlockBuilder {
-    pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
+    pub fn new(bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
             bool_precision,
             settings,
@@ -71,7 +71,7 @@ impl FuseBlockBuilder {
     }
 
     /// Register an output tensor.
-    pub fn output(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<Arg> {
+    pub fn output(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<FuseArg> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
@@ -82,7 +82,7 @@ impl FuseBlockBuilder {
 
         // Bool tensors are encoded as bool_precision.
         let precision_output = match precision {
-            FusePrecision::Bool => self.bool_precision,
+            FuseType::Bool => self.bool_precision,
             _ => precision,
         };
 
@@ -102,7 +102,7 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
-    pub fn input(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<Arg> {
+    pub fn input(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<FuseArg> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
@@ -114,7 +114,7 @@ impl FuseBlockBuilder {
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
-            FusePrecision::Bool => self.bool_precision,
+            FuseType::Bool => self.bool_precision,
             _ => precision,
         };
 
@@ -136,7 +136,7 @@ impl FuseBlockBuilder {
                     resources.inputs.insert(precision_input, tensor.clone())
                 };
                 let out = self.locals.create(precision, tensor.id);
-                let input = Arg::Input(pos, precision_input, LayoutInfo::Unknown);
+                let input = FuseArg::Input(pos, precision_input, LayoutInfo::Unknown);
 
                 let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
                     e.insert(Vec::with_capacity(1));
@@ -170,9 +170,9 @@ impl FuseBlockBuilder {
         let precision = tensor.dtype.into();
         let precision_scales = match tensor.dtype {
             DType::QFloat(scheme) => match scheme.param {
-                QuantParam::F32 => FusePrecision::F32,
-                QuantParam::F16 => FusePrecision::F16,
-                QuantParam::BF16 => FusePrecision::BF16,
+                QuantParam::F32 => FuseType::F32,
+                QuantParam::F16 => FuseType::F16,
+                QuantParam::BF16 => FuseType::BF16,
                 QuantParam::UE8M0 | QuantParam::UE4M3 => {
                     unimplemented!("Unsupported fuse precision");
                 }
@@ -187,8 +187,8 @@ impl FuseBlockBuilder {
             }
             None => {
                 let (new_input, q_index) = resources.inputs.insert_quant(tensor.clone());
-                let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
-                let scales = Arg::Input(q_index, precision_scales, LayoutInfo::Unknown);
+                let input = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);
+                let scales = FuseArg::Input(q_index, precision_scales, LayoutInfo::Unknown);
 
                 // Important to flag that there is a read, even if no operation is registered.
                 if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
@@ -212,7 +212,7 @@ impl FuseBlockBuilder {
         output: &TensorIr,
         dims: (u32, u32),
         resources: &mut FuseResources,
-    ) -> Option<Arg> {
+    ) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(..)) {
             return None;
         }
@@ -220,7 +220,7 @@ impl FuseBlockBuilder {
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
-            FusePrecision::Bool => self.bool_precision,
+            FuseType::Bool => self.bool_precision,
             _ => precision,
         };
 
@@ -245,7 +245,7 @@ impl FuseBlockBuilder {
         };
 
         let out = self.output(output, resources)?;
-        let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
+        let original = FuseArg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
         let broadcasted = output.shape[output.shape.rank() - 1] == 0;
 
@@ -255,7 +255,7 @@ impl FuseBlockBuilder {
             dims,
         });
 
-        let input = Arg::InputSwapDims {
+        let input = FuseArg::InputSwapDims {
             original: Box::new(original),
             dims,
             broadcasted,
@@ -282,7 +282,7 @@ impl FuseBlockBuilder {
         tensor: &TensorIr,
         output: &TensorIr,
         resources: &mut FuseResources,
-    ) -> Option<Arg> {
+    ) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(..)) {
             return None;
         }
@@ -290,7 +290,7 @@ impl FuseBlockBuilder {
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
-            FusePrecision::Bool => self.bool_precision,
+            FuseType::Bool => self.bool_precision,
             _ => precision,
         };
 
@@ -315,7 +315,7 @@ impl FuseBlockBuilder {
         };
 
         let out = self.output(output, resources)?;
-        let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
+        let original = FuseArg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
         let mut shape = Sequence::new();
 
@@ -326,7 +326,7 @@ impl FuseBlockBuilder {
 
         for i in 0..output.shape.rank() {
             let id = index * rank + i;
-            shape.push(Arg::ScalarShape(id as u32));
+            shape.push(FuseArg::ScalarShape(id as u32));
         }
 
         resources.views.push(TensorView::Reshape {
@@ -336,7 +336,7 @@ impl FuseBlockBuilder {
             shape_relative: output.shape.dims.clone(),
         });
 
-        let input = Arg::InputReshaped {
+        let input = FuseArg::InputReshaped {
             original: Box::new(original),
             shape,
             broadcasted: output.shape[rank - 1] == 0,
@@ -381,7 +381,7 @@ impl FuseBlockBuilder {
                     tensor.id,
                     FuseOp::Assign(UnaryFuseArgs {
                         input: local,
-                        out: Arg::Output(
+                        out: FuseArg::Output(
                             out_index + offset as u32,
                             *precision,
                             LayoutInfo::Unknown,
@@ -417,13 +417,13 @@ impl FuseBlockBuilder {
         // Mark a variable to the provided list of tensor ids using the variable list.
         //
         // Only local variables can become outputs.
-        let mark = |var: &Arg, list: &mut Vec<(TensorId, FusePrecision)>| {
-            if let Arg::Local(index, precision) = var
+        let mark = |var: &FuseArg, list: &mut Vec<(TensorId, FuseType)>| {
+            if let FuseArg::Local(index, precision) = var
                 && let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index)
             {
                 // Input and outputs tensors are using bool_precision for booleans.
                 let precision = match precision {
-                    FusePrecision::Bool => self.bool_precision,
+                    FuseType::Bool => self.bool_precision,
                     _ => *precision,
                 };
 
@@ -435,15 +435,15 @@ impl FuseBlockBuilder {
         };
 
         let mark_binary = |op: &BinaryFuseArgs,
-                           inputs: &mut Vec<(TensorId, FusePrecision)>,
-                           outputs: &mut Vec<(TensorId, FusePrecision)>| {
+                           inputs: &mut Vec<(TensorId, FuseType)>,
+                           outputs: &mut Vec<(TensorId, FuseType)>| {
             mark(&op.lhs, inputs);
             mark(&op.rhs, inputs);
             mark(&op.out, outputs);
         };
         let mark_unary = |op: &UnaryFuseArgs,
-                          inputs: &mut Vec<(TensorId, FusePrecision)>,
-                          outputs: &mut Vec<(TensorId, FusePrecision)>| {
+                          inputs: &mut Vec<(TensorId, FuseType)>,
+                          outputs: &mut Vec<(TensorId, FuseType)>| {
             mark(&op.input, inputs);
             mark(&op.out, outputs);
         };
@@ -657,31 +657,31 @@ impl FuseBlockBuilder {
 
 #[derive(Default, Clone, Debug)]
 struct LocalVariablePool {
-    values: BTreeMap<FusePrecision, BTreeMap<TensorId, u32>>,
+    values: BTreeMap<FuseType, BTreeMap<TensorId, u32>>,
 }
 
 impl LocalVariablePool {
-    fn get(&self, precision: FusePrecision, tensor_id: TensorId) -> Option<Arg> {
+    fn get(&self, precision: FuseType, tensor_id: TensorId) -> Option<FuseArg> {
         if let Some(indexes) = self.values.get(&precision)
             && let Some(index) = indexes.get(&tensor_id)
         {
-            return Some(Arg::Local(*index, precision));
+            return Some(FuseArg::Local(*index, precision));
         }
 
         None
     }
 
-    fn get_any_precision(&self, tensor_id: TensorId) -> Option<Arg> {
+    fn get_any_precision(&self, tensor_id: TensorId) -> Option<FuseArg> {
         for (precision, indexes) in self.values.iter() {
             if let Some(index) = indexes.get(&tensor_id) {
-                return Some(Arg::Local(*index, *precision));
+                return Some(FuseArg::Local(*index, *precision));
             }
         }
 
         None
     }
 
-    fn find_tensor_id(&self, precision: FusePrecision, position: u32) -> Option<TensorId> {
+    fn find_tensor_id(&self, precision: FuseType, position: u32) -> Option<TensorId> {
         if let Some(indexes) = self.values.get(&precision) {
             indexes
                 .iter()
@@ -692,17 +692,17 @@ impl LocalVariablePool {
         }
     }
 
-    fn create(&mut self, precision: FusePrecision, tensor_id: TensorId) -> Arg {
+    fn create(&mut self, precision: FuseType, tensor_id: TensorId) -> FuseArg {
         if let Some(indexes) = self.values.get_mut(&precision) {
             let new_index = indexes.len() as u32;
             indexes.insert(tensor_id, new_index);
-            return Arg::Local(new_index, precision);
+            return FuseArg::Local(new_index, precision);
         }
 
         let new_index = 0;
         self.values
             .insert(precision, BTreeMap::from_iter([(tensor_id, new_index)]));
 
-        Arg::Local(new_index, precision)
+        FuseArg::Local(new_index, precision)
     }
 }

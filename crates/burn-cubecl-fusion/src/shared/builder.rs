@@ -1,5 +1,5 @@
 use super::{
-    ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, UnaryFuseArgs},
+    ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, UnaryFuseArgs},
     settings::FuseSettings,
     trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
 };
@@ -143,7 +143,7 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
 
 impl FuseOptimizationBuilder {
     /// Creates a new builder.
-    pub fn new(max_bindings: u32, bool_precision: FusePrecision, settings: FuseSettings) -> Self {
+    pub fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
             builder: TryFuseBuilder::new(max_bindings, bool_precision, settings),
             settings,
@@ -165,7 +165,7 @@ impl FuseOptimizationBuilder {
     /// # Returns
     ///
     /// - The argument that maps to the tensor to be used during kernel expansion.
-    pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
+    pub fn input_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
         self.builder.builder.input_unhandled(tensor)
     }
 
@@ -177,7 +177,7 @@ impl FuseOptimizationBuilder {
     ///
     /// - The argument that maps to the tensor values to be used during kernel expansion.
     /// - The argument that maps to the tensor params to be used during kernel expansion.
-    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(Arg, Arg)> {
+    pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(FuseArg, FuseArg)> {
         self.builder.builder.input_quantized_unhandled(tensor)
     }
 
@@ -191,7 +191,7 @@ impl FuseOptimizationBuilder {
     /// # Returns
     ///
     /// - The argument that maps to the tensor to be used during kernel expansion.
-    pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
+    pub fn output_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
         if self.current_output_shape.is_empty() {
             self.current_output_shape = tensor.shape.dims.clone();
         } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
@@ -218,7 +218,7 @@ impl FuseOptimizationBuilder {
         &mut self,
         arguments: [&TensorIr; N],
         settings: FuseSettings,
-    ) -> Option<[Arg; N]> {
+    ) -> Option<[FuseArg; N]> {
         let mut is_success = true;
         let args = arguments.map(|arg| {
             // We need to register the argument as input in the current block so that we retrieve
@@ -317,7 +317,7 @@ impl FuseOptimizationBuilder {
 
                 let elem: ElemType = desc.out.dtype.into();
                 let precision = elem.into();
-                let input = Arg::Literal(1, precision);
+                let input = FuseArg::Literal(1, precision);
 
                 self.builder.register(|build| {
                     let out = build.output(&desc.out)?;
@@ -334,7 +334,7 @@ impl FuseOptimizationBuilder {
 
                 let elem: ElemType = desc.out.dtype.into();
                 let precision = elem.into();
-                let input = Arg::Literal(0, precision);
+                let input = FuseArg::Literal(0, precision);
 
                 self.builder.register(|build| {
                     let out = build.output(&desc.out)?;
@@ -611,7 +611,7 @@ impl FuseOptimizationBuilder {
 
     fn register_binary_ops<Func>(&mut self, desc: &BinaryOpIr, func: Func) -> bool
     where
-        Func: Fn(Arg, Arg, Arg) -> FuseOp,
+        Func: Fn(FuseArg, FuseArg, FuseArg) -> FuseOp,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -630,14 +630,14 @@ impl FuseOptimizationBuilder {
 
     fn register_unary_ops<Func>(&mut self, desc: &UnaryOpIr, func: Func) -> bool
     where
-        Func: Fn(Arg, Arg) -> FuseOp,
+        Func: Fn(FuseArg, FuseArg) -> FuseOp,
     {
         self.register_unary_op(&desc.input, &desc.out, func)
     }
 
     fn register_unary_op<Func>(&mut self, input: &TensorIr, out: &TensorIr, func: Func) -> bool
     where
-        Func: Fn(Arg, Arg) -> FuseOp,
+        Func: Fn(FuseArg, FuseArg) -> FuseOp,
     {
         if !self.output_is_compatible(out) {
             return false;
@@ -653,7 +653,7 @@ impl FuseOptimizationBuilder {
 
     fn register_scalar_ops<Func>(&mut self, desc: &ScalarOpIr, func: Func) -> bool
     where
-        Func: Fn(Arg, Arg, Arg) -> FuseOp,
+        Func: Fn(FuseArg, FuseArg, FuseArg) -> FuseOp,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -739,7 +739,7 @@ struct TryFuseBuilder {
 }
 
 impl TryFuseBuilder {
-    fn new(max_bindings: u32, bool_precision: FusePrecision, settings: FuseSettings) -> Self {
+    fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
         Self {
             builder: FuseTraceBuilder::new(bool_precision, settings),
             max_bindings,

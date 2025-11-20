@@ -7,7 +7,7 @@ use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
-        ir::{Arg, FuseOp, LayoutInfo},
+        ir::{FuseArg, FuseOp, LayoutInfo},
         settings::RefLayoutSetting,
         trace::HandleInput,
     },
@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    super::ir::FusePrecision, BlockPlan, FuseResources, HandleOutput, InputReference, LaunchPlan,
+    super::ir::FuseType, BlockPlan, FuseResources, HandleOutput, InputReference, LaunchPlan,
     NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView, block::FuseBlock,
 };
 
@@ -33,7 +33,7 @@ pub struct OutputPlanner<'a, R: Runtime> {
 #[derive(Debug)]
 struct OutputSorted<'a> {
     pos_original: usize,
-    precision: FusePrecision,
+    precision: FuseType,
     tensor_relative: &'a TensorIr,
 }
 
@@ -198,7 +198,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
                     let set_ref_as_concrete = |block: &mut BlockPlan<'_>| {
                         block.reference = ReferenceSelection::Concrete {
-                            layout: Arg::Input(
+                            layout: FuseArg::Input(
                                 input_pos as u32,
                                 reference.precision,
                                 LayoutInfo::IsRef,
@@ -210,7 +210,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
                     let set_ref_as_virtual = |block: &mut BlockPlan<'_>| {
                         block.reference = ReferenceSelection::VirtualShape {
-                            original: Arg::Input(
+                            original: FuseArg::Input(
                                 input_pos as u32,
                                 reference.precision,
                                 LayoutInfo::Unknown,
@@ -243,7 +243,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         .as_normal()
                         .expect("Quant can't be used in swap dims operation");
                     block.reference = ReferenceSelection::SwapDims {
-                        original: Arg::Input(
+                        original: FuseArg::Input(
                             original_pos as u32,
                             reference.precision,
                             LayoutInfo::Unknown,
@@ -350,7 +350,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .unwrap();
 
             block.reference = ReferenceSelection::Concrete {
-                layout: Arg::Input(index_input, output.precision, LayoutInfo::IsRef),
+                layout: FuseArg::Input(index_input, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.dims.clone(),
                 strides: handle_input.handle.strides.clone(),
             };
@@ -408,7 +408,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape.dims
         {
             block.reference = ReferenceSelection::Concrete {
-                layout: Arg::Output(
+                layout: FuseArg::Output(
                     output.pos_original as u32,
                     output.precision,
                     LayoutInfo::IsRef,

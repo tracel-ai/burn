@@ -10,21 +10,31 @@ use super::tensor::GlobalTensor;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to a [fuse operation](FuseOp).
-pub enum Arg {
-    Input(u32, FusePrecision, LayoutInfo),
-    Local(u32, FusePrecision),
-    Output(u32, FusePrecision, LayoutInfo),
-    Scalar(u32, FusePrecision),
+pub enum FuseArg {
+    /// A readonly input tensor.
+    Input(u32, FuseType, LayoutInfo),
+    /// A temporary local variable.
+    Local(u32, FuseType),
+    /// A readwrite output tensor.
+    Output(u32, FuseType, LayoutInfo),
+    /// A global scalar.
+    Scalar(u32, FuseType),
+    /// A global scalar used in a reshape operation.
+    ///
+    /// This is not a scalar defined by a user for computation, but a scalar defined as part of
+    /// a reshape operation.
     ScalarShape(u32),
     /// Only constant that can be encoded into an u32 can be used as literal.
-    Literal(u32, FusePrecision),
+    Literal(u32, FuseType),
+    /// A readonly input tensor that is reshaped.
     InputReshaped {
-        original: Box<Arg>,
-        shape: Sequence<Arg>,
+        original: Box<FuseArg>,
+        shape: Sequence<FuseArg>,
         broadcasted: bool,
     },
+    /// A readonly input tensor with swapped dimensions.
     InputSwapDims {
-        original: Box<Arg>,
+        original: Box<FuseArg>,
         dims: (u32, u32),
         broadcasted: bool,
     },
@@ -43,38 +53,38 @@ pub enum LayoutInfo {
     Unknown,
 }
 
-impl Arg {
-    pub fn precision(&self) -> FusePrecision {
+impl FuseArg {
+    pub fn precision(&self) -> FuseType {
         *match self {
-            Arg::Input(_, p, _) => p,
-            Arg::Local(_, p) => p,
-            Arg::Output(_, p, _) => p,
-            Arg::Scalar(_, p) => p,
-            Arg::Literal(_, p) => p,
-            Arg::ScalarShape(_) => return FusePrecision::U32,
-            Arg::InputReshaped { original, .. } => return original.precision(),
-            Arg::InputSwapDims { original, .. } => return original.precision(),
+            FuseArg::Input(_, p, _) => p,
+            FuseArg::Local(_, p) => p,
+            FuseArg::Output(_, p, _) => p,
+            FuseArg::Scalar(_, p) => p,
+            FuseArg::Literal(_, p) => p,
+            FuseArg::ScalarShape(_) => return FuseType::U32,
+            FuseArg::InputReshaped { original, .. } => return original.precision(),
+            FuseArg::InputSwapDims { original, .. } => return original.precision(),
         }
     }
 }
 
-impl CubeType for Arg {
+impl CubeType for FuseArg {
     type ExpandType = Self;
 }
 
-impl IntoMut for Arg {
+impl IntoMut for FuseArg {
     fn into_mut(self, _context: &mut Scope) -> Self {
         self
     }
 }
 
-impl IntoRuntime for Arg {
+impl IntoRuntime for FuseArg {
     fn __expand_runtime_method(self, _context: &mut Scope) -> Self::ExpandType {
         self
     }
 }
 
-impl CubeDebug for Arg {}
+impl CubeDebug for FuseArg {}
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Operations that can be executed and fused automatically using a fuse-on-read and/or
@@ -103,33 +113,33 @@ pub enum FuseOp {
     Rem(BinaryFuseArgs),
     GreaterEqual(BinaryFuseArgs),
     Clamp {
-        input: Arg,
-        min: Arg,
-        max: Arg,
-        out: Arg,
+        input: FuseArg,
+        min: FuseArg,
+        max: FuseArg,
+        out: FuseArg,
     },
     ConditionalAssign {
-        cond: Arg,
-        lhs: Arg,
-        rhs: Arg,
-        out: Arg,
+        cond: FuseArg,
+        lhs: FuseArg,
+        rhs: FuseArg,
+        out: FuseArg,
     },
     Gather {
-        input: Arg,
-        indices: Arg,
-        output: Arg,
+        input: FuseArg,
+        indices: FuseArg,
+        output: FuseArg,
         dim: u32,
     },
     Select {
-        input: Arg,
-        indices: Arg,
-        output: Arg,
+        input: FuseArg,
+        indices: FuseArg,
+        output: FuseArg,
         dim: u32,
     },
     Dequantize {
-        values: Arg,
-        params: Arg,
-        output: Arg,
+        values: FuseArg,
+        params: FuseArg,
+        output: FuseArg,
         scheme: QuantSchemeFuse,
     },
 }
@@ -220,7 +230,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn shape(&self, arg: &Arg) -> Vec<usize> {
+    pub fn shape(&self, arg: &FuseArg) -> Vec<usize> {
         match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
@@ -255,7 +265,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn strides(&self, arg: &Arg) -> Vec<usize> {
+    pub fn strides(&self, arg: &FuseArg) -> Vec<usize> {
         match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
@@ -286,7 +296,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn line_size(&self, arg: &Arg) -> u8 {
+    pub fn line_size(&self, arg: &FuseArg) -> u8 {
         match self.resolve_arg(arg) {
             TensorArg::Handle { line_size, .. } => *line_size,
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
@@ -298,10 +308,10 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
+    pub fn resolve_arg(&self, arg: &FuseArg) -> &TensorArg<'_, R> {
         match arg {
-            Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            FuseArg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            FuseArg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
             other => panic!("Arg not found: {other:?}"),
         }
     }
@@ -332,6 +342,7 @@ pub struct LocalArgs {
 
 #[cube]
 impl LocalArgs {
+    /// Creates a new [LocalArgs] container.
     pub fn new(
         ref_shape: Slice<u32>,
         ref_strides: Slice<u32>,
@@ -367,23 +378,26 @@ impl LocalArgsExpand {
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Unary [element wise operation](ElemwiseOp) arguments.
 pub struct UnaryFuseArgs {
-    pub input: Arg,
-    pub out: Arg,
+    pub input: FuseArg,
+    pub out: FuseArg,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Binary [element wise operation](ElemwiseOp) arguments.
 pub struct BinaryFuseArgs {
-    pub lhs: Arg,
-    pub rhs: Arg,
-    pub out: Arg,
+    pub lhs: FuseArg,
+    pub rhs: FuseArg,
+    pub out: FuseArg,
 }
 
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 /// Precisions supported by [element wise operations](ElemwiseOp).
-pub enum FusePrecision {
+///
+/// The reason we have a custom type here instead of [ElemType] in for it to implement [CubeType]
+/// as well as removing some types that we don't support for fusion.
+pub enum FuseType {
     F64,
     F32,
     Flex32,
@@ -400,7 +414,57 @@ pub enum FusePrecision {
     Bool,
 }
 
-impl From<ElemType> for FusePrecision {
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// Configuration that encapsulates all comptime information necessary for element wise fusion.
+pub struct FuseBlockConfig {
+    pub rank: u32,
+    pub ref_layout: RefLayout,
+    pub ops: Sequence<FuseOp>,
+    pub width: u8,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// A reference layout determines how a fuse execution will access elements in tensors.
+///
+/// It can either follow the same layout as a concrete tensor, or follow a virtual layout.
+pub enum RefLayout {
+    Concrete(FuseArg),
+    Virtual(VirtualLayout),
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
+/// tensor with swap dimensions.
+pub enum VirtualLayout {
+    /// Virtual tensor with the provided shape id and contiguous strides.
+    Reshaped { reshape_pos: u32, line_size: u32 },
+    /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
+    /// strides.
+    SwapDims(FuseArg, (u32, u32)),
+    /// Virtual tensor with the same shape as the given input, but with contiguous strides.
+    Shape(FuseArg, u32),
+}
+
+impl FuseArg {
+    /// Adds layout information.
+    ///
+    /// It's going to impact how the input or output is read and written to.
+    pub fn add_layout_info(&mut self, layout: LayoutInfo) {
+        match self {
+            FuseArg::Input(_, _, old) => {
+                *old = layout;
+            }
+            FuseArg::Output(_, _, old) => {
+                *old = layout;
+            }
+            _ => {}
+        }
+    }
+}
+
+impl RegistryQuery<Self> for FuseArg {}
+
+impl From<ElemType> for FuseType {
     fn from(value: ElemType) -> Self {
         match value {
             ElemType::Float(kind) => match kind {
@@ -427,38 +491,40 @@ impl From<ElemType> for FusePrecision {
     }
 }
 
-impl From<StorageType> for FusePrecision {
+impl From<StorageType> for FuseType {
     fn from(value: StorageType) -> Self {
         value.elem_type().into()
     }
 }
 
-impl FusePrecision {
+impl FuseType {
+    /// Converts the [fused element type](FuseType) into the [cubecl element type](ElemType).
     pub fn into_elem(self) -> ElemType {
         match self {
-            FusePrecision::F32 => ElemType::Float(FloatKind::F32),
-            FusePrecision::Flex32 => ElemType::Float(FloatKind::Flex32),
-            FusePrecision::F16 => ElemType::Float(FloatKind::F16),
-            FusePrecision::BF16 => ElemType::Float(FloatKind::BF16),
-            FusePrecision::I64 => ElemType::Int(IntKind::I64),
-            FusePrecision::I32 => ElemType::Int(IntKind::I32),
-            FusePrecision::I16 => ElemType::Int(IntKind::I16),
-            FusePrecision::I8 => ElemType::Int(IntKind::I8),
-            FusePrecision::U64 => ElemType::UInt(UIntKind::U64),
-            FusePrecision::U32 => ElemType::UInt(UIntKind::U32),
-            FusePrecision::U16 => ElemType::UInt(UIntKind::U16),
-            FusePrecision::U8 => ElemType::UInt(UIntKind::U8),
-            FusePrecision::Bool => ElemType::Bool,
-            FusePrecision::F64 => ElemType::Float(FloatKind::F64),
+            FuseType::F32 => ElemType::Float(FloatKind::F32),
+            FuseType::Flex32 => ElemType::Float(FloatKind::Flex32),
+            FuseType::F16 => ElemType::Float(FloatKind::F16),
+            FuseType::BF16 => ElemType::Float(FloatKind::BF16),
+            FuseType::I64 => ElemType::Int(IntKind::I64),
+            FuseType::I32 => ElemType::Int(IntKind::I32),
+            FuseType::I16 => ElemType::Int(IntKind::I16),
+            FuseType::I8 => ElemType::Int(IntKind::I8),
+            FuseType::U64 => ElemType::UInt(UIntKind::U64),
+            FuseType::U32 => ElemType::UInt(UIntKind::U32),
+            FuseType::U16 => ElemType::UInt(UIntKind::U16),
+            FuseType::U8 => ElemType::UInt(UIntKind::U8),
+            FuseType::Bool => ElemType::Bool,
+            FuseType::F64 => ElemType::Float(FloatKind::F64),
         }
     }
 
+    /// Convert the [fused element type](FuseType) into the [cubecl storage type](StorageType).
     pub fn into_type(self) -> StorageType {
         self.into_elem().into()
     }
 }
 
-impl From<DType> for FusePrecision {
+impl From<DType> for FuseType {
     fn from(value: DType) -> Self {
         match value {
             DType::F32 => Self::F32,
@@ -490,52 +556,3 @@ impl From<DType> for FusePrecision {
         }
     }
 }
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// Configuration that encapsulates all comptime information necessary for element wise fusion.
-pub struct FuseBlockConfig {
-    pub rank: u32,
-    pub ref_layout: RefLayout,
-    pub ops: Sequence<FuseOp>,
-    pub width: u8,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// A reference layout determines how a fuse execution will access elements in tensors.
-///
-/// It can either follow the same layout as a concrete tensor, or follow a virtual layout.
-pub enum RefLayout {
-    Concrete(Arg),
-    Virtual(VirtualLayout),
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
-/// tensor with swap dimensions.
-pub enum VirtualLayout {
-    /// Virtual tensor with the provided shape id and contiguous strides.
-    Reshaped { reshape_pos: u32, line_size: u32 },
-    /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
-    /// strides.
-    SwapDims(Arg, (u32, u32)),
-    /// Virtual tensor with the same shape as the given input, but with contiguous strides.
-    Shape(Arg, u32),
-}
-
-impl Arg {
-    /// Add layout information; it's going to impact how the input or output is read
-    /// and written to.
-    pub fn add_layout_info(&mut self, layout: LayoutInfo) {
-        match self {
-            Arg::Input(_, _, old) => {
-                *old = layout;
-            }
-            Arg::Output(_, _, old) => {
-                *old = layout;
-            }
-            _ => {}
-        }
-    }
-}
-
-impl RegistryQuery<Self> for Arg {}

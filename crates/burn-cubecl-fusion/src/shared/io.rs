@@ -21,7 +21,7 @@ pub enum Transform {
     ///
     /// This enum entry contains a sequence of [arguments](Arg) that points to global scalars representing the
     /// new shape for the current tensor.
-    Reshape(Sequence<Arg>),
+    Reshape(Sequence<FuseArg>),
     /// Two axis has been swapped on a tensor.
     ///
     /// The enum entry contains those two axis.
@@ -43,11 +43,11 @@ pub fn read<C: CubePrimitive>(
     outputs: &GlobalArgs,
     locals: &LocalArgs,
     ref_pos: u32,
-    #[comptime] arg: Arg,
+    #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
     match arg {
-        Arg::Input(pos, _precision, layout) => {
+        FuseArg::Input(pos, _precision, layout) => {
             let global = inputs.tensors.index(pos);
             let line_size = global.tensor.line_size();
 
@@ -57,39 +57,39 @@ pub fn read<C: CubePrimitive>(
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
-        Arg::Output(pos, _precision, layout) => {
+        FuseArg::Output(pos, _precision, layout) => {
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
-        Arg::Local(pos, precision) => match comptime![precision] {
-            FusePrecision::F64 => Line::cast_from(locals.l_f64.find(pos)),
-            FusePrecision::F32 | FusePrecision::Flex32 => Line::cast_from(locals.l_f32.find(pos)),
-            FusePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
-            FusePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
-            FusePrecision::U64 => Line::cast_from(locals.l_u64.find(pos)),
-            FusePrecision::U32 => Line::cast_from(locals.l_u32.find(pos)),
-            FusePrecision::U16 => Line::cast_from(locals.l_u16.find(pos)),
-            FusePrecision::U8 => Line::cast_from(locals.l_u8.find(pos)),
-            FusePrecision::I64 => Line::cast_from(locals.l_i64.find(pos)),
-            FusePrecision::I32 => Line::cast_from(locals.l_i32.find(pos)),
-            FusePrecision::I16 => Line::cast_from(locals.l_i16.find(pos)),
-            FusePrecision::I8 => Line::cast_from(locals.l_i8.find(pos)),
-            FusePrecision::Bool => Line::cast_from(locals.l_bool.find(pos)),
+        FuseArg::Local(pos, precision) => match comptime![precision] {
+            FuseType::F64 => Line::cast_from(locals.l_f64.find(pos)),
+            FuseType::F32 | FuseType::Flex32 => Line::cast_from(locals.l_f32.find(pos)),
+            FuseType::F16 => Line::cast_from(locals.l_f16.find(pos)),
+            FuseType::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
+            FuseType::U64 => Line::cast_from(locals.l_u64.find(pos)),
+            FuseType::U32 => Line::cast_from(locals.l_u32.find(pos)),
+            FuseType::U16 => Line::cast_from(locals.l_u16.find(pos)),
+            FuseType::U8 => Line::cast_from(locals.l_u8.find(pos)),
+            FuseType::I64 => Line::cast_from(locals.l_i64.find(pos)),
+            FuseType::I32 => Line::cast_from(locals.l_i32.find(pos)),
+            FuseType::I16 => Line::cast_from(locals.l_i16.find(pos)),
+            FuseType::I8 => Line::cast_from(locals.l_i8.find(pos)),
+            FuseType::Bool => Line::cast_from(locals.l_bool.find(pos)),
         },
-        Arg::Scalar(..) => {
+        FuseArg::Scalar(..) => {
             let scalar = read_scalar::<C>(inputs, arg);
             Line::new(scalar)
         }
-        Arg::ScalarShape(_) => {
+        FuseArg::ScalarShape(_) => {
             let scalar = read_scalar_shape(inputs, arg);
             Line::cast_from(scalar)
         }
-        Arg::Literal(val, _precision) => Line::new(from_const_int::<C>(val)),
-        Arg::InputReshaped {
+        FuseArg::Literal(val, _precision) => Line::new(from_const_int::<C>(val)),
+        FuseArg::InputReshaped {
             original,
             shape,
             broadcasted,
         } => match comptime![original.as_ref().clone()] {
-            Arg::Input(pos, _precision, layout) => {
+            FuseArg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
@@ -117,12 +117,12 @@ pub fn read<C: CubePrimitive>(
             }
             _ => comptime![panic!("Only input can be reshaped")],
         },
-        Arg::InputSwapDims {
+        FuseArg::InputSwapDims {
             original,
             dims,
             broadcasted,
         } => match comptime![original.as_ref().clone()] {
-            Arg::Input(pos, _precision, layout) => {
+            FuseArg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
@@ -196,12 +196,12 @@ pub fn read_quantized<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     ref_pos: u32,
-    #[comptime] arg: Arg,
+    #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] scheme: QuantScheme,
 ) -> Line<C> {
     match arg {
-        Arg::Input(pos, _precision, _layout) => {
+        FuseArg::Input(pos, _precision, _layout) => {
             let global = inputs.tensors.index(pos);
 
             let offset =
@@ -215,9 +215,9 @@ pub fn read_quantized<C: CubePrimitive>(
 
 /// Reads a global scalar.
 #[cube]
-pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) -> C {
+pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> C {
     match arg {
-        Arg::Scalar(pos, _precision) => {
+        FuseArg::Scalar(pos, _precision) => {
             let scalar = inputs.scalars.index(pos);
             scalar.get::<C>()
         }
@@ -227,9 +227,9 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
 
 /// Reads a global scalar that is used as a reshape position.
 #[cube]
-pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
+pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> u32 {
     match arg {
-        Arg::ScalarShape(pos) => *inputs.reshapes.index(pos),
+        FuseArg::ScalarShape(pos) => *inputs.reshapes.index(pos),
         _ => comptime![panic!("Not a scalar shape")],
     }
 }
@@ -373,6 +373,8 @@ pub fn read_input_aligned<C: CubePrimitive>(
     result
 }
 
+/// Computes the offset of the given [GlobalTensor] at on the reference position with a linear
+/// layout.
 #[cube]
 pub fn get_offset_aligned(
     inputs: &GlobalArgs,
@@ -399,6 +401,7 @@ pub fn get_offset_aligned(
     }
 }
 
+/// Reads an output tensor.
 #[cube]
 pub fn read_output<C: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -426,11 +429,11 @@ pub fn write<C: CubePrimitive>(
     locals: &mut LocalArgs,
     ref_pos: u32,
     value: Line<C>,
-    #[comptime] arg: Arg,
+    #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
     match arg {
-        Arg::Output(pos, precision, layout) => {
+        FuseArg::Output(pos, precision, layout) => {
             let tensor = outputs.tensors.index(pos);
             let offset = match layout {
                 LayoutInfo::SameAsRef => ref_pos,
@@ -444,22 +447,20 @@ pub fn write<C: CubePrimitive>(
 
             tensor.tensor[offset] = Line::cast_from(value);
         }
-        Arg::Local(pos, precision) => match comptime![precision] {
-            FusePrecision::F64 => locals.l_f64.insert(pos, Line::cast_from(value)),
-            FusePrecision::F32 | FusePrecision::Flex32 => {
-                locals.l_f32.insert(pos, Line::cast_from(value))
-            }
-            FusePrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
-            FusePrecision::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),
-            FusePrecision::U64 => locals.l_u64.insert(pos, Line::cast_from(value)),
-            FusePrecision::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
-            FusePrecision::U16 => locals.l_u16.insert(pos, Line::cast_from(value)),
-            FusePrecision::U8 => locals.l_u8.insert(pos, Line::cast_from(value)),
-            FusePrecision::I64 => locals.l_i64.insert(pos, Line::cast_from(value)),
-            FusePrecision::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
-            FusePrecision::I16 => locals.l_i16.insert(pos, Line::cast_from(value)),
-            FusePrecision::I8 => locals.l_i8.insert(pos, Line::cast_from(value)),
-            FusePrecision::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
+        FuseArg::Local(pos, precision) => match comptime![precision] {
+            FuseType::F64 => locals.l_f64.insert(pos, Line::cast_from(value)),
+            FuseType::F32 | FuseType::Flex32 => locals.l_f32.insert(pos, Line::cast_from(value)),
+            FuseType::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
+            FuseType::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),
+            FuseType::U64 => locals.l_u64.insert(pos, Line::cast_from(value)),
+            FuseType::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
+            FuseType::U16 => locals.l_u16.insert(pos, Line::cast_from(value)),
+            FuseType::U8 => locals.l_u8.insert(pos, Line::cast_from(value)),
+            FuseType::I64 => locals.l_i64.insert(pos, Line::cast_from(value)),
+            FuseType::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
+            FuseType::I16 => locals.l_i16.insert(pos, Line::cast_from(value)),
+            FuseType::I8 => locals.l_i8.insert(pos, Line::cast_from(value)),
+            FuseType::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
         },
         _ => comptime![panic!("Can't write into inputs and scalars")],
     }
@@ -471,20 +472,20 @@ pub(crate) fn global_offset(
     outputs: &GlobalArgs,
     locals: &LocalArgs,
     index: u32,
-    #[comptime] arg: Arg,
+    #[comptime] arg: FuseArg,
     #[comptime] range: Option<(u32, u32)>,
     #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match arg {
-        Arg::Input(pos, _precision, _layout) => {
+        FuseArg::Input(pos, _precision, _layout) => {
             let tensor = inputs.tensors.index(pos);
             get_offset(inputs, locals, tensor, index, range, config, None)
         }
-        Arg::Output(pos, _precision, _layout) => {
+        FuseArg::Output(pos, _precision, _layout) => {
             let tensor = outputs.tensors.index(pos);
             get_offset(inputs, locals, tensor, index, range, config, None)
         }
-        _ => todo!(),
+        _ => panic!("Only input and output tensors have global offset."),
     }
 }
 
@@ -510,30 +511,35 @@ fn get_offset(
 }
 
 #[cube]
+/// Gets the line size for a global tensor.
 pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> comptime_type!(u32) {
     let tensor = global.tensors.index(pos);
     tensor.tensor.line_size()
 }
 
 #[cube]
+/// Gets the rank for a global tensor.
 pub fn global_rank(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.rank()
 }
 
 #[cube]
+/// Gets the length for a global tensor.
 pub fn global_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.len()
 }
 
 #[cube]
+/// Gets the buffer length for a global tensor.
 pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.buffer_len()
 }
 
 #[cube]
+/// Gets the reference tensor length.
 pub fn ref_len(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
@@ -542,8 +548,8 @@ pub fn ref_len(
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
-            Arg::Input(index, _, _) => global_len(inputs, index),
-            Arg::Output(index, _, _) => global_len(outputs, index),
+            FuseArg::Input(index, _, _) => global_len(inputs, index),
+            FuseArg::Output(index, _, _) => global_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
         RefLayout::Virtual(..) => num_elements(locals, config),
@@ -551,6 +557,7 @@ pub fn ref_len(
 }
 
 #[cube]
+/// Gets the reference buffer tensor length.
 pub fn ref_buffer_len(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
@@ -559,13 +566,13 @@ pub fn ref_buffer_len(
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
-            Arg::Input(index, _, _) => global_buffer_len(inputs, index),
-            Arg::Output(index, _, _) => global_buffer_len(outputs, index),
+            FuseArg::Input(index, _, _) => global_buffer_len(inputs, index),
+            FuseArg::Output(index, _, _) => global_buffer_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
         RefLayout::Virtual(VirtualLayout::SwapDims(arg, ..)) => match arg {
-            Arg::Input(index, _, _) => global_buffer_len(inputs, index),
-            Arg::Output(index, _, _) => global_buffer_len(outputs, index),
+            FuseArg::Input(index, _, _) => global_buffer_len(inputs, index),
+            FuseArg::Output(index, _, _) => global_buffer_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
         RefLayout::Virtual(VirtualLayout::Reshaped { .. }) => num_elements(locals, config),
@@ -574,6 +581,7 @@ pub fn ref_buffer_len(
 }
 
 #[cube]
+/// Gets the reference number of elements.
 pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) -> u32 {
     let mut length = 1u32;
 
@@ -585,27 +593,32 @@ pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) ->
 }
 
 #[cube]
-pub fn ref_shape(locals: &LocalArgs, dim: u32) -> u32 {
-    locals.ref_shape[dim]
+/// Gets the reference axis shape.
+pub fn ref_shape(locals: &LocalArgs, axis: u32) -> u32 {
+    locals.ref_shape[axis]
 }
 
 #[cube]
-pub fn ref_stride(locals: &LocalArgs, dim: u32) -> u32 {
-    locals.ref_strides[dim]
+/// Gets the reference axis stride.
+pub fn ref_stride(locals: &LocalArgs, axis: u32) -> u32 {
+    locals.ref_strides[axis]
 }
 
 #[cube]
+/// Gets the reference line size.
 pub fn ref_line_size(locals: &LocalArgs) -> comptime_type!(u32) {
     comptime![locals.ref_line_size]
 }
 
 #[cube]
-pub fn global_shape(global: &GlobalArgs, dim: u32, #[comptime] pos: u32) -> u32 {
+/// Gets the given tensor axis shape.
+pub fn global_shape(global: &GlobalArgs, axis: u32, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
-    tensor.tensor.shape(dim)
+    tensor.tensor.shape(axis)
 }
 
 #[cube]
+/// Gets the given tensor axis stride.
 pub fn global_stride(global: &GlobalArgs, dim: u32, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.stride(dim)
@@ -691,7 +704,7 @@ fn reshaped_index(
     locals: &LocalArgs,
     index: u32,
     #[comptime] rank: u32,
-    #[comptime] shape: Sequence<Arg>,
+    #[comptime] shape: Sequence<FuseArg>,
 ) -> u32 {
     let mut offset = 0u32;
     let mut stride_curr = 1u32;

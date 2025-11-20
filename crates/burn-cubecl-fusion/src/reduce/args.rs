@@ -3,7 +3,7 @@ use cubecl::{prelude::*, reduce::args::ReduceDType};
 
 use crate::shared::io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride};
 use crate::shared::ir::{
-    Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
+    FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
 };
 use crate::shared::kernel::{fuse_on_read, fuse_on_write, init_locals};
 
@@ -16,7 +16,7 @@ pub struct FusedReduceInput {
     #[cube(comptime)]
     config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: Arg,
+    arg: FuseArg,
 }
 
 #[derive(CubeType, CubeLaunch)]
@@ -25,7 +25,7 @@ pub struct FusedReduceOutput {
     #[cube(comptime)]
     config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: Arg,
+    arg: FuseArg,
 }
 
 pub struct FusedReduceState {
@@ -35,8 +35,8 @@ pub struct FusedReduceState {
     locals_on_write: *mut LocalArgs,
     config_on_read: FuseBlockConfig,
     config_on_write: FuseBlockConfig,
-    input: Arg,
-    out: Arg,
+    input: FuseArg,
+    out: FuseArg,
 }
 
 #[derive(Clone)]
@@ -47,8 +47,8 @@ pub struct FusedReduceStateExpand {
     locals_on_write: LocalArgsExpand,
     config_on_read: FuseBlockConfig,
     config_on_write: FuseBlockConfig,
-    input: Arg,
-    out: Arg,
+    input: FuseArg,
+    out: FuseArg,
 }
 
 #[cube]
@@ -87,8 +87,8 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn write_output<P: ReduceDType>(state: &mut Self::State<P>, index: u32, value: Line<P::Out>) {
-        let mut values = Registry::<Arg, Line<P::Out>>::new();
-        let mut args = comptime![Sequence::<Arg>::new()];
+        let mut values = Registry::<FuseArg, Line<P::Out>>::new();
+        let mut args = comptime![Sequence::<FuseArg>::new()];
 
         values.insert(comptime![state.out.clone()], value);
         comptime![args.push(state.out.clone())];
