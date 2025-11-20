@@ -550,11 +550,13 @@ fn generate_shape_slice(
             let shape_len_lit = Literal::i64_suffixed(shape_rank as i64);
 
             quote! {
-                let start_val = #start_expr as i64;
-                let end_val = #end_expr as i64;
-                let start_idx = if start_val < 0 { (#shape_len_lit + start_val) as usize } else { start_val as usize };
-                let end_idx = if end_val < 0 { (#shape_len_lit + end_val) as usize } else { end_val as usize };
-                let #output: [i64; #output_rank_lit] = #shape_name[start_idx..end_idx].try_into().unwrap();
+                let #output: [i64; #output_rank_lit] = {
+                    let start_val = #start_expr as i64;
+                    let end_val = #end_expr as i64;
+                    let start_idx = if start_val < 0 { (#shape_len_lit + start_val) as usize } else { start_val as usize };
+                    let end_idx = if end_val < 0 { (#shape_len_lit + end_val) as usize } else { end_val as usize };
+                    #shape_name[start_idx..end_idx].try_into().unwrap()
+                };
             }
         }
     }
@@ -606,52 +608,396 @@ mod tests {
     use super::super::test_helpers::*;
     use burn::tensor::DType;
     use insta::assert_snapshot;
-    use onnx_ir::slice::{SliceConfig, SliceInput, SliceNode, SliceNodeBuilder};
+    use onnx_ir::ir::RuntimeInputRef;
+    use onnx_ir::slice::{SliceConfig, SliceInput, SliceNodeBuilder};
 
-    fn create_slice_node_static(
-        name: &str,
-        starts: Vec<i64>,
-        ends: Vec<i64>,
-        axes: Option<Vec<i64>>,
-    ) -> SliceNode {
-        // Determine how many step values we need
-        let num_steps = match &axes {
-            Some(axes) => axes.len(),
-            None => starts.len(),
-        };
-
-        let config = SliceConfig {
-            starts: SliceInput::Static(starts),
-            ends: SliceInput::Static(ends),
-            axes: axes.map(SliceInput::Static),
-            steps: Some(SliceInput::Static(vec![1; num_steps])),
-        };
-
-        SliceNodeBuilder::new(name)
-            .input_tensor("input", 3, DType::F32)
-            .output_tensor("output", 3, DType::F32)
-            .config(config)
-            .build()
-    }
+    // ===== Static Tensor Slicing =====
 
     #[test]
     fn test_slice_static_simple() {
-        let node = create_slice_node_static("slice1", vec![0], vec![2], None);
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0]),
+            ends: SliceInput::Static(vec![2]),
+            axes: None,
+            steps: Some(SliceInput::Static(vec![1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("data", 3, DType::F32)
+            .output_tensor("sliced", 3, DType::F32)
+            .config(config)
+            .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.slice(s![0..2, .., ..]);");
+        assert_snapshot!(code, @"let sliced = data.slice(s![0..2, .., ..]);");
     }
 
     #[test]
     fn test_slice_static_with_axes() {
-        let node = create_slice_node_static("slice1", vec![1], vec![3], Some(vec![1]));
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![1]),
+            ends: SliceInput::Static(vec![3]),
+            axes: Some(SliceInput::Static(vec![1])),
+            steps: Some(SliceInput::Static(vec![1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("tensor", 3, DType::F32)
+            .output_tensor("result", 3, DType::F32)
+            .config(config)
+            .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.slice(s![.., 1..3, ..]);");
+        assert_snapshot!(code, @"let result = tensor.slice(s![.., 1..3, ..]);");
     }
 
     #[test]
-    fn test_slice_static_multiple() {
-        let node = create_slice_node_static("slice1", vec![0, 1, 0], vec![2, 3, 3], None);
+    fn test_slice_static_multiple_dims() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0, 1, 0]),
+            ends: SliceInput::Static(vec![2, 3, 3]),
+            axes: None,
+            steps: Some(SliceInput::Static(vec![1, 1, 1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @"let output = input.slice(s![0..2, 1..3, 0..3]);");
+    }
+
+    #[test]
+    fn test_slice_static_with_step() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0]),
+            ends: SliceInput::Static(vec![10]),
+            axes: Some(SliceInput::Static(vec![0])),
+            steps: Some(SliceInput::Static(vec![2])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("x", 3, DType::F32)
+            .output_tensor("y", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let y = x.slice(s![0..10; 2, .., ..]);");
+    }
+
+    #[test]
+    fn test_slice_static_open_ended() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![5]),
+            ends: SliceInput::Static(vec![i64::MAX]),
+            axes: Some(SliceInput::Static(vec![2])),
+            steps: Some(SliceInput::Static(vec![1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("tensor", 4, DType::F32)
+            .output_tensor("tail", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let tail = tensor.slice(s![.., .., 5.., ..]);");
+    }
+
+    #[test]
+    fn test_slice_static_open_ended_with_step() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0]),
+            ends: SliceInput::Static(vec![i64::MAX]),
+            axes: Some(SliceInput::Static(vec![1])),
+            steps: Some(SliceInput::Static(vec![3])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("data", 3, DType::F32)
+            .output_tensor("every_third", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let every_third = data.slice(s![.., 0..; 3, ..]);");
+    }
+
+    #[test]
+    fn test_slice_static_multiple_axes() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![1, 2]),
+            ends: SliceInput::Static(vec![5, 8]),
+            axes: Some(SliceInput::Static(vec![0, 2])),
+            steps: Some(SliceInput::Static(vec![1, 1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("volume", 4, DType::F32)
+            .output_tensor("cropped", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let cropped = volume.slice(s![1..5, .., 2..8, ..]);");
+    }
+
+    // ===== Runtime Tensor Slicing with Shape arguments =====
+
+    #[test]
+    fn test_slice_runtime_shape_with_axes() {
+        let config = SliceConfig {
+            starts: SliceInput::Runtime(RuntimeInputRef {
+                name: "start_idx".to_string(),
+                input_index: 1,
+            }),
+            ends: SliceInput::Runtime(RuntimeInputRef {
+                name: "end_idx".to_string(),
+                input_index: 2,
+            }),
+            axes: Some(SliceInput::Static(vec![1])),
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("data", 3, DType::F32)
+            .input_shape("start_idx")
+            .input_shape("end_idx")
+            .output_tensor("sliced", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let sliced = data.slice(s![.., start_idx[0]..end_idx[0], ..]);");
+    }
+
+    #[test]
+    fn test_slice_runtime_shape_no_axes() {
+        let config = SliceConfig {
+            starts: SliceInput::Runtime(RuntimeInputRef {
+                name: "starts".to_string(),
+                input_index: 1,
+            }),
+            ends: SliceInput::Runtime(RuntimeInputRef {
+                name: "ends".to_string(),
+                input_index: 2,
+            }),
+            axes: None,
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("tensor", 2, DType::F32)
+            .input_shape("starts")
+            .input_shape("ends")
+            .output_tensor("result", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let result = tensor.slice(s![starts[0]..ends[0], ..]);");
+    }
+
+    // ===== Runtime Tensor Slicing with Scalar arguments =====
+
+    #[test]
+    fn test_slice_runtime_scalar() {
+        let config = SliceConfig {
+            starts: SliceInput::Runtime(RuntimeInputRef {
+                name: "start".to_string(),
+                input_index: 1,
+            }),
+            ends: SliceInput::Runtime(RuntimeInputRef {
+                name: "end".to_string(),
+                input_index: 2,
+            }),
+            axes: Some(SliceInput::Static(vec![0])),
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("x", 2, DType::F32)
+            .input_scalar("start", DType::I64)
+            .input_scalar("end", DType::I64)
+            .output_tensor("y", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let y = x.slice(s![(start as usize).. (end as usize), ..]);");
+    }
+
+    // ===== Mixed Static/Runtime Slicing =====
+
+    #[test]
+    fn test_slice_static_start_runtime_end_shape() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0]),
+            ends: SliceInput::Runtime(RuntimeInputRef {
+                name: "end_pos".to_string(),
+                input_index: 1,
+            }),
+            axes: Some(SliceInput::Static(vec![1])),
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("data", 3, DType::F32)
+            .input_shape("end_pos")
+            .output_tensor("prefix", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let prefix = data.slice(s![.., 0..end_pos[0], ..]);");
+    }
+
+    #[test]
+    fn test_slice_static_start_runtime_end_scalar() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![5]),
+            ends: SliceInput::Runtime(RuntimeInputRef {
+                name: "stop".to_string(),
+                input_index: 1,
+            }),
+            axes: Some(SliceInput::Static(vec![0])),
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("array", 2, DType::F32)
+            .input_scalar("stop", DType::I64)
+            .output_tensor("segment", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let segment = array.slice(s![5.. (stop as usize), ..]);");
+    }
+
+    #[test]
+    fn test_slice_runtime_start_static_end_shape() {
+        let config = SliceConfig {
+            starts: SliceInput::Runtime(RuntimeInputRef {
+                name: "begin".to_string(),
+                input_index: 1,
+            }),
+            ends: SliceInput::Static(vec![10]),
+            axes: Some(SliceInput::Static(vec![0])),
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_tensor("tensor", 2, DType::F32)
+            .input_shape("begin")
+            .output_tensor("chunk", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let chunk = tensor.slice(s![begin[0]..10, ..]);");
+    }
+
+    // ===== Shape Slicing =====
+
+    #[test]
+    fn test_slice_shape_static() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![1]),
+            ends: SliceInput::Static(vec![3]),
+            axes: None,
+            steps: Some(SliceInput::Static(vec![1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_shape("input_shape")
+            .output_shape("output_shape")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let output_shape: [i64; 1] = input_shape[1..1].try_into().unwrap();");
+    }
+
+    #[test]
+    fn test_slice_shape_static_negative_indices() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![-2]),
+            ends: SliceInput::Static(vec![i64::MAX]),
+            axes: None,
+            steps: Some(SliceInput::Static(vec![1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_shape("dims")
+            .output_shape("last_two")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @"let last_two: [i64; 1] = dims[0..1].try_into().unwrap();");
+    }
+
+    #[test]
+    fn test_slice_shape_with_step_2() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0]),
+            ends: SliceInput::Static(vec![4]),
+            axes: None,
+            steps: Some(SliceInput::Static(vec![2])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_shape("shape_in")
+            .output_shape("shape_out")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let shape_out: [i64; 1] = shape_in[0..1]
+                .iter()
+                .step_by(2i64 as usize)
+                .copied()
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+        ");
+    }
+
+    #[test]
+    fn test_slice_shape_with_negative_step() {
+        let config = SliceConfig {
+            starts: SliceInput::Static(vec![0]),
+            ends: SliceInput::Static(vec![4]),
+            axes: None,
+            steps: Some(SliceInput::Static(vec![-1])),
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_shape("original")
+            .output_shape("reversed")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let reversed: [i64; 1] = {
+                let mut slice = original[0..1].to_vec();
+                slice.reverse();
+                slice.try_into().unwrap()
+            };
+        ");
+    }
+
+    #[test]
+    fn test_slice_shape_runtime() {
+        let config = SliceConfig {
+            starts: SliceInput::Runtime(RuntimeInputRef {
+                name: "start".to_string(),
+                input_index: 1,
+            }),
+            ends: SliceInput::Runtime(RuntimeInputRef {
+                name: "end".to_string(),
+                input_index: 2,
+            }),
+            axes: None,
+            steps: None,
+        };
+        let node = SliceNodeBuilder::new("slice1")
+            .input_shape("shape_data")
+            .input_scalar("start", DType::I64)
+            .input_scalar("end", DType::I64)
+            .output_shape("sliced_shape")
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        let sliced_shape: [i64; 1] = {
+                let start_val = start as i64;
+                let end_val = end as i64;
+                let start_idx = if start_val < 0 {
+                    (1i64 + start_val) as usize
+                } else {
+                    start_val as usize
+                };
+                let end_idx = if end_val < 0 {
+                    (1i64 + end_val) as usize
+                } else {
+                    end_val as usize
+                };
+                shape_data[start_idx..end_idx].try_into().unwrap()
+            };
+        ");
     }
 }
