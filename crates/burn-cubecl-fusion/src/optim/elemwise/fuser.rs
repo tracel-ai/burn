@@ -1,8 +1,8 @@
 use super::optimization::ElemwiseOptimization;
 use crate::{
     engine::{
+        compiler::ir::FuseType,
         fuser::TraceOperationFuser,
-        ir::FuseType,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
     optim::CubeOptimization,

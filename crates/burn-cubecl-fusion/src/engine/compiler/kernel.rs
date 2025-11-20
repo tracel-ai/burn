@@ -1,15 +1,10 @@
-use super::io::*;
-use super::ir::*;
-use crate::engine::DYN_ELEM_ID;
-use crate::engine::Q_PARAM_DYN_ELEM_ID;
-use crate::engine::Q_STORE_DYN_ELEM_ID;
-use burn_tensor::quantization::QuantScheme;
-use burn_tensor::quantization::QuantStore;
-use burn_tensor::quantization::QuantValue;
-use cubecl::ir::{ElemType, FloatKind, StorageType, UIntKind};
-use cubecl::prelude::*;
-use cubecl_quant::dequantize::dequantize_symmetric_packed_value_at;
-use cubecl_quant::scheme::QuantMode;
+use super::{DYN_ELEM_ID, Q_PARAM_DYN_ELEM_ID, Q_STORE_DYN_ELEM_ID, io::*, ir::*};
+use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use cubecl::{
+    ir::{ElemType, FloatKind, StorageType, UIntKind},
+    prelude::*,
+};
+use cubecl_quant::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.

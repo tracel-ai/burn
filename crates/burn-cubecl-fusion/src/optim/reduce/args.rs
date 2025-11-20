@@ -1,7 +1,9 @@
 use crate::engine::{
-    io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride},
-    ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
-    kernel::{fuse_on_read, fuse_on_write, init_locals},
+    compiler::io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride},
+    compiler::ir::{
+        FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
+    },
+    compiler::kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
 use cubecl::{
     prelude::*,

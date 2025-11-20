@@ -1,8 +1,8 @@
 use crate::engine::{
-    io::ref_line_size,
-    ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs},
-    kernel::init_locals,
-    view::{FusedOutput, GlobalInput, GlobalInputExpand},
+    compiler::io::ref_line_size,
+    compiler::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs},
+    compiler::kernel::init_locals,
+    compiler::view::{FusedOutput, GlobalInput, GlobalInputExpand},
 };
 use cubecl::{
     intrinsic,

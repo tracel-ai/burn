@@ -5,7 +5,7 @@ use super::tune::fused_reduce_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
-        ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
+        compiler::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
         trace::{FuseTrace, TraceError, TraceRunner, TuneOutput, Vectorization},
     },
     optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},

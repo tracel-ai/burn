@@ -1,11 +1,12 @@
 use super::{
-    super::ir::FuseType, BlockPlan, FuseResources, HandleOutput, InputReference, LaunchPlan,
-    NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView, block::FuseBlock,
+    super::compiler::ir::FuseType, BlockPlan, FuseResources, HandleOutput, InputReference,
+    LaunchPlan, NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView,
+    block::FuseBlock,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
     engine::{
-        ir::{FuseArg, FuseOp, LayoutInfo},
+        compiler::ir::{FuseArg, FuseOp, LayoutInfo},
         settings::RefLayoutSetting,
         trace::HandleInput,
     },
