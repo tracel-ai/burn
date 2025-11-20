@@ -431,7 +431,7 @@ mod tests {
     use crate::TestAutodiffBackend;
     use crate::{GradientsParams, Optimizer};
     use burn::module::{Module, Param};
-    use burn::tensor::{Distribution, Shape, Tensor, TensorData};
+    use burn::tensor::{Distribution, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
     type TestBackend = burn_ndarray::NdArray<f32>;
