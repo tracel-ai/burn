@@ -15,7 +15,7 @@ use burn_ir::{
 use burn_tensor::{DType, Shape};
 
 use crate::{
-    NumOperations, OperationFuser, OptimizationProperties, OptimizationStatus,
+    FuserProperties, FuserStatus, NumOperations, OperationFuser,
     search::BlockOptimization,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
@@ -514,26 +514,26 @@ impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
     }
 
     /// Return the optimization status.
-    fn status(&self) -> OptimizationStatus {
+    fn status(&self) -> FuserStatus {
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
             return match self.actual == operations {
                 // Still optimizing.
-                true => OptimizationStatus::Open,
+                true => FuserStatus::Open,
                 // Never gonna be possible on that stream.
-                false => OptimizationStatus::Closed,
+                false => FuserStatus::Closed,
             };
         }
 
-        OptimizationStatus::Closed
+        FuserStatus::Closed
     }
 
     /// Return the properties of this optimization.
-    fn properties(&self) -> OptimizationProperties {
+    fn properties(&self) -> FuserProperties {
         if self.actual.len() < self.expected_operations.len() {
             // Optimization not possible.
-            return OptimizationProperties {
+            return FuserProperties {
                 score: 0,
                 ready: false,
             };
@@ -544,14 +544,14 @@ impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
 
         if !stream_is_ok {
             // Optimization not possible.
-            return OptimizationProperties {
+            return FuserProperties {
                 score: 0,
                 ready: false,
             };
         }
 
         // Optimization possible.
-        OptimizationProperties {
+        FuserProperties {
             score: 1,
             ready: true,
         }

@@ -66,11 +66,11 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseBuilder<R> {
         self.builder.reset()
     }
 
-    fn status(&self) -> burn_fusion::OptimizationStatus {
+    fn status(&self) -> burn_fusion::FuserStatus {
         self.builder.status()
     }
 
-    fn properties(&self) -> burn_fusion::OptimizationProperties {
+    fn properties(&self) -> burn_fusion::FuserProperties {
         self.builder.properties()
     }
 

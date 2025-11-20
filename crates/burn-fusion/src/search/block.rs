@@ -1,4 +1,4 @@
-use crate::{NumOperations, OperationFuser, OptimizationStatus, stream::store::ExecutionStrategy};
+use crate::{FuserStatus, NumOperations, OperationFuser, stream::store::ExecutionStrategy};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::{collections::HashSet, sync::Arc};
 
@@ -146,7 +146,7 @@ impl<O: NumOperations> Block<O> {
         let mut num_stopped = 0;
 
         for optimization in self.builders.iter() {
-            if let OptimizationStatus::Closed = optimization.status() {
+            if let FuserStatus::Closed = optimization.status() {
                 num_stopped += 1
             }
         }

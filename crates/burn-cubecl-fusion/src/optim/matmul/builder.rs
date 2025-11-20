@@ -4,7 +4,7 @@ use crate::{
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };
-use burn_fusion::{OperationFuser, OptimizationStatus};
+use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{FloatOperationIr, OperationIr};
 use burn_tensor::DType;
 use cubecl::Runtime;
@@ -54,7 +54,7 @@ impl<R: Runtime> MatmulBuilder<R> {
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        if let OptimizationStatus::Closed = self.builder.status() {
+        if let FuserStatus::Closed = self.builder.status() {
             return;
         }
 
@@ -141,11 +141,11 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulBuilder<R> {
         self.matmul = None;
     }
 
-    fn status(&self) -> burn_fusion::OptimizationStatus {
+    fn status(&self) -> burn_fusion::FuserStatus {
         self.builder.status()
     }
 
-    fn properties(&self) -> burn_fusion::OptimizationProperties {
+    fn properties(&self) -> burn_fusion::FuserProperties {
         let mut properties = self.builder.properties();
         properties.score += 1;
         properties

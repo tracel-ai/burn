@@ -82,7 +82,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
 /// The status of a [builder](OptimizationBuilder).
 #[derive(Clone, Debug, Copy)]
-pub enum OptimizationStatus {
+pub enum FuserStatus {
     /// No more operations can be fused.
     Closed,
     /// More operations can be fused.
@@ -91,7 +91,7 @@ pub enum OptimizationStatus {
 
 /// The properties of a [builder](OptimizationProperties).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct OptimizationProperties {
+pub struct FuserProperties {
     /// The score of the optimization, higher is better.
     pub score: u64,
     /// If the operation is ready to be executed.
@@ -118,9 +118,9 @@ pub trait OperationFuser<O>: Send {
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).
-    fn status(&self) -> OptimizationStatus;
+    fn status(&self) -> FuserStatus;
     /// Return the builder [properties](OptimizationProperties).
-    fn properties(&self) -> OptimizationProperties;
+    fn properties(&self) -> FuserProperties;
     /// The number of operation fused.
     fn len(&self) -> usize;
     /// If no operations are fused.

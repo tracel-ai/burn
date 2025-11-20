@@ -7,7 +7,7 @@ use crate::{
     },
     optim::CubeOptimization,
 };
-use burn_fusion::{OperationFuser, OptimizationStatus};
+use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
 use cubecl::{Runtime, reduce::ReduceStrategy};
 
@@ -157,7 +157,7 @@ impl<R: Runtime> ReduceBuilder<R> {
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        if let OptimizationStatus::Closed = self.builder.status() {
+        if let FuserStatus::Closed = self.builder.status() {
             return;
         }
 
@@ -258,11 +258,11 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBuilder<R> {
         self.reduce = None;
     }
 
-    fn status(&self) -> burn_fusion::OptimizationStatus {
+    fn status(&self) -> burn_fusion::FuserStatus {
         self.builder.status()
     }
 
-    fn properties(&self) -> burn_fusion::OptimizationProperties {
+    fn properties(&self) -> burn_fusion::FuserProperties {
         let mut properties = self.builder.properties();
 
         if self.reduce.is_some() {

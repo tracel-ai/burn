@@ -4,7 +4,7 @@ use super::{
     trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
 };
 use crate::engine::ir::QuantSchemeFuse;
-use burn_fusion::{OperationFuser, OptimizationProperties, OptimizationStatus};
+use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
@@ -24,7 +24,7 @@ pub(crate) struct FuseTraceCompiler {
     builder: TryFuseBuilder,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Vec<usize>,
-    status: OptimizationStatus,
+    status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
     max_bindings: u32,
@@ -45,14 +45,14 @@ impl FuseTraceCompiler {
 
 impl OperationFuser<FuseTrace> for FuseTraceCompiler {
     fn fuse(&mut self, op: &OperationIr) {
-        if let OptimizationStatus::Closed = self.status {
+        if let FuserStatus::Closed = self.status {
             return;
         }
 
         match op {
             OperationIr::Drop(tensor) => {
                 if self.num_ops == 0 {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
 
@@ -60,47 +60,47 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
             }
             OperationIr::BaseFloat(ops) => {
                 if !self.register_base(ops) {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::BaseInt(ops) => {
                 if !self.register_base(ops) {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::Float(_dtype, ops) => {
                 if !self.register_float(ops) {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericFloat(_dtype, ops) => {
                 if !self.register_numeric(ops) {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericInt(_dtype, ops) => {
                 if !self.register_numeric(ops) {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
             }
             OperationIr::BaseBool(ops) => {
                 if !self.register_base(ops) {
-                    self.status = OptimizationStatus::Closed;
+                    self.status = FuserStatus::Closed;
                     return;
                 }
             }
             _ => {
-                self.status = OptimizationStatus::Closed;
+                self.status = FuserStatus::Closed;
                 return;
             }
         };
 
-        self.status = OptimizationStatus::Open;
+        self.status = FuserStatus::Open;
         self.num_ops += 1;
     }
 
@@ -114,7 +114,7 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
 
     fn reset(&mut self) {
         self.num_ops = 0;
-        self.status = OptimizationStatus::Open;
+        self.status = FuserStatus::Open;
         self.builder = TryFuseBuilder::new(
             self.max_bindings,
             self.builder.builder.bool_precision,
@@ -123,14 +123,14 @@ impl OperationFuser<FuseTrace> for FuseTraceCompiler {
         self.current_output_shape.clear();
     }
 
-    fn status(&self) -> OptimizationStatus {
+    fn status(&self) -> FuserStatus {
         self.status
     }
 
-    fn properties(&self) -> OptimizationProperties {
+    fn properties(&self) -> FuserProperties {
         let ready = self.num_ops > 0;
 
-        OptimizationProperties {
+        FuserProperties {
             ready,
             score: self.num_ops as u64,
         }
@@ -151,13 +151,13 @@ impl FuseTraceCompiler {
             num_views: 0,
             max_bindings,
             current_output_shape: Vec::new(),
-            status: OptimizationStatus::Open,
+            status: FuserStatus::Open,
         }
     }
 
     /// Closes the builder.
     pub fn close(&mut self) {
-        self.status = OptimizationStatus::Closed;
+        self.status = FuserStatus::Closed;
     }
 
     /// Declares an input tensor argument where the kernel is responsible to load.
@@ -249,7 +249,7 @@ impl FuseTraceCompiler {
             .next_block(current_output_shape, settings);
 
         self.settings = settings;
-        self.status = OptimizationStatus::Open;
+        self.status = FuserStatus::Open;
 
         Some(args)
     }
