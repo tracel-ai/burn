@@ -53,11 +53,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        // FIXME import depending on input rank
-        imports.register("burn::nn::pool::AdaptiveAvgPool1d");
-        imports.register("burn::nn::pool::AdaptiveAvgPool1dConfig");
-        imports.register("burn::nn::pool::AdaptiveAvgPool2d");
-        imports.register("burn::nn::pool::AdaptiveAvgPool2dConfig");
+        let input = self.inputs.first().unwrap();
+        let rank = input.ty.rank();
+
+        match rank {
+            3 => {
+                imports.register("burn::nn::pool::AdaptiveAvgPool1d");
+                imports.register("burn::nn::pool::AdaptiveAvgPool1dConfig");
+            }
+            4 => {
+                imports.register("burn::nn::pool::AdaptiveAvgPool2d");
+                imports.register("burn::nn::pool::AdaptiveAvgPool2dConfig");
+            }
+            dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
+        }
     }
 }
 
