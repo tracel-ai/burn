@@ -1,5 +1,5 @@
 // We re-export those types.
-pub use burn_storage::quantization::{
+pub use burn_backend::quantization::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 

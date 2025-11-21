@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std", "burn-common/rayon"]
-cubecl = ["dep:cubecl", "burn-storage/cubecl"]
+cubecl = ["dep:cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
@@ -28,7 +28,7 @@ std = [
     "num-traits/std",
     "burn-common/std",
     "burn-shape/std",
-    "burn-storage/std",
+    "burn-backend/std",
     "colored",
 ]
 
@@ -36,7 +36,7 @@ std = [
 burn-common = { path = "../burn-common", version = "0.20.0-pre.2", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.2", optional = true }
 burn-shape = { path = "../burn-shape", version = "0.20.0-pre.2", default-features = false }
-burn-storage = { path = "../burn-storage", version = "0.20.0-pre.2", default-features = false }
+burn-backend = { path = "../burn-backend", version = "0.20.0-pre.2", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
 
 colored = { workspace = true, optional = true }
