@@ -1,3 +1,5 @@
+//! # Common Network Utilities
+
 /// Network download utilities.
 pub mod downloader {
     use indicatif::{ProgressBar, ProgressState, ProgressStyle};
