@@ -156,19 +156,11 @@ impl<B: Backend> AutodiffTensor<B> {
         step_that_created_the_tensor: S,
         actions: CheckpointerBuilder,
     ) -> Self {
-        if self.is_tracked() {
-            self.node.client.register(
-                self.rc.clone(),
-                Box::new(step_that_created_the_tensor),
-                actions,
-            );
-        } else {
-            self.node.client.register_untracked(
-                self.rc.clone(),
-                Box::new(step_that_created_the_tensor),
-                actions,
-            );
-        }
+        self.node.client.register(
+            self.rc.clone(),
+            Box::new(step_that_created_the_tensor),
+            actions,
+        );
         self
     }
 
