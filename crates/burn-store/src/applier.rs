@@ -1,113 +1,16 @@
 //! Applier that correctly applies tensor snapshots with adapter support
 
 use alloc::boxed::Box;
-use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use hashbrown::{HashMap, HashSet};
 
 use burn_core::module::{ModuleMapper, Param};
-use burn_tensor::{Bool, DType, Int, Shape, Tensor, backend::Backend};
+use burn_tensor::{Bool, Int, Shape, Tensor, backend::Backend};
 
+use crate::apply_result::{ApplyError, ApplyResult};
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
-
-/// Error types that can occur during tensor application
-#[derive(Debug, Clone)]
-pub enum ApplyError {
-    /// Shape mismatch between expected and actual tensor
-    ShapeMismatch {
-        /// Path of the tensor
-        path: String,
-        /// Expected shape
-        expected: Vec<usize>,
-        /// Found shape
-        found: Vec<usize>,
-    },
-    /// Data type mismatch between expected and actual tensor
-    DTypeMismatch {
-        /// Path of the tensor
-        path: String,
-        /// Expected data type
-        expected: DType,
-        /// Found data type
-        found: DType,
-    },
-    /// Error from adapter transformation
-    AdapterError {
-        /// Path of the tensor
-        path: String,
-        /// Error message
-        message: String,
-    },
-    /// Error loading tensor data
-    LoadError {
-        /// Path of the tensor
-        path: String,
-        /// Error message
-        message: String,
-    },
-}
-
-impl core::fmt::Display for ApplyError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::ShapeMismatch {
-                path,
-                expected,
-                found,
-            } => {
-                write!(
-                    f,
-                    "Shape mismatch for '{}': expected {:?}, found {:?}",
-                    path, expected, found
-                )
-            }
-            Self::DTypeMismatch {
-                path,
-                expected,
-                found,
-            } => {
-                write!(
-                    f,
-                    "DType mismatch for '{}': expected {:?}, found {:?}",
-                    path, expected, found
-                )
-            }
-            Self::AdapterError { path, message } => {
-                write!(f, "Adapter error for '{}': {}", path, message)
-            }
-            Self::LoadError { path, message } => {
-                write!(f, "Load error for '{}': {}", path, message)
-            }
-        }
-    }
-}
-
-impl core::error::Error for ApplyError {}
-
-/// Result of applying tensor snapshots to a module
-#[derive(Debug, Clone)]
-pub struct ApplyResult {
-    /// Successfully applied tensor paths
-    pub applied: Vec<String>,
-    /// Skipped tensor paths (due to filter)
-    pub skipped: Vec<String>,
-    /// Missing tensor paths (in module but not in snapshots)
-    pub missing: Vec<String>,
-    /// Unused tensor paths (in snapshots but not in module)
-    pub unused: Vec<String>,
-    /// Errors encountered during application
-    pub errors: Vec<ApplyError>,
-}
-
-impl ApplyResult {
-    /// Check if the apply operation was successful (no errors)
-    /// Note: Missing tensors are not considered errors when allow_partial is true
-    pub fn is_success(&self) -> bool {
-        self.errors.is_empty()
-    }
-}
 
 /// Applier that applies tensor snapshots to module parameters
 /// with proper adapter support using container type information
@@ -128,8 +31,8 @@ pub struct Applier<B: Backend> {
     skipped: HashSet<String>,
     /// Errors encountered during application
     errors: Vec<ApplyError>,
-    /// Track visited paths to find missing tensors
-    visited_paths: HashSet<String>,
+    /// Track visited paths with their container stacks (in dot notation) to find missing tensors
+    visited_paths: HashMap<String, String>,
     /// Phantom data for backend type
     _backend: core::marker::PhantomData<B>,
 }
@@ -162,7 +65,7 @@ impl<B: Backend> Applier<B> {
             applied: Vec::new(),
             skipped: HashSet::new(),
             errors: Vec::new(),
-            visited_paths: HashSet::new(),
+            visited_paths: HashMap::new(),
             _backend: core::marker::PhantomData,
         }
     }
@@ -170,6 +73,15 @@ impl<B: Backend> Applier<B> {
     /// Get the current path in the module hierarchy
     fn current_path(&self) -> String {
         self.path_stack.join(".")
+    }
+
+    /// Get the current module type (last Struct/Enum in container stack)
+    fn current_module_type(&self) -> Option<&str> {
+        self.container_stack
+            .iter()
+            .rev()
+            .find(|ct| ct.starts_with("Struct:") || ct.starts_with("Enum:"))
+            .map(|s| s.as_str())
     }
 
     /// Check if a tensor should be applied based on filter
@@ -180,31 +92,12 @@ impl<B: Backend> Applier<B> {
         }
     }
 
-    /// Apply adapter to a snapshot using current container information
-    fn adapt_snapshot(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
-        if let Some(ref adapter) = self.adapter {
-            // Create a snapshot with proper container information from module traversal
-            let snapshot_with_context = TensorSnapshot::from_closure(
-                snapshot.clone_data_fn(),
-                snapshot.dtype,
-                snapshot.shape.clone(),
-                self.path_stack.clone(), // Use current path from traversal
-                self.container_stack.clone(), // Use current container types!
-                snapshot.tensor_id.unwrap_or_default(),
-            );
-
-            // Apply adapter with full context
-            return adapter.adapt(&snapshot_with_context);
-        }
-        snapshot.clone()
-    }
-
     /// Convert the applier into a result
     pub fn into_result(self) -> ApplyResult {
         let unused: Vec<String> = self
             .snapshots
             .keys()
-            .filter(|path| !self.visited_paths.contains(*path) && !self.skipped.contains(*path))
+            .filter(|path| !self.visited_paths.contains_key(*path) && !self.skipped.contains(*path))
             .cloned()
             .collect();
 
@@ -224,10 +117,11 @@ impl<B: Backend> Applier<B> {
             .collect();
 
         // A path is missing if it was visited but not successfully applied, not skipped, and didn't have an error
-        let missing: Vec<String> = self
+        // Store both the path and its container stack (in dot notation)
+        let missing: Vec<(String, String)> = self
             .visited_paths
             .into_iter()
-            .filter(|p| {
+            .filter(|(p, _)| {
                 !applied_set.contains(p) && !self.skipped.contains(p) && !errored_paths.contains(p)
             })
             .collect();
@@ -241,7 +135,7 @@ impl<B: Backend> Applier<B> {
         }
     }
 
-    /// Apply a tensor snapshot with shape validation
+    /// Apply a tensor snapshot with shape validation and optional adapter transformation
     /// Returns None if snapshot not found, filtered, or validation fails
     fn apply_tensor<const D: usize, K>(
         &mut self,
@@ -253,18 +147,51 @@ impl<B: Backend> Applier<B> {
         K: burn_tensor::BasicOps<B>,
     {
         let path = self.current_path();
-        self.visited_paths.insert(path.clone());
+        let container_stack_str = self.container_stack.join(".");
+        self.visited_paths.insert(path.clone(), container_stack_str);
 
-        // Find snapshot: try direct match first, then alternative names via adapter
-        let snapshot = self.snapshots.get(&path).or_else(|| {
-            let adapter = self.adapter.as_ref()?;
-            let container_type = self.container_stack.last()?;
+        // Try to get snapshot with original path first
+        let mut snapshot = self.snapshots.get(&path).cloned();
+
+        // If not found and we have an adapter, try alternative parameter names
+        if snapshot.is_none()
+            && let Some(ref adapter) = self.adapter
+            && let Some(module_type) = self.current_module_type()
+        {
+            // Get alternative name based on current module type (user-defined module only)
             let param_name = self.path_stack.last()?;
-            let alt_name = adapter.get_alternative_param_name(param_name, container_type)?;
-            let mut alt_path = self.path_stack.clone();
-            *alt_path.last_mut().unwrap() = alt_name;
-            self.snapshots.get(&alt_path.join("."))
-        })?;
+
+            if let Some(alt_name) = adapter.get_alternative_param_name(param_name, module_type) {
+                // Build alternative path with parameter name substitution
+                let mut alt_path_stack = self.path_stack.clone();
+                *alt_path_stack.last_mut().unwrap() = alt_name.clone();
+                let alt_path = alt_path_stack.join(".");
+
+                // Try to get snapshot with alternative name
+                snapshot = self.snapshots.get(&alt_path).cloned();
+
+                // Don't mark the alternative path as visited - only the original Burn path
+                // should be tracked. The alternative path is just for lookup.
+            }
+        }
+
+        let mut snapshot = snapshot?;
+
+        // Apply adapter transformation using current container_stack context (for data transformation like transpose)
+        if let Some(ref adapter) = self.adapter {
+            // Create a temporary snapshot with current context for adaptation
+            let snapshot_with_context = TensorSnapshot::from_closure(
+                snapshot.clone_data_fn(),
+                snapshot.dtype,
+                snapshot.shape.clone(),
+                self.path_stack.clone(),
+                self.container_stack.clone(),
+                snapshot.tensor_id.unwrap_or_default(),
+            );
+
+            // Transform using adapter (handles transpose)
+            snapshot = adapter.adapt(&snapshot_with_context);
+        }
 
         // Check if we should apply based on filter
         if !self.should_apply() {
@@ -272,9 +199,8 @@ impl<B: Backend> Applier<B> {
             return None;
         }
 
-        // Apply adapter with current container context
-        let adapted_snapshot = self.adapt_snapshot(snapshot);
-        let data = match adapted_snapshot.to_data() {
+        // Load tensor data
+        let data = match snapshot.to_data() {
             Ok(data) => data,
             Err(e) => {
                 self.errors.push(ApplyError::LoadError {

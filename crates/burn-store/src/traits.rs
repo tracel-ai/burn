@@ -1,7 +1,8 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-use super::applier::{Applier, ApplyResult};
+use super::applier::Applier;
+use super::apply_result::ApplyResult;
 use crate::collector::Collector;
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 use burn_core::module::Module;

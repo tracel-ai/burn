@@ -323,16 +323,13 @@ impl ModuleStore for PytorchStore {
         // Validate if needed
         if self.validate && !result.errors.is_empty() {
             return Err(PytorchStoreError::ValidationFailed(format!(
-                "Import errors: {:?}",
-                result.errors
+                "Import errors:\n{}",
+                result
             )));
         }
 
         if !self.allow_partial && !result.missing.is_empty() {
-            return Err(PytorchStoreError::TensorNotFound(format!(
-                "Missing tensors: {:?}",
-                result.missing
-            )));
+            return Err(PytorchStoreError::TensorNotFound(format!("\n{}", result)));
         }
 
         Ok(result)

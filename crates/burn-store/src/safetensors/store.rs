@@ -637,8 +637,8 @@ impl ModuleStore for SafetensorsStore {
 
         if !self.get_allow_partial() && !result.missing.is_empty() {
             return Err(SafetensorsStoreError::TensorNotFound(format!(
-                "Missing tensors: {:?}",
-                result.missing
+                "\n{}",
+                result
             )));
         }
 
