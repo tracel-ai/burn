@@ -409,7 +409,7 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
 impl<R: FusionRuntime> Stream<R> {
     fn new(device: R::FusionDevice) -> Self {
         Self {
-            processor: Processor::new(R::optimizations(device)),
+            processor: Processor::new(R::fusers(device)),
             queue: OperationQueue::new(),
             cursor: 0,
         }

@@ -1,13 +1,11 @@
 #[macro_use]
 extern crate derive_new;
 
-pub mod elemwise;
-pub mod matmul;
-pub mod reduce;
+pub mod optim;
 
 mod base;
 
-pub(crate) mod shared;
+pub(crate) mod engine;
 pub(crate) mod tune;
 
 pub use base::*;

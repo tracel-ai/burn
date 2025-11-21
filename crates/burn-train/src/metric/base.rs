@@ -38,6 +38,14 @@ impl MetricMetadata {
     }
 }
 
+/// Metric id that can be used to compare metrics and retrieve entries of the same metric.
+/// For now we take the name as id to make sure that the same metric has the same id across different runs.
+#[derive(Debug, Clone, new, PartialEq, Eq, Hash)]
+pub struct MetricId {
+    /// The metric id.
+    id: Arc<String>,
+}
+
 /// Metric attributes define the properties intrinsic to different types of metric.
 #[derive(Clone, Debug)]
 pub enum MetricAttributes {
@@ -52,6 +60,8 @@ pub enum MetricAttributes {
 /// This is used to register a metric with the [learner builder](crate::learner::LearnerBuilder).
 #[derive(Clone, Debug)]
 pub struct MetricDefinition {
+    /// The metric's id.
+    pub metric_id: MetricId,
     /// The name of the metric.
     pub name: String,
     /// The description of the metric.
@@ -60,9 +70,11 @@ pub struct MetricDefinition {
     pub attributes: MetricAttributes,
 }
 
-impl<Me: Metric> From<&Me> for MetricDefinition {
-    fn from(metric: &Me) -> Self {
+impl MetricDefinition {
+    /// Create a new metric definition given the metric and a unique id.
+    pub fn new<Me: Metric>(metric_id: MetricId, metric: &Me) -> Self {
         Self {
+            metric_id,
             name: metric.name().to_string(),
             description: metric.description(),
             attributes: metric.attributes(),
@@ -102,7 +114,7 @@ pub trait Metric: Send + Sync + Clone {
     }
 
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
+    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
 
     /// Clear the metric state.
     fn clear(&mut self);
@@ -156,27 +168,30 @@ pub trait Numeric {
     fn value(&self) -> NumericEntry;
 }
 
-/// Data type that contains the current state of a metric at a given time.
-#[derive(Debug, Clone)]
-pub struct MetricEntry {
-    /// The name of the metric.
-    pub name: Arc<String>,
+/// Serialized form of a metric entry.
+#[derive(Debug, Clone, new)]
+pub struct SerializedEntry {
     /// The string to be displayed.
     pub formatted: String,
     /// The string to be saved.
-    pub serialize: String,
-    /// Tags linked to the metric.
-    pub tags: Vec<Arc<String>>,
+    pub serialized: String,
+}
+
+/// Data type that contains the current state of a metric at a given time.
+#[derive(Debug, Clone)]
+pub struct MetricEntry {
+    /// Id of the entry's metric.
+    pub metric_id: MetricId,
+    /// The serialized form of the entry.
+    pub serialized_entry: SerializedEntry,
 }
 
 impl MetricEntry {
     /// Create a new metric.
-    pub fn new(name: Arc<String>, formatted: String, serialize: String) -> Self {
+    pub fn new(metric_id: MetricId, serialized_entry: SerializedEntry) -> Self {
         Self {
-            name,
-            formatted,
-            serialize,
-            tags: Vec::new(),
+            metric_id,
+            serialized_entry,
         }
     }
 }

@@ -1,17 +1,18 @@
 use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
-
-use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
-use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
-use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
-use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
-use burn_cubecl_fusion::reduce::optimization::ReduceOptimization;
-use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_cubecl_fusion::{
-    CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
+    CubeFusionHandle, FallbackOperation,
+    optim::{
+        CubeOptimization, CubeOptimizationState,
+        elemwise::{ElementWiseFuser, ElemwiseOptimization},
+        matmul::{MatmulFuser, MatmulOptimization},
+        reduce::{ReduceFuser, ReduceOptimization},
+    },
 };
-use burn_fusion::stream::{Operation, OrderedExecution};
-use burn_fusion::{FusionBackend, FusionRuntime};
+use burn_fusion::{
+    FusionBackend, FusionRuntime,
+    stream::{Operation, OrderedExecution},
+};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
@@ -127,19 +128,17 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
     type FusionDevice = R::CubeDevice;
     type BoolRepr = BT;
 
-    fn optimizations(
-        device: R::Device,
-    ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
+    fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            Box::new(ElementWiseBuilder::<R>::new(
+            Box::new(ElementWiseFuser::<R>::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
-            Box::new(MatmulBuilder::<R>::new(
+            Box::new(MatmulFuser::<R>::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
-            Box::new(ReduceBuilder::<R>::new(
+            Box::new(ReduceFuser::<R>::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
