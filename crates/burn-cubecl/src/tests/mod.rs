@@ -16,6 +16,7 @@ mod mask_where;
 mod matmul;
 mod max_pool2d;
 mod max_pool2d_backward;
+mod memory_cleanup;
 mod normal;
 mod quantization;
 mod reduce;
@@ -87,6 +88,8 @@ macro_rules! testgen_all {
 
                 burn_cubecl::testgen_quantization!();
             }
+
+            burn_cubecl::testgen_memory_cleanup!();
         }
         mod cube_fusion {
             burn_cubecl::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
@@ -136,39 +139,11 @@ macro_rules! testgen_jit {
 }
 
 #[macro_export]
-macro_rules! testgen_jit_fusion {
+macro_rules! testgen_memory_cleanup {
     () => {
-        use burn_tensor::{Float, Int};
-        $crate::testgen_jit_fusion!([Float], [Int]);
-    };
-    ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
-        use super::*;
-        use burn_cubecl::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
-
-        pub type TestBackend = burn_fusion::Fusion<CubeBackend<TestRuntime, f32, i32, u32>>;
-        pub type TestBackend2<F, I, B> = burn_fusion::Fusion<CubeBackend<TestRuntime, F, I, B>>;
-        pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
-
-        pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-        pub type TestTensor2<F, I, B, const D: usize> = burn_tensor::Tensor<TestBackend2<F, I, B>, D>;
-        pub type TestTensorInt<const D: usize> =
-            burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-        pub type TestTensorInt2<F, I, B, const D: usize> =
-            burn_tensor::Tensor<TestBackend2<F, I, B>, D, burn_tensor::Int>;
-        pub type TestTensorBool<const D: usize> =
-            burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-        pub type TestTensorBool2<F, I, B, const D: usize> =
-            burn_tensor::Tensor<TestBackend2<F, I, B>, D, burn_tensor::Bool>;
-
-        pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
-
-        burn_tensor::testgen_all!([$($float),*], [$($int),*], [$($bool),*]);
-        burn_autodiff::testgen_all!([$($float),*]);
-
-        use burn_tensor::tests::qtensor::*;
-
-        burn_tensor::testgen_q_matmul!();
-        burn_tensor::testgen_scheme!();
-        burn_tensor::testgen_quantize!();
+        mod memory_cleanup {
+            use super::*;
+            burn_tensor_testgen::testgen!(memory_cleanup);
+        }
     };
 }
