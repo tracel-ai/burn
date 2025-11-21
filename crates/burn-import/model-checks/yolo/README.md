@@ -7,8 +7,9 @@ This crate provides a unified interface for testing multiple YOLO model variants
 - `yolov5s` - YOLOv5 small variant
 - `yolov8n` - YOLOv8 nano variant
 - `yolov8s` - YOLOv8 small variant
-- `yolo11x` - YOLO11 extra-large variant
 - `yolov10n` - YOLOv10 nano variant (Note: Currently fails due to TopK operator issue)
+- `yolo11x` - YOLO11 extra-large variant
+- `yolo12x` - YOLO12 extra-large variant
 
 ## Usage
 
