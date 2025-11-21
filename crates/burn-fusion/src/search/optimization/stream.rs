@@ -1,6 +1,6 @@
 use super::blocks::BlocksOptimizer;
 use crate::{
-    NumOperations, OptimizationBuilder,
+    NumOperations, OperationFuser,
     search::{
         Block, BlockOptimization, RegistrationResult,
         merging::{MergeBlocksResult, merge_blocks},
@@ -12,7 +12,7 @@ use burn_ir::OperationIr;
 
 /// Optimize a stream of [operations](OperationIr) using a list of [builders](OptimizationBuilder).
 pub struct StreamOptimizer<O> {
-    builders: Vec<Box<dyn OptimizationBuilder<O>>>,
+    builders: Vec<Box<dyn OperationFuser<O>>>,
     blocks: Vec<Block<O>>,
     length: usize,
     stopped: bool,
@@ -21,7 +21,7 @@ pub struct StreamOptimizer<O> {
 
 impl<O: NumOperations> StreamOptimizer<O> {
     /// Create a new stream optimizer.
-    pub fn new(builders: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
+    pub fn new(builders: Vec<Box<dyn OperationFuser<O>>>) -> Self {
         Self {
             builders,
             blocks: Vec::new(),

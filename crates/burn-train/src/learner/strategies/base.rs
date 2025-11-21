@@ -31,7 +31,7 @@ pub enum LearningStrategy<LC: LearnerComponentTypes> {
     /// Training on one device with a custom learning strategy
     CustomSingleDevice(CustomSingleDeviceLearningStrategy<LC>),
 
-    /// Performs data-parralel distributed training where the optimization is
+    /// Performs data-parallel distributed training where the optimization is
     /// done on an elected master device.
     MultiDevice(Vec<LearnerDevice<LC>>, MultiDeviceOptim),
 

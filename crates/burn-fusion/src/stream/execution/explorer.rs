@@ -2,7 +2,7 @@ use burn_ir::OperationIr;
 
 use super::ExecutionMode;
 use crate::{
-    NumOperations, OptimizationBuilder,
+    NumOperations, OperationFuser,
     search::{BlockOptimization, StreamOptimizer},
 };
 
@@ -24,7 +24,7 @@ pub enum ExplorationAction<O> {
 
 impl<O: NumOperations> Explorer<O> {
     /// Create a new explorer.
-    pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
+    pub(crate) fn new(optimizations: Vec<Box<dyn OperationFuser<O>>>) -> Self {
         Self {
             optimizer: StreamOptimizer::new(optimizations),
             num_deferred: 0,

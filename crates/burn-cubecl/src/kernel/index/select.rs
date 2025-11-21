@@ -1,5 +1,6 @@
 use crate::kernel::into_contiguous;
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::ops::numeric::empty_device_dtype;
+use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
@@ -9,6 +10,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     indices: &Tensor<I>,
     output: &mut Tensor<T>,
     dim: u32,
+    #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -29,7 +31,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
+pub(crate) fn select<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     dim: usize,
     indices: CubeTensor<R>,
@@ -40,22 +42,34 @@ pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     let total_elem = shape_output.num_elements();
     let indices = into_contiguous(indices);
 
-    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output = empty_device_dtype::<R>(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        shape_output,
+        tensor.dtype,
+    );
 
     let dummy_array = vec![1; ndims];
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
     unsafe {
-        select_kernel::launch_unchecked::<E, I, R>(
+        select_kernel::launch_unchecked::<R>(
             &tensor.client,
             cube_count,
             cube_dim,
             tensor.as_tensor_arg(1),
             // Ignore shape and stride
-            TensorArg::from_raw_parts::<I>(&indices.handle, &dummy_array, &dummy_array, 1),
+            TensorArg::from_raw_parts_and_size(
+                &indices.handle,
+                &dummy_array,
+                &dummy_array,
+                1,
+                indices.dtype.size(),
+            ),
             output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
+            [tensor.dtype.into(), indices.dtype.into()],
         )
     };
     output

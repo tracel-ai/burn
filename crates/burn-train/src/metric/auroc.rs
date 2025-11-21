@@ -1,9 +1,9 @@
 use core::f64;
 use core::marker::PhantomData;
 
+use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, MetricName, Numeric};
+use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
@@ -80,7 +80,7 @@ impl<B: Backend> AurocMetric<B> {
 impl<B: Backend> Metric for AurocMetric<B> {
     type Input = AurocInput<B>;
 
-    fn update(&mut self, input: &AurocInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &AurocInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
         let [batch_size, num_classes] = input.outputs.dims();
 
         assert_eq!(

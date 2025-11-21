@@ -4,7 +4,7 @@ use super::{ExecutionMode, ExplorationAction, Explorer};
 use crate::search::BlockOptimization;
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
-use crate::{NumOperations, OptimizationBuilder};
+use crate::{NumOperations, OperationFuser};
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
 pub(crate) struct Processor<O> {
@@ -22,7 +22,7 @@ pub(crate) trait StreamSegment<O> {
 
 impl<O: NumOperations> Processor<O> {
     /// Create a new stream processor.
-    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
+    pub fn new(optimizations: Vec<Box<dyn OperationFuser<O>>>) -> Self {
         Self {
             policy: Policy::new(),
             explorer: Explorer::new(optimizations),

@@ -63,7 +63,7 @@ Generating your own custom metrics is done by implementing the `Metric` trait.
 /// Implementations should define their own input type only used by the metric.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
-pub trait Metric: Send + Sync {
+pub trait Metric: Send + Sync + Clone {
     /// The input type of the metric.
     type Input;
 
@@ -73,10 +73,11 @@ pub trait Metric: Send + Sync {
     ///
     /// For a metric that can exist at different parameters (e.g., top-k accuracy for different
     /// values of k), the name should be unique for each instance.
-    fn name(&self) -> String;
+    fn name(&self) -> MetricName;
 
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
+    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
+
     /// Clear the metric state.
     fn clear(&mut self);
 }
@@ -86,23 +87,41 @@ As an example, let's see how the loss metric is implemented.
 
 ```rust, ignore
 /// The loss metric.
-#[derive(Default)]
+#[derive(Clone)]
 pub struct LossMetric<B: Backend> {
+    name: Arc<String>,
     state: NumericMetricState,
     _b: B,
 }
 
-/// The loss metric input type.
+/// The [loss metric](LossMetric) input type.
 #[derive(new)]
 pub struct LossInput<B: Backend> {
     tensor: Tensor<B, 1>,
+}
+
+impl<B: Backend> Default for LossMetric<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<B: Backend> LossMetric<B> {
+    /// Create the metric.
+    pub fn new() -> Self {
+        Self {
+            name: Arc::new("Loss".to_string()),
+            state: NumericMetricState::default(),
+            _b: Default::default(),
+        }
+    }
 }
 
 
 impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 
-    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [batch_size] = loss.tensor.dims();
         let loss = loss
             .tensor
@@ -124,8 +143,16 @@ impl<B: Backend> Metric for LossMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "Loss".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
+    }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: None,
+            higher_is_better: false,
+        }
+        .into()
     }
 }
 ```
@@ -135,8 +162,8 @@ When the metric you are implementing is numeric in nature, you may want to also 
 
 ```rust, ignore
 impl<B: Backend> Numeric for LossMetric<B> {
-    fn value(&self) -> f64 {
-        self.state.value()
+    fn value(&self) -> NumericEntry {
+        self.state.current_value()
     }
 }
 ```

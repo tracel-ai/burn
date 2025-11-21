@@ -49,6 +49,8 @@ impl MetricsRenderer for CustomRenderer {
     fn manual_close(&mut self) {
         // Nothing to do.
     }
+
+    fn register_metric(&mut self, _definition: burn::train::metric::MetricDefinition) {}
 }
 
 impl MetricsRendererEvaluation for CustomRenderer {

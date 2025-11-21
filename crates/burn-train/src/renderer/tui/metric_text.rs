@@ -9,7 +9,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
@@ -56,11 +56,17 @@ impl MetricSplits {
 }
 
 impl TextMetricsState {
-    pub(crate) fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
-        if let Some(existing) = self.data.get_mut(metric.name.as_ref()) {
+    pub(crate) fn update(
+        &mut self,
+        split: TuiSplit,
+        group: TuiGroup,
+        metric: MetricEntry,
+        name: Arc<String>,
+    ) {
+        if let Some(existing) = self.data.get_mut(name.as_ref()) {
             existing.update(split, group, metric);
         } else {
-            let key = metric.name.clone();
+            let key = name.clone();
             let value = MetricSplits::new(split, metric);
 
             self.names.push(key.clone());
@@ -96,7 +102,7 @@ impl TextMetricView {
 
             for (name, group) in entry.groups.iter() {
                 for (split, entry) in group.splits.iter() {
-                    lines.push(format_line(name, split, &entry.formatted));
+                    lines.push(format_line(name, split, &entry.serialized_entry.formatted));
                 }
             }
 
