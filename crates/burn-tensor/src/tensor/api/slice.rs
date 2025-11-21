@@ -1,5 +1,7 @@
 use crate::Shape;
 use crate::indexing::AsIndex;
+#[allow(unused_imports)]
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_common::errors::ExpressionError;
 use core::fmt::{Display, Formatter};

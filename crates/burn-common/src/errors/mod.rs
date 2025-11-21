@@ -2,6 +2,7 @@
 //! and expression-related error handling. It provides an extensible way
 //! to encapsulate and manage error metadata for usage in parsing or evaluating expressions.
 
+#[allow(unused_imports)]
 use alloc::format;
 use alloc::string::String;
 
