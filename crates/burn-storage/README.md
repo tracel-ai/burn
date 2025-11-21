@@ -1,3 +1,3 @@
 # Burn Storage
 
-This crate includes the core types that describe and manage how data is stored for Burn tensors.
+This crate includes everything needed to describe and manage how data is represented, stored, and interpreted for Burn tensors.
