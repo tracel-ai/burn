@@ -7,7 +7,7 @@ use crate::engine::codegen::{
 use cubecl::{
     intrinsic,
     matmul::components::{
-        MatmulIdent, MatrixLayout,
+        MatrixLayout,
         global::{
             GlobalConfig,
             args::MatmulArgs,
