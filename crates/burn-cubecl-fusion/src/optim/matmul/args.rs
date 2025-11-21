@@ -7,7 +7,7 @@ use crate::engine::codegen::{
 use cubecl::{
     intrinsic,
     matmul::components::{
-        MatmulIdent, MatrixLayout,
+        MatrixLayout,
         global::{
             GlobalConfig,
             args::MatmulArgs,
@@ -109,14 +109,12 @@ impl MatmulArgs for FusedMatmulArgs {
             batch_shape,
             &inputs.config,
             comptime![GlobalLayoutConfig::from(
-                config.global_memory_config(MatmulIdent::Lhs)
+                config.lhs_reader_config().gmem_config
             )],
             comptime![GlobalLayoutConfig::from(
-                config.global_memory_config(MatmulIdent::Rhs)
+                config.rhs_reader_config().gmem_config
             )],
-            comptime![GlobalLayoutConfig::from(
-                config.global_memory_config(MatmulIdent::Out)
-            )],
+            comptime![GlobalLayoutConfig::from(config.writer_config().gmem_config)],
         )
     }
 
