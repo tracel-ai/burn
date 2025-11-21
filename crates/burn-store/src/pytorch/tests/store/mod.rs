@@ -34,6 +34,17 @@ fn test_data_path(filename: &str) -> PathBuf {
         .join(filename)
 }
 
+/// Path to store test data files
+fn store_test_data_path(filename: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("pytorch")
+        .join("tests")
+        .join("store")
+        .join("test_data")
+        .join(filename)
+}
+
 #[cfg(test)]
 mod basic_tests {
     use super::*;
@@ -529,5 +540,141 @@ mod error_handling_tests {
             result.is_err(),
             "Should fail when no tensors match with allow_partial=false"
         );
+    }
+}
+
+#[cfg(test)]
+mod enum_variant_tests {
+    use super::*;
+    use crate::ModuleSnapshot;
+    use burn_ndarray::NdArray;
+
+    /// Enum representing different convolution block types (similar to YOLOX architecture)
+    #[derive(Module, Debug)]
+    pub enum ConvBlock<B: Backend> {
+        /// Base convolution block
+        BaseConv(Linear<B>),
+        /// Depthwise separable convolution block
+        DwsConv(Linear<B>),
+    }
+
+    /// Model with enum field that will have variant names in Burn paths
+    #[derive(Module, Debug)]
+    pub struct ModelWithEnum<B: Backend> {
+        /// Feature extractor with enum variants
+        feature: ConvBlock<B>,
+        /// Output classifier
+        classifier: Linear<B>,
+    }
+
+    impl<B: Backend> ModelWithEnum<B> {
+        pub fn new(device: &B::Device) -> Self {
+            Self {
+                feature: ConvBlock::BaseConv(LinearConfig::new(3, 64).init(device)),
+                classifier: LinearConfig::new(64, 10).init(device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_enum_variant_path_mismatch() {
+        let device = Default::default();
+        let mut model = ModelWithEnum::<NdArray>::new(&device);
+
+        // Load PyTorch model that was generated without enum variant names
+        // PyTorch paths: "feature.weight", "feature.bias", "classifier.weight", "classifier.bias"
+        // Burn paths:    "feature.BaseConv.weight", "feature.BaseConv.bias", "classifier.weight", "classifier.bias"
+        //                         ^^^^^^^^ enum variant name is included in Burn but not PyTorch
+
+        let pytorch_file = store_test_data_path("model_without_enum_variants.pt");
+
+        // Try to load from PyTorch format (without enum variants)
+        let mut store = PytorchStore::from_file(pytorch_file)
+            .allow_partial(true) // Allow partial to see what's missing
+            .validate(false); // Disable validation to get detailed missing info
+
+        let result = store.apply_to::<NdArray, _>(&mut model);
+
+        // The load should succeed (allow_partial=true) but report missing tensors
+        match result {
+            Ok(apply_result) => {
+                // Verify we have missing tensors
+                assert!(
+                    !apply_result.missing.is_empty(),
+                    "Should have missing tensors due to enum variant path mismatch"
+                );
+
+                // Check that missing paths contain enum variants
+                let enum_missing: Vec<_> = apply_result
+                    .missing
+                    .iter()
+                    .filter(|(_, container_stack)| container_stack.contains("Enum:"))
+                    .collect();
+
+                assert!(
+                    !enum_missing.is_empty(),
+                    "Missing tensors should be detected as having enum containers"
+                );
+
+                // Verify the paths look like what we expect
+                let has_base_conv_path = apply_result
+                    .missing
+                    .iter()
+                    .any(|(path, _)| path.contains("BaseConv"));
+
+                assert!(
+                    has_base_conv_path,
+                    "Should have missing paths with 'BaseConv' enum variant. Missing: {:?}",
+                    apply_result
+                        .missing
+                        .iter()
+                        .map(|(p, _)| p)
+                        .collect::<Vec<_>>()
+                );
+
+                // Print the diagnostic output to show enum detection
+                println!("\n{}", apply_result);
+
+                // Verify the diagnostic message mentions enum variants
+                let display_output = format!("{}", apply_result);
+                assert!(
+                    display_output.contains("enum variant"),
+                    "Display output should mention enum variants"
+                );
+            }
+            Err(e) => panic!(
+                "Load should succeed with allow_partial=true, got error: {}",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn test_enum_variant_detection_in_container_stack() {
+        let device = Default::default();
+
+        // Create model with enum
+        let model = ModelWithEnum::<NdArray>::new(&device);
+
+        // Collect snapshots to inspect container stacks
+        let snapshots = model.collect(None, None);
+
+        // Find a snapshot from inside the enum
+        let enum_snapshot = snapshots
+            .iter()
+            .find(|s| s.full_path().contains("feature"))
+            .expect("Should have feature snapshots");
+
+        // Verify container stack contains enum marker
+        if let Some(container_stack) = &enum_snapshot.container_stack {
+            let container_str = container_stack.join(".");
+            assert!(
+                container_str.contains("Enum:ConvBlock"),
+                "Container stack should contain Enum:ConvBlock marker. Got: {}",
+                container_str
+            );
+        } else {
+            panic!("Snapshot should have container_stack");
+        }
     }
 }
