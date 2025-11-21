@@ -881,7 +881,7 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsS
 
     match dtype {
         DType::F64 => Ok(Dtype::F64),
-        DType::F32 | DType::Flex32 => Ok(Dtype::F32), // Flex32 is stored as F32
+        DType::F32 | DType::Flex32 => Ok(Dtype::F32),
         DType::F16 => Ok(Dtype::F16),
         DType::BF16 => Ok(Dtype::BF16),
         DType::I64 => Ok(Dtype::I64),
@@ -898,5 +898,7 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsS
         DType::QFloat(_) => Err(SafetensorsStoreError::Other(
             "Quantized tensors not yet supported in safetensors".to_string(),
         )),
+        DType::Complex64 => todo!(),
+        DType::Complex32 => todo!(),
     }
 }
