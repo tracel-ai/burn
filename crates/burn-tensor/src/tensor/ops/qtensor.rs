@@ -1,5 +1,5 @@
+use crate::quantization::QuantScheme;
 use alloc::vec::Vec;
-use cubecl_quant::scheme::QuantScheme;
 
 use crate::{
     Device, Shape, TensorData, TensorMetadata, TensorPrimitive,

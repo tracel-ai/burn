@@ -1,0 +1,38 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Fundamental types to represent, store, and interpret Burn tensor data."
+documentation = "https://docs.rs/burn-backend"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-backend"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+cubecl = ["dep:cubecl"]
+doc = ["default"]
+std = ["rand/std", "num-traits/std", "burn-common/std"]
+
+[dependencies]
+burn-common = { path = "../burn-common", version = "0.20.0-pre.2", default-features = false }
+cubecl = { workspace = true, optional = true, default-features = false }
+cubecl-quant = { workspace = true }
+
+bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
+derive-new = { workspace = true }
+half = { workspace = true, features = ["bytemuck"] }
+num-traits = { workspace = true }
+rand = { workspace = true, default-features = false }
+rand_distr = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true, features = ["thread_rng"] }
+paste = { workspace = true }

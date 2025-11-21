@@ -1,9 +1,9 @@
 use core::mem::size_of;
 
-use half::{bf16, f16};
+use crate::{bf16, f16};
 
 /// A generic trait for converting a value to a number.
-/// Adapted from [num_traits::ToPrimitive] to support [bool].
+/// Adapted from num_traits::ToPrimitive to support [bool].
 ///
 /// A value can be represented by the target type when it lies within
 /// the range of scalars supported by the target type.

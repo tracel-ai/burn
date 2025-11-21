@@ -1028,6 +1028,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-shape"
+version = "0.20.0-pre.2"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "burn-storage"
+version = "0.20.0-pre.2"
+dependencies = [
+ "burn-common",
+ "bytemuck",
+ "cubecl",
+ "cubecl-quant",
+ "derive-new",
+ "half",
+ "num-traits",
+ "paste",
+ "rand 0.9.2",
+ "rand_distr",
+ "serde",
+]
+
+[[package]]
 name = "burn-store"
 version = "0.20.0-pre.2"
 dependencies = [
@@ -1072,22 +1096,17 @@ dependencies = [
 name = "burn-tensor"
 version = "0.20.0-pre.2"
 dependencies = [
- "bincode",
  "burn-common",
+ "burn-shape",
+ "burn-storage",
  "burn-tensor-testgen",
- "bytemuck",
  "colored 3.0.0",
  "cubecl",
- "cubecl-quant",
  "derive-new",
- "half",
  "hashbrown 0.15.5",
  "num-traits",
  "paste",
- "rand 0.9.2",
- "rand_distr",
  "serde",
- "serde_bytes",
 ]
 
 [[package]]

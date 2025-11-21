@@ -14,7 +14,6 @@ use std::sync::Arc;
 /// # Returns
 ///
 /// A vector containing indices from 0 to size - 1.
-// TODO: lift/unify `burn::tensor::indexing` to `burn::core:indexing`; move this there.
 #[inline(always)]
 pub fn iota(size: usize) -> Vec<usize> {
     (0..size).collect()
@@ -29,7 +28,6 @@ pub fn iota(size: usize) -> Vec<usize> {
 /// # Returns
 ///
 /// A vector of shuffled indices.
-// TODO: lift/unify `burn::tensor::indexing` to `burn::core:indexing`; move this there.
 #[inline(always)]
 pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
     let mut indices = iota(size);

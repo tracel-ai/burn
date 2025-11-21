@@ -1,6 +1,6 @@
 use rand::{Rng, RngCore, distr::StandardUniform};
 
-use crate::{Element, ElementConversion};
+use crate::element::{Element, ElementConversion};
 
 /// Distribution for random value of a tensor.
 #[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]

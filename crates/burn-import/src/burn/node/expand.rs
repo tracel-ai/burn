@@ -43,8 +43,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
             ExpandConfig::Runtime(ty) => match Type::from(ty) {
                 Type::Tensor(shape_tensor) => {
                     let tensor_name = &shape_tensor.name;
+                    // Convert to i64 for `AsIndex`
                     quote! {
-                        TryInto::<[B::IntElem; #output_rank]>::try_into(#tensor_name.to_data().as_slice::<B::IntElem>().unwrap()).unwrap()
+                        TryInto::<[i64; #output_rank]>::try_into(#tensor_name.to_data().convert::<i64>().as_slice().unwrap()).unwrap()
                     }
                 }
                 Type::Shape(shape) => {
@@ -245,7 +246,7 @@ mod tests {
                     tensor3: Tensor<B, 1, Int>,
                 ) -> Tensor<B, 4> {
                     let tensor2 = tensor1.expand(
-                        TryInto::<[B::IntElem; 4usize]>::try_into(tensor3.to_data().as_slice::<B::IntElem>().unwrap())
+                        TryInto::<[i64; 4usize]>::try_into(tensor3.to_data().convert::<i64>().as_slice().unwrap())
                             .unwrap(),
                     );
                     tensor2
