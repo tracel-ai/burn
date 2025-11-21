@@ -40,4 +40,6 @@ impl MetricsRenderer for CliMetricsRenderer {
     fn manual_close(&mut self) {
         // Nothing to do.
     }
+
+    fn register_metric(&mut self, _definition: crate::metric::MetricDefinition) {}
 }

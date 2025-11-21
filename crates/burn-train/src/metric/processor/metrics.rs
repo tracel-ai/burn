@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{ItemLazy, LearnerItem};
 use crate::{
     metric::{
-        Adaptor, Metric, MetricAttributes, MetricDefinition, MetricEntry, MetricMetadata, Numeric,
-        NumericEntry, store::MetricsUpdate,
+        Adaptor, Metric, MetricAttributes, MetricDefinition, MetricEntry, MetricId, MetricMetadata,
+        Numeric, NumericEntry, store::MetricsUpdate,
     },
     renderer::{EvaluationProgress, TrainingProgress},
 };
@@ -14,14 +14,15 @@ pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     valid: Vec<Box<dyn MetricUpdater<V::ItemSync>>>,
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V::ItemSync>>>,
-    metric_definitions: HashMap<String, MetricDefinition>,
-    best_metric_entries_train: HashMap<String, Option<NumericEntry>>,
-    best_metric_entries_valid: HashMap<String, Option<NumericEntry>>,
+    metric_definitions: HashMap<MetricId, MetricDefinition>,
+    best_metric_entries_train: HashMap<MetricId, Option<MetricEntry>>,
+    best_metric_entries_valid: HashMap<MetricId, Option<MetricEntry>>,
 }
 
 pub(crate) struct MetricsEvaluation<T: ItemLazy> {
     test: Vec<Box<dyn MetricUpdater<T::ItemSync>>>,
     test_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
+    metric_definitions: HashMap<MetricId, MetricDefinition>,
 }
 
 impl<T: ItemLazy> Default for MetricsEvaluation<T> {
@@ -29,6 +30,7 @@ impl<T: ItemLazy> Default for MetricsEvaluation<T> {
         Self {
             test: Default::default(),
             test_numeric: Default::default(),
+            metric_definitions: HashMap::default(),
         }
     }
 }
@@ -54,6 +56,7 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
+        self.register_definition(&metric);
         self.test.push(Box::new(metric))
     }
 
@@ -65,7 +68,20 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
+        self.register_definition(&metric);
         self.test_numeric.push(Box::new(metric))
+    }
+
+    fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
+        self.metric_definitions.insert(
+            metric.id.clone(),
+            MetricDefinition::new(metric.id.clone(), &metric.metric),
+        );
+    }
+
+    /// Get metric definitions.
+    pub(crate) fn metric_definitions(&mut self) -> Vec<MetricDefinition> {
+        self.metric_definitions.values().cloned().collect()
     }
 
     /// Update the testing information from the testing item.
@@ -97,8 +113,8 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     where
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
-        self.register_definition(&metric);
         let metric = MetricWrapper::new(metric);
+        self.register_definition(&metric);
         self.train.push(Box::new(metric))
     }
 
@@ -107,8 +123,8 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     where
         V::ItemSync: Adaptor<Me::Input> + 'static,
     {
-        self.register_definition(&metric);
         let metric = MetricWrapper::new(metric);
+        self.register_definition(&metric);
         self.valid.push(Box::new(metric))
     }
 
@@ -119,10 +135,10 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     ) where
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
+        let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
         self.best_metric_entries_train
-            .insert(metric.name().to_string(), None);
-        let metric = MetricWrapper::new(metric);
+            .insert(metric.id.clone(), None);
         self.train_numeric.push(Box::new(metric))
     }
 
@@ -132,37 +148,41 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         V::ItemSync: Adaptor<Me::Input> + 'static,
         Me: Metric + Numeric + 'static,
     {
+        let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
         self.best_metric_entries_valid
-            .insert(metric.name().to_string(), None);
-        let metric = MetricWrapper::new(metric);
+            .insert(metric.id.clone(), None);
         self.valid_numeric.push(Box::new(metric))
     }
 
-    fn register_definition<Me: Metric>(&mut self, metric: &Me) {
+    fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
         self.metric_definitions.insert(
-            metric.name().to_string(),
-            MetricDefinition {
-                name: metric.name().to_string(),
-                description: metric.description(),
-                attributes: metric.attributes(),
-            },
+            metric.id.clone(),
+            MetricDefinition::new(metric.id.clone(), &metric.metric),
         );
     }
 
-    /// Get metrics definition for all splits
+    /// Get metric definitions for all splits
     pub(crate) fn metric_definitions(&mut self) -> Vec<MetricDefinition> {
         self.metric_definitions.values().cloned().collect()
     }
 
     /// Get the best numeric metric entries for the training split, for the current epoch.
-    pub(crate) fn best_metric_entries_train(&mut self) -> HashMap<String, Option<NumericEntry>> {
-        self.best_metric_entries_train.clone()
+    pub(crate) fn best_metric_entries_train(&mut self) -> Vec<MetricEntry> {
+        self.best_metric_entries_train
+            .values()
+            .filter_map(|v| v.as_ref())
+            .cloned()
+            .collect()
     }
 
     /// Get the best metric entries for the validation split, for the current epoch
-    pub(crate) fn best_metric_entries_valid(&mut self) -> HashMap<String, Option<NumericEntry>> {
-        self.best_metric_entries_valid.clone()
+    pub(crate) fn best_metric_entries_valid(&mut self) -> Vec<MetricEntry> {
+        self.best_metric_entries_valid
+            .values()
+            .filter_map(|v| v.as_ref())
+            .cloned()
+            .collect()
     }
 
     /// Update the training information from the training item.
@@ -184,8 +204,9 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
             entries_numeric.push((state, value));
         }
 
+        let definitions = self.metric_definitions.clone();
         for (state, value) in entries_numeric.iter() {
-            self.update_best_entry_train(state, value);
+            self.update_best_entry_train(state, value, &definitions[&state.metric_id]);
         }
 
         MetricsUpdate::new(entries, entries_numeric)
@@ -210,16 +231,22 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
             entries_numeric.push((state, value));
         }
 
+        let definitions = self.metric_definitions.clone();
         for (state, value) in entries_numeric.iter() {
-            self.update_best_entry_valid(state, value);
+            self.update_best_entry_valid(state, value, &definitions[&state.metric_id]);
         }
 
         MetricsUpdate::new(entries, entries_numeric)
     }
 
-    fn update_best_entry_train(&mut self, state: &MetricEntry, value: &NumericEntry) {
-        let name = state.name.to_string();
-        let higher_is_better = match self.metric_definitions[&name].attributes.clone() {
+    fn update_best_entry_train(
+        &mut self,
+        state: &MetricEntry,
+        value: &NumericEntry,
+        definition: &MetricDefinition,
+    ) {
+        let id = &definition.metric_id;
+        let higher_is_better = match definition.attributes.clone() {
             MetricAttributes::Numeric(attr) => attr.higher_is_better,
             MetricAttributes::None => {
                 panic!("Expected numeric metric.")
@@ -227,20 +254,25 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         };
         let entry = self
             .best_metric_entries_train
-            .entry(name.clone())
+            .entry(id.clone())
             .or_insert(None);
         // Replace if value is None or better than the previous best.
-        if entry
-            .as_ref()
-            .is_none_or(|old| value.better_than(old, higher_is_better))
-        {
-            *entry = Some(value.clone());
+        if entry.as_ref().is_none_or(|old| {
+            let old = NumericEntry::deserialize(&old.serialized_entry.serialized).unwrap();
+            value.better_than(&old, higher_is_better)
+        }) {
+            *entry = Some(state.clone());
         }
     }
 
-    fn update_best_entry_valid(&mut self, state: &MetricEntry, value: &NumericEntry) {
-        let name = state.name.to_string();
-        let higher_is_better = match self.metric_definitions[&name].attributes.clone() {
+    fn update_best_entry_valid(
+        &mut self,
+        state: &MetricEntry,
+        value: &NumericEntry,
+        definition: &MetricDefinition,
+    ) {
+        let id = &definition.metric_id;
+        let higher_is_better = match definition.attributes.clone() {
             MetricAttributes::Numeric(attr) => attr.higher_is_better,
             MetricAttributes::None => {
                 panic!("Expected numeric metric.")
@@ -248,14 +280,14 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         };
         let entry = self
             .best_metric_entries_valid
-            .entry(name.clone())
+            .entry(id.clone())
             .or_insert(None);
         // Replace if value is None or better than the previous best.
-        if entry
-            .as_ref()
-            .is_none_or(|old| value.better_than(old, higher_is_better))
-        {
-            *entry = Some(value.clone());
+        if entry.as_ref().is_none_or(|old| {
+            let old = NumericEntry::deserialize(&old.serialized_entry.serialized).unwrap();
+            value.better_than(&old, higher_is_better)
+        }) {
+            *entry = Some(state.clone());
         }
     }
 
@@ -332,9 +364,18 @@ trait MetricUpdater<T>: Send + Sync {
     fn clear(&mut self);
 }
 
-#[derive(new)]
 struct MetricWrapper<M> {
+    id: MetricId,
     metric: M,
+}
+
+impl<M: Metric> MetricWrapper<M> {
+    pub fn new(metric: M) -> Self {
+        Self {
+            id: MetricId::new(metric.name()),
+            metric,
+        }
+    }
 }
 
 impl<T, M> NumericMetricUpdater<T> for MetricWrapper<M>
@@ -348,7 +389,8 @@ where
         item: &LearnerItem<T>,
         metadata: &MetricMetadata,
     ) -> (MetricEntry, NumericEntry) {
-        let update = self.metric.update(&item.item.adapt(), metadata);
+        let serialized_entry = self.metric.update(&item.item.adapt(), metadata);
+        let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let numeric = self.metric.value();
 
         (update, numeric)
@@ -366,7 +408,8 @@ where
     T: Adaptor<M::Input>,
 {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry {
-        self.metric.update(&item.item.adapt(), metadata)
+        let serialized_entry = self.metric.update(&item.item.adapt(), metadata);
+        MetricEntry::new(self.id.clone(), serialized_entry)
     }
 
     fn clear(&mut self) {

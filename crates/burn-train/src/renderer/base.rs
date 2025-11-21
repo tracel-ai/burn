@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     LearnerSummary,
-    metric::{MetricEntry, NumericEntry},
+    metric::{MetricDefinition, MetricEntry, NumericEntry},
 };
 use burn_core::data::dataloader::Progress;
 
@@ -57,6 +57,8 @@ pub trait MetricsRendererTraining: Send + Sync {
 pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {
     /// Keep the renderer from automatically closing, requiring manual action to close it.
     fn manual_close(&mut self);
+    /// Register a new metric.
+    fn register_metric(&mut self, _definition: MetricDefinition);
 }
 
 #[derive(Clone)]
