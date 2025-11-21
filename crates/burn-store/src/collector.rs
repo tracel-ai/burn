@@ -972,13 +972,13 @@ mod tests {
             .map(|v| (v.full_path(), v))
             .collect();
 
-        // Check that tensors inside Linear layers have "Linear" as their container type
+        // Check that tensors inside Linear layers have "Struct:Linear" as their module type
         for (path, view) in views.iter() {
             if path == "linear.weight" || path == "linear.bias" {
                 assert_eq!(
-                    view.container_type(),
-                    "Linear",
-                    "Tensor '{}' should have container type 'Linear'",
+                    view.module_type(),
+                    Some("Struct:Linear".to_string()),
+                    "Tensor '{}' should have module type 'Struct:Linear'",
                     path
                 );
             }
@@ -1023,9 +1023,9 @@ mod tests {
         // Should have 10 tensors total
         assert_eq!(views.len(), 10);
 
-        // Verify different container types
+        // Verify different module types
         for (_path, view) in views.iter() {
-            assert_eq!(view.container_type(), "Linear");
+            assert_eq!(view.module_type(), Some("Struct:Linear".to_string()));
         }
     }
 
@@ -1053,7 +1053,7 @@ mod tests {
 
         // Filter to only collect tensors from Linear modules
         let filter = PathFilter::new().with_predicate(|_path, container_path| {
-            container_path.split('.').next_back() == Some("Linear")
+            container_path.split('.').next_back() == Some("Struct:Linear")
         });
 
         let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter), None);
@@ -1061,8 +1061,8 @@ mod tests {
         // All collected tensors should be from Linear modules
         for view in linear_views.iter() {
             assert_eq!(
-                view.container_type(),
-                "Linear",
+                view.module_type(),
+                Some("Struct:Linear".to_string()),
                 "All tensors should be from Linear modules"
             );
         }
