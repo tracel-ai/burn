@@ -27,8 +27,7 @@ pub use tensor::*;
 pub use burn_common::stream_id::StreamId;
 
 // Re-exported types
-#[allow(unused_imports)]
-pub use burn_tensor_types::*;
+pub use burn_storage::{Bytes, bf16, f16};
 
 pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.
 

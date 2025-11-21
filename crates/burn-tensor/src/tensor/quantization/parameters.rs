@@ -1,7 +1,7 @@
 use crate::{DType, Shape, Tensor, backend::Backend};
 use alloc::vec::Vec;
 
-pub use crate::QParams;
+pub use burn_storage::quantization::QParams;
 
 /// The tensor quantization parameters.
 pub type QuantizationParameters<B> = QParams<Tensor<B, 1>>;

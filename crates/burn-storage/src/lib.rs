@@ -2,7 +2,7 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! This library provides the core types used by Burn's backend traits and tensor abstractions.
+//! This library provides the core types that define how Burn tensor data is represented, stored, and interpreted.
 
 #[macro_use]
 extern crate derive_new;
@@ -10,20 +10,19 @@ extern crate derive_new;
 extern crate alloc;
 
 mod data;
-mod distribution;
-mod element;
-mod indexing;
-mod quantization;
-mod shape;
-mod slice;
-
 pub use data::*;
-pub use distribution::*;
-pub use element::*;
-pub use indexing::*;
-pub use quantization::*;
-pub use shape::*;
-pub use slice::*;
+
+mod dtype;
+pub use dtype::*;
+
+/// Random value distributions used to initialize and populate tensor data.
+pub mod distribution;
+
+/// Traits and helpers for working with element types and conversions.
+pub mod element;
+
+/// Quantization data representation.
+pub mod quantization;
 
 // Re-exported types
 pub use burn_common::bytes::*;

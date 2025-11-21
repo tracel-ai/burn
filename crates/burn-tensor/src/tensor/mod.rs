@@ -3,7 +3,13 @@ pub(crate) mod stats;
 mod api;
 
 pub use api::*;
-pub use burn_tensor_types::*;
+
+// Re-exported types
+// pub use burn_dtype::{DType, FloatDType, IntDType, distribution::*, element::*};
+pub use burn_shape::*;
+pub use burn_storage::{
+    DType, DataError, FloatDType, IntDType, TensorData, Tolerance, distribution::*, element::*,
+};
 
 /// The activation module.
 pub mod activation;

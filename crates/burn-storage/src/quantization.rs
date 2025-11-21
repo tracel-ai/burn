@@ -1,13 +1,14 @@
-use core::any::TypeId;
-
-use crate::{Bytes, Element};
-use alloc::vec::Vec;
-
-// We re-export those types.
+// Re-exported types
 pub use cubecl_quant::scheme::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
+
+use alloc::vec::Vec;
+use core::any::TypeId;
 use num_traits::PrimInt;
+
+use crate::Bytes;
+use crate::element::Element;
 
 /// The quantization tensor data parameters.
 #[derive(Clone, Debug)]

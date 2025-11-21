@@ -1,14 +1,14 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Core types used by Burn's backend traits and tensor abstractions."
-documentation = "https://docs.rs/burn-tensor-types"
+description = "Fundamental types to represent, store, and interpret Burn tensor data."
+documentation = "https://docs.rs/burn-storage"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license.workspace = true
-name = "burn-tensor-types"
+name = "burn-storage"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-types"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-storage"
 version.workspace = true
 
 [lints]
@@ -18,7 +18,7 @@ workspace = true
 default = ["std"]
 cubecl = ["dep:cubecl"]
 doc = ["default"]
-std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
+std = ["rand/std", "num-traits/std", "burn-common/std"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.20.0-pre.2", default-features = false }
@@ -26,19 +26,13 @@ cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-quant = { workspace = true }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
-colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
-rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
-
-
-# Serialization
+rand_distr = { workspace = true }
 serde = { workspace = true }
-serde_bytes = { workspace = true }
 
 [dev-dependencies]
-bincode = { workspace = true }
-rand = { workspace = true, features = ["thread_rng"] } # Default enables std
+rand = { workspace = true, features = ["thread_rng"] }
 paste = { workspace = true }

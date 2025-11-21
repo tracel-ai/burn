@@ -1,5 +1,5 @@
 // We re-export those types.
-pub use burn_tensor_types::{
+pub use burn_storage::quantization::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 

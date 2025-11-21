@@ -1,0 +1,23 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded"]
+description = "Shape and indexing utilities for Burn."
+documentation = "https://docs.rs/burn-shape"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-shape"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-shape"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+doc = ["default"]
+std = []
+
+[dependencies]
+serde = { workspace = true }
