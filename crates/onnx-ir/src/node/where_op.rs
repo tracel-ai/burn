@@ -15,6 +15,8 @@
 //!
 //! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -22,7 +24,7 @@ use crate::processor::{
 };
 
 /// Node representation for Where operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct WhereNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -87,7 +89,7 @@ impl NodeProcessor for WhereProcessor {
         let condition_elem_type = get_elem_type(condition);
 
         // FIXME: Condition type validation allows Shape types incorrectly - ONNX spec requires condition to be boolean (type B), but implementation allows Shape type (always I64) which violates spec - Shape should not be allowed as condition type
-        if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != DType::Bool {
+        if !matches!(condition, ArgType::Shape(_)) && !condition_elem_type.is_bool() {
             return Err(ProcessError::TypeMismatch {
                 expected: "Bool".to_string(),
                 actual: format!("{:?}", condition_elem_type),

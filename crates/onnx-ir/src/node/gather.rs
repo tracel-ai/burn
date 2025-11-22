@@ -24,6 +24,8 @@
 //! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::processor::{
@@ -32,13 +34,13 @@ use crate::processor::{
 };
 
 /// Configuration for the Gather operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct GatherConfig {
     pub axis: usize,
 }
 
 /// Node representation for Gather operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct GatherNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -1,23 +1,19 @@
 /// The graph module.
 pub mod graph;
 
-#[macro_use]
-mod registry_macro;
-
 mod codegen;
-mod node_registry;
-#[cfg(test)]
-pub(crate) mod node_test;
+mod node_codegen; // Implements NodeCodegen<PS> for onnx_ir::Node
 mod node_traits;
 
 mod imports;
 
+mod argument_helpers;
 mod scope;
-mod ty;
 
+pub(crate) use argument_helpers::*;
 pub(crate) use codegen::ToTokens;
 pub(crate) use imports::*;
+pub(crate) use node_traits::{Field, TensorKind};
 pub(crate) use scope::*;
-pub(crate) use ty::*;
 
 pub(crate) mod node;

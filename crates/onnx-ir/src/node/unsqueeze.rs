@@ -28,6 +28,8 @@
 //! This module includes an important optimization for Int scalar to Shape conversion, which is the
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -43,7 +45,7 @@ pub enum UnsqueezeConfig {
 }
 
 /// Node representation for Unsqueeze operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct UnsqueezeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -232,18 +234,17 @@ impl UnsqueezeProcessor {
 
         // Special case: Int scalar -> Shape[1] conversion (reverse of squeeze)
         match &node.inputs[0].ty {
-            ArgType::Scalar(elem_type) if output_rank == 1 => match elem_type {
-                crate::ir::DType::I32 | crate::ir::DType::I64 => {
+            ArgType::Scalar(elem_type) if output_rank == 1 => {
+                if elem_type.is_int() {
                     node.outputs[0].ty = ArgType::Shape(1);
-                }
-                _ => {
+                } else {
                     node.outputs[0].ty = ArgType::Tensor(TensorType {
                         rank: output_rank,
                         static_shape: None,
                         dtype: *elem_type,
                     });
                 }
-            },
+            }
             _ => {
                 let output_elem = match &node.outputs[0].ty {
                     ArgType::Tensor(_) => node.inputs[0].ty.elem_type(),

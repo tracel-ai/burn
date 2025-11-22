@@ -12,6 +12,9 @@
 //! - **Opset 19**: Added antialiasing improvements and clarified coordinate transformation modes.
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef};
@@ -47,7 +50,8 @@ impl FromStr for ResizeMode {
 }
 
 /// Configuration for the Resize operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ResizeConfig {
     pub mode: ResizeMode,
     pub scales: Option<ResizeScales>,
@@ -57,13 +61,30 @@ pub struct ResizeConfig {
     /// Cubic coefficient for cubic interpolation (default: -0.75)
     pub cubic_coeff_a: f32,
     /// Nearest mode rounding strategy (default: "round_prefer_floor")
-    pub nearest_mode: String,
+    pub nearest_mode: String, // TODO convert to enum
     /// Exclude outside weights (default: 0)
     pub exclude_outside: i32,
     /// Extrapolation value for tf_crop_and_resize mode (default: 0.0)
     pub extrapolation_value: f32,
     /// Antialias flag (default: 0) - opset 13+
     pub antialias: i32,
+    // FIXME add other missing fields
+}
+
+impl Default for ResizeConfig {
+    fn default() -> Self {
+        Self {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: None,
+            coordinate_transformation_mode: "half_pixel".to_string(),
+            cubic_coeff_a: -0.75,
+            nearest_mode: "round_prefer_floor".to_string(), // TODO convert to enum
+            exclude_outside: 0,
+            extrapolation_value: 0.0,
+            antialias: 0,
+        }
+    }
 }
 
 /// Represents either a static value or a runtime argument for resize scales.
@@ -97,7 +118,7 @@ impl Default for ResizeSizes {
 }
 
 /// Node representation for Resize operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ResizeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -317,10 +338,10 @@ impl NodeProcessor for ResizeProcessor {
                     });
                 }
                 "coordinate_transformation_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CoordinateTransformationMode::HalfPixel
                 }
                 "cubic_coeff_a" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CubicCoeffA::HalfPixel
                 }
                 "exclude_outside" => {
                     if value.clone().into_i32() != 0 {
@@ -349,9 +370,11 @@ impl NodeProcessor for ResizeProcessor {
                         });
                     }
                 }
-                "mode" => {} // Validated in extract_config
+                "mode" => {
+                    // FIXME: Implement conversion to enum
+                } // Validated in extract_config
                 "nearest_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum
                 }
                 _ => {}
             }

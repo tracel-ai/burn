@@ -21,6 +21,8 @@
 //! ## Example
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef};
 use crate::processor::{
@@ -43,14 +45,14 @@ impl Default for TileInput {
 }
 
 /// Configuration for the Tile operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
     pub repeats: TileInput,
 }
 
 /// Node representation for Tile operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct TileNode {
     pub name: String,
     pub inputs: Vec<Argument>,

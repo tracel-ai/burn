@@ -18,6 +18,9 @@
 //! Should reject non-integer types like float for indices/depth inputs.
 //! Location: infer_types method after validate_input_count
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -42,7 +45,7 @@ pub enum OneHotValuesInput {
 }
 
 /// Configuration for OneHot operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct OneHotConfig {
     pub depth: OneHotDepthInput,
     pub values: OneHotValuesInput,
@@ -50,7 +53,7 @@ pub struct OneHotConfig {
 }
 
 /// Node representation for OneHot operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct OneHotNode {
     pub name: String,
     pub inputs: Vec<Argument>,

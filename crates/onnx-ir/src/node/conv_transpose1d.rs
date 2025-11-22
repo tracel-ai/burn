@@ -12,6 +12,9 @@
 //! - Weight tensor layout: Implementation expects [out_channels, in_channels, kernel_size]
 //!   (see FIXME at line 185 regarding ONNX spec clarification)
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
@@ -19,7 +22,7 @@ use crate::processor::{
 };
 
 /// Node representation for ConvTranspose1d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ConvTranspose1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -28,7 +31,8 @@ pub struct ConvTranspose1dNode {
 }
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ConvTranspose1dConfig {
     /// Input channels
     pub channels_in: usize,
@@ -48,34 +52,6 @@ pub struct ConvTranspose1dConfig {
     pub padding: usize,
     /// Output padding size
     pub padding_out: usize,
-}
-
-impl ConvTranspose1dConfig {
-    /// Create a new ConvTranspose1dConfig
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        channels_in: usize,
-        channels_out: usize,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
-        groups: usize,
-        bias: bool,
-        padding_out: usize,
-    ) -> Self {
-        Self {
-            channels_in,
-            channels_out,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-            padding_out,
-        }
-    }
 }
 
 pub(crate) struct Convtranspose1dProcessor;
@@ -205,17 +181,17 @@ impl NodeProcessor for Convtranspose1dProcessor {
             kernel_shape[0] as _
         };
 
-        let config = ConvTranspose1dConfig {
+        let config = ConvTranspose1dConfig::new(
             channels_in,
             channels_out,
             kernel_size,
-            stride: stride[0] as usize,
-            padding: pads[0] as usize,
-            dilation: dilations[0] as usize,
-            padding_out: output_padding[0] as usize,
-            groups: group,
+            stride[0] as usize,
+            dilations[0] as usize,
+            group,
             bias,
-        };
+            pads[0] as usize,
+            output_padding[0] as usize,
+        );
 
         Ok(config)
     }

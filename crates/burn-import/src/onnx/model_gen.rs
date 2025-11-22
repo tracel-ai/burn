@@ -8,11 +8,7 @@ use burn::record::{
     DoublePrecisionSettings, FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings,
 };
 
-use crate::{
-    burn::{graph::BurnGraph, node::try_convert_onnx_node},
-    format_tokens,
-    logger::init_log,
-};
+use crate::{burn::graph::BurnGraph, format_tokens, logger::init_log};
 
 use onnx_ir::{ir::OnnxGraph, parse_onnx};
 
@@ -510,23 +506,12 @@ impl ParsedOnnxGraph {
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 
-        let mut unsupported_ops = vec![];
-
         for node in self.0.nodes {
-            // Try registry-based conversion
-            if let Some(burn_node) = try_convert_onnx_node::<PS>(node.clone()) {
-                graph.register(burn_node);
-            } else {
-                // Unsupported node type - extract variant name from Debug output
-                unsupported_ops.push(format!("{:?}", node).to_string());
-            }
+            // Register node directly (control flow nodes will fail at codegen time)
+            graph.register(node);
         }
 
-        if !unsupported_ops.is_empty() {
-            panic!("Unsupported ops: {unsupported_ops:?}");
-        }
-
-        // Extract input and output names and types
+        // Extract input and output names
         let input_names: Vec<_> = self
             .0
             .inputs
@@ -540,12 +525,8 @@ impl ParsedOnnxGraph {
             .map(|output| output.name.clone())
             .collect();
 
-        // Convert ONNX arguments to Burn types for empty graphs
-        let input_types: Vec<_> = self.0.inputs.iter().map(crate::burn::Type::from).collect();
-        let output_types: Vec<_> = self.0.outputs.iter().map(crate::burn::Type::from).collect();
-
-        // Register inputs and outputs with the graph
-        graph.register_input_output(input_names, output_names, &input_types, &output_types);
+        // Register inputs and outputs with the graph (pass Arguments directly)
+        graph.register_input_output(input_names, output_names, &self.0.inputs, &self.0.outputs);
 
         graph
     }

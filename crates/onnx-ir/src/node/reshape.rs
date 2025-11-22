@@ -26,6 +26,9 @@
 //!
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
@@ -33,7 +36,7 @@ use crate::processor::{
 };
 
 /// Configuration for the Reshape operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ReshapeConfig {
     pub shape: ReshapeInput,
 }
@@ -54,7 +57,7 @@ impl Default for ReshapeInput {
 }
 
 /// Node representation for Reshape operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ReshapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,

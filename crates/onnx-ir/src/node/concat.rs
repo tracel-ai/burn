@@ -9,6 +9,9 @@
 //! - **Opset 4-10**: Updated type support
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
@@ -18,13 +21,13 @@ use crate::processor::{
 };
 
 /// Configuration for Concat operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConcatConfig {
     pub axis: usize,
 }
 
 /// Node representation for Concat operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ConcatNode {
     pub name: String,
     pub inputs: Vec<Argument>,

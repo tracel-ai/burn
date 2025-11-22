@@ -10,6 +10,9 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
@@ -45,13 +48,13 @@ fn add_concat_dimension(ty: ArgType) -> ArgType {
 }
 
 /// Configuration for Loop operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LoopConfig {
     pub body: OnnxGraph,
 }
 
 /// Node representation for Loop operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct LoopNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -114,7 +117,7 @@ impl NodeProcessor for LoopProcessor {
                 });
             }
             match cond_type {
-                ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+                ArgType::Scalar(dtype) if dtype.is_bool() => {
                     // Valid scalar bool
                 }
                 _ => {
@@ -150,7 +153,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_in_type {
-            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid
             }
             _ => {
@@ -177,7 +180,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_out_type {
-            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid
             }
             _ => {

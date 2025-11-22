@@ -16,6 +16,9 @@
 //! - Supports casting from string tensor in plain (e.g., "3.14", "1000") and scientific notation
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::Argument;
 
 use crate::ir::{ArgType, AttributeValue, DType, Node, NodeBuilder, TensorType};
@@ -25,21 +28,14 @@ use crate::processor::{
 use crate::proto_conversion::element_type_from_proto;
 
 /// Configuration for Cast operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CastConfig {
     /// Target element type to cast to
     pub to: DType,
 }
 
-impl CastConfig {
-    /// Create a new CastConfig
-    pub fn new(to: DType) -> Self {
-        Self { to }
-    }
-}
-
 /// Node representation for Cast operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct CastNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -105,19 +101,16 @@ impl NodeProcessor for CastProcessor {
             ArgType::Shape(rank) => {
                 // When casting Shape to float or bool types, convert to 1D tensor
                 // This allows Shape values to be used in tensor operations
-                match elem_type {
-                    DType::F32 | DType::F64 | DType::F16 | DType::Bool => {
-                        output.ty = ArgType::Tensor(TensorType {
-                            dtype: elem_type,
-                            rank: 1,
-                            static_shape: Some(vec![rank]),
-                        });
-                    }
-                    _ => {
-                        // For int types, keep as Shape
-                        // This matches Burn's representation where shapes are always [i64; N]
-                        output.ty = ArgType::Shape(rank);
-                    }
+                if elem_type.is_float() || elem_type.is_bool() {
+                    output.ty = ArgType::Tensor(TensorType {
+                        dtype: elem_type,
+                        rank: 1,
+                        static_shape: Some(vec![rank]),
+                    });
+                } else {
+                    // For int types, keep as Shape
+                    // This matches Burn's representation where shapes are always [i64; N]
+                    output.ty = ArgType::Shape(rank);
                 }
             }
         }

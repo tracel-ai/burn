@@ -1,5 +1,13 @@
 // Individual node implementations
 // Module declarations (unfortunately must be manual due to Rust's module system)
+
+// Prelude module with common imports for node implementations
+pub(crate) mod prelude;
+
+// Test helpers for node code generation tests
+#[cfg(test)]
+pub(crate) mod test_helpers;
+
 pub(crate) mod abs;
 pub(crate) mod add;
 pub(crate) mod argmax;
@@ -65,11 +73,11 @@ pub(crate) mod lower;
 pub(crate) mod lower_equal;
 pub(crate) mod matmul;
 pub(crate) mod matmul_integer;
-pub(crate) mod max_pair;
+pub(crate) mod max;
 pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
 pub(crate) mod mean;
-pub(crate) mod min_pair;
+pub(crate) mod min;
 pub(crate) mod modulo;
 pub(crate) mod mul;
 pub(crate) mod neg;
@@ -114,12 +122,8 @@ pub(crate) mod trilu;
 pub(crate) mod unsqueeze;
 pub(crate) mod where_op;
 
-// Node registry, codegen traits, and utilities are in parent module
-// Re-export them here for backward compatibility
-pub(crate) use super::node_registry::*;
+// Node codegen traits and utilities are in parent module
+// Re-export them here for convenience
 pub(crate) use super::node_traits::{
-    NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data,
+    NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data,
 };
-
-#[cfg(test)]
-pub(crate) use super::node_test as test;

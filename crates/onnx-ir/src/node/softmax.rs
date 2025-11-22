@@ -18,16 +18,18 @@ use crate::ir::{ArgType, Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
 
 /// Configuration for Softmax operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SoftmaxConfig {
     /// Axis along which to apply softmax
     pub axis: usize,
 }
 
 /// Node representation for Softmax operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SoftmaxNode {
     pub name: String,
     pub inputs: Vec<Argument>,

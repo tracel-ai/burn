@@ -8,6 +8,9 @@
 //! - **Opset 1**: Initial version with basic transposed convolution support
 //! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{Argument, Node, NodeBuilder};
 
 use crate::processor::{
@@ -15,7 +18,7 @@ use crate::processor::{
 };
 
 /// Node representation for ConvTranspose3d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct ConvTranspose3dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -24,7 +27,8 @@ pub struct ConvTranspose3dNode {
 }
 
 /// Configuration for ConvTranspose3d operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ConvTranspose3dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],
@@ -42,32 +46,6 @@ pub struct ConvTranspose3dConfig {
     pub groups: usize,
     /// Use bias.
     pub bias: bool,
-}
-
-impl ConvTranspose3dConfig {
-    /// Create a new configuration for a ConvTranspose3d.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 3],
-        stride: [usize; 3],
-        dilation: [usize; 3],
-        padding: [usize; 3],
-        padding_out: [usize; 3],
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels,
-            kernel_size,
-            stride,
-            dilation,
-            padding,
-            padding_out,
-            groups,
-            bias,
-        }
-    }
 }
 
 pub(crate) struct Convtranspose3dProcessor;

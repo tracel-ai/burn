@@ -19,6 +19,9 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -40,7 +43,7 @@ impl Default for TopKInput {
 }
 
 /// Configuration for the TopK operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TopKConfig {
     /// The axis along which to perform the top-k selection.
     pub axis: usize,
@@ -49,7 +52,7 @@ pub struct TopKConfig {
 }
 
 /// Node representation for TopK operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct TopKNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -8,6 +8,9 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
@@ -15,7 +18,7 @@ use crate::processor::{
 };
 
 /// Node representation for Conv2d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct Conv2dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -24,7 +27,7 @@ pub struct Conv2dNode {
 }
 
 /// Configuration for Conv2d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct Conv2dConfig {
     /// Channels [in, out]
     pub channels: [usize; 2],
@@ -40,29 +43,6 @@ pub struct Conv2dConfig {
     pub groups: usize,
     /// Whether bias is used
     pub bias: bool,
-}
-
-impl Conv2dConfig {
-    /// Create a new Conv2dConfig
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: PaddingConfig2d,
-        dilation: [usize; 2],
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-        }
-    }
 }
 
 /// Node processor for Conv2d operation

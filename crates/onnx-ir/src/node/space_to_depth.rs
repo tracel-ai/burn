@@ -14,6 +14,9 @@
 //! - **Opset 1-12**: Initial version with blocksize attribute
 //! - **Opset 13+**: Extended type support (added bfloat16, uint types)
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
+
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -21,14 +24,14 @@ use crate::processor::{
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
 
 /// Configuration for SpaceToDepth operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SpaceToDepthConfig {
     /// Block size for space-to-depth transformation
     pub block_size: usize,
 }
 
 /// Node representation for SpaceToDepth operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SpaceToDepthNode {
     pub name: String,
     pub inputs: Vec<Argument>,

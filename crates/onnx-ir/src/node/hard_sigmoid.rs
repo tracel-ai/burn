@@ -21,16 +21,18 @@ use crate::ir::{Argument, Node, NodeBuilder};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
 
 /// Configuration for HardSigmoid operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct HardSigmoidConfig {
     pub alpha: f64,
     pub beta: f64,
 }
 
 /// Node representation for HardSigmoid operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct HardSigmoidNode {
     pub name: String,
     pub inputs: Vec<Argument>,

@@ -11,6 +11,8 @@
 //!   support dynamic shapes. This enables runtime determination of split sizes.
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
+use derive_new::new;
+use onnx_ir_derive::NodeBuilderDerive;
 
 use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorType};
 use crate::processor::{
@@ -33,7 +35,7 @@ impl Default for SplitSizesInput {
 }
 
 /// Configuration for the Split operation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, new)]
 pub struct SplitConfig {
     /// The axis along which to split the input tensor.
     pub axis: usize,
@@ -44,7 +46,7 @@ pub struct SplitConfig {
 }
 
 /// Node representation for Split operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilderDerive)]
 pub struct SplitNode {
     pub name: String,
     pub inputs: Vec<Argument>,
