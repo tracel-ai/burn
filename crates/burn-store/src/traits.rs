@@ -1,7 +1,8 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-use super::applier::{Applier, ApplyResult};
+use super::applier::Applier;
+use super::apply_result::ApplyResult;
 use crate::collector::Collector;
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 use burn_core::module::Module;
@@ -24,12 +25,17 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
     ///   When `None`, all tensors are collected.
     /// * `adapter` - Optional adapter to transform tensors based on container types.
     ///   Applied to all collected tensors before returning.
+    /// * `skip_enum_variants` - Skip enum variant names when building paths.
+    ///   When true, paths will not include enum variant names (e.g., "feature.weight"
+    ///   instead of "feature.BaseConv.weight"). Useful when exporting to formats
+    ///   like PyTorch/SafeTensors that don't use enum variants.
     fn collect(
         &self,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
+        skip_enum_variants: bool,
     ) -> Vec<TensorSnapshot> {
-        let mut collector = Collector::new(filter, adapter);
+        let mut collector = Collector::new(filter, adapter, skip_enum_variants);
         self.visit(&mut collector);
         collector.into_tensors()
     }
@@ -46,6 +52,7 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
     ///   When `None`, all available tensors are applied.
     /// * `adapter` - Optional adapter to transform tensors based on container types
+    /// * `skip_enum_variants` - Skip enum variant names when matching tensor paths
     ///
     /// # Returns
     ///
@@ -58,29 +65,33 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
     /// use burn_store::PathFilter;
     ///
     /// // Apply all tensors
-    /// let result = model.apply(snapshots, None, None);
+    /// let result = model.apply(snapshots, None, None, false);
     ///
     /// // Apply only encoder tensors
     /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-    /// let result = model.apply(snapshots, Some(filter), None);
+    /// let result = model.apply(snapshots, Some(filter), None, false);
     ///
     /// // Apply with complex filter
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_regex(r"^decoder\..*")
     ///     .with_full_path("head.weight");
-    /// let result = model.apply(snapshots, Some(filter), None);
+    /// let result = model.apply(snapshots, Some(filter), None, false);
+    ///
+    /// // Apply with enum variant skipping (for PyTorch models)
+    /// let result = model.apply(snapshots, None, None, true);
     /// ```
     fn apply(
         &mut self,
         snapshots: Vec<TensorSnapshot>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
+        skip_enum_variants: bool,
     ) -> ApplyResult
     where
         Self: Sized,
     {
-        let mut applier = Applier::new(snapshots, filter, adapter);
+        let mut applier = Applier::new(snapshots, filter, adapter, skip_enum_variants);
 
         // Use unsafe to avoid cloning the entire module, which would double the memory usage
         // We read the module out, map it, then write it back

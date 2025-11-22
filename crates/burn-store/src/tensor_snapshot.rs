@@ -147,7 +147,38 @@ impl TensorSnapshot {
             .unwrap_or_default()
     }
 
+    /// Get the module type (last Struct/Enum in the hierarchy)
+    ///
+    /// Returns the last user-defined module type, skipping primitive containers
+    /// like "Vec", "Array". This is useful for determining which user-defined
+    /// module a tensor belongs to.
+    ///
+    /// # Examples
+    /// - `Linear.weight` → `Some("Struct:Linear")`
+    /// - `Vec<Linear>[0].weight` → `Some("Struct:Linear")`
+    /// - `Linear.bias` (Optional) → `Some("Struct:Linear")`
+    /// - `Vec<Param>[0]` (no module) → `None`
+    pub fn module_type(&self) -> Option<String> {
+        self.container_stack.as_ref().and_then(|stack| {
+            // Find the last user-defined type (Struct: or Enum:)
+            stack
+                .iter()
+                .rev()
+                .find(|ct| ct.starts_with("Struct:") || ct.starts_with("Enum:"))
+                .cloned()
+        })
+    }
+
     /// Get the immediate container type (last in the container stack)
+    ///
+    /// Returns the last element in the container stack, which could be a
+    /// user-defined type ("Struct:", "Enum:") or a collection type ("Vec", "Array").
+    /// This is useful for understanding the full container hierarchy.
+    ///
+    /// # Examples
+    /// - `Linear.weight` → `"Struct:Linear"`
+    /// - `Vec<Linear>[0].weight` → `"Struct:Linear"` (the Linear, not the Vec)
+    /// - `Vec<Param>[0]` → `"Vec"`
     pub fn container_type(&self) -> String {
         self.container_stack
             .as_ref()
@@ -379,7 +410,7 @@ mod tests {
         let snapshot = TensorSnapshot::from_data(
             data,
             vec!["encoder".to_string(), "weight".to_string()],
-            vec!["Encoder".to_string(), "Dense".to_string()],
+            vec!["Struct:Encoder".to_string(), "Struct:Dense".to_string()],
             ParamId::new(),
         );
 
@@ -387,7 +418,7 @@ mod tests {
         assert_eq!(snapshot.dtype, original_dtype);
         assert_eq!(snapshot.shape, original_shape);
         assert_eq!(snapshot.full_path(), "encoder.weight");
-        assert_eq!(snapshot.container_type(), "Dense");
+        assert_eq!(snapshot.container_type(), "Struct:Dense");
         assert_eq!(snapshot.data_len(), 24); // 6 * 4 bytes
 
         // Test data materialization
@@ -460,15 +491,88 @@ mod tests {
                 "weight".to_string(),
             ],
             vec![
-                "Model".to_string(),
-                "Conv2d".to_string(),
-                "Param".to_string(),
+                "Struct:Model".to_string(),
+                "Struct:Conv2d".to_string(),
+                "Struct:Param".to_string(),
             ],
             ParamId::new(),
         );
 
-        assert_eq!(snapshot.container_type(), "Param");
-        assert_eq!(snapshot.container_path(), "Model.Conv2d.Param");
+        assert_eq!(snapshot.container_type(), "Struct:Param");
+        assert_eq!(snapshot.module_type(), Some("Struct:Param".to_string()));
+        assert_eq!(
+            snapshot.container_path(),
+            "Struct:Model.Struct:Conv2d.Struct:Param"
+        );
         assert_eq!(snapshot.full_path(), "model.layer1.weight");
+    }
+
+    #[test]
+    fn container_type_vs_module_type() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 1>::from_data([1.0, 2.0, 3.0], &device);
+
+        // Test case 1: Tensor inside a Vec<Linear>
+        // container_stack: ["Struct:Model", "Vec", "Struct:Linear"]
+        let snapshot = TensorSnapshot::from_float(
+            &tensor,
+            vec![
+                "model".to_string(),
+                "layers".to_string(),
+                "0".to_string(),
+                "weight".to_string(),
+            ],
+            vec![
+                "Struct:Model".to_string(),
+                "Vec".to_string(),
+                "Struct:Linear".to_string(),
+            ],
+            ParamId::new(),
+        );
+
+        // container_type() returns the last element (Struct:Linear in this case)
+        assert_eq!(snapshot.container_type(), "Struct:Linear");
+        // module_type() also returns Some(Struct:Linear) (skipping Vec)
+        assert_eq!(snapshot.module_type(), Some("Struct:Linear".to_string()));
+
+        // Test case 2: Tensor that's just in a Vec
+        // container_stack: ["Vec"]
+        let snapshot2 = TensorSnapshot::from_float(
+            &tensor,
+            vec!["data".to_string(), "0".to_string()],
+            vec!["Vec".to_string()],
+            ParamId::new(),
+        );
+
+        // container_type() returns Vec
+        assert_eq!(snapshot2.container_type(), "Vec");
+        // module_type() returns None (no Struct/Enum found)
+        assert_eq!(snapshot2.module_type(), None);
+
+        // Test case 3: Nested collections
+        // container_stack: ["Struct:Model", "Vec", "Array", "Struct:Linear"]
+        let snapshot3 = TensorSnapshot::from_float(
+            &tensor,
+            vec![
+                "model".to_string(),
+                "layers".to_string(),
+                "0".to_string(),
+                "sublayers".to_string(),
+                "1".to_string(),
+                "weight".to_string(),
+            ],
+            vec![
+                "Struct:Model".to_string(),
+                "Vec".to_string(),
+                "Array".to_string(),
+                "Struct:Linear".to_string(),
+            ],
+            ParamId::new(),
+        );
+
+        // container_type() returns the immediate container
+        assert_eq!(snapshot3.container_type(), "Struct:Linear");
+        // module_type() returns the last Struct/Enum
+        assert_eq!(snapshot3.module_type(), Some("Struct:Linear".to_string()));
     }
 }

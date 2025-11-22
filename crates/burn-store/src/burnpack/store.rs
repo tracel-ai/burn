@@ -286,7 +286,7 @@ impl ModuleStore for BurnpackStore {
         module: &M,
     ) -> Result<(), Self::Error> {
         // Collect snapshots from module
-        let snapshots = module.collect(self.filter.clone(), None);
+        let snapshots = module.collect(self.filter.clone(), None, false);
 
         // Initialize writer with snapshots
         let mut writer = BurnpackWriter::new(snapshots);
@@ -372,7 +372,8 @@ impl ModuleStore for BurnpackStore {
         let snapshots = reader.get_snapshots()?;
 
         // Apply all snapshots at once to the module
-        let result = module.apply(snapshots, self.filter.clone(), None);
+        // Burnpack is Burn's native format, so no enum variant skipping needed
+        let result = module.apply(snapshots, self.filter.clone(), None, false);
 
         // Validate if needed
         if self.validate && !result.errors.is_empty() {

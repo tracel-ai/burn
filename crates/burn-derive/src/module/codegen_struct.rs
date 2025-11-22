@@ -31,12 +31,13 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_visit(&self) -> TokenStream {
         let struct_name = self.name.to_string();
+        let container_type = format!("Struct:{}", struct_name);
         let body = self.gen_fields_fn(|name| {
             let name_str = name.to_string();
             quote! {
-                visitor.enter_module(#name_str, #struct_name);
+                visitor.enter_module(#name_str, #container_type);
                 burn::module::Module::visit(&self.#name, visitor);
-                visitor.exit_module(#name_str, #struct_name);
+                visitor.exit_module(#name_str, #container_type);
             }
         });
 
@@ -104,12 +105,13 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_map(&self) -> TokenStream {
         let struct_name = self.name.to_string();
+        let container_type = format!("Struct:{}", struct_name);
         let (names, body) = self.gen_fields_fn_names(|name| {
             let name_str = name.to_string();
             quote! {
-                mapper.enter_module(#name_str, #struct_name);
+                mapper.enter_module(#name_str, #container_type);
                 let #name = burn::module::Module::<B>::map(self.#name, mapper);
-                mapper.exit_module(#name_str, #struct_name);
+                mapper.exit_module(#name_str, #container_type);
             }
         });
 

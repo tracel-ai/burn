@@ -17,7 +17,7 @@ use burn_core::module::{ModuleVisitor, Param, ParamId};
 /// ## Collect all tensors
 /// ```rust,no_run
 /// # use burn_store::Collector;
-/// let collector = Collector::new(None, None);
+/// let collector = Collector::new(None, None, false);
 /// // Use with module.visit(&mut collector);
 /// let all_tensors = collector.tensors;
 /// ```
@@ -26,7 +26,7 @@ use burn_core::module::{ModuleVisitor, Param, ParamId};
 /// ```rust,no_run
 /// # use burn_store::{Collector, PathFilter};
 /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-/// let collector = Collector::new(Some(filter), None);
+/// let collector = Collector::new(Some(filter), None, false);
 /// // Use with module.visit(&mut collector);
 /// // Only collects tensors starting with "encoder."
 /// ```
@@ -37,7 +37,7 @@ use burn_core::module::{ModuleVisitor, Param, ParamId};
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
 ///     .with_regex(r".*\.bias$");    // OR match any bias tensors
-/// let collector = Collector::new(Some(filter), None);
+/// let collector = Collector::new(Some(filter), None, false);
 /// // Use with module.visit(&mut collector);
 /// // Collects tensors matching ANY of the patterns
 /// ```
@@ -48,11 +48,14 @@ pub struct Collector {
     container_stack: Vec<String>,
     filter: Option<PathFilter>,
     adapter: Option<Box<dyn ModuleAdapter>>,
+    /// Skip enum variant names when building paths
+    /// When true, enum variant names are not included in tensor paths
+    skip_enum_variants: bool,
 }
 
 impl Default for Collector {
     fn default() -> Self {
-        Self::new(None, None)
+        Self::new(None, None, false)
     }
 }
 
@@ -65,27 +68,39 @@ impl Collector {
     ///   When `None`, all tensors are collected.
     /// * `adapter` - Optional adapter to transform tensors based on container types.
     ///   Applied to all collected tensors before returning.
+    /// * `skip_enum_variants` - Skip enum variant names when building paths.
+    ///   When true, paths will not include enum variant names (e.g., "feature.weight"
+    ///   instead of "feature.BaseConv.weight"). Useful when exporting to formats
+    ///   like PyTorch that don't use enum variants.
     ///
     /// # Examples
     ///
     /// ```rust,no_run
     /// # use burn_store::{Collector, PathFilter};
     /// // Collect all tensors without adapter
-    /// let collector = Collector::new(None, None);
+    /// let collector = Collector::new(None, None, false);
     ///
     /// // Use PathFilter builder
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_full_path("decoder.weight");
-    /// let collector = Collector::new(Some(filter), None);
+    /// let collector = Collector::new(Some(filter), None, false);
+    ///
+    /// // Skip enum variants for PyTorch export
+    /// let collector = Collector::new(None, None, true);
     /// ```
-    pub fn new(filter: Option<PathFilter>, adapter: Option<Box<dyn ModuleAdapter>>) -> Self {
+    pub fn new(
+        filter: Option<PathFilter>,
+        adapter: Option<Box<dyn ModuleAdapter>>,
+        skip_enum_variants: bool,
+    ) -> Self {
         Self {
             tensors: Vec::new(),
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter,
             adapter,
+            skip_enum_variants,
         }
     }
 
@@ -112,13 +127,23 @@ impl Collector {
 
 impl<B: Backend> ModuleVisitor<B> for Collector {
     fn enter_module(&mut self, name: &str, container_type: &str) {
-        self.path_stack.push(name.to_string());
+        // Always track the container type for proper filtering and module type detection
         self.container_stack.push(container_type.to_string());
+
+        // Only add to path if it's not an enum variant (when skip_enum_variants is enabled)
+        // This ensures paths are built without enum variant names from the start
+        if !self.skip_enum_variants || !container_type.starts_with("Enum:") {
+            self.path_stack.push(name.to_string());
+        }
     }
 
-    fn exit_module(&mut self, _name: &str, _container_type: &str) {
-        self.path_stack.pop();
+    fn exit_module(&mut self, _name: &str, container_type: &str) {
         self.container_stack.pop();
+
+        // Only pop from path if we added it (not an enum variant when skip_enum_variants is enabled)
+        if !self.skip_enum_variants || !container_type.starts_with("Enum:") {
+            self.path_stack.pop();
+        }
     }
 
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
@@ -221,7 +246,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let mut collector = Collector::new(None, None);
+        let mut collector = Collector::new(None, None, false);
         let id = ParamId::new();
 
         // Collect a tensor
@@ -246,7 +271,7 @@ mod tests {
         let weight = Param::<Tensor<TestBackend, 2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
         let bias = Param::<Tensor<TestBackend, 1>>::from_data([5.0, 6.0], &device);
 
-        let mut collector = Collector::new(None, None);
+        let mut collector = Collector::new(None, None, false);
 
         // Simulate module traversal for root-level parameters
         // Enter "weight" path (as if we're visiting a field named "weight")
@@ -289,7 +314,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         let filter = PathFilter::new().with_regex(r"^encoder\..*");
-        let mut collector = Collector::new(Some(filter), None);
+        let mut collector = Collector::new(Some(filter), None, false);
         let id = ParamId::new();
 
         // This should be collected
@@ -319,7 +344,7 @@ mod tests {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\..*") // Match encoder.*
             .with_regex(r".*\.bias$"); // Match *.bias
-        let mut collector = Collector::new(Some(filter), None);
+        let mut collector = Collector::new(Some(filter), None, false);
         let id = ParamId::new();
 
         // These should be collected
@@ -356,7 +381,7 @@ mod tests {
             path.starts_with("encoder.") || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(filter_fn);
-        let mut collector = Collector::new(Some(filter), None);
+        let mut collector = Collector::new(Some(filter), None, false);
         let id = ParamId::new();
 
         // These should be collected
@@ -400,7 +425,7 @@ mod tests {
             (parts[1] == "layer1" || parts[1] == "layer2") && parts[2] == "weight"
         }
         let filter = PathFilter::new().with_predicate(complex_filter);
-        let mut collector = Collector::new(Some(filter), None);
+        let mut collector = Collector::new(Some(filter), None, false);
         let id = ParamId::new();
 
         // These should be collected
@@ -672,7 +697,7 @@ mod tests {
         let device = Default::default();
         let model = DeepModel::<TestBackend>::new(&device);
 
-        let mut collector = Collector::new(None, None);
+        let mut collector = Collector::new(None, None, false);
         model.visit(&mut collector);
 
         let views = collector.tensors;
@@ -724,7 +749,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r"^backbone\.encoder\..*");
-            let mut collector = Collector::new(Some(filter), None);
+            let mut collector = Collector::new(Some(filter), None, false);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
         }
@@ -733,7 +758,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.block1\..*");
-            let mut collector = Collector::new(Some(filter), None);
+            let mut collector = Collector::new(Some(filter), None, false);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
         }
@@ -742,7 +767,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.weight$");
-            let mut collector = Collector::new(Some(filter), None);
+            let mut collector = Collector::new(Some(filter), None, false);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 9); // All weight tensors
         }
@@ -754,7 +779,7 @@ mod tests {
                 .with_regex(r"^backbone\.encoder\.block1\..*") // All encoder.block1 tensors
                 .with_regex(r"^backbone\.decoder\..*\.bias$") // All decoder biases
                 .with_regex(r"^head\.weight$"); // Head weight only
-            let mut collector = Collector::new(Some(filter), None);
+            let mut collector = Collector::new(Some(filter), None, false);
             model.visit(&mut collector);
 
             // Should have:
@@ -804,7 +829,7 @@ mod tests {
         let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -820,7 +845,7 @@ mod tests {
         let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -852,7 +877,7 @@ mod tests {
         let module = VecModule::<TestBackend>::new(&device, 3);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -893,7 +918,7 @@ mod tests {
         let module = ArrayModule::<TestBackend>::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -923,7 +948,7 @@ mod tests {
         // Test variant A
         let module_a = EnumModule::<TestBackend>::LayerA(LinearConfig::new(10, 20).init(&device));
         let views_a: HashMap<String, TensorSnapshot> = module_a
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -936,7 +961,7 @@ mod tests {
         // Test variant B
         let module_b = EnumModule::<TestBackend>::LayerB(LinearConfig::new(10, 20).init(&device));
         let views_b: HashMap<String, TensorSnapshot> = module_b
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -967,18 +992,18 @@ mod tests {
         let model = ModelWithLinear::<TestBackend>::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = model
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
 
-        // Check that tensors inside Linear layers have "Linear" as their container type
+        // Check that tensors inside Linear layers have "Struct:Linear" as their module type
         for (path, view) in views.iter() {
             if path == "linear.weight" || path == "linear.bias" {
                 assert_eq!(
-                    view.container_type(),
-                    "Linear",
-                    "Tensor '{}' should have container type 'Linear'",
+                    view.module_type(),
+                    Some("Struct:Linear".to_string()),
+                    "Tensor '{}' should have module type 'Struct:Linear'",
                     path
                 );
             }
@@ -1015,7 +1040,7 @@ mod tests {
         let model = ComplexModel::<TestBackend>::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = model
-            .collect(None, None)
+            .collect(None, None, false)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -1023,9 +1048,9 @@ mod tests {
         // Should have 10 tensors total
         assert_eq!(views.len(), 10);
 
-        // Verify different container types
+        // Verify different module types
         for (_path, view) in views.iter() {
-            assert_eq!(view.container_type(), "Linear");
+            assert_eq!(view.module_type(), Some("Struct:Linear".to_string()));
         }
     }
 
@@ -1053,16 +1078,16 @@ mod tests {
 
         // Filter to only collect tensors from Linear modules
         let filter = PathFilter::new().with_predicate(|_path, container_path| {
-            container_path.split('.').next_back() == Some("Linear")
+            container_path.split('.').next_back() == Some("Struct:Linear")
         });
 
-        let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter), None);
+        let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter), None, false);
 
         // All collected tensors should be from Linear modules
         for view in linear_views.iter() {
             assert_eq!(
-                view.container_type(),
-                "Linear",
+                view.module_type(),
+                Some("Struct:Linear".to_string()),
                 "All tensors should be from Linear modules"
             );
         }

@@ -90,7 +90,6 @@
 //!
 //! ```rust,no_run
 //! # use burn_store::{SafetensorsStore, KeyRemapper};
-//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Using builder pattern for common remapping patterns
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
@@ -99,14 +98,12 @@
 //!
 //! // Or using a pre-configured KeyRemapper for complex transformations
 //! let remapper = KeyRemapper::new()
-//!     .add_pattern(r"^pytorch\.(.*)", "burn.$1")?           // pytorch.layer -> burn.layer
-//!     .add_pattern(r"^(.*)\.running_mean$", "$1.mean")?     // layer.running_mean -> layer.mean
-//!     .add_pattern(r"^(.*)\.running_var$", "$1.variance")?; // layer.running_var -> layer.variance
+//!     .add_pattern(r"^pytorch\.(.*)", "burn.$1").expect("valid regex")           // pytorch.layer -> burn.layer
+//!     .add_pattern(r"^(.*)\.running_mean$", "$1.mean").expect("valid regex")     // layer.running_mean -> layer.mean
+//!     .add_pattern(r"^(.*)\.running_var$", "$1.variance").expect("valid regex"); // layer.running_var -> layer.variance
 //!
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .remap(remapper);
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ### Framework Adapters

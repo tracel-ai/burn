@@ -103,6 +103,7 @@ use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter, PytorchStore};
 // Load PyTorch .pth file directly (PyTorchToBurnAdapter is applied automatically)
 let mut store = PytorchStore::from_file("pytorch_model.pth")
     .with_top_level_key("state_dict")         // Access nested state dict
+    .skip_enum_variants(true)                 // Match PyTorch paths to Burn enum paths
     .allow_partial(true);                     // Skip unknown tensors
 
 burn_model.load_from(&mut store)?;
@@ -110,13 +111,15 @@ burn_model.load_from(&mut store)?;
 // Load PyTorch model from SafeTensors
 let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
+    .skip_enum_variants(true)                 // Handle enum variant name differences
     .allow_partial(true);                     // Skip unknown PyTorch tensors
 
 burn_model.load_from(&mut store)?;
 
-// Save Burn model for PyTorch
+// Save Burn model for PyTorch (with enum variant skipping)
 let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
-    .with_to_adapter(BurnToPyTorchAdapter);   // Convert back to PyTorch format
+    .with_to_adapter(BurnToPyTorchAdapter)    // Convert back to PyTorch format
+    .skip_enum_variants(true);                // Omit enum variants for PyTorch compatibility
 
 burn_model.save_into(&mut store)?;
 ```
@@ -186,20 +189,20 @@ transferring parts of models.
 use burn_store::{ModuleSnapshot, PathFilter};
 
 // Direct transfer - all compatible tensors
-let snapshots = model1.collect(None, None);
-let result = model2.apply(snapshots, None, None);
+let snapshots = model1.collect(None, None, false);
+let result = model2.apply(snapshots, None, None, false);
 
 // Selective transfer with filtering
 let filter = PathFilter::new().with_regex(r"^encoder\..*");
-let snapshots = model1.collect(Some(filter.clone()), None);
-let result = model2.apply(snapshots, Some(filter), None);
+let snapshots = model1.collect(Some(filter.clone()), None, false);
+let result = model2.apply(snapshots, Some(filter), None, false);
 
 // Transfer with path transformation
-let mut snapshots = model1.collect(None, None);
+let mut snapshots = model1.collect(None, None, false);
 for snapshot in &mut snapshots {
     snapshot.full_path = snapshot.full_path.replace("encoder.", "transformer.encoder.");
 }
-model2.apply(snapshots, None, None);
+model2.apply(snapshots, None, None, false);
 ```
 
 #### Partial Loading and Exports
@@ -222,14 +225,14 @@ println!("Loaded: {}, Missing: {:?}", result.applied.len(), result.missing);
 ```rust
 // Merge weights from different sources
 let mut merged = Vec::new();
-merged.extend(base_model.collect(None, None));
+merged.extend(base_model.collect(None, None, false));
 
 // Add encoder from specialized model
 let encoder_filter = PathFilter::new().with_regex(r"^encoder\..*");
-merged.extend(specialized_model.collect(Some(encoder_filter), None));
+merged.extend(specialized_model.collect(Some(encoder_filter), None, false));
 
 // Apply merged weights
-target_model.apply(merged, None, None);
+target_model.apply(merged, None, None, false);
 
 // Alternative: Sequential loading from files
 let mut base_store = SafetensorsStore::from_file("base.safetensors");
@@ -256,6 +259,8 @@ let mut store = PytorchStore::from_file("pytorch_transformer.pth")
     .with_key_remapping(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
     // Rename attention layers
     .with_key_remapping(r"\.attn\.", ".attention.")
+    // Match PyTorch paths to Burn enum paths
+    .skip_enum_variants(true)
     // Handle missing tensors gracefully
     .allow_partial(true);
 
@@ -388,6 +393,7 @@ The stores provide a fluent API for configuration:
 - `metadata(key, value)` - Add custom metadata (Burnpack and SafeTensors)
 - `allow_partial(bool)` - Continue on missing tensors
 - `validate(bool)` - Toggle validation
+- `skip_enum_variants(bool)` - Skip enum variant names in paths for PyTorch compatibility
 - `with_top_level_key(key)` - Access nested dict in PyTorch files
 - `overwrite(bool)` - Allow overwriting existing files (Burnpack)
 

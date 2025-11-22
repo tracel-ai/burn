@@ -194,7 +194,7 @@ fn verify_tensor_names_from_pytorch() {
     assert!(!result.applied.is_empty());
 
     // Collect tensor names from the model
-    let views = model.collect(None, None);
+    let views = model.collect(None, None, false);
     let tensor_names: Vec<String> = views.iter().map(|v| v.full_path()).collect();
 
     // Verify expected tensor names are present

@@ -42,7 +42,7 @@ fn builder_pattern_filtering() {
         .with_regex(r"^encoder\..*") // Match encoder tensors
         .with_regex(r".*\.bias$"); // OR match any bias tensors
 
-    let views = module.collect(None, None);
+    let views = module.collect(None, None, false);
     let filtered_count = views
         .iter()
         .filter(|v| {
@@ -153,7 +153,7 @@ fn builder_pattern_match_all() {
     let device = Default::default();
     let module = ComplexModule::<TestBackend>::new(&device);
 
-    let all_views = module.collect(None, None);
+    let all_views = module.collect(None, None, false);
     let total_count = all_views.len();
 
     // Test match_all - should save everything
