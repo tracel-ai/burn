@@ -74,6 +74,7 @@ pub struct PytorchStore {
     pub(crate) validate: bool,
     pub(crate) allow_partial: bool,
     pub(crate) top_level_key: Option<String>,
+    pub(crate) skip_enum_variants: bool,
 }
 
 impl PytorchStore {
@@ -96,6 +97,7 @@ impl PytorchStore {
             validate: true,
             allow_partial: false,
             top_level_key: None,
+            skip_enum_variants: false,
         }
     }
 
@@ -240,6 +242,26 @@ impl PytorchStore {
         self
     }
 
+    /// Skip enum variant names when matching tensor paths.
+    ///
+    /// When enabled, tensor paths from PyTorch that don't include enum variants
+    /// can be matched against Burn module paths that do include them.
+    /// For example, PyTorch path "feature.weight" can match Burn path "feature.BaseConv.weight".
+    ///
+    /// This is useful when loading PyTorch models into Burn modules that use enums,
+    /// since PyTorch doesn't include enum variant names in its parameter paths.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
+    /// let store = PytorchStore::from_file("model.pth")
+    ///     .skip_enum_variants(true);
+    /// ```
+    pub fn skip_enum_variants(mut self, skip: bool) -> Self {
+        self.skip_enum_variants = skip;
+        self
+    }
+
     /// Apply filter to tensor snapshots.
     fn apply_filter(&self, mut snapshots: Vec<TensorSnapshot>) -> Vec<TensorSnapshot> {
         if self.filter.is_empty() {
@@ -318,7 +340,12 @@ impl ModuleStore for PytorchStore {
         // This adapter handles:
         // - Transposing linear weights from PyTorch format to Burn format
         // - Renaming normalization parameters (gamma -> weight, beta -> bias)
-        let result = module.apply(snapshots, None, Some(Box::new(PyTorchToBurnAdapter)));
+        let result = module.apply(
+            snapshots,
+            None,
+            Some(Box::new(PyTorchToBurnAdapter)),
+            self.skip_enum_variants,
+        );
 
         // Validate if needed
         if self.validate && !result.errors.is_empty() {

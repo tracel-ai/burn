@@ -33,6 +33,9 @@ pub struct Applier<B: Backend> {
     errors: Vec<ApplyError>,
     /// Track visited paths with their container stacks (in dot notation) to find missing tensors
     visited_paths: HashMap<String, String>,
+    /// Skip enum variant names when matching paths
+    /// When true, "feature.BaseConv.weight" will also try to match "feature.weight"
+    skip_enum_variants: bool,
     /// Phantom data for backend type
     _backend: core::marker::PhantomData<B>,
 }
@@ -46,10 +49,12 @@ impl<B: Backend> Applier<B> {
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
     ///   When `None`, all available tensors are applied.
     /// * `adapter` - Optional adapter to transform tensors based on container types
+    /// * `skip_enum_variants` - Skip enum variant names when matching paths
     pub fn new(
         views: Vec<TensorSnapshot>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
+        skip_enum_variants: bool,
     ) -> Self {
         let views_map: HashMap<String, TensorSnapshot> = views
             .into_iter()
@@ -66,6 +71,7 @@ impl<B: Backend> Applier<B> {
             skipped: HashSet::new(),
             errors: Vec::new(),
             visited_paths: HashMap::new(),
+            skip_enum_variants,
             _backend: core::marker::PhantomData,
         }
     }
@@ -228,13 +234,23 @@ impl<B: Backend> Applier<B> {
 
 impl<B: Backend> ModuleMapper<B> for Applier<B> {
     fn enter_module(&mut self, name: &str, container_type: &str) {
-        self.path_stack.push(name.to_string());
+        // Always track the container type for proper module type detection
         self.container_stack.push(container_type.to_string());
+
+        // Only add to path if it's not an enum variant (when skip_enum_variants is enabled)
+        // This ensures paths are built without enum variant names from the start
+        if !self.skip_enum_variants || !container_type.starts_with("Enum:") {
+            self.path_stack.push(name.to_string());
+        }
     }
 
-    fn exit_module(&mut self, _name: &str, _container_type: &str) {
-        self.path_stack.pop();
+    fn exit_module(&mut self, _name: &str, container_type: &str) {
         self.container_stack.pop();
+
+        // Only pop from path if we added it (not an enum variant when skip_enum_variants is enabled)
+        if !self.skip_enum_variants || !container_type.starts_with("Enum:") {
+            self.path_stack.pop();
+        }
     }
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
@@ -331,7 +347,7 @@ mod tests {
 
         // Create applier with root-level snapshots
         let mut applier =
-            Applier::<TestBackend>::new(vec![weight_snapshot, bias_snapshot], None, None);
+            Applier::<TestBackend>::new(vec![weight_snapshot, bias_snapshot], None, None, false);
 
         // Create new params to load into
         let weight_target = Param::initialized(

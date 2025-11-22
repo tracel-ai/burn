@@ -657,7 +657,7 @@ mod enum_variant_tests {
         let model = ModelWithEnum::<NdArray>::new(&device);
 
         // Collect snapshots to inspect container stacks
-        let snapshots = model.collect(None, None);
+        let snapshots = model.collect(None, None, false);
 
         // Find a snapshot from inside the enum
         let enum_snapshot = snapshots
@@ -675,6 +675,63 @@ mod enum_variant_tests {
             );
         } else {
             panic!("Snapshot should have container_stack");
+        }
+    }
+
+    #[test]
+    fn test_skip_enum_variants_feature() {
+        let device = Default::default();
+        let mut model = ModelWithEnum::<NdArray>::new(&device);
+
+        // Load PyTorch model that was generated without enum variant names
+        // PyTorch paths: "feature.weight", "feature.bias", "classifier.weight", "classifier.bias"
+        // Burn paths:    "feature.BaseConv.weight", "feature.BaseConv.bias", "classifier.weight", "classifier.bias"
+
+        let pytorch_file = store_test_data_path("model_without_enum_variants.pt");
+
+        // Try to load with skip_enum_variants enabled
+        let mut store = PytorchStore::from_file(pytorch_file)
+            .skip_enum_variants(true) // Enable enum variant skipping
+            .allow_partial(true)
+            .validate(false);
+
+        let result = store.apply_to::<NdArray, _>(&mut model);
+
+        // The load should succeed and all tensors should be loaded
+        match result {
+            Ok(apply_result) => {
+                println!("\n{}", apply_result);
+
+                // With skip_enum_variants enabled, we should successfully load the feature tensors
+                let feature_applied = apply_result
+                    .applied
+                    .iter()
+                    .filter(|path| path.contains("feature"))
+                    .count();
+
+                assert!(
+                    feature_applied > 0,
+                    "Should have applied feature tensors with skip_enum_variants=true. Applied: {:?}",
+                    apply_result.applied
+                );
+
+                // The feature tensors should NOT be in missing anymore
+                let feature_missing = apply_result
+                    .missing
+                    .iter()
+                    .filter(|(path, _)| path.contains("feature"))
+                    .count();
+
+                assert_eq!(
+                    feature_missing, 0,
+                    "Feature tensors should not be missing with skip_enum_variants=true. Missing: {:?}",
+                    apply_result.missing
+                );
+            }
+            Err(e) => panic!(
+                "Load with skip_enum_variants should succeed, got error: {}",
+                e
+            ),
         }
     }
 }
