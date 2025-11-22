@@ -1,9 +1,16 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{BurnImports, Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::unsqueeze::UnsqueezeConfig;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
+
+/// Burn-import version of UnsqueezeConfig that stores Argument instead of RuntimeInputRef
+#[derive(Debug, Clone)]
+pub enum UnsqueezeConfig {
+    Static(Vec<i64>),
+    Runtime(Argument),
+}
 
 #[derive(Debug, Clone, new)]
 pub struct UnsqueezeNode {
@@ -131,9 +138,27 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
 
 impl OnnxIntoNode for UnsqueezeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let axes = onnx_ir::node::unsqueeze::unsqueeze_config(&node);
+        let onnx_ir::Node::Unsqueeze(n) = &node else {
+            panic!("Expected Unsqueeze node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
+
+        // Convert from onnx-ir config (with RuntimeInputRef) to burn-import config (with Argument)
+        let axes = match config {
+            onnx_ir::node::unsqueeze::UnsqueezeConfig::Static(s) => {
+                UnsqueezeConfig::Static(s.clone())
+            }
+            onnx_ir::node::unsqueeze::UnsqueezeConfig::Runtime(axes_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let axes_arg = inputs[axes_ref.input_index].clone();
+                UnsqueezeConfig::Runtime(axes_arg)
+            }
+        };
+
         Self::new(input, output, axes)
     }
 }
@@ -159,7 +184,12 @@ mod tests {
             UnsqueezeConfig::Static([0, 4].into()),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -199,7 +229,12 @@ mod tests {
             UnsqueezeConfig::Static([0].into()),
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["shape1".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["shape1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -239,7 +274,12 @@ mod tests {
             UnsqueezeConfig::Static([0].into()),
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["shape1".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["shape1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

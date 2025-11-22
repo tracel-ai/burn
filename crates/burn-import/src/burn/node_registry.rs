@@ -158,8 +158,8 @@ node_registry! {
 
     // Random ops
     RandomNormal => random_normal as RandomNormalNode,
-    RandomNormalLike => random_normal_like as RandomNormalLikeNode,
     RandomUniform => random_uniform as RandomUniformNode,
+    RandomNormalLike => random_normal_like as RandomNormalLikeNode,
     RandomUniformLike => random_uniform_like as RandomUniformLikeNode,
     Bernoulli => bernoulli as BernoulliNode,
 
@@ -174,6 +174,11 @@ node_registry! {
 
     // Special ops
     Attention => attention as AttentionNode,
+
+    // Control flow ops
+    If => if_node as IfNode,
+    Loop => loop_node as LoopNode,
+    Scan => scan_node as ScanNode,
 
     // Grouped mappings: Multiple ONNX ops -> Single node type
     [ReduceMax, ReduceMin, ReduceMean, ReduceProd, ReduceSum,

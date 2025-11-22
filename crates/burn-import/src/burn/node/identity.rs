@@ -35,8 +35,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IdentityNode {
 
 impl OnnxIntoNode for IdentityNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Identity(n) = node else {
+            panic!("Expected Identity node");
+        };
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }
@@ -61,7 +64,12 @@ mod tests {
             TensorType::new_float("tensor2", 2),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

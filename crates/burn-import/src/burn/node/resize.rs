@@ -273,34 +273,45 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 
 impl OnnxIntoNode for ResizeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let name = &node.name;
+        let onnx_ir::Node::Resize(n) = &node else {
+            panic!("Expected Resize node");
+        };
 
-        let input = TensorType::from(&node.inputs[0]);
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::resize::resize_config(&node);
+        let input = TensorType::from(&n.inputs[0]);
+        let output = TensorType::from(n.outputs.first().unwrap());
 
         // Convert from onnx-ir types to burn types
-        let mode = match config.mode {
+        let mode = match n.config.mode {
             onnx_ir::node::resize::ResizeMode::Nearest => ResizeMode::Nearest,
             onnx_ir::node::resize::ResizeMode::Linear => ResizeMode::Linear,
             onnx_ir::node::resize::ResizeMode::Cubic => ResizeMode::Cubic,
         };
 
-        let scales = config.scales.map(|s| match s {
-            onnx_ir::node::resize::ResizeScales::Static(s) => ResizeScales::Static(s),
-            onnx_ir::node::resize::ResizeScales::Runtime(arg) => {
-                ResizeScales::Runtime(Type::from(&arg))
+        let scales = match &n.config.scales {
+            Some(onnx_ir::node::resize::ResizeScales::Static(s)) => {
+                Some(ResizeScales::Static(s.clone()))
             }
-        });
-
-        let sizes = config.sizes.map(|s| match s {
-            onnx_ir::node::resize::ResizeSizes::Static(s) => ResizeSizes::Static(s),
-            onnx_ir::node::resize::ResizeSizes::Runtime(arg) => {
-                ResizeSizes::Runtime(Type::from(&arg))
+            Some(onnx_ir::node::resize::ResizeScales::Runtime(scales_ref)) => {
+                // Get the actual argument using the RuntimeInputRef
+                let scales_arg = &n.inputs[scales_ref.input_index];
+                Some(ResizeScales::Runtime(Type::from(scales_arg)))
             }
-        });
+            None => None,
+        };
 
-        ResizeNode::new(name, input, output, mode, scales, sizes)
+        let sizes = match &n.config.sizes {
+            Some(onnx_ir::node::resize::ResizeSizes::Static(s)) => {
+                Some(ResizeSizes::Static(s.clone()))
+            }
+            Some(onnx_ir::node::resize::ResizeSizes::Runtime(sizes_ref)) => {
+                // Get the actual argument using the RuntimeInputRef
+                let sizes_arg = &n.inputs[sizes_ref.input_index];
+                Some(ResizeSizes::Runtime(Type::from(sizes_arg)))
+            }
+            None => None,
+        };
+
+        ResizeNode::new(&n.name, input, output, mode, scales, sizes)
     }
 }
 
@@ -328,7 +339,12 @@ mod tests {
             None,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -379,7 +395,12 @@ mod tests {
             Some(ResizeSizes::Static(vec![20])),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

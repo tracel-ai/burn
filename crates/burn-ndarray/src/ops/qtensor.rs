@@ -1,12 +1,11 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
-        QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
-        SymmetricQuantization,
+        QuantizationParametersPrimitive, QuantizedBytes,
     },
 };
 
@@ -16,6 +15,7 @@ use crate::{
     execute_with_dtype, execute_with_int_dtype, execute_with_numeric_dtype,
 };
 
+use super::quantization::{QuantizationStrategy, SymmetricQuantization};
 use super::{NdArrayMathOps, NdArrayOps};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<Self>
@@ -86,8 +86,12 @@ where
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
+        let shape = tensor.shape();
+        let data_f = tensor.into_data();
+        let scales = qparams.scales.into_data().convert::<f32>();
+
         // Implement with ndarray instead of QuantizationStrategy?
-        let (strategy, qparams) = match scheme {
+        let (data, qparams) = match scheme {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
@@ -106,12 +110,13 @@ where
                 store: QuantStore::Native,
                 ..
             } => {
-                let scales = qparams.scales.into_data().iter().next().unwrap();
+                let scales = scales.iter().next().unwrap();
+                let strategy = QuantizationStrategy::PerTensorSymmetric(
+                    SymmetricQuantization::init(scales, scheme.value),
+                );
+                let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
-                    QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                        scales,
-                        scheme.value,
-                    )),
+                    TensorData::quantized(values, shape.clone(), *scheme, &[scales]),
                     vec![QParams { scales }],
                 )
             }
@@ -131,29 +136,26 @@ where
                 store: QuantStore::Native,
                 ..
             } => {
-                let (strategy, qparams) = qparams
-                    .scales
-                    .into_data()
+                let scales = scales.as_slice().unwrap();
+                let (strategy, qparams) = scales
                     .iter()
-                    .map(|s| {
+                    .map(|&s| {
                         (
                             SymmetricQuantization::init(s, scheme.value),
                             QParams { scales: s },
                         )
                     })
                     .unzip();
+                let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, *block_size);
+                let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
-                    QuantizationStrategy::PerBlockSymmetric(strategy, *block_size),
+                    TensorData::quantized(values, shape.clone(), *scheme, scales),
                     qparams,
                 )
             }
             scheme => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };
 
-        let shape = tensor.shape();
-        let data_f = tensor.into_data();
-        let values = strategy.quantize(data_f.as_slice().unwrap());
-        let data = TensorData::quantized(values, shape.clone(), strategy, *scheme);
         let num_elements = data.num_elements();
         let q_bytes = QuantizedBytes {
             bytes: data.into_bytes(),
@@ -171,14 +173,17 @@ where
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        let shape = tensor.qtensor.shape();
         let strategy = tensor.strategy();
-        let data: TensorData = execute_with_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
-            let values = qtensor.into_iter().collect();
-            TensorData::quantized(values, shape, strategy, tensor.scheme)
-        });
-
-        NdArrayTensor::from_data(data.dequantize().unwrap())
+        let scheme = tensor.scheme;
+        let shape = tensor.shape();
+        let data = match tensor.qtensor {
+            NdArrayTensor::I8(qtensor) => {
+                let data = qtensor.into_iter().collect();
+                dequantize(data, shape, scheme, &strategy)
+            }
+            _ => unreachable!(),
+        };
+        NdArrayTensor::from_data(data)
     }
 
     fn q_device(_tensor: &QuantizedTensor<Self>) -> NdArrayDevice {
@@ -203,11 +208,11 @@ where
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
-        let strategy = tensor.strategy();
         let shape = tensor.qtensor.shape();
+        let scales = tensor.qparams.iter().map(|q| q.scales).collect::<Vec<_>>();
         execute_with_numeric_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
             let values = qtensor.into_iter().collect();
-            TensorData::quantized(values, shape, strategy, tensor.scheme)
+            TensorData::quantized(values, shape, tensor.scheme, &scales)
         })
     }
 
@@ -311,4 +316,21 @@ where
             qparams: tensor.qparams,
         }
     }
+}
+
+fn dequantize<Q: QuantElement>(
+    data: Vec<Q>,
+    shape: Shape,
+    scheme: QuantScheme,
+    strategy: &QuantizationStrategy,
+) -> TensorData {
+    let qparams = match strategy {
+        QuantizationStrategy::PerTensorSymmetric(quant) => vec![quant.scale],
+        QuantizationStrategy::PerBlockSymmetric(quant, _block_size) => {
+            quant.iter().map(|q| q.scale).collect()
+        }
+    };
+    let q_bytes = QuantizedBytes::new(data, scheme, &qparams);
+    let (values, _qparams) = q_bytes.into_vec_i8();
+    TensorData::new(strategy.dequantize(&values), shape)
 }

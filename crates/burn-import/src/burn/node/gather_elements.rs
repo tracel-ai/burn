@@ -46,11 +46,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherElementsNode {
 
 impl OnnxIntoNode for GatherElementsNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let index = TensorType::from(node.inputs.get(1).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::gather::gather_config(&node);
-        Self::new(input, index, output, config.axis)
+        let onnx_ir::Node::GatherElements(n) = node else {
+            panic!("Expected GatherElements node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let index = TensorType::from(n.inputs.get(1).unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, index, output, n.config.axis)
     }
 }
 
@@ -80,6 +82,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

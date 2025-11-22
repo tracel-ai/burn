@@ -595,39 +595,60 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
 
 impl OnnxIntoNode for SliceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::slice::slice_config(&node);
+        let onnx_ir::Node::Slice(n) = &node else {
+            panic!("Expected Slice node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
         use onnx_ir::node::slice::SliceInput;
 
         // Convert starts parameter
-        let starts_param = match config.starts {
-            SliceInput::Static(values) => SliceParam::Static(values),
-            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        let starts_param = match &config.starts {
+            SliceInput::Static(values) => SliceParam::Static(values.clone()),
+            SliceInput::Runtime(starts_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let starts_arg = &node.inputs()[starts_ref.input_index];
+                SliceParam::Runtime(Type::from(starts_arg))
+            }
         };
 
         // Convert ends parameter
-        let ends_param = match config.ends {
-            SliceInput::Static(values) => SliceParam::Static(values),
-            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        let ends_param = match &config.ends {
+            SliceInput::Static(values) => SliceParam::Static(values.clone()),
+            SliceInput::Runtime(ends_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let ends_arg = &node.inputs()[ends_ref.input_index];
+                SliceParam::Runtime(Type::from(ends_arg))
+            }
         };
 
         let mut slice_node = Self::new(input, output, starts_param, ends_param);
 
         // Convert axes parameter if present
-        if let Some(axes) = config.axes {
+        if let Some(ref axes) = config.axes {
             let axes_param = match axes {
-                SliceInput::Static(values) => SliceParam::Static(values),
-                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+                SliceInput::Static(values) => SliceParam::Static(values.clone()),
+                SliceInput::Runtime(axes_ref) => {
+                    // Get the actual argument using the RuntimeInputRef
+                    let axes_arg = &node.inputs()[axes_ref.input_index];
+                    SliceParam::Runtime(Type::from(axes_arg))
+                }
             };
             slice_node = slice_node.with_axes(axes_param);
         }
 
         // Convert steps parameter if present
-        if let Some(steps) = config.steps {
+        if let Some(ref steps) = config.steps {
             let steps_param = match steps {
-                SliceInput::Static(values) => SliceParam::Static(values),
-                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+                SliceInput::Static(values) => SliceParam::Static(values.clone()),
+                SliceInput::Runtime(steps_ref) => {
+                    // Get the actual argument using the RuntimeInputRef
+                    let steps_arg = &node.inputs()[steps_ref.input_index];
+                    SliceParam::Runtime(Type::from(steps_arg))
+                }
             };
             slice_node = slice_node.with_steps(steps_param);
         }
@@ -650,7 +671,12 @@ mod tests {
             SliceParam::Static(vec![0, 1, 2]),
             SliceParam::Static(vec![3, 4, 5]),
         ));
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -702,6 +728,8 @@ mod tests {
                 "end".to_string(),
             ],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -741,7 +769,12 @@ mod tests {
             SliceParam::Static(vec![1]),
             SliceParam::Static(vec![3]),
         ));
-        graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["shape2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -789,6 +822,8 @@ mod tests {
         graph.register_input_output(
             vec!["shape1".to_string(), "start".to_string(), "end".to_string()],
             vec!["shape2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -839,6 +874,8 @@ mod tests {
                 "end_shape".to_string(),
             ],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -886,6 +923,8 @@ mod tests {
                 "ends".to_string(),
             ],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -937,6 +976,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "ends".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

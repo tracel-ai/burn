@@ -107,12 +107,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
 
 impl OnnxIntoNode for GemmNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let a = TensorType::from(node.inputs.first().unwrap());
-        let b = TensorType::from(node.inputs.get(1).unwrap());
-        let c = node.inputs.get(2).map(Type::from);
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let (alpha, beta, trans_a, trans_b) = onnx_ir::node::gemm::gemm_config(&node);
-        Self::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+        let onnx_ir::Node::Gemm(n) = node else {
+            panic!("Expected Gemm node");
+        };
+        let a = TensorType::from(n.inputs.first().unwrap());
+        let b = TensorType::from(n.inputs.get(1).unwrap());
+        let c = n.inputs.get(2).map(Type::from);
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(
+            a,
+            b,
+            c,
+            output,
+            n.config.alpha,
+            n.config.beta,
+            n.config.trans_a,
+            n.config.trans_b,
+        )
     }
 }
 
@@ -152,6 +163,8 @@ mod tests {
                 "scalar1".to_string(),
             ],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -207,6 +220,8 @@ mod tests {
                 "scalar1".to_string(),
             ],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -255,6 +270,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

@@ -1,8 +1,8 @@
 use core::marker::PhantomData;
 
+use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, MetricAttributes, MetricName, Numeric};
+use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, SerializedEntry};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
@@ -49,7 +49,7 @@ impl<B: Backend> AccuracyMetric<B> {
 impl<B: Backend> Metric for AccuracyMetric<B> {
     type Input = AccuracyInput<B>;
 
-    fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
         let targets = input.targets.clone();
         let outputs = input.outputs.clone();
 
@@ -104,7 +104,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 
 impl<B: Backend> Numeric for AccuracyMetric<B> {
     fn value(&self) -> super::NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

@@ -129,18 +129,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
 
 impl OnnxIntoNode for Conv2dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::conv2d::conv2d_config(&node);
-        let has_bias = node.inputs.len() == 3;
-        let weight = extract_node_data::<f32>(&node, 1).unwrap();
+        let onnx_ir::Node::Conv2d(n) = &node else {
+            panic!("Expected Conv2d node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        let has_bias = n.inputs.len() == 3;
+        let weight = extract_node_data(&n.inputs, 1).unwrap();
         let bias = if has_bias {
-            extract_node_data::<f32>(&node, 2)
+            extract_node_data(&n.inputs, 2)
         } else {
             None
         };
-        let name = &node.name;
-        Self::new(name, input, output, weight, bias, config)
+        Self::new(&n.name, input, output, weight, bias, n.config.clone())
     }
 }
 
@@ -176,7 +177,12 @@ mod tests {
             ),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

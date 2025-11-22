@@ -418,17 +418,14 @@ impl ModelGen {
         log::debug!("Development mode: {:?}", self.development);
         log::debug!("Output file: {out_file:?}");
 
-        let graph = parse_onnx(input.as_ref());
+        let graph = parse_onnx(input.as_ref())
+            .unwrap_or_else(|e| panic!("Failed to parse ONNX file '{}': {}", input.display(), e));
 
         if self.development {
             self.write_debug_file(&out_file, "onnx.txt", &graph);
         }
 
         let graph = ParsedOnnxGraph(graph);
-
-        if self.development {
-            self.write_debug_file(&out_file, "graph.txt", &graph);
-        }
 
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
@@ -520,8 +517,8 @@ impl ParsedOnnxGraph {
             if let Some(burn_node) = try_convert_onnx_node::<PS>(node.clone()) {
                 graph.register(burn_node);
             } else {
-                // Unsupported node type
-                unsupported_ops.push(node.node_type);
+                // Unsupported node type - extract variant name from Debug output
+                unsupported_ops.push(format!("{:?}", node).to_string());
             }
         }
 
@@ -529,7 +526,7 @@ impl ParsedOnnxGraph {
             panic!("Unsupported ops: {unsupported_ops:?}");
         }
 
-        // Extract input and output names
+        // Extract input and output names and types
         let input_names: Vec<_> = self
             .0
             .inputs
@@ -543,8 +540,12 @@ impl ParsedOnnxGraph {
             .map(|output| output.name.clone())
             .collect();
 
+        // Convert ONNX arguments to Burn types for empty graphs
+        let input_types: Vec<_> = self.0.inputs.iter().map(crate::burn::Type::from).collect();
+        let output_types: Vec<_> = self.0.outputs.iter().map(crate::burn::Type::from).collect();
+
         // Register inputs and outputs with the graph
-        graph.register_input_output(input_names, output_names);
+        graph.register_input_output(input_names, output_names, &input_types, &output_types);
 
         graph
     }

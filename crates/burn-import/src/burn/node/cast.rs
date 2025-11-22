@@ -1,7 +1,7 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::ir::ElementType;
+use onnx_ir::ir::DType;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -11,7 +11,7 @@ pub struct CastNode {
     pub input: Type,
     pub output: Type,
     /// Target element type from ONNX cast operation
-    pub target_elem_type: ElementType,
+    pub target_dtype: DType,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
@@ -24,7 +24,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        use onnx_ir::ir::ElementType;
+        use onnx_ir::ir::DType;
 
         match (&self.input, &self.output) {
             // -----------------------
@@ -38,16 +38,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                 // Burn scalar kinds are coarse (Float32/Float64/Int64/Bool), so:
                 // - Float16 is lowered to Float32 "family"
                 // - All integer widths map to Int64 "family" for equality checks
-                let target_kind = match self.target_elem_type {
-                    ElementType::Float64 => ScalarKind::Float64,
-                    ElementType::Float32 | ElementType::Float16 => ScalarKind::Float32,
-                    ElementType::Int32
-                    | ElementType::Int64
-                    | ElementType::Int8
-                    | ElementType::Uint16
-                    | ElementType::Uint8 => ScalarKind::Int64,
-                    ElementType::Bool => ScalarKind::Bool,
-                    ElementType::String => panic!("Cast: String type not supported"),
+                let target_kind = match self.target_dtype {
+                    DType::F64 => ScalarKind::Float64,
+                    DType::F32 | DType::F16 => ScalarKind::Float32,
+                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => {
+                        ScalarKind::Int64
+                    }
+                    DType::Bool => ScalarKind::Bool,
+                    _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 };
 
                 if input_scalar.kind == target_kind {
@@ -57,16 +55,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     }
                 } else {
                     // Concrete Rust target type for the cast expression.
-                    let ty = match self.target_elem_type {
-                        ElementType::Float32 | ElementType::Float16 => quote! { f32 },
-                        ElementType::Float64 => quote! { f64 },
-                        ElementType::Int32 => quote! { i32 },
-                        ElementType::Int64 => quote! { i64 },
-                        ElementType::Uint16 => quote! { u16 },
-                        ElementType::Int8 => quote! { i8 },
-                        ElementType::Uint8 => quote! { u8 },
-                        ElementType::Bool => quote! { bool },
-                        ElementType::String => panic!("Cast: String type not supported"),
+                    let ty = match self.target_dtype {
+                        DType::F32 | DType::F16 => quote! { f32 },
+                        DType::F64 => quote! { f64 },
+                        DType::I32 => quote! { i32 },
+                        DType::I64 => quote! { i64 },
+                        DType::U16 => quote! { u16 },
+                        DType::I8 => quote! { i8 },
+                        DType::U8 => quote! { u8 },
+                        DType::Bool => quote! { bool },
+                        _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                     };
                     quote! {
                         let #output = #input as #ty;
@@ -83,17 +81,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
 
                 // Map ONNX element types to Burn TensorKind categories.
                 // Burn only distinguishes Float / Int / Bool at the Tensor level.
-                let target_kind = match self.target_elem_type {
-                    ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                        TensorKind::Float
-                    }
-                    ElementType::Int32
-                    | ElementType::Int64
-                    | ElementType::Int8
-                    | ElementType::Uint16
-                    | ElementType::Uint8 => TensorKind::Int,
-                    ElementType::Bool => TensorKind::Bool,
-                    ElementType::String => panic!("Cast: String type not supported"),
+                let target_kind = match self.target_dtype {
+                    DType::F32 | DType::F64 | DType::F16 => TensorKind::Float,
+                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => TensorKind::Int,
+                    DType::Bool => TensorKind::Bool,
+                    _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 };
 
                 if input_tensor.kind == target_kind {
@@ -135,8 +127,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                 let output = &output_tensor.name;
                 let rank = input_shape.rank;
 
-                match self.target_elem_type {
-                    ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
+                match self.target_dtype {
+                    DType::F32 | DType::F64 | DType::F16 => {
                         // Emit f32 tensor; Float64 target collapses to f32 at runtime side.
                         quote! {
                             let #output = {
@@ -149,7 +141,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                             };
                         }
                     }
-                    ElementType::Bool => {
+                    DType::Bool => {
                         quote! {
                             let #output = {
                                 let shape_array = #input as [i64; #rank];
@@ -163,20 +155,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     }
                     // For all integer widths (Int32, Int64, Int8, Uint8), we keep Shape as Shape
                     // in onnx-ir and shouldn't go through Shape->Tensor here.
-                    ElementType::Int32
-                    | ElementType::Int64
-                    | ElementType::Int8
-                    | ElementType::Uint16
-                    | ElementType::Uint8 => {
+                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => {
                         panic!(
                             "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
                         )
                     }
-                    ElementType::String => panic!("Cast: String type not supported"),
+                    _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 }
             }
 
-            _ => panic!("Cast: unsupported type combination"),
+            _ => panic!(
+                "Cast: unsupported type combination: input={:?}, output={:?}",
+                self.input, self.output
+            ),
         }
     }
 
@@ -187,10 +178,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
 
 impl OnnxIntoNode for CastNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::Type::from(node.inputs.first().unwrap());
-        let output = crate::burn::Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::cast::cast_config(&node);
-        Self::new(input, output, config.to)
+        let onnx_ir::Node::Cast(n) = node else {
+            panic!("Expected Cast node");
+        };
+        let input = crate::burn::Type::from(n.inputs.first().unwrap());
+        let output = crate::burn::Type::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.to)
     }
 }
 
@@ -209,10 +202,15 @@ mod tests {
         graph.register(CastNode::new(
             Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
             Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
-            onnx_ir::ir::ElementType::Float32,
+            onnx_ir::ir::DType::F32,
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -250,10 +248,15 @@ mod tests {
         graph.register(CastNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 4)),
             Type::Tensor(TensorType::new_int("tensor2", 4)),
-            onnx_ir::ir::ElementType::Int64,
+            onnx_ir::ir::DType::I64,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -291,10 +294,15 @@ mod tests {
         graph.register(CastNode::new(
             Type::Tensor(TensorType::new_int("tensor1", 2)),
             Type::Tensor(TensorType::new_bool("tensor2", 2)),
-            onnx_ir::ir::ElementType::Bool,
+            onnx_ir::ir::DType::Bool,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

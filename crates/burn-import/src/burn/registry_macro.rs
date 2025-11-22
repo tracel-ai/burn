@@ -88,24 +88,23 @@ macro_rules! node_registry {
         }
 
         // Generate ONNX registry dispatcher (expands grouped mappings)
-        pub(crate) fn try_convert_onnx_node<PS: burn::record::PrecisionSettings>(
+        pub(crate) fn try_convert_onnx_node<PS: burn::record::PrecisionSettings + 'static>(
             node: onnx_ir::Node,
         ) -> Option<Node<PS>> {
-            use onnx_ir::NodeType;
             use super::node_traits::NodeCodegen;
             use super::node_traits::OnnxIntoNode;
 
-            match node.node_type {
+            match node {
                 // Single mappings
                 $(
-                    NodeType::$single_onnx => {
+                    onnx_ir::Node::$single_onnx(_) => {
                         Some(NodeCodegen::into_node($single_node_type::from_onnx(node)))
                     }
                 )*
                 // Grouped mappings (expands each ONNX op in the group)
                 $(
                     $(
-                        NodeType::$group_onnx => {
+                        onnx_ir::Node::$group_onnx(_) => {
                             Some(NodeCodegen::into_node($group_node_type::from_onnx(node)))
                         }
                     )+

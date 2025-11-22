@@ -117,47 +117,71 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
 impl OnnxIntoNode for LinearNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use burn::tensor::TensorData;
-        use onnx_ir::ir::{ArgType, Data};
+        use onnx_ir::ir::ArgType;
 
-        let name = &node.name;
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::linear::linear_config(&node);
+        let onnx_ir::Node::Linear(n) = &node else {
+            panic!("Expected Linear node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
-        // Helper function to extract and serialize data - hardcoded to f32
+        // Helper function to extract and serialize data - converts to the appropriate dtype
         fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
-            if node.inputs.is_empty() {
+            use onnx_ir::ir::DType;
+
+            if node.inputs().is_empty() {
                 return None;
             }
 
-            let input = node.inputs.get(input_index)?;
-            let value = input.value.as_ref()?;
+            let input = node.inputs().get(input_index)?;
+            let value = input.value()?;
             let ty = input.ty.clone();
 
             match ty {
-                ArgType::Tensor(_) => {
-                    let data = value.data.clone();
-                    let shape = value.shape.clone();
-
-                    let tensor_data = match data {
-                        Data::Float16s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Float32s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Int32s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        Data::Int64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        _ => panic!("Unsupported tensor element type"),
-                    };
-
-                    Some(tensor_data)
+                ArgType::Tensor(tensor) => {
+                    // Convert to the tensor's actual dtype
+                    match tensor.dtype {
+                        DType::F64 => Some(value.clone().convert::<f64>()),
+                        DType::F32 => Some(value.clone().convert::<f32>()),
+                        DType::F16 => Some(value.clone().convert::<half::f16>()),
+                        DType::BF16 => Some(value.clone().convert::<half::bf16>()),
+                        DType::I64 => Some(value.clone().convert::<i64>()),
+                        DType::I32 => Some(value.clone().convert::<i32>()),
+                        DType::I16 => Some(value.clone().convert::<i16>()),
+                        DType::I8 => Some(value.clone().convert::<i8>()),
+                        DType::U64 => Some(value.clone().convert::<u64>()),
+                        DType::U32 => Some(value.clone().convert::<u32>()),
+                        DType::U16 => Some(value.clone().convert::<u16>()),
+                        DType::U8 => Some(value.clone().convert::<u8>()),
+                        DType::Bool => Some(value.clone().convert::<bool>()),
+                        _ => None, // Unsupported types (QFloat, Flex32)
+                    }
                 }
-                _ => panic!("Unsupported serialization type"),
+                ArgType::Scalar(dtype) => {
+                    // For scalars, convert based on the scalar's dtype
+                    match dtype {
+                        DType::F64 => Some(value.clone().convert::<f64>()),
+                        DType::F32 => Some(value.clone().convert::<f32>()),
+                        DType::I64 => Some(value.clone().convert::<i64>()),
+                        DType::I32 => Some(value.clone().convert::<i32>()),
+                        _ => None,
+                    }
+                }
+                ArgType::Shape(_) => {
+                    // Shapes are typically i64
+                    Some(value.clone().convert::<i64>())
+                }
             }
         }
 
         let weight = extract_data_serialize(1, &node).expect("Weight is required");
         let bias = extract_data_serialize(2, &node);
 
-        LinearNode::new(name, input, output, weight, bias, config)
+        LinearNode::new(name, input, output, weight, bias, config.clone())
     }
 }
 
@@ -180,7 +204,12 @@ mod tests {
             LinearConfig::new(128, 128),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

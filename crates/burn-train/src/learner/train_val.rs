@@ -10,7 +10,7 @@ use crate::{Learner, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_optim::{GradientsParams, Optimizer};
+use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::Arc;
 
 /// A training output.
@@ -87,6 +87,25 @@ pub trait TrainStep<TI, TO> {
     {
         optim.step(lr, self, grads)
     }
+    /// Optimize the current module with the provided gradients and learning rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `optim`: Optimizer used for training this model.
+    /// * `lr`: The learning rate used for this step.
+    /// * `grads`: Multiple gradients associated to each parameter in the current model.
+    ///
+    /// # Returns
+    ///
+    /// The updated model.
+    fn optimize_multi<B, O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
+    where
+        B: AutodiffBackend,
+        O: Optimizer<Self, B>,
+        Self: AutodiffModule<B>,
+    {
+        optim.step_multi(lr, self, grads)
+    }
 }
 
 /// Trait to be implemented for validating models.
@@ -142,8 +161,8 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
             LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
                 .clone()
                 .fit(self, dataloader_train, dataloader_valid),
-            LearningStrategy::MultiDeviceNaive(devices) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
+            LearningStrategy::MultiDevice(devices, optim) => {
+                let multi_device = MultiDeviceLearningStrategy::new(devices.clone(), *optim);
                 multi_device.fit(self, dataloader_train, dataloader_valid)
             }
             LearningStrategy::CustomMultiDevice(learning_strategy) => learning_strategy

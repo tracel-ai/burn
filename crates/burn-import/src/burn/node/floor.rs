@@ -35,11 +35,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FloorNode {
 
 impl OnnxIntoNode for FloorNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match Type::from(node.inputs.first().unwrap()) {
+        let onnx_ir::Node::Floor(n) = node else {
+            panic!("Expected Floor node");
+        };
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("FloorNode expects tensor input"),
         };
-        let output = match Type::from(node.outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("FloorNode expects tensor output"),
         };
@@ -67,7 +70,12 @@ mod tests {
             TensorType::new_float("tensor2", 1),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

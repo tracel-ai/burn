@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
+use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
@@ -69,7 +69,11 @@ impl<B: Backend> Default for HammingScore<B> {
 impl<B: Backend> Metric for HammingScore<B> {
     type Input = HammingScoreInput<B>;
 
-    fn update(&mut self, input: &HammingScoreInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(
+        &mut self,
+        input: &HammingScoreInput<B>,
+        _metadata: &MetricMetadata,
+    ) -> SerializedEntry {
         let [batch_size, _n_classes] = input.outputs.dims();
 
         let targets = input.targets.clone();
@@ -114,7 +118,7 @@ impl<B: Backend> Metric for HammingScore<B> {
 
 impl<B: Backend> Numeric for HammingScore<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

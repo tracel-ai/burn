@@ -26,7 +26,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let axis = self.config.axis.to_token_stream();
-        let k = self.config.k.to_token_stream();
+
+        // Extract static k from the enum wrapper
+        let k_value = match &self.config.k {
+            onnx_ir::node::topk::TopKInput::Static(k) => k,
+            onnx_ir::node::topk::TopKInput::Runtime(_) => {
+                panic!("Runtime k value is not supported in burn-import")
+            }
+        };
+        let k = k_value.to_token_stream();
 
         let input = scope.tensor_use_owned(&self.input, node_position);
         let values_output = &self.outputs[0].name;
@@ -44,10 +52,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
 
 impl OnnxIntoNode for TopKNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let outputs = node.outputs.iter().map(TensorType::from).collect();
-        let config = onnx_ir::node::topk::top_k_config(&node);
-        Self::new(input, outputs, config)
+        let onnx_ir::Node::TopK(n) = &node else {
+            panic!("Expected TopK node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let input = TensorType::from(inputs.first().unwrap());
+        let outputs = outputs.iter().map(TensorType::from).collect();
+        Self::new(input, outputs, config.clone())
     }
 }
 
@@ -64,8 +77,12 @@ mod tests {
 
     #[test]
     fn test_codegen_nodes() {
+        use onnx_ir::node::topk::TopKInput;
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TopKConfig::new(1, 3);
+        let config = TopKConfig {
+            axis: 1,
+            k: TopKInput::Static(3),
+        };
 
         graph.register(TopKNode::new(
             TensorType::new_float("input_tensor", 4),
@@ -79,6 +96,8 @@ mod tests {
         graph.register_input_output(
             vec!["input_tensor".to_string()],
             vec!["values_tensor".to_string(), "indices_tensor".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

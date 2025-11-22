@@ -3,6 +3,7 @@
 //! Each submodule implements a specific ONNX operation, providing:
 //! - Operation configuration and parameters
 //! - Rank inference functionality
+//! - NodeProcessor implementation for node-centric processing
 //!
 //! This modular structure allows for clean separation of operation implementations
 //! and facilitates easier maintenance and extension of the ONNX operation set.
@@ -10,8 +11,11 @@
 #[cfg(test)]
 pub mod test_utils;
 
+pub mod elementwise;
+
 pub mod argmax;
 pub mod argmin;
+pub mod arithmetic;
 pub mod attention;
 pub mod avg_pool1d;
 pub mod avg_pool2d;
@@ -36,30 +40,40 @@ pub mod expand;
 pub mod eye_like;
 pub mod flatten;
 pub mod gather;
+pub mod gather_elements;
 pub mod gemm;
+pub mod global_avg_pool;
 pub mod group_norm;
 pub mod hard_sigmoid;
+pub mod identity;
+pub mod if_node;
 pub mod instance_norm;
 pub mod is_inf;
+pub mod is_nan;
 pub mod layer_norm;
 pub mod leaky_relu;
 pub mod linear;
 pub mod log_softmax;
+pub mod loop_node;
 pub mod matmul;
 pub mod matmulinteger;
 pub mod max_pool1d;
 pub mod max_pool2d;
+pub mod mean;
 pub mod modulo;
 pub mod nonzero;
 pub mod one_hot;
 pub mod pad;
 pub mod padding;
+pub mod prelu;
 pub mod random;
 pub mod random_like;
 pub mod range;
 pub mod reduce;
+pub mod relu;
 pub mod reshape;
 pub mod resize;
+pub mod scan_node;
 pub mod shape;
 pub mod size;
 pub mod slice;
@@ -67,9 +81,11 @@ pub mod softmax;
 pub mod space_to_depth;
 pub mod split;
 pub mod squeeze;
+pub mod sum;
 pub mod tile;
 pub mod topk;
 pub mod transpose;
 pub mod trilu;
 pub mod unsqueeze;
+pub mod unsupported;
 pub mod where_op;

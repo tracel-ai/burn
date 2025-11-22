@@ -350,22 +350,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 
 impl OnnxIntoNode for AttentionNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let q = TensorType::from(node.inputs.first().unwrap());
-        let k = TensorType::from(node.inputs.get(1).unwrap());
-        let v = TensorType::from(node.inputs.get(2).unwrap());
-        let attn_mask = node.inputs.get(3).map(TensorType::from);
-        let past_key = node.inputs.get(4).map(TensorType::from);
-        let past_value = node.inputs.get(5).map(TensorType::from);
-        let y = TensorType::from(node.outputs.first().unwrap());
-        let present_key = node.outputs.get(1).map(TensorType::from);
-        let present_value = node.outputs.get(2).map(TensorType::from);
-        let qk_matmul_output = node.outputs.get(3).map(TensorType::from);
-        let config = onnx_ir::node::attention::attention_config(&node);
+        let onnx_ir::Node::Attention(n) = node else {
+            panic!("Expected Attention node");
+        };
+        let q = TensorType::from(n.inputs.first().unwrap());
+        let k = TensorType::from(n.inputs.get(1).unwrap());
+        let v = TensorType::from(n.inputs.get(2).unwrap());
+        let attn_mask = n.inputs.get(3).map(TensorType::from);
+        let past_key = n.inputs.get(4).map(TensorType::from);
+        let past_value = n.inputs.get(5).map(TensorType::from);
+        let y = TensorType::from(n.outputs.first().unwrap());
+        let present_key = n.outputs.get(1).map(TensorType::from);
+        let present_value = n.outputs.get(2).map(TensorType::from);
+        let qk_matmul_output = n.outputs.get(3).map(TensorType::from);
 
         AttentionNode::new(
             AttentionNodeInputs::new(q, k, v, attn_mask, past_key, past_value),
             AttentionNodeOutputs::new(y, present_key, present_value, qk_matmul_output),
-            config,
+            n.config.clone(),
         )
     }
 }
@@ -393,7 +395,7 @@ mod tests {
 
         graph.register(node_gen.clone());
 
-        graph.register_input_output(input_names, output_names);
+        graph.register_input_output(input_names, output_names, &[], &[]);
 
         let mut imports = BurnImports::default();
         node_gen.register_imports(&mut imports);

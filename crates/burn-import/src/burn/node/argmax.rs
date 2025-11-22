@@ -79,10 +79,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
 
 impl OnnxIntoNode for ArgMaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::argmax::argmax_config(&node);
-        Self::new(input, output, config.axis, config.keepdims)
+        let onnx_ir::Node::ArgMax(n) = node else {
+            panic!("Expected ArgMax node");
+        };
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::Type::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.axis, n.config.keepdims)
     }
 }
 
@@ -105,7 +107,12 @@ mod tests {
             true, // keepdims=true
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -151,7 +158,12 @@ mod tests {
             false, // keepdims=false
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

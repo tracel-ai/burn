@@ -461,6 +461,25 @@ mod tests {
     }
 
     #[test]
+    fn test_mean_dim_fused_on_read_on_write() {
+        // https://github.com/tracel-ai/burn/issues/3987
+        let device = Default::default();
+        let x = TestTensor::ones([128, 32, 1], &device);
+
+        let weight = TestTensor::ones([1, 32, 1], &device);
+        let options = burn_tensor::ops::ConvOptions::new([1], [0], [1], 1);
+        let x = burn_tensor::module::conv1d(x, weight, None, options);
+        let global = x.clone().powi_scalar(2).sum_dim(2).add_scalar(1e-5).sqrt();
+        let norm = global.clone().div(global.mean_dim(1));
+        let x = x.clone().mul(norm).add(x);
+
+        let out = x.sum();
+
+        out.into_data()
+            .assert_eq(&TensorData::from([8192.0]), false);
+    }
+
+    #[test]
     fn test_mean_dim_2d() {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());

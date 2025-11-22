@@ -123,9 +123,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MulNode {
 
 impl OnnxIntoNode for MulNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Mul(n) = node else {
+            panic!("Expected Mul node");
+        };
+        let lhs = Type::from(n.inputs.first().unwrap());
+        let rhs = Type::from(n.inputs.get(1).unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
 
         Self::new(lhs, rhs, output)
     }
@@ -151,6 +154,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

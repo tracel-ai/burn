@@ -39,16 +39,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for HardSigmoidNode {
 
 impl OnnxIntoNode for HardSigmoidNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+        let onnx_ir::Node::HardSigmoid(n) = node else {
+            panic!("Expected HardSigmoid node");
+        };
+        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("HardSigmoid expects tensor input"),
         };
-        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("HardSigmoid expects tensor output"),
         };
-        let (alpha, beta) = onnx_ir::node::hard_sigmoid::hard_sigmoid_config(&node);
-        Self::new(input, output, alpha, beta)
+        Self::new(input, output, n.config.alpha, n.config.beta)
     }
 }
 
@@ -70,7 +72,12 @@ mod tests {
             0.5,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

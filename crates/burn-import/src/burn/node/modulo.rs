@@ -106,11 +106,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
 
 impl OnnxIntoNode for ModNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::modulo::mod_config(&node);
-        Self::new(lhs, rhs, output, config.fmod)
+        let onnx_ir::Node::Mod(n) = node else {
+            panic!("Expected Mod node");
+        };
+        let lhs = Type::from(n.inputs.first().unwrap());
+        let rhs = Type::from(n.inputs.get(1).unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(lhs, rhs, output, n.config.fmod)
     }
 }
 
@@ -135,6 +137,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -183,6 +187,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "scalar1".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -233,6 +239,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

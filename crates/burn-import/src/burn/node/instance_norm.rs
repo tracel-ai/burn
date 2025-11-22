@@ -116,17 +116,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for InstanceNormNode {
 
 impl OnnxIntoNode for InstanceNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::instance_norm::instance_norm_config(&node);
+        let onnx_ir::Node::InstanceNormalization(n) = &node else {
+            panic!("Expected InstanceNormalization node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Scale tensor (aka gamma)
-        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
+        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
         // Bias (B) tensor
-        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
+        let beta = extract_node_data(inputs, 2).expect("Beta is required");
 
-        let name = &node.name;
-        Self::new(name, input, output, gamma, beta, config)
+        Self::new(name, input, output, gamma, beta, config.clone())
     }
 }
 
@@ -149,7 +154,12 @@ mod tests {
             InstanceNormConfig::new(128, 1e-5),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

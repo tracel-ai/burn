@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::metric::{MetricEntry, MetricName, NumericEntry, format_float};
+use crate::metric::{MetricName, NumericEntry, SerializedEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -13,6 +13,7 @@ pub struct NumericMetricState {
     sum: f64,
     count: usize,
     current: f64,
+    current_count: usize,
 }
 
 /// Formatting options for the [numeric metric state](NumericMetricState).
@@ -67,6 +68,7 @@ impl NumericMetricState {
             sum: 0.0,
             count: 0,
             current: f64::NAN,
+            current_count: 0,
         }
     }
 
@@ -75,21 +77,27 @@ impl NumericMetricState {
         self.sum = 0.0;
         self.count = 0;
         self.current = f64::NAN;
+        self.current_count = 0;
     }
 
     /// Update the state.
-    pub fn update(&mut self, value: f64, batch_size: usize, format: FormatOptions) -> MetricEntry {
+    pub fn update(
+        &mut self,
+        value: f64,
+        batch_size: usize,
+        format: FormatOptions,
+    ) -> SerializedEntry {
         self.sum += value * batch_size as f64;
         self.count += batch_size;
         self.current = value;
+        self.current_count = batch_size;
 
         let value_current = value;
         let value_running = self.sum / self.count as f64;
         // Numeric metric state is an aggregated value
         let serialized = NumericEntry::Aggregated {
-            sum: value_current,
+            aggregated_value: value_current,
             count: batch_size,
-            current: value_current,
         }
         .serialize();
 
@@ -108,15 +116,14 @@ impl NumericMetricState {
             None => format!("epoch {formatted_running} - batch {formatted_current}"),
         };
 
-        MetricEntry::new(format.name, formatted, serialized)
+        SerializedEntry::new(formatted, serialized)
     }
 
     /// Get the numeric value.
-    pub fn value(&self) -> NumericEntry {
+    pub fn current_value(&self) -> NumericEntry {
         NumericEntry::Aggregated {
-            sum: self.sum,
-            count: self.count,
-            current: self.current,
+            aggregated_value: self.current,
+            count: self.current_count,
         }
     }
 }

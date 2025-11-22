@@ -53,10 +53,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SpaceToDepthNode {
 
 impl OnnxIntoNode for SpaceToDepthNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let block_size = onnx_ir::node::space_to_depth::space_to_depth_config(&node);
-        Self::new(input, output, block_size)
+        let onnx_ir::Node::SpaceToDepth(n) = node else {
+            panic!("Expected SpaceToDepth node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.block_size)
     }
 }
 
@@ -76,7 +78,12 @@ mod tests {
             2,
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

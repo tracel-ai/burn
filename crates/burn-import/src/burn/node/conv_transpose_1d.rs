@@ -131,27 +131,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose1dNode {
 
 impl OnnxIntoNode for ConvTranspose1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let onnx_config = onnx_ir::node::conv_transpose1d::conv_transpose1d_config(&node);
+        let onnx_ir::Node::ConvTranspose1d(n) = &node else {
+            panic!("Expected ConvTranspose1d node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
         let config = burn::nn::conv::ConvTranspose1dConfig::new(
-            [onnx_config.channels_in, onnx_config.channels_out],
-            onnx_config.kernel_size,
+            [n.config.channels_in, n.config.channels_out],
+            n.config.kernel_size,
         )
-        .with_stride(onnx_config.stride)
-        .with_padding(onnx_config.padding)
-        .with_dilation(onnx_config.dilation)
-        .with_padding_out(onnx_config.padding_out)
-        .with_groups(onnx_config.groups);
-        let has_bias = node.inputs.len() == 3;
-        let weight = extract_node_data::<f32>(&node, 1).unwrap();
+        .with_stride(n.config.stride)
+        .with_padding(n.config.padding)
+        .with_dilation(n.config.dilation)
+        .with_padding_out(n.config.padding_out)
+        .with_groups(n.config.groups);
+        let has_bias = n.inputs.len() == 3;
+        let weight = extract_node_data(&n.inputs, 1).unwrap();
         let bias = if has_bias {
-            extract_node_data::<f32>(&node, 2)
+            extract_node_data(&n.inputs, 2)
         } else {
             None
         };
-        let name = &node.name;
-        Self::new(name, input, output, weight, bias, config)
+        Self::new(&n.name, input, output, weight, bias, config)
     }
 }
 
@@ -178,7 +179,12 @@ mod tests {
             ConvTranspose1dConfig::new([3, 3], 3).with_padding(0),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

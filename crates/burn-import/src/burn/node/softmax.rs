@@ -37,16 +37,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SoftmaxNode {
 
 impl OnnxIntoNode for SoftmaxNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match Type::from(node.inputs.first().unwrap()) {
+        let onnx_ir::Node::Softmax(n) = node else {
+            panic!("Expected Softmax node");
+        };
+        let input = match Type::from(n.inputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("Softmax expects tensor input"),
         };
-        let output = match Type::from(node.outputs.first().unwrap()) {
+        let output = match Type::from(n.outputs.first().unwrap()) {
             Type::Tensor(t) => t,
             _ => panic!("Softmax expects tensor output"),
         };
-        let dim = onnx_ir::node::softmax::softmax_config(&node);
-        Self::new(input, output, dim)
+        Self::new(input, output, n.config.axis)
     }
 }
 
@@ -67,7 +69,12 @@ mod tests {
             1,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0"
+version = "0.20.0-pre.2"
 
 [workspace.lints.clippy]
 
@@ -64,6 +64,7 @@ indicatif = "0.18.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.28" }
+parking_lot = { version = "0.12.5", default-features = false }
 paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.51.0", features = ["lazy"] }
@@ -71,7 +72,7 @@ pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.101"
 protobuf = "3.7.2"
 protobuf-codegen = "3.7.2"
-quote = "1.0.41"
+quote = "1.0.42"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
@@ -144,7 +145,7 @@ half = { version = "2.7.1", features = [
 ], default-features = false }
 macerator = { version = "0.2.9" }
 matrixmultiply = { version = "0.3.10", default-features = false }
-ndarray = { version = "0.16.1", default-features = false }
+ndarray = { version = "0.17.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
@@ -171,20 +172,20 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8aac5a9774e4a609078fa28c0cedb079e6fb7d6a" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8aac5a9774e4a609078fa28c0cedb079e6fb7d6a" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8aac5a9774e4a609078fa28c0cedb079e6fb7d6a" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7dcb1161e1fbe974fddfc2f421c5e44eeaf187b1" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7dcb1161e1fbe974fddfc2f421c5e44eeaf187b1" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7dcb1161e1fbe974fddfc2f421c5e44eeaf187b1" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubecl-quant = { path = "../cubecl/crates/cubecl-quant", default-features = false }
 ### For the release. ###
-# cubecl = { version = "0.8.0", default-features = false }
-# cubecl-common = { version = "0.8.0", default-features = false }
-# cubecl-quant = { version = "0.8.0", default-features = false }
+# cubecl = { version = "0.9.0-pre.2", default-features = false }
+# cubecl-common = { version = "0.9.0-pre.2", default-features = false }
+# cubecl-quant = { version = "0.9.0-pre.2", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.1.11" }
+tracel-xtask = { version = "=2.2.1" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

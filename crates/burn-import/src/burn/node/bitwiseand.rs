@@ -75,8 +75,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
 
 impl OnnxIntoNode for BitwiseAndNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::BitwiseAnd(n) = node else {
+            panic!("Expected BitwiseAnd node");
+        };
+        let inputs = n.inputs.iter().map(Type::from).collect();
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(inputs, output)
     }
 }
@@ -106,6 +109,8 @@ mod tests {
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],
             vec!["output".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

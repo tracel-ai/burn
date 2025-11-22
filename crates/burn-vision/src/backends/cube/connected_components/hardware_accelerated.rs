@@ -9,7 +9,7 @@ use crate::{
 };
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
-    ops::{into_data_sync, numeric::zeros_device},
+    ops::{into_data_sync, numeric::zeros_client},
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, cast::ToElement, ops::IntTensorOps};
@@ -490,7 +490,12 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
 
     let [rows, cols] = img.shape.dims();
 
-    let labels = zeros_device::<R, I>(client.clone(), device.clone(), img.shape.clone());
+    let labels = zeros_client::<R>(
+        client.clone(),
+        device.clone(),
+        img.shape.clone(),
+        I::dtype(),
+    );
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
@@ -505,8 +510,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             &client,
             cube_count,
             cube_dim,
-            img.as_tensor_arg::<BT>(1),
-            labels.as_tensor_arg::<I>(1),
+            img.as_tensor_arg(1),
+            labels.as_tensor_arg(1),
             connectivity,
         )
     };
@@ -523,8 +528,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             &client,
             cube_count,
             cube_dim_merge,
-            img.as_tensor_arg::<BT>(1),
-            labels.as_tensor_arg::<I>(1),
+            img.as_tensor_arg(1),
+            labels.as_tensor_arg(1),
             connectivity,
         )
     };
@@ -542,8 +547,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 &client,
                 cube_count,
                 cube_dim,
-                img.as_tensor_arg::<BT>(1),
-                labels.as_tensor_arg::<I>(1),
+                img.as_tensor_arg(1),
+                labels.as_tensor_arg(1),
             )
         };
     } else {
@@ -552,14 +557,14 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 &client,
                 cube_count,
                 cube_dim,
-                img.as_tensor_arg::<BT>(1),
-                labels.as_tensor_arg::<I>(1),
-                stats.area.as_tensor_arg::<I>(1),
-                stats.top.as_tensor_arg::<I>(1),
-                stats.left.as_tensor_arg::<I>(1),
-                stats.right.as_tensor_arg::<I>(1),
-                stats.bottom.as_tensor_arg::<I>(1),
-                stats.max_label.as_tensor_arg::<I>(1),
+                img.as_tensor_arg(1),
+                labels.as_tensor_arg(1),
+                stats.area.as_tensor_arg(1),
+                stats.top.as_tensor_arg(1),
+                stats.left.as_tensor_arg(1),
+                stats.right.as_tensor_arg(1),
+                stats.bottom.as_tensor_arg(1),
+                stats.max_label.as_tensor_arg(1),
                 stats_opt,
             )
         };
@@ -567,7 +572,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.max_label);
             let max_label = into_data_sync::<R, I>(max_label);
             let max_label = ToElement::to_usize(&max_label.as_slice::<I>().unwrap()[0]);
-            let sliced = kernel::slice::<R, I>(
+            let sliced = kernel::slice::<R>(
                 stats.area.clone(),
                 #[allow(clippy::single_range_in_vec_init)]
                 &[0..(max_label + 1).next_multiple_of(4)],
@@ -579,15 +584,16 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 (cols as u32).div_ceil(cube_dim.x),
                 (rows as u32).div_ceil(cube_dim.y),
             );
-            stats.max_label = zeros_device::<R, I>(client.clone(), device.clone(), Shape::new([1]));
+            stats.max_label =
+                zeros_client::<R>(client.clone(), device.clone(), Shape::new([1]), I::dtype());
             unsafe {
                 compact_labels::launch_unchecked::<I, R>(
                     &client,
                     cube_count,
                     cube_dim,
-                    labels.as_tensor_arg::<I>(1),
-                    relabel.as_tensor_arg::<I>(1),
-                    stats.max_label.as_tensor_arg::<I>(1),
+                    labels.as_tensor_arg(1),
+                    relabel.as_tensor_arg(1),
+                    stats.max_label.as_tensor_arg(1),
                 )
             };
 
@@ -598,17 +604,17 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     &client,
                     cube_count,
                     cube_dim,
-                    stats.area.copy().as_tensor_arg::<I>(1),
-                    stats.area.as_tensor_arg::<I>(1),
-                    stats.top.copy().as_tensor_arg::<I>(1),
-                    stats.top.as_tensor_arg::<I>(1),
-                    stats.left.copy().as_tensor_arg::<I>(1),
-                    stats.left.as_tensor_arg::<I>(1),
-                    stats.right.copy().as_tensor_arg::<I>(1),
-                    stats.right.as_tensor_arg::<I>(1),
-                    stats.bottom.copy().as_tensor_arg::<I>(1),
-                    stats.bottom.as_tensor_arg::<I>(1),
-                    relabel.as_tensor_arg::<I>(1),
+                    stats.area.copy().as_tensor_arg(1),
+                    stats.area.as_tensor_arg(1),
+                    stats.top.copy().as_tensor_arg(1),
+                    stats.top.as_tensor_arg(1),
+                    stats.left.copy().as_tensor_arg(1),
+                    stats.left.as_tensor_arg(1),
+                    stats.right.copy().as_tensor_arg(1),
+                    stats.right.as_tensor_arg(1),
+                    stats.bottom.copy().as_tensor_arg(1),
+                    stats.bottom.as_tensor_arg(1),
+                    relabel.as_tensor_arg(1),
                 )
             };
         }

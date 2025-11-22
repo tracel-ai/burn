@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use super::state::FormatOptions;
-use super::{MetricEntry, MetricMetadata, NumericEntry, format_float};
+use super::{MetricMetadata, NumericEntry, SerializedEntry, format_float};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericAttributes};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
@@ -43,7 +43,7 @@ impl PerplexityState {
         sum_log_prob: f64,
         effective_tokens: usize,
         format: FormatOptions,
-    ) -> MetricEntry {
+    ) -> SerializedEntry {
         // sum_log_prob is already the sum of log probabilities (negative values)
         // We need to negate it to get negative log-likelihood
         let batch_nll = -sum_log_prob;
@@ -85,13 +85,12 @@ impl PerplexityState {
 
         // Serialize the state for aggregation
         let serialized = NumericEntry::Aggregated {
-            sum: self.sum_nll,
+            aggregated_value: epoch_perplexity,
             count: self.total_tokens,
-            current: epoch_perplexity,
         }
         .serialize();
 
-        MetricEntry::new(format.name().clone(), formatted, serialized)
+        SerializedEntry::new(formatted, serialized)
     }
 
     fn value(&self) -> NumericEntry {
@@ -102,9 +101,8 @@ impl PerplexityState {
         };
 
         NumericEntry::Aggregated {
-            sum: self.sum_nll,
+            aggregated_value: perplexity,
             count: self.total_tokens,
-            current: perplexity,
         }
     }
 }
@@ -175,7 +173,11 @@ impl<B: Backend> PerplexityMetric<B> {
 impl<B: Backend> Metric for PerplexityMetric<B> {
     type Input = PerplexityInput<B>;
 
-    fn update(&mut self, input: &PerplexityInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(
+        &mut self,
+        input: &PerplexityInput<B>,
+        _metadata: &MetricMetadata,
+    ) -> SerializedEntry {
         let targets = input.targets.clone();
         let outputs = input.outputs.clone();
 

@@ -40,14 +40,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NegNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("core::ops::Neg");
+        // Burn's Tensor has an inherent neg() method, but scalar types need the Neg trait
+        if matches!(self.input, Type::Scalar(_)) {
+            imports.register("core::ops::Neg");
+        }
     }
 }
 
 impl OnnxIntoNode for NegNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Neg(n) = node else {
+            panic!("Expected Neg node");
+        };
+        let input = Type::from(n.inputs.first().unwrap());
+        let output = Type::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }
@@ -70,11 +76,15 @@ mod tests {
             Type::Tensor(TensorType::new_float("tensor2", 4)),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
-            use core::ops::Neg;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -110,7 +120,12 @@ mod tests {
             Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

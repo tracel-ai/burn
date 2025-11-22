@@ -35,6 +35,7 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         let mut iterator = dataloader.iter();
         let mut iteration = 0;
 
+        self.event_processor.process_test(EvaluatorEvent::Start);
         while let Some(item) = iterator.next() {
             let progress = iterator.progress();
             iteration += 1;

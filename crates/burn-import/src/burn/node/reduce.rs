@@ -123,8 +123,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
         let output = &self.output.name();
 
         // Handle input based on type
-        let (input, input_rank) = match &self.input {
-            Type::Tensor(tensor) => (scope.tensor_use_owned(tensor, node_position), tensor.rank),
+        let (input, input_rank, is_bool) = match &self.input {
+            Type::Tensor(tensor) => (
+                scope.tensor_use_owned(tensor, node_position),
+                tensor.rank,
+                tensor.kind == TensorKind::Bool,
+            ),
             _ => panic!("ReduceNode input must be a tensor"),
         };
 
@@ -136,6 +140,51 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
         };
         let dims = self.config.dims.clone();
         let keepdims = self.config.keepdims;
+
+        // For boolean tensors with Min/Max reduction, use all()/any()
+        if is_bool && matches!(self.reduction_type, ReductionType::Min | ReductionType::Max) {
+            let (bool_reduction_all, bool_reduction_dim) = match self.reduction_type {
+                ReductionType::Min => (quote! { all }, quote! { all_dim }),
+                ReductionType::Max => (quote! { any }, quote! { any_dim }),
+                _ => unreachable!(),
+            };
+
+            let reduced_input = if dims.is_empty() {
+                // Reduce all dimensions
+                quote! { #input.#bool_reduction_all() }
+            } else {
+                // Reduce along specific dimensions
+                dims.iter().fold(input.clone(), |tokens, dim| {
+                    quote! { #tokens.#bool_reduction_dim(#dim) }
+                })
+            };
+
+            let final_output = if keepdims {
+                if dims.is_empty() {
+                    quote! { #reduced_input.expand([1; #output_rank]) }
+                } else {
+                    reduced_input
+                }
+            } else if output_rank == 0 {
+                reduced_input
+            } else {
+                // Need to squeeze dimensions
+                let dims_to_squeeze = dims.to_tokens();
+                quote! { #reduced_input.squeeze_dims(&#dims_to_squeeze) }
+            };
+
+            return if output_rank == 0 {
+                quote! {
+                    let #output = {
+                        #final_output.into_scalar().elem::<bool>()
+                    };
+                }
+            } else {
+                quote! {
+                    let #output = #final_output;
+                }
+            };
+        }
 
         let raw_output_expr = match self.reduction_type {
             ReductionType::SumSquare => {
@@ -303,28 +352,31 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
 
 impl OnnxIntoNode for ReduceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::NodeType;
-
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::reduce::reduce_config(&node);
-
-        // Determine reduction type from node type
-        let reduction_type = match node.node_type {
-            NodeType::ReduceMax => ReductionType::Max,
-            NodeType::ReduceMin => ReductionType::Min,
-            NodeType::ReduceSum => ReductionType::Sum,
-            NodeType::ReduceProd => ReductionType::Prod,
-            NodeType::ReduceMean => ReductionType::Mean,
-            NodeType::ReduceL1 => ReductionType::L1,
-            NodeType::ReduceL2 => ReductionType::L2,
-            NodeType::ReduceLogSum => ReductionType::LogSum,
-            NodeType::ReduceLogSumExp => ReductionType::LogSumExp,
-            NodeType::ReduceSumSquare => ReductionType::SumSquare,
-            _ => panic!("Unsupported reduction type: {:?}", node.node_type),
+        // Extract reduction type, inputs, outputs, and config from node variant
+        let (inputs, outputs, reduction_type, config) = match &node {
+            onnx_ir::Node::ReduceMax(n) => (&n.inputs, &n.outputs, ReductionType::Max, &n.config),
+            onnx_ir::Node::ReduceMin(n) => (&n.inputs, &n.outputs, ReductionType::Min, &n.config),
+            onnx_ir::Node::ReduceSum(n) => (&n.inputs, &n.outputs, ReductionType::Sum, &n.config),
+            onnx_ir::Node::ReduceProd(n) => (&n.inputs, &n.outputs, ReductionType::Prod, &n.config),
+            onnx_ir::Node::ReduceMean(n) => (&n.inputs, &n.outputs, ReductionType::Mean, &n.config),
+            onnx_ir::Node::ReduceL1(n) => (&n.inputs, &n.outputs, ReductionType::L1, &n.config),
+            onnx_ir::Node::ReduceL2(n) => (&n.inputs, &n.outputs, ReductionType::L2, &n.config),
+            onnx_ir::Node::ReduceLogSum(n) => {
+                (&n.inputs, &n.outputs, ReductionType::LogSum, &n.config)
+            }
+            onnx_ir::Node::ReduceLogSumExp(n) => {
+                (&n.inputs, &n.outputs, ReductionType::LogSumExp, &n.config)
+            }
+            onnx_ir::Node::ReduceSumSquare(n) => {
+                (&n.inputs, &n.outputs, ReductionType::SumSquare, &n.config)
+            }
+            _ => panic!("Unsupported reduction type: {}", node.name()),
         };
 
-        ReduceNode::new(input, output, reduction_type, config)
+        let input = Type::from(inputs.first().unwrap());
+        let output = Type::from(outputs.first().unwrap());
+
+        ReduceNode::new(input, output, reduction_type, config.clone())
     }
 }
 
@@ -350,7 +402,12 @@ mod tests {
             ReduceConfig::new(vec![0, 2], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -396,7 +453,12 @@ mod tests {
             ReduceConfig::new(vec![1, 3], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -438,7 +500,12 @@ mod tests {
             ReduceConfig::new(vec![], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -480,7 +547,12 @@ mod tests {
             ReduceConfig::new(vec![], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -522,7 +594,12 @@ mod tests {
             ReduceConfig::new(vec![0], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -564,7 +641,12 @@ mod tests {
             ReduceConfig::new(vec![0, 3], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -616,7 +698,12 @@ mod tests {
             ReduceConfig::new(vec![0], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -666,7 +753,12 @@ mod tests {
             ReduceConfig::new(vec![3], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -708,7 +800,12 @@ mod tests {
             ReduceConfig::new(vec![], false),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -750,7 +847,12 @@ mod tests {
             ReduceConfig::new(vec![2], true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

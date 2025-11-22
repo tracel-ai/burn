@@ -5,7 +5,7 @@ use cubecl::std::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    CubeRuntime, FloatElement,
+    CubeRuntime,
     kernel::utils::{linear_layout, shape_divmod},
     ops::max_line_size,
     tensor::CubeTensor,
@@ -17,6 +17,7 @@ fn interpolate_bilinear_kernel<F: Float>(
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod>,
     out_layout: LinearLayout,
+    #[define(F)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -99,7 +100,7 @@ fn interpolate_bilinear_kernel<F: Float>(
     output[out_idx] = p_a + p_b + p_c + p_d;
 }
 
-pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime, F: FloatElement>(
+pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
     input: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -111,14 +112,15 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime, F: FloatElement>(
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
-    interpolate_bilinear_kernel::launch::<F, R>(
+    interpolate_bilinear_kernel::launch::<R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<F>(line_size),
-        output.as_tensor_arg::<F>(line_size),
+        input.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
         out_shape,
         out_layout,
+        output.dtype.into(),
     );
 
     output

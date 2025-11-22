@@ -1,194 +1,299 @@
-//! Unsqueeze operation implementation for ONNX graphs.
+//! # Unsqueeze
 //!
-//! This module handles the unsqueeze operation which adds dimensions of size 1 to tensors.
-//! It includes an important optimization for Int scalar to Shape conversion, which is the
-//! reverse of the squeeze operation and critical for efficient dynamic shape handling in
-//! ONNX models.
+//! Inserts single-dimensional entries (dimensions of size 1) at specified positions in the tensor's shape.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Unsqueeze.html>
+//!
+//! ## Opset Versions
+//! - **Opset 1**: Initial version with required 'axes' attribute.
+//! - **Opset 11**: Clarified semantics and behavior for negative axis values.
+//! - **Opset 13**: Changed 'axes' from attribute to required input, enabling dynamic axes specification at runtime.
+//!
+//! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
+//!
+//! TODO: Axes range validation not implemented - ONNX spec requires axes values in [-r, r-1] range where r = rank(expanded), but extract_config and infer_types do not validate this constraint - Missing validation in extract_config after line 151
+//!
+//! TODO: Missing duplicate axes validation - ONNX spec states axes order doesn't matter but doesn't allow duplicates, implementation doesn't check for duplicate values in axes - Should validate uniqueness after to_i64_vec
+//!
+//! TODO: Missing test coverage for negative axes - Tests exist for positive axes but no test validates negative axis values work correctly per opset 11+ spec - Need test case with negative axes like [-1, -3]
+//!
+//! TODO: Missing test coverage for zero-size tensor - No test validates unsqueeze behavior with zero-size input tensor (e.g., shape [0, 3]) - Should add test case
+//!
+//! TODO: Missing test coverage for duplicate axes error case - No test verifies that duplicate axes are rejected - Need negative test case
+//!
+//! TODO: Missing test coverage for out-of-range axes - No test validates axes range checking per spec [-r, r-1] - Need negative test cases
+//!
+//! ## Special Optimizations
+//!
+//! This module includes an important optimization for Int scalar to Shape conversion, which is the
+//! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
-use crate::{
-    Argument, TensorData,
-    ir::{ArgType, Data, Node, TensorType},
+use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-/// Update output rank for Unsqueeze based on axes.
-/// Update the output tensor dimension based on the "axes" attribute or the second input
-pub fn unsqueeze_update_output(node: &mut Node) {
-    log::debug!("Unsqueeze rank inference for node {}", node.name);
-
-    let axes = if node.inputs.len() == 2 {
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(a) => Some(a.clone()),
-                _ => panic!("Unsqueeze: invalid input types"),
-            },
-            None => None,
-        }
-    } else {
-        node.attrs.get("axes").cloned().map(|v| {
-            let axes = v.into_i64s();
-            log::debug!(
-                "Unsqueeze axes from attribute for {}: {:?}",
-                node.name,
-                axes
-            );
-            axes
-        })
-    };
-
-    let input_rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        ArgType::Scalar(_) => {
-            0 // treat scalar as 0-dim tensor
-        }
-        _ => panic!("Unsqueeze: invalid input type"),
-    };
-
-    let output_rank = if let Some(axes) = axes {
-        input_rank + axes.len()
-    } else if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
-        if let Some(static_shape) = &tensor.static_shape {
-            input_rank + *static_shape.first().expect("Empty shape")
-        } else {
-            panic!("Unsqueeze: should have static shape")
-        }
-    } else {
-        panic!("Unsqueeze: missing axes information")
-    };
-
-    // Determine the output type based on input type and output rank.
-    //
-    // Special case: Int scalar -> Shape[1] conversion
-    // ================================================
-    // When an Int scalar is unsqueezed to rank 1, we produce a Shape type instead of a Tensor.
-    // This is the reverse operation of squeeze(Shape[1]) -> Scalar.
-    //
-    // Why this optimization matters:
-    // 1. Performance: Many reshape operations in ONNX models follow this pattern where shape
-    //    information flows through squeeze/unsqueeze operations. Keeping them as Shape types
-    //    avoids unnecessary tensor allocations.
-    //
-    // 2. Memory efficiency: Both scalars and Shape types are stored on CPU, so this conversion
-    //    is essentially free - no device transfers are needed.
-    //
-    // 3. Type consistency: This maintains type symmetry with the squeeze operation, allowing
-    //    shape information to flow naturally through the graph.
-    //
-    // 4. Flexibility: If a downstream operation requires a GPU tensor, the Shape can be
-    //    converted to a Tensor at that point. This lazy conversion strategy ensures we only
-    //    pay the cost when necessary.
-    //
-    // This optimization is particularly important for dynamic shape scenarios where reshape
-    // operations compute their output shapes at runtime using these squeeze/unsqueeze patterns.
-    match &node.inputs[0].ty {
-        ArgType::Scalar(elem_type) if output_rank == 1 => {
-            match elem_type {
-                crate::ir::ElementType::Int32 | crate::ir::ElementType::Int64 => {
-                    // Unsqueeze Int scalar to Shape[1] (reverse of squeeze operation)
-                    node.outputs[0].ty = ArgType::Shape(1);
-                }
-                _ => {
-                    // Other scalar types unsqueeze to tensor
-                    node.outputs[0].ty = ArgType::Tensor(TensorType {
-                        rank: output_rank,
-                        static_shape: None,
-                        elem_type: elem_type.clone(),
-                    });
-                }
-            }
-        }
-        _ => {
-            // Regular tensor or scalar to tensor conversion
-            let output_elem = match &node.outputs[0].ty {
-                ArgType::Tensor(_) => node.inputs[0].ty.elem_type().clone(),
-                ArgType::Scalar(elem_type) => elem_type.clone(),
-                ArgType::Shape(_) => crate::ir::ElementType::Int64, // Shape elements are always i64
-            };
-
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                rank: output_rank,
-                static_shape: None, // shape is tracked and calculated at runtime
-                elem_type: output_elem,
-            });
-        }
-    }
-
-    log::debug!("Unsqueeze output rank for {}: {}", node.name, output_rank);
-}
 
 /// Axes specification for the Unsqueeze operation.
 #[derive(Debug, Clone)]
 pub enum UnsqueezeConfig {
     /// Static axes known at compile time.
     Static(Vec<i64>),
-    /// Runtime axes that will be determined during execution.
-    Runtime(Argument),
+    /// Runtime axes determined during execution - references node.inputs\[input_index\].
+    Runtime(RuntimeInputRef),
 }
 
-/// Creates UnsqueezeAxes configuration from the node attributes.
-///
-/// Note: This function should only execute if the second input is a constant.
-/// If it wasn't and the output shape was known, unsqueeze has been remapped to reshape.
-pub fn unsqueeze_config(node: &Node) -> UnsqueezeConfig {
-    // Check if axes attribute exists
-    for (key, value) in node.attrs.iter() {
-        if key.as_str() == "axes" {
-            return UnsqueezeConfig::Static(value.clone().into_i64s());
+/// Node representation for Unsqueeze operation
+#[derive(Debug, Clone)]
+pub struct UnsqueezeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: UnsqueezeConfig,
+}
+
+pub(crate) struct UnsqueezeProcessor;
+
+impl NodeProcessor for UnsqueezeProcessor {
+    type Config = UnsqueezeConfig;
+
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 13,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
         }
     }
 
-    assert!(
-        !node.inputs.is_empty(),
-        "Unsqueeze: axes tensor must be present"
-    );
+    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError> {
+        // Lift axes input (input[1]) if present
+        // In opset 13+, axes is a required input
+        // In opset <13, axes is an attribute
+        if opset >= 13 && node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
+        }
 
-    let input_value = &node.inputs[1];
+        Ok(())
+    }
 
-    match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.rank, 1, "Unsqueeze: axes tensor must be 1D");
-            if let Some(TensorData {
-                data: Data::Int64s(shape),
-                ..
-            }) = input_value.value.as_ref()
-            {
-                UnsqueezeConfig::Static(shape.clone())
-            } else {
-                UnsqueezeConfig::Runtime(node.inputs[1].clone())
+    fn infer_types(
+        &self,
+        node: &mut NodeBuilder,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Get reference to config for type inference
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
+
+        // Extract axes for type inference
+        let axes = match config {
+            UnsqueezeConfig::Static(axes) => Some(axes.clone()),
+            UnsqueezeConfig::Runtime(_) => None,
+        };
+
+        self.infer_with_axes(node, axes)
+    }
+
+    fn extract_config(
+        &self,
+        node: &NodeBuilder,
+        opset: usize,
+    ) -> Result<Self::Config, ProcessError> {
+        // Check if axes attribute exists (only valid in opset <13)
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axes" {
+                if opset >= 13 {
+                    return Err(ProcessError::Custom(
+                        "Unsqueeze: axes must be provided as input (not attribute) in opset 13+"
+                            .to_string(),
+                    ));
+                }
+                let config = UnsqueezeConfig::Static(value.clone().into_i64s());
+                return Ok(config);
             }
         }
-        _ => panic!("Arg for unsqueeze must be tensor or scalar"),
+
+        // In opset 13+, axes must be provided as second input
+        // In opset <13, if no axes attribute, axes must be provided as input
+        if node.inputs.len() < 2 {
+            if opset >= 13 {
+                return Err(ProcessError::InvalidInputCount {
+                    expected: 2,
+                    actual: node.inputs.len(),
+                });
+            } else {
+                return Err(ProcessError::Custom(
+                    "Unsqueeze: axes must be provided as either attribute or input".to_string(),
+                ));
+            }
+        }
+
+        let input_value = &node.inputs[1];
+
+        let config = match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => {
+                // Validate tensor rank if it's non-zero
+                // (rank of 0 means not yet inferred, which is OK during initial config extraction)
+                if tensor.rank != 0 && tensor.rank != 1 {
+                    return Err(ProcessError::Custom(
+                        "Unsqueeze: axes tensor must be 1D".to_string(),
+                    ));
+                }
+
+                if let Some(tensor_data) = input_value.value().as_ref() {
+                    // Validate actual tensor data shape
+                    if tensor_data.shape.len() != 1 {
+                        return Err(ProcessError::Custom(
+                            "Unsqueeze: axes tensor must be 1D".to_string(),
+                        ));
+                    }
+                    // TODO: Missing duplicate axes validation - ONNX spec states axes order doesn't matter but doesn't allow duplicates, implementation doesn't check for duplicate values in axes - Should validate uniqueness after to_i64_vec
+                    match tensor_data.to_i64_vec() {
+                        Ok(axes) => UnsqueezeConfig::Static(axes),
+                        Err(_) => {
+                            return Err(ProcessError::Custom(
+                                "Unsqueeze: axes tensor must be Int32 or Int64".to_string(),
+                            ));
+                        }
+                    }
+                } else {
+                    // Runtime input - store reference instead of cloning the argument
+                    UnsqueezeConfig::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
+                }
+            }
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[1].ty),
+                });
+            }
+        };
+
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Unsqueeze(UnsqueezeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
+    }
+}
+
+impl UnsqueezeProcessor {
+    fn infer_with_axes(
+        &self,
+        node: &mut NodeBuilder,
+        axes: Option<Vec<i64>>,
+    ) -> Result<(), ProcessError> {
+        let input_rank = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            ArgType::Scalar(_) => 0,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Scalar".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        let output_rank = if let Some(axes) = axes {
+            input_rank + axes.len()
+        } else if node.inputs.len() == 2 {
+            if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
+                if let Some(static_shape) = &tensor.static_shape {
+                    input_rank
+                        + *static_shape.first().ok_or_else(|| {
+                            ProcessError::Custom("Unsqueeze: empty axes shape".to_string())
+                        })?
+                } else {
+                    return Err(ProcessError::Custom(
+                        "Unsqueeze: missing static shape for axes".to_string(),
+                    ));
+                }
+            } else {
+                return Err(ProcessError::Custom(
+                    "Unsqueeze: missing axes information".to_string(),
+                ));
+            }
+        } else {
+            return Err(ProcessError::Custom(
+                "Unsqueeze: missing axes information".to_string(),
+            ));
+        };
+
+        // Special case: Int scalar -> Shape[1] conversion (reverse of squeeze)
+        match &node.inputs[0].ty {
+            ArgType::Scalar(elem_type) if output_rank == 1 => match elem_type {
+                crate::ir::DType::I32 | crate::ir::DType::I64 => {
+                    node.outputs[0].ty = ArgType::Shape(1);
+                }
+                _ => {
+                    node.outputs[0].ty = ArgType::Tensor(TensorType {
+                        rank: output_rank,
+                        static_shape: None,
+                        dtype: *elem_type,
+                    });
+                }
+            },
+            _ => {
+                let output_elem = match &node.outputs[0].ty {
+                    ArgType::Tensor(_) => node.inputs[0].ty.elem_type(),
+                    ArgType::Scalar(elem_type) => *elem_type,
+                    ArgType::Shape(_) => crate::ir::DType::I64,
+                };
+
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    rank: output_rank,
+                    static_shape: None,
+                    dtype: output_elem,
+                });
+            }
+        }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::ir::{DType, NodeType};
+    use crate::node::test_utils::TestNodeBuilder;
 
     // Implement custom equality for UnsqueezeConfig to make testing easier
     impl PartialEq<UnsqueezeConfig> for UnsqueezeConfig {
         fn eq(&self, other: &UnsqueezeConfig) -> bool {
             match (self, other) {
                 (UnsqueezeConfig::Static(a), UnsqueezeConfig::Static(b)) => a == b,
-                (UnsqueezeConfig::Runtime(a), UnsqueezeConfig::Runtime(b)) => a.name == b.name,
+                (UnsqueezeConfig::Runtime(a), UnsqueezeConfig::Runtime(b)) => a == b,
                 _ => false,
             }
         }
     }
 
-    fn create_test_node_with_attr(input_rank: usize, axes: Vec<i64>) -> Node {
-        let builder = NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
+    fn create_test_node_with_attr(input_rank: usize, axes: Vec<i64>) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", 0, None) // Will be updated
-            .attr_ints("axes", axes);
-
-        builder.build()
+            .attr_ints("axes", axes)
     }
 
-    fn create_test_node_with_input(input_rank: usize, axes: Vec<i64>, with_value: bool) -> Node {
+    fn create_test_node_with_input(
+        input_rank: usize,
+        axes: Vec<i64>,
+        with_value: bool,
+    ) -> TestNodeBuilder {
         let axes_len = axes.len();
-        let mut builder = NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
+        let mut builder = TestNodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", 0, None); // Will be updated
 
@@ -200,19 +305,23 @@ mod tests {
             builder = builder.input_tensor_i64("axes", 1, Some(vec![axes_len]));
         }
 
-        builder.build()
+        builder
     }
 
     // Tests for unsqueeze_update_output function
 
     #[test]
     fn test_unsqueeze_with_attr() {
-        let mut node = create_test_node_with_attr(2, vec![0, 3]);
-        unsqueeze_update_output(&mut node);
+        let mut node = create_test_node_with_attr(2, vec![0, 3]).build();
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let _config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 4); // 2 + 2 = 4
             }
             _ => panic!("Expected tensor output"),
@@ -221,12 +330,16 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_with_input() {
-        let mut node = create_test_node_with_input(3, vec![1, 2, 4], true);
-        unsqueeze_update_output(&mut node);
+        let mut node =
+            create_test_node_with_input(3, vec![1, 2, 4], true).build_with_graph_data(16);
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        let _config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 6); // 3 + 3 = 6
             }
             _ => panic!("Expected tensor output"),
@@ -235,13 +348,17 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_scalar_float() {
-        let mut node = create_test_node_with_attr(0, vec![0]);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        unsqueeze_update_output(&mut node);
+        let mut node = create_test_node_with_attr(0, vec![0]).build();
+        node.inputs[0].ty = ArgType::Scalar(DType::F32);
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let _config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 1); // 0 + 1 = 1
             }
             _ => panic!("Expected tensor output"),
@@ -250,9 +367,13 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_scalar_int_to_shape() {
-        let mut node = create_test_node_with_attr(0, vec![0]);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
-        unsqueeze_update_output(&mut node);
+        let mut node = create_test_node_with_attr(0, vec![0]).build();
+        node.inputs[0].ty = ArgType::Scalar(DType::I64);
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let _config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -264,9 +385,13 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_scalar_int32_to_shape() {
-        let mut node = create_test_node_with_attr(0, vec![0]);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
-        unsqueeze_update_output(&mut node);
+        let mut node = create_test_node_with_attr(0, vec![0]).build();
+        node.inputs[0].ty = ArgType::Scalar(DType::I32);
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let _config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -279,13 +404,17 @@ mod tests {
     #[test]
     fn test_unsqueeze_scalar_int_multiple_axes() {
         // Test that Int scalar with multiple axes produces a tensor, not shape
-        let mut node = create_test_node_with_attr(0, vec![0, 1]);
-        node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
-        unsqueeze_update_output(&mut node);
+        let mut node = create_test_node_with_attr(0, vec![0, 1]).build();
+        node.inputs[0].ty = ArgType::Scalar(DType::I64);
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let _config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Int64);
+                assert_eq!(tensor.dtype, DType::I64);
                 assert_eq!(tensor.rank, 2); // 0 + 2 = 2
             }
             _ => panic!("Expected tensor output for multi-axis unsqueeze"),
@@ -293,106 +422,158 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Unsqueeze: invalid input type")]
     fn test_unsqueeze_invalid_input() {
-        let mut node = create_test_node_with_attr(2, vec![0]);
+        let mut node = create_test_node_with_attr(2, vec![0]).build();
         node.inputs[0].ty = ArgType::Shape(1);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let _config = processor.extract_config(&node, 11).unwrap();
+        let result = processor.infer_types(&mut node, 11, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     // Tests for unsqueeze_config function
 
     #[test]
     fn test_unsqueeze_config_with_attr() {
-        // Test with axes provided as attribute
         let axes = vec![0, 2, 4];
-        let node = create_test_node_with_attr(3, axes.clone());
+        let node = create_test_node_with_attr(3, axes.clone()).build();
 
-        let config = unsqueeze_config(&node);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         assert_eq!(config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
     fn test_unsqueeze_config_with_static_input() {
-        // Test with axes provided as input tensor with static value
         let axes = vec![1, 3];
-        let node = create_test_node_with_input(2, axes.clone(), true);
+        let node = create_test_node_with_input(2, axes.clone(), true).build_with_graph_data(16);
 
-        let config = unsqueeze_config(&node);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
     fn test_unsqueeze_config_with_runtime_input() {
-        // Test with axes provided as input tensor but without static value
         let axes = vec![0, 2];
-        let node = create_test_node_with_input(2, axes.clone(), false);
+        let node = create_test_node_with_input(2, axes.clone(), false).build();
 
-        let config = unsqueeze_config(&node);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        // Should return a Runtime config since the axes are only known at runtime
         match config {
             UnsqueezeConfig::Static(_) => panic!("Expected Runtime config"),
-            UnsqueezeConfig::Runtime(arg) => {
-                assert_eq!(arg.name, "axes");
+            UnsqueezeConfig::Runtime(name) => {
+                assert_eq!(name.name, "axes");
             }
         }
     }
 
     #[test]
     fn test_unsqueeze_config_negative_axes() {
-        // Test with negative axes (should be handled by the caller)
         let axes = vec![-1, -3];
-        let node = create_test_node_with_attr(3, axes.clone());
+        let node = create_test_node_with_attr(3, axes.clone()).build();
 
-        let config = unsqueeze_config(&node);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         assert_eq!(config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
     fn test_unsqueeze_config_empty_axes() {
-        // Test with empty axes array (edge case)
         let axes = vec![];
-        let node = create_test_node_with_attr(2, axes.clone());
+        let node = create_test_node_with_attr(2, axes.clone()).build();
 
-        let config = unsqueeze_config(&node);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        // Use opset 11 for attribute-based axes (pre-opset 13)
+        let config = processor.extract_config(&node, 11).unwrap();
+        processor.infer_types(&mut node, 11, &prefs).unwrap();
 
         assert_eq!(config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
-    #[should_panic(expected = "index out of bounds")]
     fn test_unsqueeze_config_missing_axes() {
-        // Test with neither axes attribute nor input
-        let mut node = create_test_node_with_attr(2, vec![0]);
+        let mut node = create_test_node_with_attr(2, vec![0]).build();
         node.attrs.clear(); // Remove the axes attribute
         node.inputs = vec![node.inputs[0].clone()]; // Remove the axes input
 
-        let _ = unsqueeze_config(&node);
+        let node = node;
+        let processor = UnsqueezeProcessor;
+        let _prefs = OutputPreferences::new();
+
+        // Test opset 13+ requires axes as input
+        let result = processor.extract_config(&node, 13);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: 1
+            })
+        ));
+
+        // Test opset <13 requires axes as either attribute or input
+        let result = processor.extract_config(&node, 11);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Unsqueeze: axes tensor must be 1D")]
     fn test_unsqueeze_config_invalid_axes_rank() {
-        // Test with axes tensor that is not 1D
-        let mut node = create_test_node_with_input(2, vec![0, 1], true);
+        let mut node = create_test_node_with_input(2, vec![0, 1], true).build_with_graph_data(16);
         if let ArgType::Tensor(ref mut tensor) = node.inputs[1].ty {
             tensor.rank = 2; // Invalid rank for axes
         }
 
-        let _ = unsqueeze_config(&node);
+        let node = node;
+        let processor = UnsqueezeProcessor;
+        let _prefs = OutputPreferences::new();
+        let result = processor.extract_config(&node, 16);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Arg for unsqueeze must be tensor or scalar")]
     fn test_unsqueeze_config_invalid_axes_type() {
-        // Test with axes input that is not a tensor
-        let mut node = create_test_node_with_input(2, vec![0], false);
+        let mut node = create_test_node_with_input(2, vec![0], false).build();
         node.inputs[1].ty = ArgType::Shape(1); // Invalid type for axes
 
-        let _ = unsqueeze_config(&node);
+        let node = node;
+        let processor = UnsqueezeProcessor;
+        let _prefs = OutputPreferences::new();
+        let result = processor.extract_config(&node, 16);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_unsqueeze_attr_rejected_in_opset_13_plus() {
+        // Test that attributes are rejected in opset 13+
+        let node = create_test_node_with_attr(2, vec![0]).build();
+        let processor = UnsqueezeProcessor;
+
+        let result = processor.extract_config(&node, 13);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
+
+        let result = processor.extract_config(&node, 16);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

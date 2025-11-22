@@ -66,8 +66,8 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(in_vec),
-            out.as_tensor_arg::<E>(out_vec),
+            input.as_tensor_arg(in_vec),
+            out.as_tensor_arg(out_vec),
             ScalarArg::new(hw as u32),
             config,
         )

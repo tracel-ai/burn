@@ -3,7 +3,7 @@
 //! This implementation is based on the candle project's pickle loader with significant
 //! modifications for improved separation of concerns and extended PyTorch compatibility.
 //!
-//! Original source: https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs
+//! Original source: <https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs>
 //!
 //! Modifications include:
 //! - Lazy tensor data loading for memory efficiency
@@ -1032,6 +1032,16 @@ pub fn read_pickle_with_data<R: BufRead>(
     read_pickle_with_optional_data(r, Some(data_source))
 }
 
+fn get_dict_key(obj: Object) -> Result<String> {
+    match obj {
+        Object::String(s) => Ok(s),
+        Object::Int(i) => Ok(i.to_string()),
+        _ => Err(PickleError::InvalidData(format!(
+            "dict key must be a valid type, got {obj:?}"
+        ))),
+    }
+}
+
 pub fn read_pickle_with_optional_data<R: BufRead>(
     r: &mut R,
     data_source: Option<Arc<LazyDataSource>>,
@@ -1132,13 +1142,8 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                         while !objs.is_empty() {
                             let key = objs.remove(0);
                             let value = objs.remove(0);
-                            if let Object::String(key) = key {
-                                dict.insert(key, value);
-                            } else {
-                                return Err(PickleError::InvalidData(
-                                    "dict key must be a string".to_string(),
-                                ));
-                            }
+                            let key = get_dict_key(key)?;
+                            dict.insert(key, value);
                         }
                     }
                     _ => return Err(PickleError::UnexpectedOpCode(op_code)),
@@ -1254,13 +1259,8 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                     ));
                 }
                 for chunk in objs.chunks(2) {
-                    if let Object::String(key) = &chunk[0] {
-                        dict.insert(key.clone(), chunk[1].clone());
-                    } else {
-                        return Err(PickleError::InvalidData(
-                            "dict key must be a string".to_string(),
-                        ));
-                    }
+                    let key = get_dict_key(chunk[0].clone())?;
+                    dict.insert(key, chunk[1].clone());
                 }
                 stack.push(Object::Dict(dict));
             }

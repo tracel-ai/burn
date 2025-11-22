@@ -65,7 +65,7 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 #[cfg(test)]
 mod tests {
     use crate::{
-        TestBackend,
+        EventProcessorTraining, TestBackend,
         logger::InMemoryMetricLogger,
         metric::{
             LossMetric,
@@ -97,6 +97,7 @@ mod tests {
         metrics.register_train_metric_numeric(loss);
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
+        processor.process_train(crate::LearnerEvent::Start);
 
         // Two points for the first epoch. Mean 0.75
         let mut epoch = 1;

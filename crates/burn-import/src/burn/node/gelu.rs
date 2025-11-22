@@ -35,11 +35,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GeluNode {
 
 impl OnnxIntoNode for GeluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+        let onnx_ir::Node::Gelu(n) = node else {
+            panic!("Expected Gelu node");
+        };
+        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Gelu expects tensor input"),
         };
-        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Gelu expects tensor output"),
         };
@@ -63,7 +66,12 @@ mod tests {
             TensorType::new_float("tensor2", 4),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

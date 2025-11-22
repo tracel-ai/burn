@@ -198,10 +198,10 @@ mod tests {
         let stream_1_key = index.operation_key(&stream_1[0]);
         let stream_2_key = index.operation_key(&stream_2[0]);
 
-        assert_eq!(
+        assert_ne!(
             stream_1_key, stream_2_key,
-            "Ops 1 and Ops 3 have the same hash"
-        );
+            "Ops 1 and Ops 3 should not have the same hash"
+        ); // ops 1 and 3 have different variants, so the hash differs
         assert_ne!(stream_1[0], stream_2[0], "Ops 1 and Ops 3 are different.");
 
         index.insert(InsertQuery::NewPlan {

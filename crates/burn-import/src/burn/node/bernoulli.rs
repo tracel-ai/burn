@@ -45,8 +45,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BernoulliNode {
 
 impl OnnxIntoNode for BernoulliNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Bernoulli(n) = node else {
+            panic!("Expected Bernoulli node");
+        };
+        let input = crate::burn::TensorType::from(n.inputs.first().unwrap());
+        let output = crate::burn::TensorType::from(n.outputs.first().unwrap());
         Self::new(input, output)
     }
 }
@@ -67,7 +70,12 @@ mod tests {
             TensorType::new("output1", 2, TensorKind::Float),
         ));
 
-        graph.register_input_output(vec!["input1".to_string()], vec!["output1".to_string()]);
+        graph.register_input_output(
+            vec!["input1".to_string()],
+            vec!["output1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -110,7 +118,12 @@ mod tests {
             TensorType::new("output1", 2, TensorKind::Int),
         ));
 
-        graph.register_input_output(vec!["input1".to_string()], vec!["output1".to_string()]);
+        graph.register_input_output(
+            vec!["input1".to_string()],
+            vec!["output1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

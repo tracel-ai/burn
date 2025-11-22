@@ -102,10 +102,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 
 impl OnnxIntoNode for PReluNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let mut weight = extract_node_data::<f32>(&node, 1).expect("PRelu weight is required");
-        let name = &node.name;
+        let onnx_ir::Node::PRelu(n) = &node else {
+            panic!("Expected PRelu node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        let mut weight = extract_node_data(&n.inputs, 1).expect("PRelu weight is required");
 
         // Determine weight shape and flatten if necessary
         let weight_shape = if weight.shape.len() > 1 {
@@ -138,7 +140,7 @@ impl OnnxIntoNode for PReluNode {
             .with_num_parameters(weight_shape)
             .with_alpha(alpha_value);
 
-        Self::new(name, input, output, weight, config)
+        Self::new(&n.name, input, output, weight, config)
     }
 }
 
@@ -160,7 +162,12 @@ mod tests {
             PReluConfig::new(),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
         use burn::prelude::*;

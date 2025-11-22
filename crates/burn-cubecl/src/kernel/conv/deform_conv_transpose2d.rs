@@ -1,39 +1,33 @@
-use std::marker::PhantomData;
-
-use burn_tensor::{
-    Shape,
-    ops::{DeformConvOptions, FloatTensorOps as _},
-};
-use cubecl::{
-    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
-    cube, features::TypeUsage, prelude::*,
-};
-
+use super::{bilinear_interpolate, deform_im2col, index};
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
-    element::BoolElement,
+    CubeRuntime,
     kernel::{
         cast, into_contiguous,
         matmul::{MatmulStrategy, matmul},
+        reduce::reduce_dim,
         slice_assign,
     },
     ops::{
-        numeric::{empty_device, ones_device, zeros_device},
+        numeric::{empty_device_dtype, ones_client, zeros_client},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
 };
-
-use super::{bilinear_interpolate, deform_im2col, index};
+use burn_tensor::{DType, Shape, ops::DeformConvOptions};
+use cubecl::{
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
+    cube, features::TypeUsage, prelude::*, reduce::instructions::ReduceFnConfig,
+    std::scalar::InputScalar,
+};
+use std::marker::PhantomData;
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-#[allow(clippy::single_range_in_vec_init, clippy::type_complexity)]
-pub(crate) fn deform_conv2d_backward<
-    R: CubeRuntime,
-    E: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
->(
+#[allow(
+    clippy::single_range_in_vec_init,
+    clippy::type_complexity,
+    clippy::too_many_arguments
+)]
+pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -55,9 +49,10 @@ pub(crate) fn deform_conv2d_backward<
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let gradient_bias = bias.map(|bias| {
-        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
-        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
-        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
+        let grad =
+            reduce_dim::<R>(out_grad.clone(), 0, Default::default(), ReduceFnConfig::Sum).unwrap();
+        let grad = reduce_dim::<R>(grad, 2, Default::default(), ReduceFnConfig::Sum).unwrap();
+        let grad = reduce_dim::<R>(grad, 3, Default::default(), ReduceFnConfig::Sum).unwrap();
 
         reshape(grad, bias.shape)
     });
@@ -66,7 +61,7 @@ pub(crate) fn deform_conv2d_backward<
     let offset = into_contiguous(offset);
     let mask = mask.map(|it| into_contiguous(it));
 
-    let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs::<R, E>(
+    let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs::<R>(
         input.clone(),
         weight.clone(),
         offset.clone(),
@@ -76,7 +71,7 @@ pub(crate) fn deform_conv2d_backward<
         (kernel_h, kernel_w),
     )?;
 
-    let weight_grad = compute_weight_grad::<R, E>(
+    let weight_grad = compute_weight_grad::<R>(
         input,
         offset,
         mask,
@@ -95,7 +90,7 @@ pub(crate) fn deform_conv2d_backward<
     ))
 }
 
-fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
+fn compute_weight_grad<R: CubeRuntime>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
@@ -108,11 +103,12 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     let [_, out_channels, _, _] = out_grad.shape.dims();
     let (kernel_h, kernel_w) = kernel_dims;
     let groups = options.weight_groups;
+    let dtype = input.dtype;
 
     let in_c_per_group = in_channels / groups;
     let out_c_per_group = out_channels / groups;
 
-    let columns = deform_im2col::<R, E>(input, offset, mask, options, out_dims, kernel_dims);
+    let columns = deform_im2col::<R>(input, offset, mask, options, out_dims, kernel_dims);
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
 
@@ -122,7 +118,7 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
     let columns = swap_dims(columns, 1, 2);
 
-    let grad_weight = matmul::<R, E>(out_grad, columns, None, MatmulStrategy::default())?;
+    let grad_weight = matmul::<R>(out_grad, columns, None, MatmulStrategy::default(), dtype)?;
 
     Ok(reshape(
         grad_weight,
@@ -132,7 +128,7 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
 
 type InputGradients<R> = (CubeTensor<R>, CubeTensor<R>, Option<CubeTensor<R>>);
 
-fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
+fn backward_gradient_inputs<R: CubeRuntime>(
     image: CubeTensor<R>,
     weight: CubeTensor<R>,
     offset: CubeTensor<R>,
@@ -153,7 +149,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     let col_shape_0 = in_c_per_group * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
     let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
-    let mut columns = empty_device::<R, E>(client, device, col_shape);
+    let mut columns = empty_device_dtype::<R>(client, device, col_shape, weight.dtype);
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
@@ -162,11 +158,12 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     let out_grad = reshape(out_grad, out_grad_shape);
 
     for group in 0..groups {
-        let weight = swap_dims(index::<R, E>(weight.clone(), group), 0, 1);
-        let out_grad = index::<R, E>(out_grad.clone(), group);
-        let values = matmul::<R, E>(weight, out_grad, None, MatmulStrategy::default())?;
+        let dtype = weight.dtype;
+        let weight = swap_dims(index::<R>(weight.clone(), group), 0, 1);
+        let out_grad = index::<R>(out_grad.clone(), group);
+        let values = matmul::<R>(weight, out_grad, None, MatmulStrategy::default(), dtype)?;
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
-        columns = slice_assign::<R, E>(
+        columns = slice_assign::<R>(
             columns,
             &[
                 burn_tensor::Slice::from(group..group + 1),
@@ -180,7 +177,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
     let input_shape = image.shape.clone();
-    let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient::<R, E>(
+    let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient::<R>(
         columns.clone(),
         image,
         offset.clone(),
@@ -190,12 +187,12 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     )?;
 
     let input_gradient =
-        compute_input_grad::<R, E>(columns, offset, mask, options, kernel_dims, input_shape);
+        compute_input_grad::<R>(columns, offset, mask, options, kernel_dims, input_shape);
 
     Ok((input_gradient, offset_gradient, mask_gradient))
 }
 
-fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
+fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     columns: CubeTensor<R>,
     image: CubeTensor<R>,
     offset: CubeTensor<R>,
@@ -210,7 +207,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
     let use_mask = mask.is_some();
 
     let mask = mask.unwrap_or_else(|| {
-        ones_device::<R, E>(
+        ones_client::<R>(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -219,18 +216,30 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
                 offset.shape[2],
                 offset.shape[3],
             ]),
+            columns.dtype,
         )
     });
 
-    let grad_offset = empty_device::<R, E>(client.clone(), device.clone(), offset.shape.clone());
-    let grad_mask = empty_device::<R, E>(client.clone(), device.clone(), mask.shape.clone());
+    let grad_offset = empty_device_dtype::<R>(
+        client.clone(),
+        device.clone(),
+        offset.shape.clone(),
+        offset.dtype,
+    );
+    let grad_mask = empty_device_dtype::<R>(
+        client.clone(),
+        device.clone(),
+        mask.shape.clone(),
+        mask.dtype,
+    );
 
     let num_elements_offset = offset.shape.num_elements();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements_offset, cube_dim);
 
+    let dtype: StorageType = image.dtype.into();
     unsafe {
-        deform_col2img_coord_kernel::launch_unchecked::<E, R>(
+        deform_col2img_coord_kernel::launch_unchecked::<R>(
             &image.client,
             cube_count,
             cube_dim,
@@ -245,13 +254,14 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
                 ScalarArg::new(options.stride[1] as u32),
                 ScalarArg::new(options.dilation[0] as u32),
                 ScalarArg::new(options.dilation[1] as u32),
-                ScalarArg::new(E::from_elem(options.padding[0] as f32)),
-                ScalarArg::new(E::from_elem(options.padding[1] as f32)),
+                InputScalar::new(options.padding[0] as f32, dtype.elem_type()),
+                InputScalar::new(options.padding[1] as f32, dtype.elem_type()),
                 ScalarArg::new(options.offset_groups as u32),
                 ScalarArg::new(kernel_height as u32),
                 ScalarArg::new(kernel_width as u32),
             ),
             use_mask,
+            dtype,
         )
     };
 
@@ -260,13 +270,13 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
 }
 
 #[derive(CubeLaunch, CubeType)]
-struct DeformConv2dCol2ImgCoordArgs<F: Float> {
+struct DeformConv2dCol2ImgCoordArgs {
     stride_h: u32,
     stride_w: u32,
     dilation_h: u32,
     dilation_w: u32,
-    pad_h: F,
-    pad_w: F,
+    pad_h: InputScalar,
+    pad_w: InputScalar,
     offset_groups: u32,
     kernel_height: u32,
     kernel_width: u32,
@@ -281,8 +291,9 @@ fn deform_col2img_coord_kernel<F: Float>(
     columns: &Tensor<F>,
     grad_offset: &mut Tensor<F>,
     grad_mask: &mut Tensor<F>,
-    args: &DeformConv2dCol2ImgCoordArgs<F>,
+    args: &DeformConv2dCol2ImgCoordArgs,
     #[comptime] use_mask: bool,
+    #[define(F)] _dtype: StorageType,
 ) {
     // Position format: [batch, [offset_group, kernel_h, kernel_w, 2], out_h, out_w]
     // Alternatively : [batch, offset_channels, out_h, out_w]
@@ -354,8 +365,10 @@ fn deform_col2img_coord_kernel<F: Float>(
             F::new(1.0)
         };
 
-        let y = F::cast_from(out_y * args.stride_h + i * args.dilation_h) - args.pad_h + offset_y;
-        let x = F::cast_from(out_x * args.stride_w + j * args.dilation_w) - args.pad_w + offset_x;
+        let y = F::cast_from(out_y * args.stride_h + i * args.dilation_h) - args.pad_h.get::<F>()
+            + offset_y;
+        let x = F::cast_from(out_x * args.stride_w + j * args.dilation_w) - args.pad_w.get::<F>()
+            + offset_x;
 
         let weight = get_coordinate_weight(
             &image.slice(image_base_idx, image.len()),
@@ -446,7 +459,7 @@ fn get_coordinate_weight<F: Float>(
     }
 }
 
-fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
+fn compute_input_grad<R: CubeRuntime>(
     columns: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
@@ -457,8 +470,16 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
-    let supports_fadd = Atomic::<f32>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
-    let supports_same_type = Atomic::<E>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
+    let supports_fadd = client
+        .properties()
+        .type_usage(StorageType::Atomic(
+            f32::as_type_native_unchecked().elem_type(),
+        ))
+        .contains(TypeUsage::AtomicAdd);
+    let supports_same_type = client
+        .properties()
+        .type_usage(StorageType::Atomic(columns.dtype.into()))
+        .contains(TypeUsage::AtomicAdd);
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
@@ -466,51 +487,51 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let shape = Shape::new([batch_size, in_channels, height, width]);
     let grad_in = match supports_fadd && supports_same_type {
         // Use type as is to save a cast
-        true => zeros_device::<R, E>(client.clone(), device.clone(), shape),
+        true => zeros_client::<R>(client.clone(), device.clone(), shape, columns.dtype),
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
-        false => zeros_device::<R, f32>(client.clone(), device.clone(), shape),
+        false => zeros_client::<R>(client.clone(), device.clone(), shape, DType::F32),
     };
-    let grad_arg = match supports_fadd && supports_same_type {
-        true => grad_in.as_tensor_arg::<E>(1),
-        false => grad_in.as_tensor_arg::<f32>(1),
-    };
+    let grad_arg = grad_in.as_tensor_arg(1);
 
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_device::<R, E>(client.clone(), device.clone(), Shape::new([1, 1, 1, 1]))
+        ones_client::<R>(
+            client.clone(),
+            device.clone(),
+            Shape::new([1, 1, 1, 1]),
+            columns.dtype,
+        )
     });
 
     let num_elements = columns.shape.num_elements();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements, cube_dim);
 
-    let launch = match (supports_fadd, supports_same_type) {
-        // use same type intrinsic if supported
-        (true, true) => deform_col2img_kernel::launch_unchecked::<E, IntrinsicFloatAtomicAdd<E>, R>,
-        // use f32 intrinsic if float add is supported at all
-        (true, false) => {
-            deform_col2img_kernel::launch_unchecked::<E, IntrinsicFloatAtomicAdd<f32>, R>
-        }
-        // fall back to compare and swap
-        _ => deform_col2img_kernel::launch_unchecked::<E, CASFloatAtomicAdd, R>,
+    let launch = match supports_fadd {
+        true => deform_col2img_kernel::launch_unchecked::<IntrinsicFloatAtomicAddFamily, R>,
+        false => deform_col2img_kernel::launch_unchecked::<CASFloatAtomicAdd, R>,
     };
-
+    let dtype = offset.dtype;
+    let dtypes: [StorageType; 2] = match supports_same_type {
+        true => [dtype.into(), dtype.into()],
+        false => [dtype.into(), DType::F32.into()],
+    };
     unsafe {
         launch(
             &offset.client,
             cube_count,
             cube_dim,
-            offset.as_tensor_arg::<E>(1),
-            mask.as_tensor_arg::<E>(1),
-            columns.as_tensor_arg::<E>(1),
+            offset.as_tensor_arg(1),
+            mask.as_tensor_arg(1),
+            columns.as_tensor_arg(1),
             grad_arg,
             DeformConv2dCol2ImgArgsLaunch::new(
                 ScalarArg::new(options.stride[0] as u32),
                 ScalarArg::new(options.stride[1] as u32),
                 ScalarArg::new(options.dilation[0] as u32),
                 ScalarArg::new(options.dilation[1] as u32),
-                ScalarArg::new(E::new(options.padding[0] as f32)),
-                ScalarArg::new(E::new(options.padding[1] as f32)),
+                InputScalar::new(options.padding[0] as f32, dtypes[0].elem_type()),
+                InputScalar::new(options.padding[1] as f32, dtypes[0].elem_type()),
                 ScalarArg::new(options.offset_groups as u32),
                 ScalarArg::new(batch_size as u32),
                 ScalarArg::new(in_channels as u32),
@@ -520,24 +541,25 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
                 ScalarArg::new(kernel_width as u32),
             ),
             use_mask,
+            dtypes,
         )
     };
 
     if !supports_same_type || !supports_fadd {
-        cast::<R, f32, E>(grad_in)
+        cast::<R>(grad_in, dtype)
     } else {
         grad_in
     }
 }
 
 #[derive(CubeLaunch, CubeType)]
-struct DeformConv2dCol2ImgArgs<F: Float> {
+struct DeformConv2dCol2ImgArgs {
     stride_h: u32,
     stride_w: u32,
     dilation_h: u32,
     dilation_w: u32,
-    pad_h: F,
-    pad_w: F,
+    pad_h: InputScalar,
+    pad_w: InputScalar,
     offset_groups: u32,
     batch_size: u32,
     in_channels: u32,
@@ -548,13 +570,14 @@ struct DeformConv2dCol2ImgArgs<F: Float> {
 }
 
 #[cube(launch_unchecked)]
-fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
+fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
     columns: &Tensor<F>,
-    grad_input: &mut Tensor<Atomic<FAdd::ProxyType>>,
-    args: &DeformConv2dCol2ImgArgs<F>,
+    grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
+    args: &DeformConv2dCol2ImgArgs,
     #[comptime] use_mask: bool,
+    #[define(F, FP)] _dtype: [StorageType; 2],
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
     if ABSOLUTE_POS >= columns.len() {
@@ -602,10 +625,12 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
         F::new(1.0)
     };
 
-    let y =
-        F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.pad_h + offset_y;
-    let x =
-        F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
+    let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)
+        - args.pad_h.get::<F>()
+        + offset_y;
+    let x = F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w)
+        - args.pad_w.get::<F>()
+        + offset_x;
 
     for dy in -1..=1i32 {
         #[unroll]
@@ -628,10 +653,17 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
 
                 let value = mask_value * F::cast_from(weight) * columns[ABSOLUTE_POS];
 
-                FAdd::float_atomic_add::<F>(&mut grad_input[gradient_pos], value);
+                FAdd::Op::<FP>::float_atomic_add::<F>(&mut grad_input[gradient_pos], value);
             }
         }
     }
+}
+
+type ProxyType<FADF, FP> = <<FADF as FloatAtomicAddFamily>::Op<FP> as FloatAtomicAdd>::ProxyType;
+
+#[cube]
+trait FloatAtomicAddFamily: Send + Sync + 'static {
+    type Op<ProxyType: Float>: FloatAtomicAdd;
 }
 
 #[cube]
@@ -649,6 +681,16 @@ struct IntrinsicFloatAtomicAdd<F: Float> {
 
 #[derive(CubeType)]
 struct CASFloatAtomicAdd;
+
+struct IntrinsicFloatAtomicAddFamily;
+
+impl FloatAtomicAddFamily for IntrinsicFloatAtomicAddFamily {
+    type Op<ProxyType: Float> = IntrinsicFloatAtomicAdd<ProxyType>;
+}
+
+impl FloatAtomicAddFamily for CASFloatAtomicAdd {
+    type Op<ProxyType: Float> = Self;
+}
 
 #[cube]
 impl<FAdd: Float> FloatAtomicAdd for IntrinsicFloatAtomicAdd<FAdd> {

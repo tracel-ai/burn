@@ -126,17 +126,30 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
 
 impl OnnxIntoNode for GroupNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let (config, full_precision) = onnx_ir::node::group_norm::group_norm_config(&node);
+        let onnx_ir::Node::GroupNormalization(n) = &node else {
+            panic!("Expected GroupNormalization node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
 
         // Scale tensor (aka gamma)
-        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
+        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
         // Bias (B) tensor
-        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
+        let beta = extract_node_data(inputs, 2).expect("Beta is required");
 
-        let name = &node.name;
-        Self::new(name, input, output, gamma, beta, config, full_precision)
+        Self::new(
+            name,
+            input,
+            output,
+            gamma,
+            beta,
+            config.clone(),
+            config.full_precision,
+        )
     }
 }
 
@@ -156,11 +169,16 @@ mod tests {
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             TensorData::from([2f32]),
-            GroupNormConfig::new(128, 6, 1e-5),
+            GroupNormConfig::new(128, 6, 1e-5, false),
             false,
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -209,11 +227,16 @@ mod tests {
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             TensorData::from([2f32]),
-            GroupNormConfig::new(128, 6, 1e-5),
+            GroupNormConfig::new(128, 6, 1e-5, true),
             true,
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

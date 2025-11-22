@@ -44,8 +44,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MeanNode {
 
 impl OnnxIntoNode for MeanNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let inputs = node.inputs.iter().map(TensorType::from).collect();
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::Mean(n) = node else {
+            panic!("Expected Mean node");
+        };
+        let inputs = n.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(n.outputs.first().unwrap());
         Self::new(inputs, output)
     }
 }
@@ -76,6 +79,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

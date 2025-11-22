@@ -1,5 +1,5 @@
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
+use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
@@ -80,7 +80,7 @@ impl<B: Backend> CharErrorRate<B> {
 impl<B: Backend> Metric for CharErrorRate<B> {
     type Input = CerInput<B>;
 
-    fn update(&mut self, input: &CerInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &CerInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
@@ -159,7 +159,7 @@ impl<B: Backend> Metric for CharErrorRate<B> {
 
 impl<B: Backend> Numeric for CharErrorRate<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

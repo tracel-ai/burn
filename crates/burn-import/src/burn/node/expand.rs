@@ -1,15 +1,22 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::expand::ExpandShape;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
+
+/// Burn-import version of ExpandConfig that stores Argument instead of RuntimeInputRef
+#[derive(Debug, Clone)]
+pub enum ExpandConfig {
+    Static(Vec<i64>),
+    Runtime(Argument),
+}
 
 #[derive(Debug, Clone, new)]
 pub struct ExpandNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub shape: ExpandShape,
+    pub shape: ExpandConfig,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
@@ -22,8 +29,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
         // If the shape is static, we only have the input tensor as an input,
         // if it is dynamic, the shape will be our 2nd:
         match &self.shape {
-            ExpandShape::Static(_) => vec![input],
-            ExpandShape::Runtime(rt_type) => vec![input, Type::from(rt_type)],
+            ExpandConfig::Static(_) => vec![input],
+            ExpandConfig::Runtime(rt_type) => vec![input, Type::from(rt_type)],
         }
     }
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -32,8 +39,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
         let output_rank = &self.output.rank;
 
         let shape = match &self.shape {
-            ExpandShape::Static(static_shape) => static_shape.to_tokens(),
-            ExpandShape::Runtime(ty) => match Type::from(ty) {
+            ExpandConfig::Static(static_shape) => static_shape.to_tokens(),
+            ExpandConfig::Runtime(ty) => match Type::from(ty) {
                 Type::Tensor(shape_tensor) => {
                     let tensor_name = &shape_tensor.name;
                     quote! {
@@ -61,9 +68,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
 
 impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let shape = onnx_ir::node::expand::expand_config(&node);
+        let onnx_ir::Node::Expand(n) = node else {
+            panic!("Expected Expand node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+
+        // Convert from onnx-ir ExpandConfig (with RuntimeInputRef) to burn-import ExpandConfig (with Argument)
+        let shape = match n.config {
+            onnx_ir::node::expand::ExpandConfig::Static(s) => ExpandConfig::Static(s),
+            onnx_ir::node::expand::ExpandConfig::Runtime(shape_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let shape_arg = n.inputs[shape_ref.input_index].clone();
+                ExpandConfig::Runtime(shape_arg)
+            }
+        };
         Self::new(input, output, shape)
     }
 }
@@ -71,7 +90,7 @@ impl OnnxIntoNode for ExpandNode {
 #[cfg(test)]
 mod tests {
     use burn::record::FullPrecisionSettings;
-    use onnx_ir::{ArgType, Argument, ElementType};
+    use onnx_ir::{ArgType, Argument, DType};
 
     use super::*;
     use crate::burn::{
@@ -87,10 +106,15 @@ mod tests {
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Static([4, 4, 4, 4].into()),
+            ExpandConfig::Static([4, 4, 4, 4].into()),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -124,20 +148,20 @@ mod tests {
     fn test_codegen_expand_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::from_name("shape1".to_string());
+        arg.ty = ArgType::Shape(4);
+
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(4),
-                value: None,
-                passed: false,
-            }),
+            ExpandConfig::Runtime(arg),
         ));
 
         graph.register_input_output(
             vec!["tensor1".to_string(), "shape1".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -177,24 +201,24 @@ mod tests {
     fn test_codegen_expand_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::from_name("tensor3".to_string());
+        arg.ty = ArgType::Tensor(onnx_ir::TensorType {
+            dtype: DType::I32,
+            rank: 1,
+            static_shape: None,
+        });
+
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(Argument {
-                name: "tensor3".to_string(),
-                ty: ArgType::Tensor(onnx_ir::TensorType {
-                    elem_type: ElementType::Int32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: false,
-            }),
+            ExpandConfig::Runtime(arg),
         ));
 
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor3".to_string()],
             vec!["tensor2".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

@@ -48,10 +48,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
 
 impl OnnxIntoNode for EyeLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::eye_like::eye_like_config(&node);
-        Self::new(input, output, config)
+        let onnx_ir::Node::EyeLike(n) = node else {
+            panic!("Expected EyeLike node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+        Self::new(input, output, n.config.clone())
     }
 }
 
@@ -79,7 +81,12 @@ mod tests {
             config,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

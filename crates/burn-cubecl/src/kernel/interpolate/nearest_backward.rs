@@ -5,7 +5,7 @@ use cubecl::std::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    CubeRuntime, FloatElement,
+    CubeRuntime,
     kernel::utils::{linear_layout, shape_divmod},
     ops::max_line_size,
     tensor::CubeTensor,
@@ -17,6 +17,7 @@ fn interpolate_nearest_backward_kernel<F: Float>(
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod>,
     out_layout: LinearLayout,
+    #[define(F)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -71,7 +72,7 @@ fn end_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u
     Min::min(output_size, index)
 }
 
-pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime, E: FloatElement>(
+pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(
     out_grad: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -84,14 +85,15 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime, E: FloatElemen
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        interpolate_nearest_backward_kernel::launch_unchecked::<E, R>(
+        interpolate_nearest_backward_kernel::launch_unchecked::<R>(
             &out_grad.client,
             cube_count,
             cube_dim,
-            out_grad.as_tensor_arg::<E>(line_size),
-            output.as_tensor_arg::<E>(line_size),
+            out_grad.as_tensor_arg(line_size),
+            output.as_tensor_arg(line_size),
             out_shape,
             out_layout,
+            output.dtype.into(),
         )
     };
 

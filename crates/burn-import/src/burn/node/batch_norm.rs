@@ -142,18 +142,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
 
 impl OnnxIntoNode for BatchNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let config = onnx_ir::node::batch_norm::batch_norm_config(&node);
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let onnx_ir::Node::BatchNormalization(n) = &node else {
+            panic!("Expected BatchNormalization node");
+        };
+        let inputs = &n.inputs;
+        let outputs = &n.outputs;
+        let config = &n.config;
+        let name = &n.name;
+
+        let input = TensorType::from(inputs.first().unwrap());
+        let output = TensorType::from(outputs.first().unwrap());
         let dim = input.rank - 2;
 
         // Extract data using f32 as the element type
-        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
-        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
-        let running_mean = extract_node_data::<f32>(&node, 3).expect("Running mean is required");
-        let running_var = extract_node_data::<f32>(&node, 4).expect("Running var is required");
+        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
+        let beta = extract_node_data(inputs, 2).expect("Beta is required");
+        let running_mean = extract_node_data(inputs, 3).expect("Running mean is required");
+        let running_var = extract_node_data(inputs, 4).expect("Running var is required");
 
-        let name = &node.name;
         Self::new(
             dim,
             name,
@@ -163,7 +169,7 @@ impl OnnxIntoNode for BatchNormNode {
             beta,
             running_mean,
             running_var,
-            config,
+            config.clone(),
         )
     }
 }
@@ -190,7 +196,12 @@ mod tests {
             BatchNormConfig::new(128, 0.00001, 0.1),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

@@ -11,31 +11,25 @@ use cubecl_quant::scheme::BlockSize;
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.as_bytes());
+    let buffer = client.create(data.bytes);
 
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
-pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
-    let elem_size = size_of::<E>();
+    let elem_size = tensor.elem_size();
     let shape = &tensor.shape.dims;
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor_async(binding).await;
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
 }
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous_aligned(tensor);
-
-    let elem_size = size_of::<E>();
-    let shape = &tensor.shape.dims;
-    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
-    let bytes = tensor.client.read_one_tensor(binding);
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    burn_common::future::block_on(into_data(tensor))
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(
@@ -51,14 +45,15 @@ pub(crate) fn to_device<R: CubeRuntime>(
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn empty<R: CubeRuntime>(
     shape: Shape,
     device: &R::Device,
+    dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+    let buffer = client.empty(shape.num_elements() * dtype.size());
 
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
+    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, dtype)
 }
 
 pub(crate) fn swap_dims<R: CubeRuntime>(
@@ -361,7 +356,7 @@ pub fn unfold<R: CubeRuntime>(
     strides.push(d_stride);
 
     CubeTensor {
-        shape: shape.into(),
+        shape,
         strides,
         ..tensor
     }

@@ -92,11 +92,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
 
 impl OnnxIntoNode for AvgPool2dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::avg_pool2d::avg_pool2d_config(&node);
-        let name = &node.name;
-        Self::new(name, input, output, config)
+        let onnx_ir::Node::AveragePool2d(n) = node else {
+            panic!("Expected AveragePool2d node");
+        };
+        let input = TensorType::from(n.inputs.first().unwrap());
+        let output = TensorType::from(n.outputs.first().unwrap());
+
+        // Burn doesn't support dilations in AvgPool2d yet
+        if n.config.dilation != [1, 1] {
+            panic!(
+                "AvgPool2d: dilation ({:?}) is not supported in Burn. Only dilation=[1, 1] is supported.",
+                n.config.dilation
+            );
+        }
+
+        Self::new(&n.name, input, output, n.config.clone())
     }
 }
 
@@ -122,7 +132,12 @@ mod tests {
             AvgPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, true),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

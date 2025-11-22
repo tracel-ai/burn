@@ -62,6 +62,13 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
     }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut burn_tensor::TensorData>,
+    {
+        B::staging(data, device);
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {

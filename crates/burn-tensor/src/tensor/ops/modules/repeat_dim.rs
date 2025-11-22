@@ -11,7 +11,7 @@ pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B
     let dtype = tensor.dtype();
 
     let original_dim_length = shape[dim];
-    let shape = shape.repeat(dim, times);
+    let shape = shape.repeat(dim, times).unwrap();
 
     let mut tensor_output = K::empty(shape.clone(), &device, dtype);
 
