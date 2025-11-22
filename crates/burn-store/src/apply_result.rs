@@ -219,16 +219,32 @@ impl core::fmt::Display for ApplyResult {
                 )?;
                 writeln!(
                     f,
-                    "│      These tensors exist in PyTorch but with different paths."
+                    "│      Example: Burn has 'field.BaseConv.weight', PyTorch has 'field.weight'"
                 )?;
                 writeln!(f, "│")?;
                 writeln!(
                     f,
-                    "│      💡 Solution: The model needs path remapping to strip enum variants."
+                    "│      💡 Solution 1: Enable skip_enum_variants flag (simplest):"
+                )?;
+                writeln!(f, "│")?;
+                writeln!(
+                    f,
+                    "│         let mut store = PytorchStore::from_file(\"model.pth\")"
+                )?;
+                writeln!(f, "│             .skip_enum_variants(true);  // ← Add this")?;
+                writeln!(f, "│")?;
+                writeln!(
+                    f,
+                    "│      💡 Solution 2: Remap enum keys in source (most precise):"
+                )?;
+                writeln!(f, "│")?;
+                writeln!(
+                    f,
+                    "│         let mut store = SafetensorsStore::from_file(\"model.safetensors\")"
                 )?;
                 writeln!(
                     f,
-                    "│         Example: 'field.BaseConv.weight' → 'field.weight'"
+                    "│             .with_key_remapping(r\"field\\.(\\w+)\", \"field.BaseConv.$1\");"
                 )?;
                 writeln!(f, "│")?;
             }

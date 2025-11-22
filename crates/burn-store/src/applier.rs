@@ -100,12 +100,14 @@ impl<B: Backend> Applier<B> {
 
     /// Convert the applier into a result
     pub fn into_result(self) -> ApplyResult {
-        let unused: Vec<String> = self
+        let mut unused: Vec<String> = self
             .snapshots
             .keys()
             .filter(|path| !self.visited_paths.contains_key(*path) && !self.skipped.contains(*path))
             .cloned()
             .collect();
+        // Sort for stable output order
+        unused.sort();
 
         // Create a set of successfully applied paths for efficient lookup
         let applied_set: HashSet<String> = self.applied.iter().cloned().collect();
@@ -124,17 +126,23 @@ impl<B: Backend> Applier<B> {
 
         // A path is missing if it was visited but not successfully applied, not skipped, and didn't have an error
         // Store both the path and its container stack (in dot notation)
-        let missing: Vec<(String, String)> = self
+        let mut missing: Vec<(String, String)> = self
             .visited_paths
             .into_iter()
             .filter(|(p, _)| {
                 !applied_set.contains(p) && !self.skipped.contains(p) && !errored_paths.contains(p)
             })
             .collect();
+        // Sort for stable output order (by path)
+        missing.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Convert skipped HashSet to sorted Vec for stable output
+        let mut skipped: Vec<String> = self.skipped.into_iter().collect();
+        skipped.sort();
 
         ApplyResult {
             applied: self.applied,
-            skipped: self.skipped.into_iter().collect(),
+            skipped,
             missing,
             unused,
             errors: self.errors,
