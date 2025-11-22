@@ -1,6 +1,7 @@
 //! Result types and diagnostics for tensor application operations
 
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 
 use burn_tensor::DType;
