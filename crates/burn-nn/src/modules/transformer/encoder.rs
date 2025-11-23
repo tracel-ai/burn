@@ -202,12 +202,12 @@ impl<B: Backend> TransformerEncoder<B> {
 /// Transformer encoder layer module.
 #[derive(Module, Debug)]
 pub struct TransformerEncoderLayer<B: Backend> {
-    mha: MultiHeadAttention<B>,
-    pwff: PositionWiseFeedForward<B>,
-    norm_1: LayerNorm<B>,
-    norm_2: LayerNorm<B>,
-    dropout: Dropout,
-    norm_first: bool,
+    pub mha: MultiHeadAttention<B>,
+    pub pwff: PositionWiseFeedForward<B>,
+    pub norm_1: LayerNorm<B>,
+    pub norm_2: LayerNorm<B>,
+    pub dropout: Dropout,
+    pub norm_first: bool,
 }
 
 impl<B: Backend> TransformerEncoderLayer<B> {
