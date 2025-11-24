@@ -113,7 +113,7 @@ zip = "6.0.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
-safetensors = { version = "0.6.2", default-features = false }
+safetensors = { version = "0.7.0", default-features = false }
 
 # Async handling
 async-channel = "2.5"
