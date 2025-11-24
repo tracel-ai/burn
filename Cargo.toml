@@ -99,7 +99,7 @@ spin = { version = "0.10.0", features = [
     "portable-atomic",
 ] }
 strum = { version = "0.27.2", features = ["derive"] }
-syn = { version = "2.0.106", features = ["full", "extra-traits"] }
+syn = { version = "2.0.111", features = ["full", "extra-traits"] }
 tar = "0.4.44"
 tempfile = "3.20.0"
 thiserror = "2.0.17"
