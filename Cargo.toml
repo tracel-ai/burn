@@ -185,7 +185,7 @@ cubecl-common = { version = "=0.9.0-pre.3", default-features = false }
 cubecl-quant = { version = "=0.9.0-pre.3", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.2.1" }
+tracel-xtask = { version = "=4.1.4" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
