@@ -1,9 +1,11 @@
+use burn_core as burn;
+
 use crate::{ModuleSnapshot, SafetensorsStore};
-use burn::nn::{
+use burn_core::module::Module;
+use burn_nn::{
     BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
     conv::{Conv2d, Conv2dConfig},
 };
-use burn_core::module::Module;
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 

@@ -4,7 +4,7 @@ use crate::{
     learner::strategies::single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::{module::Module, tensor::Device};
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
@@ -20,6 +20,14 @@ impl<LC: LearnerComponentTypes> SingleDeviceLearningStrategy<LC> {
         }
     }
 }
+
+pub type CustomSingleDeviceLearningStrategy<LC> = Arc<
+    dyn LearningMethod<
+            LC,
+            PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>),
+            PreparedModel = <LC as LearnerComponentTypes>::Model,
+        >,
+>;
 
 impl<LC: LearnerComponentTypes> LearningMethod<LC> for SingleDeviceLearningStrategy<LC> {
     type PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>);

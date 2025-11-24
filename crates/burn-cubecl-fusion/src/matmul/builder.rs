@@ -6,11 +6,7 @@ use cubecl::Runtime;
 use crate::{
     CubeOptimization,
     matmul::args::MatmulArg,
-    shared::{
-        builder::FuseOptimizationBuilder,
-        ir::FusePrecision,
-        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
-    },
+    shared::{builder::FuseOptimizationBuilder, ir::FusePrecision, settings::FuseSettings},
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
@@ -39,17 +35,19 @@ impl<R: Runtime> MatmulBuilder<R> {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
-        let settings = FuseSettings {
-            broadcast: true,
+        let settings_matmul = FuseSettings {
             output_shape_updates: false,
-            inplace: true,
-            vectorization: VectorizationSetting::Activated,
-            ref_layout: RefLayoutSetting::Any,
+            ..Default::default()
         };
+        let settings_fallback = FuseSettings::default();
 
         Self {
-            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
-            builder_fallback: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
+            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_matmul),
+            builder_fallback: FuseOptimizationBuilder::new(
+                max_bindings,
+                bool_precision,
+                settings_fallback,
+            ),
             device,
             matmul: None,
         }
@@ -72,7 +70,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                         MatmulArg::Quantized {
                             data,
                             scales,
-                            precision: FusePrecision::F32,
+                            precision: op.out.dtype.into(),
                             scheme,
                         }
                     }
@@ -85,7 +83,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                         MatmulArg::Quantized {
                             data,
                             scales,
-                            precision: FusePrecision::F32,
+                            precision: op.out.dtype.into(),
                             scheme,
                         }
                     }
@@ -98,7 +96,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                     lhs,
                     rhs,
                     out,
-                    op.clone(),
+                    op.clone().into(),
                     Default::default(),
                 ));
             } else {

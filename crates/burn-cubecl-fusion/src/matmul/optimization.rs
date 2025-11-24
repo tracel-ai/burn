@@ -15,13 +15,14 @@ use crate::{CubeFusionHandle, matmul::args::MatmulArg};
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use cubecl::features::TypeUsage;
-use cubecl::matmul::components::AccG;
 use cubecl::matmul::components::AccS;
 use cubecl::matmul::components::tile::io::Filled;
 use cubecl::matmul::components::{
-    self, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
-    tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+    self, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS, tile::TileMatmulFamily,
+};
+use cubecl::matmul::components::{
+    AccG,
+    tile::{cmma::CmmaMatmul, mma::MmaMatmul},
 };
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
@@ -41,6 +42,7 @@ use cubecl::matmul::{
 };
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
+use cubecl::{features::TypeUsage, matmul::AcceleratedTileKind};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -79,10 +81,15 @@ pub(crate) struct MatmulVariants {
     pub(crate) double_vec_mat: FusedMatmul,
     pub(crate) double_unit: FusedMatmul,
     pub(crate) simple: FusedMatmul,
+    pub(crate) simple_mma: FusedMatmul,
     pub(crate) simple_multi_rows: FusedMatmul,
+    pub(crate) simple_multi_rows_mma: FusedMatmul,
     pub(crate) double_buffering: FusedMatmul,
+    pub(crate) double_buffering_mma: FusedMatmul,
     pub(crate) specialized: FusedMatmul,
+    pub(crate) specialized_mma: FusedMatmul,
     pub(crate) ordered: FusedMatmul,
+    pub(crate) ordered_mma: FusedMatmul,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,11 +113,44 @@ impl MatmulVariants {
             simple_vec_mat: selector(FusedMatmulSelector::SimpleVecMat),
             double_vec_mat: selector(FusedMatmulSelector::DoubleVecMat),
             double_unit: selector(FusedMatmulSelector::DoubleUnit),
-            simple: selector(FusedMatmulSelector::Simple),
-            simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
-            double_buffering: selector(FusedMatmulSelector::DoubleBuffering),
-            specialized: selector(FusedMatmulSelector::Specialized),
-            ordered: selector(FusedMatmulSelector::OrderedDoubleBuffering),
+            simple: selector(FusedMatmulSelector::Simple {
+                multi_rows: false,
+                tile_matmul: AcceleratedTileKind::Cmma,
+            }),
+            simple_mma: selector(FusedMatmulSelector::Simple {
+                multi_rows: false,
+                tile_matmul: AcceleratedTileKind::Mma,
+            }),
+            simple_multi_rows: selector(FusedMatmulSelector::Simple {
+                multi_rows: true,
+                tile_matmul: AcceleratedTileKind::Cmma,
+            }),
+            simple_multi_rows_mma: selector(FusedMatmulSelector::Simple {
+                multi_rows: true,
+                tile_matmul: AcceleratedTileKind::Mma,
+            }),
+            double_buffering: selector(FusedMatmulSelector::DoubleBuffering {
+                specialized: false,
+                tile_matmul: AcceleratedTileKind::Cmma,
+            }),
+            double_buffering_mma: selector(FusedMatmulSelector::DoubleBuffering {
+                specialized: false,
+                tile_matmul: AcceleratedTileKind::Mma,
+            }),
+            specialized: selector(FusedMatmulSelector::DoubleBuffering {
+                specialized: true,
+                tile_matmul: AcceleratedTileKind::Cmma,
+            }),
+            specialized_mma: selector(FusedMatmulSelector::DoubleBuffering {
+                specialized: true,
+                tile_matmul: AcceleratedTileKind::Mma,
+            }),
+            ordered: selector(FusedMatmulSelector::OrderedDoubleBuffering {
+                tile_matmul: AcceleratedTileKind::Cmma,
+            }),
+            ordered_mma: selector(FusedMatmulSelector::OrderedDoubleBuffering {
+                tile_matmul: AcceleratedTileKind::Mma,
+            }),
         }
     }
 }
@@ -262,18 +302,32 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 }
 
-#[derive(Default, Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub enum FusedMatmulSelector {
-    #[default]
-    Simple,
-    SimpleMultiRows,
-    DoubleBuffering,
-    Specialized,
-    OrderedDoubleBuffering,
+    Simple {
+        multi_rows: bool,
+        tile_matmul: AcceleratedTileKind,
+    },
+    DoubleBuffering {
+        specialized: bool,
+        tile_matmul: AcceleratedTileKind,
+    },
+    OrderedDoubleBuffering {
+        tile_matmul: AcceleratedTileKind,
+    },
     SimpleVecMat,
     DoubleVecMat,
     SimpleUnit,
     DoubleUnit,
+}
+
+impl Default for FusedMatmulSelector {
+    fn default() -> Self {
+        FusedMatmulSelector::Simple {
+            multi_rows: false,
+            tile_matmul: AcceleratedTileKind::Cmma,
+        }
+    }
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -288,7 +342,7 @@ pub struct FusedMatmul {
 #[derive(Debug)]
 pub enum FusedMatmulError {
     LaunchError(MatmulSetupError),
-    InvalidInput,
+    InvalidInput(&'static str),
 }
 
 impl From<MatmulSetupError> for FusedMatmulError {
@@ -374,6 +428,21 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
     }
 }
 
+macro_rules! with_tile_kind {
+    ($kind: expr, $T: ident, $launch: expr) => {
+        match $kind {
+            AcceleratedTileKind::Cmma => {
+                type $T = CmmaMatmul<Filled>;
+                ($launch)()
+            }
+            AcceleratedTileKind::Mma => {
+                type $T = MmaMatmul<Filled>;
+                ($launch)()
+            }
+        }
+    };
+}
+
 impl FusedMatmul {
     fn matmul_fused<'a, R: Runtime, EG: MatmulPrecision>(
         &'a self,
@@ -401,8 +470,15 @@ impl FusedMatmul {
         let (lhs_make_contiguous, lhs_transposed) = check_layout(&lhs_strides);
         let (rhs_make_contiguous, rhs_transposed) = check_layout(&rhs_strides);
 
-        if lhs_make_contiguous || rhs_make_contiguous {
-            return Err(FusedMatmulError::InvalidInput);
+        if lhs_make_contiguous {
+            return Err(FusedMatmulError::InvalidInput(
+                "Lhs needs to be contiguous, but can't when fusing.",
+            ));
+        }
+        if rhs_make_contiguous {
+            return Err(FusedMatmulError::InvalidInput(
+                "Rhs needs to be contiguous, but can't when fusing.",
+            ));
         }
 
         let rank = lhs_shape.len();
@@ -425,7 +501,9 @@ impl FusedMatmul {
         };
 
         if line_sizes.out == 1 && (line_sizes.lhs > 1 || line_sizes.rhs > 1) {
-            return Err(FusedMatmulError::InvalidInput);
+            return Err(FusedMatmulError::InvalidInput(
+                "Output line size of 1 removes the gain from fusion",
+            ));
         }
 
         if let MatmulArg::Quantized { scheme, .. } = self.lhs {
@@ -452,65 +530,67 @@ impl FusedMatmul {
             },
         };
 
-        match &self.selector {
-            FusedMatmulSelector::Simple | FusedMatmulSelector::SimpleMultiRows => {
-                let multi_rows = matches!(self.selector, FusedMatmulSelector::SimpleMultiRows);
-
-                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul<Filled>>>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.lhs.clone(),
-                        self.rhs.clone(),
-                        Option::None,
-                        self.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    line_sizes,
-                    &Selection::Inferred(SimpleArgs { multi_rows }),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-            FusedMatmulSelector::DoubleBuffering | FusedMatmulSelector::Specialized => {
-                let specialized = matches!(self.selector, FusedMatmulSelector::Specialized);
-
-                match launch_inner_fix_dtype::<
-                    R,
-                    EG,
-                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
-                >(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.lhs.clone(),
-                        self.rhs.clone(),
-                        Option::None,
-                        self.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    line_sizes,
-                    &Selection::Inferred(DoubleBufferingArgs { specialized }),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-            FusedMatmulSelector::OrderedDoubleBuffering => {
+        match self.selector {
+            FusedMatmulSelector::Simple {
+                multi_rows,
+                tile_matmul,
+            } => with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
+                R,
+                EG,
+                SimpleAlgorithm<Accelerated>,
+            >(
+                client,
+                FusedMatmulInputLaunch::new(
+                    inputs,
+                    config.clone(),
+                    self.lhs.clone(),
+                    self.rhs.clone(),
+                    Option::None,
+                    self.out.clone(),
+                ),
+                outputs,
+                problem,
+                line_sizes,
+                &Selection::Inferred(SimpleArgs { multi_rows }),
+            ) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(FusedMatmulError::LaunchError(err)),
+            }),
+            FusedMatmulSelector::DoubleBuffering {
+                specialized,
+                tile_matmul,
+            } => with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
+                R,
+                EG,
+                CyclicDoubleBufferingAlgorithm<Accelerated>,
+            >(
+                client,
+                FusedMatmulInputLaunch::new(
+                    inputs,
+                    config.clone(),
+                    self.lhs.clone(),
+                    self.rhs.clone(),
+                    Option::None,
+                    self.out.clone(),
+                ),
+                outputs,
+                problem,
+                line_sizes,
+                &Selection::Inferred(DoubleBufferingArgs { specialized }),
+            ) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(FusedMatmulError::LaunchError(err)),
+            }),
+            FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
                 let row_count = match self.lhs.precision() {
                     FusePrecision::F16 | FusePrecision::BF16 => 8,
                     _ => 4,
                 };
 
-                match launch_inner_fix_dtype::<
+                with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
+                    OrderedDoubleBufferingAlgorithm<Accelerated>,
                 >(
                     client,
                     FusedMatmulInputLaunch::new(
@@ -532,7 +612,7 @@ impl FusedMatmul {
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
+                })
             }
             FusedMatmulSelector::SimpleUnit => {
                 match launch_inner_fix_dtype::<R, EG, SimpleUnitAlgorithm>(
@@ -681,18 +761,29 @@ pub(crate) trait MatmulVariantSelection {
 }
 
 pub(crate) struct Simple;
+pub(crate) struct SimpleMma;
 pub(crate) struct SimpleUnit;
 pub(crate) struct SimpleVecMat;
 pub(crate) struct DoubleVecMat;
 pub(crate) struct DoubleUnit;
 pub(crate) struct SimpleMultiRows;
+pub(crate) struct SimpleMultiRowsMma;
 pub(crate) struct DoubleBuffering;
+pub(crate) struct DoubleBufferingMma;
 pub(crate) struct Specialized;
+pub(crate) struct SpecializedMma;
 pub(crate) struct Ordered;
+pub(crate) struct OrderedMma;
 
 impl MatmulVariantSelection for Simple {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple
+    }
+}
+
+impl MatmulVariantSelection for SimpleMma {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple_mma
     }
 }
 
@@ -726,9 +817,21 @@ impl MatmulVariantSelection for SimpleMultiRows {
     }
 }
 
+impl MatmulVariantSelection for SimpleMultiRowsMma {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple_multi_rows_mma
+    }
+}
+
 impl MatmulVariantSelection for DoubleBuffering {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.double_buffering
+    }
+}
+
+impl MatmulVariantSelection for DoubleBufferingMma {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.double_buffering_mma
     }
 }
 
@@ -738,8 +841,20 @@ impl MatmulVariantSelection for Specialized {
     }
 }
 
+impl MatmulVariantSelection for SpecializedMma {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.specialized_mma
+    }
+}
+
 impl MatmulVariantSelection for Ordered {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.ordered
+    }
+}
+
+impl MatmulVariantSelection for OrderedMma {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.ordered_mma
     }
 }

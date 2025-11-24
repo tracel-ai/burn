@@ -444,6 +444,20 @@ impl OperationStreams {
     pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {
         self.streams.get(&id).cloned()
     }
+
+    /// Create new operation streams with the given inputs.
+    ///
+    /// The inputs are automatically registered.
+    pub fn with_inputs<'a, R: FusionRuntime + 'a, I>(tensors: I) -> Self
+    where
+        I: IntoIterator<Item = &'a crate::FusionTensor<R>>,
+    {
+        let mut streams = OperationStreams::default();
+        for tensor in tensors.into_iter() {
+            streams.tensor(tensor)
+        }
+        streams
+    }
 }
 
 #[derive(Default, Debug)]

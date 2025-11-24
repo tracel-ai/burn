@@ -17,6 +17,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
 
     fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
         match event {
+            LearnerEvent::Start => {
+                let definitions = self.metrics.metric_definitions();
+                self.store
+                    .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
+            }
+
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();
@@ -31,12 +37,13 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
-            LearnerEvent::End => {} // no-op for now
+            LearnerEvent::End(_summary) => {} // no-op for now
         }
     }
 
     fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
         match event {
+            LearnerEvent::Start => {} // no-op for now
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();
@@ -51,7 +58,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
-            LearnerEvent::End => {} // no-op for now
+            LearnerEvent::End(_) => {} // no-op for now
         }
     }
     fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {

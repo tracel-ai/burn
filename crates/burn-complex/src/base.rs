@@ -919,6 +919,20 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         // `elem()` should yield something convertible to `B::ComplexElem`.
         B::complex_full(shape, fill_value.elem(), device)
     }
+
+    fn zeros(shape: Shape, device: &<B as Backend>::Device, dtype: DType) -> Self::Primitive {
+        match dtype {
+            DType::Complex32 | DType::Complex64 => B::complex_zeros(shape, device),
+            _ => panic!("Unsupported complex dtype"),
+        }
+    }
+
+    fn ones(shape: Shape, device: &<B as Backend>::Device, dtype: DType) -> Self::Primitive {
+        match dtype {
+            DType::Complex32 | DType::Complex64 => B::complex_ones(shape, device),
+            _ => panic!("Unsupported complex dtype"),
+        }
+    }
 }
 
 #[allow(unused_variables)]
@@ -1220,20 +1234,6 @@ where
 
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::complex_cummax(tensor, dim)
-    }
-
-    fn zeros(shape: Shape, device: &<B as Backend>::Device, dtype: DType) -> Self::Primitive {
-        match dtype {
-            DType::Complex32 | DType::Complex64 => B::complex_zeros(shape, device),
-            _ => panic!("Unsupported complex dtype"),
-        }
-    }
-
-    fn ones(shape: Shape, device: &<B as Backend>::Device, dtype: DType) -> Self::Primitive {
-        match dtype {
-            DType::Complex32 | DType::Complex64 => B::complex_ones(shape, device),
-            _ => panic!("Unsupported complex dtype"),
-        }
     }
 
     fn neg(tensor: Self::Primitive) -> Self::Primitive {

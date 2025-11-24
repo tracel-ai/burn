@@ -415,7 +415,7 @@ impl DType {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FloatDType {
     F64,
     F32,
@@ -450,7 +450,7 @@ impl From<FloatDType> for DType {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum IntDType {
     I64,
     I32,

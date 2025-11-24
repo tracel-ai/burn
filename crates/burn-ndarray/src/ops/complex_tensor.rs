@@ -1,10 +1,11 @@
+use crate::execute_with_complex_dtype;
+use crate::ops::{NdArrayMathOps, NdArrayOps};
 use burn_common::rand::get_seeded_rng;
+use burn_complex::base::element::ToComplex;
 use burn_complex::base::{
     ComplexTensor, ComplexTensorBackend, ComplexTensorOps, InterleavedLayout, element::Complex32,
 };
 use ndarray::{ArrayD, IxDyn};
-
-use burn_complex::base::element::ToComplex;
 
 use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor, QuantElement,
@@ -93,7 +94,7 @@ where
 
     fn complex_transpose(tensor: NdArrayTensor) -> NdArrayTensor {
         // 2D transpose; mirrors float/int backends (uses backend helper if available)
-        execute_with_complex_dtype!(tensor, |t| NdArrayOps::transpose(t))
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::transpose(t))
     }
 
     fn complex_mul(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -763,23 +764,6 @@ where
         let sin_z = Self::complex_sin(tensor.clone());
         let cos_z = Self::complex_cos(tensor);
         Self::complex_div(sin_z, cos_z)
-    }
-}
-
-// ----- helpers used in the ComplexTensor shims -----
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
-    #[inline]
-    fn complex_add_primitive(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::add)
-    }
-
-    #[inline]
-    fn complex_sub_primitive(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::sub)
     }
 }
 

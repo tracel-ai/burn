@@ -30,7 +30,7 @@ pub struct AdamWConfig {
 
     /// Cautious weight decay config.
     ///
-    /// See: https://arxiv.org/abs/2510.12402
+    /// See: <https://arxiv.org/abs/2510.12402>
     #[config(default = false)]
     cautious_weight_decay: bool,
 
@@ -160,7 +160,7 @@ impl AdaptiveMomentumW {
             state.moment_2 = state
                 .moment_2
                 .mul_scalar(self.beta_2)
-                .add(grad.powi_scalar(2).mul_scalar(factor_2));
+                .add(grad.square().mul_scalar(factor_2));
 
             // Update time.
             state.time += 1;
@@ -171,7 +171,7 @@ impl AdaptiveMomentumW {
             let moment_1 = grad.clone().mul_scalar(factor_1);
 
             // Initialize second moment estimate.
-            let moment_2 = grad.powi_scalar(2).mul_scalar(factor_2);
+            let moment_2 = grad.square().mul_scalar(factor_2);
 
             AdaptiveMomentumState::new(1, moment_1, moment_2)
         };

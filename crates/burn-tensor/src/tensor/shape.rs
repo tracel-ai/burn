@@ -1,4 +1,5 @@
-use crate::{Slice, SliceArg};
+use crate::indexing::ravel_index;
+use crate::{AsIndex, Slice, SliceArg};
 use alloc::vec::Vec;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
@@ -73,6 +74,23 @@ impl Shape {
     pub fn flatten(mut self) -> Self {
         self.dims = [self.num_elements()].into();
         self
+    }
+
+    /// Compute the ravel index for the given coordinates.
+    ///
+    /// This returns the row-major order raveling:
+    /// * `strides[-1] = 1`
+    /// * `strides[i] = strides[i+1] * dims[i+1]`
+    /// * `dim_strides = coords * strides`
+    /// * `ravel = sum(dim_strides)`
+    ///
+    /// # Arguments
+    /// - `indices`: the index for each dimension; must be the same length as `shape`.
+    ///
+    /// # Returns
+    /// - the ravel offset index.
+    pub fn ravel_index<I: AsIndex>(&self, indices: &[I]) -> usize {
+        ravel_index(indices, &self.dims)
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
@@ -184,6 +202,11 @@ impl Shape {
         self.dims.remove(index)
     }
 
+    /// Appends a dimension of `size` to the back of the shape.
+    pub fn push(&mut self, size: usize) {
+        self.dims.push(size)
+    }
+
     /// Extend the shape with the content of another shape or iterator.
     pub fn extend(&mut self, iter: impl IntoIterator<Item = usize>) {
         self.dims.extend(iter)
@@ -222,9 +245,29 @@ impl Shape {
     }
 
     /// Repeated the specified `dim` a number of `times`.
-    pub fn repeat(mut self, dim: usize, times: usize) -> Self {
+    pub fn repeat(mut self, dim: usize, times: usize) -> Result<Shape, ShapeError> {
+        if dim >= self.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim,
+                rank: self.rank(),
+            });
+        }
+
         self.dims[dim] *= times;
-        self
+        Ok(self)
+    }
+
+    /// Returns a new shape where the specified `dim` is reduced to size 1.
+    pub fn reduce(mut self, dim: usize) -> Result<Shape, ShapeError> {
+        if dim >= self.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim,
+                rank: self.rank(),
+            });
+        }
+
+        self.dims[dim] = 1;
+        Ok(self)
     }
 
     /// Concatenates all shapes into a new one along the given dimension.
@@ -333,36 +376,70 @@ impl Shape {
         Ok(broadcasted)
     }
 
-    /// Compute the output shape for matrix multiplication with broadcasting support.
-    ///
-    /// The last two dimensions are treated as matrices, while preceding dimensions
-    /// follow broadcast semantics similar to elementwise operations.
-    pub fn matmul(lhs: &Self, rhs: &Self) -> Result<Self, ShapeError> {
-        let rank = lhs.rank();
-        if rank != rhs.rank() {
+    /// Expand this shape to match the target shape, following broadcasting rules.
+    pub fn expand(&self, target: Shape) -> Result<Shape, ShapeError> {
+        let target_rank = target.rank();
+        if self.rank() > target_rank {
             return Err(ShapeError::RankMismatch {
-                left: rank,
-                right: rhs.rank(),
+                left: self.rank(),
+                right: target_rank,
             });
         }
 
-        if lhs[rank - 1] != rhs[rank - 2] {
-            return Err(ShapeError::IncompatibleShapes {
-                left: lhs.clone(),
-                right: rhs.clone(),
-            });
+        for (i, (dim_target, dim_self)) in target.iter().rev().zip(self.iter().rev()).enumerate() {
+            if dim_self != dim_target && *dim_self != 1 {
+                return Err(ShapeError::IncompatibleDims {
+                    left: *dim_self,
+                    right: *dim_target,
+                    dim: target_rank - i - 1,
+                });
+            }
         }
 
-        let mut shape = if rank > 2 {
-            // Broadcast leading dims
-            Shape::from(&lhs[..rank - 2]).broadcast(&Shape::from(&rhs[..rank - 2]))?
-        } else {
-            Shape::new([])
-        };
-        shape.extend([lhs[rank - 2], rhs[rank - 1]]);
-
-        Ok(shape)
+        Ok(target)
     }
+
+    /// Reshape this shape to the target shape.
+    pub fn reshape(&self, target: Shape) -> Result<Shape, ShapeError> {
+        if self.num_elements() != target.num_elements() {
+            return Err(ShapeError::IncompatibleShapes {
+                left: self.clone(),
+                right: target,
+            });
+        }
+        Ok(target)
+    }
+}
+
+/// Compute the output shape for matrix multiplication with broadcasting support.
+///
+/// The last two dimensions are treated as matrices, while preceding dimensions
+/// follow broadcast semantics similar to elementwise operations.
+pub fn calculate_matmul_output(lhs: &Shape, rhs: &Shape) -> Result<Shape, ShapeError> {
+    let rank = lhs.rank();
+    if rank != rhs.rank() {
+        return Err(ShapeError::RankMismatch {
+            left: rank,
+            right: rhs.rank(),
+        });
+    }
+
+    if lhs[rank - 1] != rhs[rank - 2] {
+        return Err(ShapeError::IncompatibleShapes {
+            left: lhs.clone(),
+            right: rhs.clone(),
+        });
+    }
+
+    let mut shape = if rank > 2 {
+        // Broadcast leading dims
+        Shape::from(&lhs[..rank - 2]).broadcast(&Shape::from(&rhs[..rank - 2]))?
+    } else {
+        Shape::new([])
+    };
+    shape.extend([lhs[rank - 2], rhs[rank - 1]]);
+
+    Ok(shape)
 }
 
 impl IntoIterator for Shape {
@@ -476,6 +553,7 @@ impl From<Shape> for Vec<usize> {
 }
 
 #[cfg(test)]
+#[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
     use super::*;
     use crate::s;
@@ -631,7 +709,18 @@ mod tests {
     }
 
     #[test]
-    fn test_shape_insert_remove() {
+    fn test_ravel() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        assert_eq!(shape.ravel_index(&[0, 0, 0, 0]), 0);
+        assert_eq!(
+            shape.ravel_index(&[1, 2, 3, 4]),
+            1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
+        );
+    }
+
+    #[test]
+    fn test_shape_insert_remove_push() {
         let dims = [2, 3, 4, 5];
         let mut shape = Shape::new(dims);
         let size = 6;
@@ -642,6 +731,9 @@ mod tests {
         let removed = shape.remove(1);
         assert_eq!(removed, size);
         assert_eq!(shape, Shape::new(dims));
+
+        shape.push(6);
+        assert_eq!(shape, Shape::new([2, 3, 4, 5, 6]));
     }
 
     #[test]
@@ -676,8 +768,32 @@ mod tests {
     fn test_shape_repeat() {
         let shape = Shape::new([2, 3, 4, 5]);
 
-        let shape = shape.repeat(2, 3);
-        assert_eq!(shape, Shape::new([2, 3, 12, 5]));
+        let out = shape.repeat(2, 3).unwrap();
+        assert_eq!(out, Shape::new([2, 3, 12, 5]));
+    }
+
+    #[test]
+    fn test_shape_repeat_invalid() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let out = shape.repeat(5, 3);
+        assert_eq!(out, Err(ShapeError::OutOfBounds { dim: 5, rank: 4 }));
+    }
+
+    #[test]
+    fn test_shape_reduce() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let out = shape.reduce(2).unwrap();
+        assert_eq!(out, Shape::new([2, 3, 1, 5]));
+    }
+
+    #[test]
+    fn test_shape_reduce_invalid() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let out = shape.reduce(5);
+        assert_eq!(out, Err(ShapeError::OutOfBounds { dim: 5, rank: 4 }));
     }
 
     #[test]
@@ -761,7 +877,7 @@ mod tests {
     fn test_shape_matmul_2d() {
         let lhs = Shape::new([2, 4]);
         let rhs = Shape::new([4, 2]);
-        let out = Shape::matmul(&lhs, &rhs).unwrap();
+        let out = calculate_matmul_output(&lhs, &rhs).unwrap();
         assert_eq!(out, Shape::new([2, 2]));
     }
 
@@ -769,7 +885,7 @@ mod tests {
     fn test_shape_matmul_4d_broadcasted() {
         let lhs = Shape::new([1, 3, 2, 4]);
         let rhs = Shape::new([2, 1, 4, 2]);
-        let out = Shape::matmul(&lhs, &rhs).unwrap();
+        let out = calculate_matmul_output(&lhs, &rhs).unwrap();
         assert_eq!(out, Shape::new([2, 3, 2, 2]));
     }
 
@@ -777,7 +893,7 @@ mod tests {
     fn test_shape_matmul_invalid_rank() {
         let lhs = Shape::new([3, 2, 4]);
         let rhs = Shape::new([2, 1, 4, 2]);
-        let out = Shape::matmul(&lhs, &rhs);
+        let out = calculate_matmul_output(&lhs, &rhs);
         assert_eq!(out, Err(ShapeError::RankMismatch { left: 3, right: 4 }));
     }
 
@@ -785,7 +901,7 @@ mod tests {
     fn test_shape_matmul_invalid_shape() {
         let lhs = Shape::new([1, 3, 2, 4]);
         let rhs = Shape::new([2, 1, 3, 2]);
-        let out = Shape::matmul(&lhs, &rhs);
+        let out = calculate_matmul_output(&lhs, &rhs);
         assert_eq!(
             out,
             Err(ShapeError::IncompatibleShapes {
@@ -799,7 +915,7 @@ mod tests {
     fn test_shape_matmul_invalid_broadcast() {
         let lhs = Shape::new([1, 3, 2, 4]);
         let rhs = Shape::new([2, 2, 4, 2]);
-        let out = Shape::matmul(&lhs, &rhs);
+        let out = calculate_matmul_output(&lhs, &rhs);
         assert_eq!(
             out,
             Err(ShapeError::IncompatibleDims {
@@ -958,5 +1074,66 @@ mod tests {
         let original_shape = Shape::new([20, 20, 20]);
         let result = original_shape.slice(&slices).unwrap();
         assert_eq!(result, Shape::new([3, 3, 2]));
+    }
+
+    #[test]
+    fn test_shape_expand() {
+        let shape = Shape::new([1, 3, 1]);
+        let expanded = Shape::new([2, 3, 4]);
+        let out = shape.expand(expanded.clone()).unwrap();
+        assert_eq!(out, expanded);
+    }
+
+    #[test]
+    fn test_shape_expand_higher_rank() {
+        let shape = Shape::new([1, 4]);
+        let expanded = Shape::new([2, 3, 4]);
+        let out = shape.expand(expanded.clone()).unwrap();
+        assert_eq!(out, expanded);
+    }
+
+    #[test]
+    fn test_shape_expand_invalid_rank() {
+        let shape = Shape::new([1, 3, 1]);
+        let expanded = Shape::new([3, 4]);
+        let out = shape.expand(expanded);
+        assert_eq!(out, Err(ShapeError::RankMismatch { left: 3, right: 2 }));
+    }
+
+    #[test]
+    fn test_shape_expand_incompatible_dims() {
+        let shape = Shape::new([1, 3, 2]);
+        let expanded = Shape::new([2, 3, 4]);
+        let out = shape.expand(expanded);
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleDims {
+                left: 2,
+                right: 4,
+                dim: 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_shape_reshape() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        let reshaped = Shape::new([1, 2, 12, 5]);
+        let out = shape.reshape(reshaped.clone()).unwrap();
+        assert_eq!(out, reshaped);
+    }
+
+    #[test]
+    fn test_shape_reshape_invalid() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        let reshaped = Shape::new([2, 2, 12, 5]);
+        let out = shape.clone().reshape(reshaped.clone());
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleShapes {
+                left: shape,
+                right: reshaped
+            })
+        );
     }
 }
