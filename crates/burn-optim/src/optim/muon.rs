@@ -298,9 +298,8 @@ impl<B: Backend> Muon<B> {
     /// - PyTorch: https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py
     fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<B, D>) -> Tensor<B, D> {
         let shape = g.shape();
-        let dims: Vec<usize> = shape.dims::<D>().into();
-        let dim_m2 = dims[D - 2];
-        let dim_m1 = dims[D - 1];
+        let dim_m2 = shape[D - 2];
+        let dim_m1 = shape[D - 1];
 
         // Step 1: Transpose if tall matrix (more rows than columns)
         let (mut x, needs_transpose) = if dim_m2 > dim_m1 {
