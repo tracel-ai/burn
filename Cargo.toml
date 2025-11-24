@@ -59,7 +59,7 @@ gix-tempfile = { version = "19.0.1", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.5"
 hound = "3.5.1"
-image = "0.25.8"
+image = "0.25.9"
 indicatif = "0.18.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
