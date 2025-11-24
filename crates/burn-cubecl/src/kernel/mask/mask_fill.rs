@@ -54,7 +54,7 @@ pub fn mask_fill<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let ndims = input.shape.num_dims();
     let output = match strategy {
-        MaskFillStrategy::Readonly => empty_device_dtype::<R>(
+        MaskFillStrategy::Readonly => empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             input.shape.clone(),
@@ -74,7 +74,7 @@ pub fn mask_fill<R: CubeRuntime>(
     };
 
     unsafe {
-        mask_fill_kernel::launch_unchecked::<R>(
+        mask_fill_kernel::launch_unchecked(
             &input.client,
             cube_count,
             cube_dim,

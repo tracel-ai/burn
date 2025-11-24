@@ -17,6 +17,7 @@ use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
     Runtime,
+    client::ComputeClient,
     ir::{ElemType, StorageType, UIntKind},
 };
 use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
@@ -39,6 +40,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     }
     pub fn run<Runner: Vectorization<R>>(
         self,
+        client: &ComputeClient<R>,
         runner: &Runner,
         context: &Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -83,7 +85,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 HandleInput::Normal(h) => h.global_ir.dtype.into(),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
                     burn_tensor::DType::QFloat(scheme) => {
-                        line_sizes_quants::<R>(&mut quants_line_sizes, scheme);
+                        line_sizes_quants(client, &mut quants_line_sizes, scheme);
                         continue;
                     }
                     _ => panic!("Unable to retrieve the scheme for quantized values."),
@@ -120,7 +122,9 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             // Quantization normally triggers higher vectorization than anything else, no need to
             // compare to ref elem.
             Some(line_sizes) => line_sizes,
-            None => R::io_optimized_line_sizes_unchecked(ref_elem.0.size()).collect::<Vec<u8>>(),
+            None => client
+                .io_optimized_line_sizes_unchecked(ref_elem.0.size())
+                .collect::<Vec<u8>>(),
         };
 
         let vectorization_axis = runner.axis(plan);
@@ -342,7 +346,11 @@ fn apply_vectorization_block<R: Runtime>(
     }
 }
 
-fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme: QuantScheme) {
+fn line_sizes_quants<R: Runtime>(
+    client: &ComputeClient<R>,
+    quants_line_sizes: &mut Option<Vec<u8>>,
+    scheme: QuantScheme,
+) {
     match scheme.store {
         QuantStore::Native => match scheme.value {
             // Type sizes are the same so just treat fp8/fp4x2 as i8
@@ -351,8 +359,9 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
             | QuantValue::E4M3
             | QuantValue::E5M2
             | QuantValue::E2M1 => {
-                let line_sizes =
-                    R::io_optimized_line_sizes_unchecked(size_of::<i8>()).collect::<Vec<u8>>();
+                let line_sizes = client
+                    .io_optimized_line_sizes_unchecked(size_of::<i8>())
+                    .collect::<Vec<u8>>();
 
                 match &quants_line_sizes {
                     Some(sizes) => {
@@ -370,8 +379,9 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
             }
         },
         QuantStore::U32 => {
-            let mut line_sizes =
-                R::io_optimized_line_sizes_unchecked(size_of::<u32>()).collect::<Vec<u8>>();
+            let mut line_sizes = client
+                .io_optimized_line_sizes_unchecked(size_of::<u32>())
+                .collect::<Vec<u8>>();
             for val in line_sizes.iter_mut() {
                 *val *= scheme.num_quants() as u8;
             }

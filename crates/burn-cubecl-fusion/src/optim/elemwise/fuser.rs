@@ -57,7 +57,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseFuser<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let elementwise =
-            ElemwiseOptimization::<R>::new(trace, client, self.device.clone(), self.len());
+            ElemwiseOptimization::new(trace, client, self.device.clone(), self.len());
 
         CubeOptimization::ElementWise(elementwise)
     }

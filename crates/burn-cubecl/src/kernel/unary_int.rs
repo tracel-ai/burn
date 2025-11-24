@@ -59,7 +59,7 @@ where
 
             tensor
         } else {
-            let output = empty_device_dtype::<R>(
+            let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
                 tensor.shape.clone(),

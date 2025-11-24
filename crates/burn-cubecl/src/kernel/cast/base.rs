@@ -45,14 +45,14 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
     let client = input.client.clone();
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         client.clone(),
         input.device.clone(),
         input.shape.clone(),
         dtype, // We take the same dtype as passed as input (Flex32 not F32)
     );
 
-    cast_element::launch::<R>(
+    cast_element::launch(
         &client,
         cube_count,
         cube_dim,

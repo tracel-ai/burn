@@ -92,7 +92,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), shape_out, x.dtype);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
     let cube_dim = CubeDim::default();
     let cube_count =

@@ -39,12 +39,12 @@ pub fn matmul<R: CubeRuntime>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output::<R>(&lhs, &rhs, out_dtype));
-            launch_matmul::<R>(&Default::default(), lhs, rhs, out.clone())?;
+            let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
+            launch_matmul(&Default::default(), lhs, rhs, out.clone())?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => Ok(matmul_autotune::<R>(lhs, rhs, out, out_dtype)),
+        MatmulStrategy::Autotune => Ok(matmul_autotune(lhs, rhs, out, out_dtype)),
     }
 }
 
@@ -99,7 +99,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
 
     let mut dtypes =
         MatmulElems::from_globals(lhs_dtype.into(), rhs_dtype.into(), out_dtype.into());
-    cubecl::matmul::launch_ref::<R>(
+    cubecl::matmul::launch_ref(
         strategy,
         client,
         &lhs_handle,

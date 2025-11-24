@@ -31,7 +31,7 @@ pub struct SumAutotuneKey {
 }
 
 /// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add<R: CubeRuntime>(client: &ComputeClient<R::Server>, dtype: DType) -> bool {
+fn supports_atomic_add<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
     client
         .properties()
         .type_usage(StorageType::Atomic(dtype.into()))
@@ -45,11 +45,11 @@ pub fn sum_fallback<R: CubeRuntime>(
 ) -> Result<CubeTensor<R>, ReduceError> {
     // Early check before creating output and fallback
     if matches!(strategy, SumStrategy::OneShot(_))
-        && !supports_atomic_add::<R>(&tensor.client, tensor.dtype)
+        && !supports_atomic_add(&tensor.client, tensor.dtype)
     {
         strategy = SumStrategy::Chained(Default::default());
     }
-    sum::<R>(tensor, strategy)
+    sum(tensor, strategy)
 }
 
 /// Specialize reduce function to compute the sum of all elements of the `input` tensor and return

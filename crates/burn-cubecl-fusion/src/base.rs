@@ -22,7 +22,7 @@ pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {
     /// Compute client for jit.
-    pub client: ComputeClient<R::Server>,
+    pub client: ComputeClient<R>,
     /// The buffer where the data are stored.
     pub handle: cubecl::server::Handle,
     /// The device of the current tensor.

@@ -9,9 +9,9 @@ pub fn random_bernoulli<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let output = empty_device_dtype::<R>(client.clone(), device.clone(), shape, dtype);
+    let output = empty_device_dtype(client.clone(), device.clone(), shape, dtype);
 
-    cubecl::random::random_bernoulli::<R>(
+    cubecl::random::random_bernoulli(
         &client,
         probability,
         output.as_handle_ref(),

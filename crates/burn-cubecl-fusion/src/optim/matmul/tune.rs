@@ -103,7 +103,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         }
 
-        TunableSet::new(create_key::<R>, input_gen::<R>)
+        TunableSet::new(create_key, input_gen)
             .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
             .with(Tunable::new(tune_fused::<R, BT, SimpleUnit>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(tune_fused::<R, BT, SimpleVecMat>).group(&unit, |_| PRIORITY_MAX))
@@ -153,7 +153,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&optimization.info.client, &optimization.info.device),
+        &CubeTuneId::new(&optimization.info.client, &optimization.info.device),
         &optimization.info.client.clone(),
         tunables,
         TuneInput::new(context, optimization),
@@ -191,7 +191,7 @@ pub(crate) fn create_key<R: Runtime>(
         .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
         .strides;
 
-    let key = MatmulAutotuneKey::generate::<R>(
+    let key = MatmulAutotuneKey::generate(
         &opt.info.client,
         &lhs.shape.dims,
         &rhs.shape.dims,
