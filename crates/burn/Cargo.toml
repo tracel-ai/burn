@@ -142,7 +142,6 @@ cpu = ["burn-cpu"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", default-features = false }
 burn-core = { path = "../burn-core", version = "=0.20.0-pre.3", default-features = false }
 burn-train = { path = "../burn-train", version = "=0.20.0-pre.3", optional = true, default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.20.0-pre.3", optional = true, default-features = false }

@@ -604,7 +604,6 @@ dependencies = [
  "burn-autodiff",
  "burn-candle",
  "burn-collective",
- "burn-common",
  "burn-core",
  "burn-cpu",
  "burn-cuda",

@@ -6,8 +6,6 @@
 //!
 //! This library contains common types used by other Burn crates that must be shared.
 
-/// Common error types.
-pub mod errors;
 /// Id module contains types for unique identifiers.
 pub mod id;
 
