@@ -1,3 +1,4 @@
-# Burn Storage
+# Burn Backend
 
-This crate includes everything needed to describe and manage how data is represented, stored, and interpreted for Burn tensors.
+This crate includes the core backend interfaces and data structures for executing tensor operations
+in Burn.

@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Fundamental types to represent, store, and interpret Burn tensor data."
+description = "Core backend interfaces and data structures for executing tensor operations in Burn."
 documentation = "https://docs.rs/burn-backend"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
