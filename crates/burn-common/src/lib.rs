@@ -11,14 +11,7 @@ pub mod id;
 
 pub use cubecl_common::*;
 
-#[cfg(feature = "rayon")]
-pub use rayon;
-
 extern crate alloc;
-
-/// Network utilities.
-#[cfg(feature = "network")]
-pub mod network;
 
 /// Tensor utilities.
 pub mod tensor {

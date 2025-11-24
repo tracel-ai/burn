@@ -18,19 +18,10 @@ workspace = true
 default = ["std", "cubecl-common/default"]
 std = ["cubecl-common/std"]
 doc = ["default"]
-network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
-rayon = ["dep:rayon"]
 
 [dependencies]
 serde = { workspace = true }
 
-# Network downloader
-indicatif = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-
-# Parallel
-rayon = { workspace = true, optional = true }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
 ] }

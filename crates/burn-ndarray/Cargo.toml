@@ -29,8 +29,8 @@ blas-openblas-system = [
 default = ["std", "simd", "multi-threads"]
 doc = ["default"]
 multi-threads = [
+    "rayon",
     "ndarray/rayon",
-    "burn-common/rayon",
     "matrixmultiply/threading",
 ]
 simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
@@ -77,6 +77,9 @@ bytemuck = { workspace = true, optional = true }
 itertools = { version = "0.14", optional = true }
 macerator = { workspace = true, optional = true }
 seq-macro = { version = "0.3", optional = true }
+
+# Parallel
+rayon = { workspace = true, optional = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }

@@ -32,7 +32,7 @@ doc = [
 ]
 dataset = ["burn-dataset"]
 
-network = ["burn-common/network"]
+network = ["burn-dataset?/network"]
 sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 std = [
@@ -48,7 +48,7 @@ std = [
     "serde_json/std",
     "num-traits/std",
 ]
-vision = ["burn-vision", "burn-dataset?/vision", "burn-common/network"]
+vision = ["burn-vision", "burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.

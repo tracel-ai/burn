@@ -23,12 +23,12 @@
 
 use std::{path::PathBuf, sync::Mutex};
 
-use burn_common::network::downloader;
 use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use tar::Archive;
 
 use crate::InMemDataset;
+use crate::network::downloader;
 
 /// AG NEWS mirror from [fastai](https://github.com/fastai/fastai/blob/master/fastai/data/external.py#L83).
 /// Licensed under the [Apache License](https://github.com/fastai/fastai/blob/master/LICENSE).
