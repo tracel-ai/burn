@@ -4,6 +4,8 @@ use burn_complex::base::{
 };
 use ndarray::{ArrayD, IxDyn};
 
+use burn_complex::base::element::ToComplex;
+
 use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor, QuantElement,
     SEED, SharedArray,
@@ -37,12 +39,13 @@ where
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
-    ComplexTensorOps<NdArray<E, I, Q>> for NdArray<E, I, Q>
+    burn_complex::base::ComplexTensorOps<NdArray<E, I, Q>> for NdArray<E, I, Q>
 where
     NdArrayTensor: From<SharedArray<E>>,
     NdArrayTensor: From<SharedArray<I>>,
 {
     type Layout = burn_complex::base::InterleavedLayout;
+
     fn complex_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor {
         NdArrayTensor::from_data(data)
     }
@@ -68,10 +71,8 @@ where
     }
 
     fn complex_to_data(tensor: &NdArrayTensor) -> TensorData {
-        // let shape = tensor.shape();
-        // let vec: Vec<Complex32> = tensor.array.iter().cloned().collect();
-        // TensorData::new(vec, shape)
-        todo!()
+        // Non-consuming view -> clone and consume to leverage the existing path.
+        tensor.clone().into_data()
     }
 
     fn complex_device(_tensor: &NdArrayTensor) -> NdArrayDevice {
@@ -87,250 +88,156 @@ where
     }
 
     fn complex_reshape(tensor: NdArrayTensor, shape: Shape) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::reshape(t, shape))
     }
 
     fn complex_transpose(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // 2D transpose; mirrors float/int backends (uses backend helper if available)
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::transpose(t))
     }
 
     fn complex_mul(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        // Complex multiplication: (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
-        // let result = lhs
-        //     .array
-        //     .iter()
-        //     .zip(rhs.array.iter())
-        //     .map(|(a, b)| Complex32 {
-        //         real: a.real * b.real - a.imag * b.imag,
-        //         imag: a.real * b.imag + a.imag * b.real,
-        //     })
-        //     .collect::<Vec<_>>();
-
-        // let shape = lhs.shape();
-        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), result).unwrap();
-        // NdArrayTensor::new(array.into_shared())
-        todo!()
+        // Uses Complex32 Mul impl (a+bi)*(c+di)
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::mul)
     }
 
     fn complex_div(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        // Complex division: (a + bi) / (c + di) = ((ac + bd) + (bc - ad)i) / (c² + d²)
-        // let result = lhs
-        //     .array
-        //     .iter()
-        //     .zip(rhs.array.iter())
-        //     .map(|(a, b)| {
-        //         let denom = b.real * b.real + b.imag * b.imag;
-        //         Complex32 {
-        //             real: (a.real * b.real + a.imag * b.imag) / denom,
-        //             imag: (a.imag * b.real - a.real * b.imag) / denom,
-        //         }
-        //     })
-        //     .collect::<Vec<_>>();
-
-        // let shape = lhs.shape();
-        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), result).unwrap();
-        // NdArrayTensor::new(array.into_shared())
-        todo!()
+        // (a+bi)/(c+di) = ((ac+bd) + (bc-ad)i) / (c^2 + d^2)
+        execute_with_complex_dtype!(
+            (lhs, rhs),
+            |lhs: SharedArray<Complex32>, rhs: SharedArray<Complex32>| {
+                NdArrayMathOps::elementwise_op(lhs, rhs, |a: &Complex32, b: &Complex32| {
+                    let denom = b.real * b.real + b.imag * b.imag;
+                    Complex32::new(
+                        (a.real * b.real + a.imag * b.imag) / denom,
+                        (a.imag * b.real - a.real * b.imag) / denom,
+                    )
+                })
+            }
+        )
     }
 
     fn complex_neg(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| Complex32 {
-        //     real: -c.real,
-        //     imag: -c.imag,
-        // });
-        // todo!() //NdArrayTensor::new(array.into())
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| -z)
+        })
     }
 
     fn complex_conj(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| Complex32 {
-        //     real: c.real,
-        //     imag: -c.imag,
-        // });
-        // todo!() //NdArrayTensor::new(array.into())
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| z.conj())
+        })
     }
 
     fn complex_abs(tensor: NdArrayTensor) -> <Self as Backend>::FloatTensorPrimitive {
-        // let abs_data: Vec<f32> = tensor
-        //     .array
-        //     .iter()
-        //     .map(|c| (c.real * c.real + c.imag * c.imag).sqrt())
-        //     .collect();
-        // let shape = tensor.shape();
-        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), abs_data).unwrap();
-        // let abs_tensor = NdArrayTensor::new(array.into_shared());
-        //abs_tensor.into()
-        todo!()
+        // Return Float tensor (E). For Complex32 -> f32 magnitudes, cast to E if needed.
+        execute_with_complex_dtype!(tensor, |t: SharedArray<Complex32>| -> NdArrayTensor {
+            let mag: SharedArray<f32> = t.mapv(|z| z.abs()).into_shared();
+            // If E != f32, cast. Otherwise this is a no-op.
+            cast_to_dtype(mag, E::dtype())
+        })
     }
 
     fn complex_arg(tensor: NdArrayTensor) -> <Self as Backend>::FloatTensorPrimitive {
-        // let arg_data: Vec<f32> = tensor.array.iter().map(|c| c.imag.atan2(c.real)).collect();
-        // let shape = tensor.shape();
-        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), arg_data).unwrap();
-        // let arg_tensor = NdArrayTensor::new(array.into_shared());
-        // arg_tensor.into()
-        todo!()
+        // atan2(imag, real)
+        execute_with_complex_dtype!(tensor, |t: SharedArray<Complex32>| -> NdArrayTensor {
+            let phase: SharedArray<f32> = t.mapv(|z| z.imag.atan2(z.real)).into_shared();
+            cast_to_dtype(phase, E::dtype())
+        })
     }
 
     fn complex_from_parts(
         real: <Self as Backend>::FloatTensorPrimitive,
         imag: <Self as Backend>::FloatTensorPrimitive,
     ) -> NdArrayTensor {
-        // Extract real and imaginary parts as f32 tensors
-        // let real_f32 = match real {
-        //     NdArrayTensorFloat::F32(tensor) => tensor,
-        //     NdArrayTensorFloat::F64(tensor) => {
-        //         let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
-        //         let shape = tensor.shape();
-        //         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
-        //         NdArrayTensor::new(array.into_shared())
-        //     }
-        // };
-
-        // let imag_f32 = match imag {
-        //     NdArrayTensorFloat::F32(tensor) => tensor,
-        //     NdArrayTensorFloat::F64(tensor) => {
-        //         let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
-        //         let shape = tensor.shape();
-        //         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
-        //         NdArrayTensor::new(array.into_shared())
-        //     }
-        // };
-
-        // let complex_data: Vec<Complex32> = real_f32
-        //     .array
-        //     .iter()
-        //     .zip(imag_f32.array.iter())
-        //     .map(|(&r, &i)| Complex32 { real: r, imag: i })
-        //     .collect();
-
-        // let shape = real_f32.shape();
-        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), complex_data).unwrap();
-        // NdArrayTensor::new(array.into_shared())
-        todo!()
+        // Ensure F32 tensors, then zip to Complex32
+        let real_f32 = cast_to_dtype(real, DType::F32);
+        let imag_f32 = cast_to_dtype(imag, DType::F32);
+        execute_with_complex_dtype!(
+            (real_f32, imag_f32),
+            |r: SharedArray<f32>, i: SharedArray<f32>| {
+                NdArrayMathOps::elementwise_op(r, i, |a: &f32, b: &f32| Complex32::new(*a, *b))
+            }
+        )
     }
 
     fn complex_from_polar(
         magnitude: <Self as Backend>::FloatTensorPrimitive,
         phase: <Self as Backend>::FloatTensorPrimitive,
     ) -> NdArrayTensor {
-        // Extract magnitude and phase as f32 tensors
-        // let mag_f32 = match magnitude {
-        //     NdArrayTensorFloat::F32(tensor) => tensor,
-        //     NdArrayTensorFloat::F64(tensor) => {
-        //         let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
-        //         let shape = tensor.shape();
-        //         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
-        //         NdArrayTensor::new(array.into_shared())
-        //     }
-        // };
-
-        // let phase_f32 = match phase {
-        //     NdArrayTensorFloat::F32(tensor) => tensor,
-        //     NdArrayTensorFloat::F64(tensor) => {
-        //         let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
-        //         let shape = tensor.shape();
-        //         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
-        //         NdArrayTensor::new(array.into_shared())
-        //     }
-        // };
-
-        // let complex_data: Vec<Complex32> = mag_f32
-        //     .array
-        //     .iter()
-        //     .zip(phase_f32.array.iter())
-        //     .map(|(&m, &p)| Complex32 {
-        //         real: m * p.cos(),
-        //         imag: m * p.sin(),
-        //     })
-        //     .collect();
-
-        // let shape = mag_f32.shape();
-        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), complex_data).unwrap();
-        // NdArrayTensor::new(array.into_shared())
-        todo!()
+        // z = mag * (cos(phase) + i sin(phase))
+        let mag_f32 = cast_to_dtype(magnitude, DType::F32);
+        let pha_f32 = cast_to_dtype(phase, DType::F32);
+        execute_with_complex_dtype!(
+            (mag_f32, pha_f32),
+            |m: SharedArray<f32>, p: SharedArray<f32>| {
+                NdArrayMathOps::elementwise_op(m, p, |&mag: &f32, &ph: &f32| {
+                    Complex32::new(mag * ph.cos(), mag * ph.sin())
+                })
+            }
+        )
     }
 
     fn complex_exp(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| {
-        //     let exp_real = c.real.exp();
-        //     Complex32 {
-        //         real: exp_real * c.imag.cos(),
-        //         imag: exp_real * c.imag.sin(),
-        //     }
-        // });
-        todo!() //NdArrayTensor::new(array.into())
+        // exp(a+bi) = e^a (cos b + i sin b)
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| {
+                let ea = z.real.exp();
+                Complex32::new(ea * z.imag.cos(), ea * z.imag.sin())
+            })
+        })
     }
 
     fn complex_log(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| {
-        //     let magnitude = (c.real * c.real + c.imag * c.imag).sqrt();
-        //     let phase = c.imag.atan2(c.real);
-        //     Complex32 {
-        //         real: magnitude.ln(),
-        //         imag: phase,
-        //     }
-        // });
-        todo!() //NdArrayTensor::new(array.into())
-    }
-
-    fn complex_powc(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        // a^b = exp(b * ln(a))
-        let ln_lhs = Self::complex_log(lhs);
-        let product = Self::complex_mul(rhs, ln_lhs);
-        Self::complex_exp(product)
+        // ln(a+bi) = ln|z| + i*arg(z)
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| {
+                Complex32::new(z.abs().ln(), z.imag.atan2(z.real))
+            })
+        })
     }
 
     fn complex_sqrt(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| {
-        //     let magnitude = (c.real * c.real + c.imag * c.imag).sqrt();
-        //     let phase = c.imag.atan2(c.real);
-        //     let sqrt_mag = magnitude.sqrt();
-        //     let half_phase = phase / 2.0;
-        //     Complex32 {
-        //         real: sqrt_mag * half_phase.cos(),
-        //         imag: sqrt_mag * half_phase.sin(),
-        //     }
-        // });
-        todo!() //NdArrayTensor::new(array.into())
+        // principal sqrt: sqrt(r)(cos φ/2 + i sin φ/2)
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| {
+                let r = z.abs();
+                let phi = z.imag.atan2(z.real);
+                let s = r.sqrt();
+                Complex32::new(s * (phi * 0.5).cos(), s * (phi * 0.5).sin())
+            })
+        })
     }
 
     fn complex_sin(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| {
-        //     // sin(a + bi) = sin(a)cosh(b) + i*cos(a)sinh(b)
-        //     Complex32 {
-        //         real: c.real.sin() * c.imag.cosh(),
-        //         imag: c.real.cos() * c.imag.sinh(),
-        //     }
-        // });
-        todo!() //NdArrayTensor::new(array.into())
+        // sin(a+bi) = sin a cosh b + i cos a sinh b
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| {
+                Complex32::new(z.real.sin() * z.imag.cosh(), z.real.cos() * z.imag.sinh())
+            })
+        })
     }
 
     fn complex_cos(tensor: NdArrayTensor) -> NdArrayTensor {
-        // let array = tensor.array.mapv(|c| {
-        //     // cos(a + bi) = cos(a)cosh(b) - i*sin(a)sinh(b)
-        //     Complex32 {
-        //         real: c.real.cos() * c.imag.cosh(),
-        //         imag: -c.real.sin() * c.imag.sinh(),
-        //     }
-        // });
-        todo!() //NdArrayTensor::new(array.into())
+        // cos(a+bi) = cos a cosh b - i sin a sinh b
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| {
+                Complex32::new(z.real.cos() * z.imag.cosh(), -z.real.sin() * z.imag.sinh())
+            })
+        })
     }
 
-    fn complex_tan(tensor: NdArrayTensor) -> NdArrayTensor {
-        // tan(z) = sin(z) / cos(z)
-        let sin_z = Self::complex_sin(tensor.clone());
-        let cos_z = Self::complex_cos(tensor);
-        Self::complex_div(sin_z, cos_z)
-    }
+    // ---------- indexing / view / shape ops ----------
 
     fn select(
         tensor: NdArrayTensor,
         dim: usize,
         indices: burn_tensor::Tensor<NdArray<E, I, Q>, 1, burn_tensor::Int>,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t: SharedArray<Complex32>| -> NdArrayTensor {
+            let idx = indices.into_primitive();
+            execute_with_int_dtype!(idx, |i| NdArrayMathOps::select(t, dim, i))
+        })
     }
 
     fn select_assign(
@@ -339,11 +246,14 @@ where
         indices: burn_tensor::Tensor<NdArray<E, I, Q>, 1, burn_tensor::Int>,
         values: NdArrayTensor,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((tensor, values), |t, v| -> NdArrayTensor {
+            let idx = indices.into_primitive();
+            execute_with_int_dtype!(idx, |i| NdArrayMathOps::select_assign(t, dim, i, v))
+        })
     }
 
     fn complex_slice(tensor: NdArrayTensor, slices: &[burn_tensor::Slice]) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::slice(t, slices))
     }
 
     fn complex_slice_assign(
@@ -351,55 +261,59 @@ where
         ranges: &[burn_tensor::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((tensor, value), |t, v| NdArrayOps::slice_assign(
+            t, ranges, v
+        ))
     }
 
     fn complex_swap_dims(tensor: NdArrayTensor, dim1: usize, dim2: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::swap_dims(t, dim1, dim2))
     }
 
     fn complex_repeat_dim(tensor: NdArrayTensor, dim: usize, times: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::repeat_dim(t, dim, times))
     }
 
     fn complex_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::equal)
     }
 
     fn complex_not_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::not_equal)
     }
 
     fn complex_cat(tensors: Vec<NdArrayTensor>, dim: usize) -> NdArrayTensor {
-        todo!()
+        // Reuse your general cat macro, restricted to Complex32
+        cat_with_dtype!(tensors, dim, [Complex32])
     }
 
     fn complex_any(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // any over "truthiness" of complex -> uses ToElement::to_bool (!= 0 or imag != 0)
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::any)
     }
 
     fn complex_any_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::any_dim(t, dim))
     }
 
     fn complex_all(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::all)
     }
 
     fn complex_all_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::all_dim(t, dim))
     }
 
     fn complex_permute(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::permute(t, axes))
     }
 
     fn complex_expand(tensor: NdArrayTensor, shape: Shape) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::expand(t, shape))
     }
 
     fn complex_flip(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::flip(t, axes))
     }
 
     fn complex_unfold(
@@ -408,7 +322,7 @@ where
         size: usize,
         step: usize,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::unfold(t, dim, size, step))
     }
 
     fn complex_select(
@@ -416,108 +330,147 @@ where
         dim: usize,
         indices: burn_tensor::ops::IntTensor<NdArray<E, I, Q>>,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t: SharedArray<Complex32>| -> NdArrayTensor {
+            let idx = indices.into_primitive();
+            execute_with_int_dtype!(idx, |i| NdArrayMathOps::select(t, dim, i))
+        })
     }
 
+    // ---------- reductions ----------
+
     fn complex_sum(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // Complex reduction: sum real and imag independently
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::sum)
     }
 
     fn complex_sum_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::sum_dim(t, dim))
     }
 
     fn complex_prod(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::prod)
     }
 
     fn complex_prod_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::prod_dim(t, dim))
     }
 
     fn complex_mean(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::mean)
     }
 
     fn complex_mean_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::mean_dim(t, dim))
     }
 
+    // ---------- elementwise "mod" & comparisons ----------
+    // Remainder isn't defined for complex numbers mathematically.
+    // Here we follow an elementwise remainder on components: (a% c) + i (b % d).
+
     fn complex_remainder(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(
+            (lhs, rhs),
+            |l: SharedArray<Complex32>, r: SharedArray<Complex32>| {
+                NdArrayMathOps::elementwise_op(l, r, |a: &Complex32, b: &Complex32| {
+                    Complex32::new(a.real % b.real, a.imag % b.imag)
+                })
+            }
+        )
     }
 
     fn complex_remainder_scalar(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| {
+            NdArrayMathOps::elementwise_op_scalar(l, |a: Complex32| {
+                Complex32::new(a.real % rhs.real, a.imag % rhs.imag)
+            })
+        })
     }
 
     fn complex_equal_elem(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::elementwise_op_scalar(
+            l,
+            |a: Complex32| a == rhs
+        ))
     }
 
     fn complex_not_equal_elem(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::elementwise_op_scalar(
+            l,
+            |a: Complex32| a != rhs
+        ))
     }
 
+    // The make_complex! macro implements ElementComparison via magnitude, then real.
     fn complex_greater(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::greater)
     }
 
     fn complex_greater_elem(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::greater_elem(l, rhs))
     }
 
     fn complex_greater_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::greater_equal)
     }
 
     fn complex_greater_equal_elem(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::greater_equal_elem(l, rhs))
     }
 
     fn complex_lower(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::lower)
     }
 
     fn complex_lower_elem(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::lower_elem(l, rhs))
     }
 
     fn complex_lower_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::lower_equal)
     }
 
     fn complex_lower_equal_elem(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let rhs = rhs.to_complex();
+        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::lower_equal_elem(l, rhs))
     }
+
+    // ---------- masked ops / gather / scatter ----------
 
     fn complex_mask_where(
         tensor: NdArrayTensor,
         mask: NdArrayTensor,
         source: NdArrayTensor,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((tensor, source), |t, s| {
+            NdArrayMathOps::mask_where(t, mask.bool(), s)
+        })
     }
 
     fn complex_mask_fill(
@@ -525,11 +478,16 @@ where
         mask: NdArrayTensor,
         value: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let value = value.to_complex();
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::mask_fill(t, mask.bool(), value)
+        })
     }
 
     fn complex_gather(dim: usize, tensor: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t: SharedArray<Complex32>| -> NdArrayTensor {
+            execute_with_complex_dtype!(indices, |i| NdArrayMathOps::gather(dim, t, i))
+        })
     }
 
     fn complex_scatter(
@@ -538,94 +496,183 @@ where
         indices: NdArrayTensor,
         values: NdArrayTensor,
     ) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!((tensor, values), |t, v| -> NdArrayTensor {
+            execute_with_complex_dtype!(indices, |i| NdArrayMathOps::scatter(dim, t, i, v))
+        })
     }
 
     fn complex_sign(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // sign(z) := z / |z|, and 0 maps to 0 to avoid NaN
+        execute_with_complex_dtype!(tensor, |t| {
+            NdArrayMathOps::elementwise_op_scalar(t, |z: Complex32| {
+                let r = z.abs();
+                if r == 0.0 {
+                    Complex32::new(0.0, 0.0)
+                } else {
+                    Complex32::new(z.real / r, z.imag / r)
+                }
+            })
+        })
     }
 
+    // ---------- argmax/argmin/max/min & max_abs/min_abs ----------
+
     fn complex_argmax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::argmax::<Complex32>(t, dim))
     }
 
     fn complex_argmin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::argmin::<Complex32>(t, dim))
     }
 
     fn complex_max(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::max)
     }
 
     fn complex_max_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::max_dim(t, dim))
     }
 
     fn complex_max_dim_with_indices(
         tensor: NdArrayTensor,
         dim: usize,
     ) -> (NdArrayTensor, NdArrayTensor) {
-        todo!()
+        execute_with_complex_dtype!(
+            tensor,
+            |t| NdArrayMathOps::max_dim_with_indices::<Complex32>(t, dim)
+        )
     }
 
     fn complex_max_abs(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // pick element with largest magnitude (consistent with cmp)
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::max)
     }
 
     fn complex_max_abs_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::max_dim(t, dim))
     }
 
     fn complex_min(tensor: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, NdArrayMathOps::min)
     }
 
     fn complex_min_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::min_dim(t, dim))
     }
 
     fn complex_min_dim_with_indices(
         tensor: NdArrayTensor,
         dim: usize,
     ) -> (NdArrayTensor, NdArrayTensor) {
-        todo!()
+        execute_with_complex_dtype!(
+            tensor,
+            |t| NdArrayMathOps::min_dim_with_indices::<Complex32>(t, dim)
+        )
     }
+
+    // ---------- clamp ----------
 
     fn complex_clamp(
         tensor: NdArrayTensor,
         min: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
         max: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let min = min.to_complex();
+        let max = max.to_complex();
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::clamp(t, min, max))
     }
 
     fn complex_clamp_min(
         tensor: NdArrayTensor,
         min: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let min = min.to_complex();
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::clamp_min(t, min))
     }
 
     fn complex_clamp_max(
         tensor: NdArrayTensor,
         max: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let max = max.to_complex();
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::clamp_max(t, max))
     }
 
+    // ---------- pow ----------
+
     fn complex_powi(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // integer power (component-wise exponent on complex is ambiguous);
+        // Here use z^n via repeated multiply if NdArrayMathOps::powi exists; otherwise map.
+        execute_with_complex_dtype!(
+            (lhs, rhs),
+            |l: SharedArray<Complex32>, r: SharedArray<Complex32>| {
+                NdArrayMathOps::elementwise_op(l, r, |z: &Complex32, n: &Complex32| {
+                    // Use real part of exponent as integer (common convention for *_powi)
+                    let k = n.real as i32;
+                    if k == 0 {
+                        return Complex32::new(1.0, 0.0);
+                    }
+                    let mut base = *z;
+                    let mut exp = k.abs() as u32;
+                    let mut acc = Complex32::new(1.0, 0.0);
+                    while exp > 0 {
+                        if (exp & 1) == 1 {
+                            acc = acc * base;
+                        }
+                        base = base * base;
+                        exp >>= 1;
+                    }
+                    if k < 0 {
+                        // 1/acc
+                        let denom = acc.real * acc.real + acc.imag * acc.imag;
+                        Complex32::new(acc.real / denom, -acc.imag / denom)
+                    } else {
+                        acc
+                    }
+                })
+            }
+        )
     }
 
     fn complex_powi_scalar(
         lhs: NdArrayTensor,
         rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
     ) -> NdArrayTensor {
-        todo!()
+        let k = rhs.to_complex().real as i32;
+        execute_with_complex_dtype!(lhs, |l| {
+            // fast powi by scalar exponent
+            if k == 0 {
+                NdArrayOps::full_like(l, Complex32::new(1.0, 0.0))
+            } else {
+                NdArrayMathOps::elementwise_op_scalar(l, |mut z: Complex32| {
+                    // binary exponentiation on scalar
+                    let mut base = z;
+                    let mut exp = k.abs() as u32;
+                    let mut acc = Complex32::new(1.0, 0.0);
+                    while exp > 0 {
+                        if (exp & 1) == 1 {
+                            acc = acc * base;
+                        }
+                        base = base * base;
+                        exp >>= 1;
+                    }
+                    if k < 0 {
+                        let denom = acc.real * acc.real + acc.imag * acc.imag;
+                        Complex32::new(acc.real / denom, -acc.imag / denom)
+                    } else {
+                        acc
+                    }
+                })
+            }
+        })
     }
 
+    // ---------- sorting / argsort ----------
+
     fn complex_sort(tensor: NdArrayTensor, dim: usize, descending: bool) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::sort::<Complex32>(
+            t, dim, descending
+        ))
     }
 
     fn complex_sort_with_indices(
@@ -633,52 +680,126 @@ where
         dim: usize,
         descending: bool,
     ) -> (NdArrayTensor, NdArrayTensor) {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::sort_with_indices::<Complex32>(
+            t, dim, descending
+        ))
     }
 
     fn complex_argsort(tensor: NdArrayTensor, dim: usize, descending: bool) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayOps::argsort::<Complex32>(
+            t, dim, descending
+        ))
     }
 
+    // ---------- matmul & scans ----------
+
     fn complex_matmul(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        todo!()
+        // If your NdArrayOps::matmul uses elementwise + sum with generic T implementing +,*,
+        // this will work out of the box thanks to Complex32::add/mul.
+        execute_with_complex_dtype!((lhs, rhs), NdArrayOps::matmul)
     }
 
     fn complex_cumsum(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cumsum(t, dim))
     }
 
     fn complex_cumprod(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cumprod(t, dim))
     }
 
     fn complex_cummin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cummin::<Complex32>(t, dim))
     }
 
     fn complex_cummax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        todo!()
+        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cummax::<Complex32>(t, dim))
     }
 
     fn complex_add(
-        lhs: ComplexTensor<NdArray<E, I, Q>>,
-        rhs: ComplexTensor<NdArray<E, I, Q>>,
-    ) -> ComplexTensor<NdArray<E, I, Q>> {
-        todo!()
+        lhs: burn_complex::base::ComplexTensor<NdArray<E, I, Q>>,
+        rhs: burn_complex::base::ComplexTensor<NdArray<E, I, Q>>,
+    ) -> burn_complex::base::ComplexTensor<NdArray<E, I, Q>> {
+        let l = lhs.into_primitive(); // expected: -> NdArrayTensor with Complex32 dtype
+        let r = rhs.into_primitive();
+        let out = Self::complex_add_primitive(l, r);
+        burn_complex::base::ComplexTensor::from_primitive(out)
     }
 
     fn complex_sub(
+        lhs: burn_complex::base::ComplexTensor<NdArray<E, I, Q>>,
+        rhs: burn_complex::base::ComplexTensor<NdArray<E, I, Q>>,
+    ) -> burn_complex::base::ComplexTensor<NdArray<E, I, Q>> {
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::sub)
+    }
+
+    fn complex_real(tensor: burn_complex::base::ComplexTensor<NdArray<E, I, Q>>) -> NdArrayTensor {
+        let p = tensor.into_primitive();
+        execute_with_complex_dtype!(p, |t| {
+            let r: SharedArray<f32> = t.mapv(|z: Complex32| z.real).into_shared();
+            cast_to_dtype(r, E::dtype())
+        })
+    }
+
+    fn complex_imag(tensor: burn_complex::base::ComplexTensor<NdArray<E, I, Q>>) -> NdArrayTensor {
+        let p = tensor.into_primitive();
+        execute_with_complex_dtype!(p, |t| {
+            let im: SharedArray<f32> = t.mapv(|z: Complex32| z.imag).into_shared();
+            cast_to_dtype(im, E::dtype())
+        })
+    }
+
+    fn complex_powc(
         lhs: ComplexTensor<NdArray<E, I, Q>>,
         rhs: ComplexTensor<NdArray<E, I, Q>>,
     ) -> ComplexTensor<NdArray<E, I, Q>> {
-        todo!()
+        // a^b = exp(b * ln(a))
+        let ln_lhs = Self::complex_log(lhs);
+        let product = Self::complex_mul(rhs, ln_lhs);
+        Self::complex_exp(product)
     }
 
-    fn complex_real(tensor: ComplexTensor<NdArray<E, I, Q>>) -> NdArrayTensor {
-        todo!()
+    fn complex_tan(tensor: ComplexTensor<NdArray<E, I, Q>>) -> ComplexTensor<NdArray<E, I, Q>> {
+        // tan(z) = sin(z) / cos(z)
+        let sin_z = Self::complex_sin(tensor.clone());
+        let cos_z = Self::complex_cos(tensor);
+        Self::complex_div(sin_z, cos_z)
+    }
+}
+
+// ----- helpers used in the ComplexTensor shims -----
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
+{
+    #[inline]
+    fn complex_add_primitive(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::add)
     }
 
-    fn complex_imag(tensor: ComplexTensor<NdArray<E, I, Q>>) -> NdArrayTensor {
-        todo!()
+    #[inline]
+    fn complex_sub_primitive(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::sub)
     }
+}
+
+// TODO: actually fix this
+/// Macro to execute an operation for complex dtypes (currently Complex32).
+#[macro_export]
+macro_rules! execute_with_complex_dtype {
+    // Binary op
+    (($lhs:expr, $rhs:expr), $op:expr) => {{
+        $crate::execute_with_dtype!(($lhs, $rhs), E, $op, [
+            Complex32 => burn_complex::base::element::Complex32,
+            Complex64 => burn_complex::base::element::Complex64
+        ])
+    }};
+
+    // Unary op
+    ($tensor:expr, $op:expr) => {{
+        $crate::execute_with_dtype!($tensor, E, $op, [
+            Complex32 => burn_complex::base::element::Complex32,
+            Complex64 => burn_complex::base::element::Complex64
+        ])
+    }};
 }
