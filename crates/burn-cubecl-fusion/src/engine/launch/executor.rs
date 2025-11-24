@@ -243,104 +243,24 @@ fn register_scalars<'h, R: Runtime>(
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
     for (precision, id) in scalars {
-        match precision {
-            FuseType::F64 => {
-                inputs.scalars.push(InputScalar::F64(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::F64(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::F32 | FuseType::Flex32 => {
-                inputs.scalars.push(InputScalar::F32(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::F32(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::F16 => {
-                inputs.scalars.push(InputScalar::F16(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::F16(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::BF16 => {
-                inputs.scalars.push(InputScalar::BF16(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::BF16(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::I64 => {
-                inputs.scalars.push(InputScalar::I64(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::I64(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::I32 => {
-                inputs.scalars.push(InputScalar::I32(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::I32(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::I16 => {
-                inputs.scalars.push(InputScalar::I16(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::I16(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::I8 => {
-                inputs.scalars.push(InputScalar::I8(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::I8(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::U64 => {
-                inputs.scalars.push(InputScalar::U64(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::U64(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::U32 => {
-                inputs.scalars.push(InputScalar::U32(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::U32(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::U16 => {
-                inputs.scalars.push(InputScalar::U16(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::U16(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::U8 => {
-                inputs.scalars.push(InputScalar::U8(
-                    match context.scalars.get(&ScalarId { value: *id }) {
-                        Some(ScalarIr::U8(val)) => *val,
-                        _ => panic!(),
-                    },
-                ));
-            }
-            FuseType::Bool => todo!(),
+        let dtype = precision.into_type();
+        match context.scalars.get(&ScalarId { value: *id }) {
+            Some(scalar) => match scalar {
+                ScalarIr::F64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::F32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::F16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::BF16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::I64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::I32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::I16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::I8(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::U64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::U32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::U16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::U8(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::Bool(val) => inputs.scalars.push(InputScalar::new(*val as u8, dtype)),
+            },
+            None => panic!("Scalar ID not found"),
         }
     }
 
