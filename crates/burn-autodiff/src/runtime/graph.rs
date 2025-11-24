@@ -8,11 +8,7 @@ use crate::{
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::sync::Arc;
-<<<<<<< HEAD
-use burn_std::stub::Mutex;
-=======
 use alloc::vec::Vec;
->>>>>>> main
 use burn_tensor::backend::Backend;
 use hashbrown::{HashMap, HashSet};
 

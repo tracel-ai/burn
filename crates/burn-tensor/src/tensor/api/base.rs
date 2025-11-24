@@ -2528,8 +2528,7 @@ where
             let range: [Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-            let data =
-                burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
+            let data = burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
 
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();

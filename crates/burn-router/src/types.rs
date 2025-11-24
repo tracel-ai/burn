@@ -1,5 +1,5 @@
-use burn_std::future::DynFut;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
+use burn_std::future::DynFut;
 use burn_tensor::{
     DType, Shape, TensorData,
     backend::{Backend, DeviceId, DeviceOps},

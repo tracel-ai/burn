@@ -5,8 +5,8 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
-use burn_std::stub::Mutex;
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
+use burn_std::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
