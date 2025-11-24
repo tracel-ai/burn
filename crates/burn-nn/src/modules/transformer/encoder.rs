@@ -202,12 +202,19 @@ impl<B: Backend> TransformerEncoder<B> {
 /// Transformer encoder layer module.
 #[derive(Module, Debug)]
 pub struct TransformerEncoderLayer<B: Backend> {
-    mha: MultiHeadAttention<B>,
-    pwff: PositionWiseFeedForward<B>,
-    norm_1: LayerNorm<B>,
-    norm_2: LayerNorm<B>,
-    dropout: Dropout,
-    norm_first: bool,
+    /// Multi-head self-attention sub-layer.
+    pub mha: MultiHeadAttention<B>,
+    /// Position-wise feed-forward sub-layer.
+    pub pwff: PositionWiseFeedForward<B>,
+    /// Layer normalization applied around the feed-forward sub-layer.
+    pub norm_1: LayerNorm<B>,
+    /// Layer normalization applied around the attention sub-layer.
+    pub norm_2: LayerNorm<B>,
+    /// Dropout module applied to residual connections.
+    pub dropout: Dropout,
+    /// If `true`, apply layer normalization before sub-layers (pre-norm),
+    /// otherwise apply it after (post-norm).
+    pub norm_first: bool,
 }
 
 impl<B: Backend> TransformerEncoderLayer<B> {
