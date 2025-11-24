@@ -20,7 +20,7 @@ export_tests = ["burn-tensor-testgen"]
 std = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.2", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.2", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.2", optional = true }
 

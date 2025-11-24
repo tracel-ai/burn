@@ -1,11 +1,14 @@
-use crate::indexing::ravel_index;
-use crate::{AsIndex, Slice, SliceArg};
+//! Tensor shape definition.
+
 use alloc::vec::Vec;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
     slice::{Iter, IterMut, SliceIndex},
 };
 use serde::{Deserialize, Serialize};
+
+use super::indexing::ravel_index;
+use super::{AsIndex, Slice, SliceArg};
 
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

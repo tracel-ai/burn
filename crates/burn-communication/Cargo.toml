@@ -16,7 +16,7 @@ data-service = ["burn-tensor"]
 websocket = ["axum", "tokio-tungstenite", "futures"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.2", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.2", default-features = true }
 bytes = { workspace = true }
 derive-new = { workspace = true }
 futures-util = { workspace = true }

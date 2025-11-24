@@ -1,6 +1,6 @@
 use super::ParamId;
 use alloc::{boxed::Box, format};
-use burn_common::stub::RwLock;
+use burn_std::stub::RwLock;
 use burn_tensor::Shape;
 use core::cell::OnceCell;
 use core::ops::Deref;

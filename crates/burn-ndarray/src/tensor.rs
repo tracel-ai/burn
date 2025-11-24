@@ -340,7 +340,7 @@ impl ShapeOps for &[usize] {
 }
 
 mod utils {
-    use burn_common::tensor::is_contiguous;
+    use burn_std::tensor::is_contiguous;
 
     use super::*;
 
@@ -571,7 +571,7 @@ mod tests {
     use crate::NdArray;
 
     use super::*;
-    use burn_common::rand::get_seeded_rng;
+    use burn_std::rand::get_seeded_rng;
     use burn_tensor::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_common::{
+use burn_std::{
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
@@ -37,7 +37,7 @@ pub(crate) fn get_seeded_rng() -> StdRng {
     let mut seed = SEED.lock().unwrap();
     match seed.as_ref() {
         Some(rng_seeded) => rng_seeded.clone(),
-        None => burn_common::rand::get_seeded_rng(),
+        None => burn_std::rand::get_seeded_rng(),
     }
 }
 
@@ -177,7 +177,7 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
-impl burn_common::device::Device for CandleDevice {
+impl burn_std::device::Device for CandleDevice {
     fn to_id(&self) -> burn_tensor::backend::DeviceId {
         match self {
             CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),

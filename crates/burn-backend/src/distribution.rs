@@ -1,6 +1,8 @@
+//! Random value distributions used to initialize and populate tensor data.
+
 use rand::{Rng, RngCore, distr::StandardUniform};
 
-use crate::element::{Element, ElementConversion};
+use super::element::{Element, ElementConversion};
 
 /// Distribution for random value of a tensor.
 #[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]

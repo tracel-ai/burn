@@ -2,9 +2,10 @@ use core::cmp::Ordering;
 use rand::RngCore;
 
 use crate::distribution::Distribution;
-use crate::{DType, bf16, f16};
+use burn_std::{DType, bf16, f16};
+
 #[cfg(feature = "cubecl")]
-use cubecl::flex32;
+use burn_std::flex32;
 
 use super::cast::ToElement;
 
@@ -99,7 +100,7 @@ macro_rules! make_element {
     ) => {
         impl Element for $type {
             #[inline(always)]
-            fn dtype() -> $crate::DType {
+            fn dtype() -> burn_std::DType {
                 $dtype
             }
         }
@@ -250,8 +251,8 @@ make_element!(
     },
     cmp |a: &flex32, b: &flex32| a.total_cmp(b),
     dtype DType::Flex32,
-    min flex32::from_f32(half::f16::MIN.to_f32_const()),
-    max flex32::from_f32(half::f16::MAX.to_f32_const())
+    min flex32::from_f32(f16::MIN.to_f32_const()),
+    max flex32::from_f32(f16::MAX.to_f32_const())
 );
 
 make_element!(

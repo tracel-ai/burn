@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::FusionRuntime;
 use crate::stream::{OperationConverter, OperationStreams, RelativeOps, execution::Operation};
-use burn_common::id::StreamId;
+use burn_std::id::StreamId;
 use burn_ir::{OperationIr, TensorId, TensorStatus};
 
 use hashbrown::HashMap;

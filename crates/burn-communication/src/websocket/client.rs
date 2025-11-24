@@ -2,7 +2,7 @@ use crate::{
     base::{Address, CommunicationChannel, CommunicationError, Message, ProtocolClient},
     websocket::base::parse_ws_address,
 };
-use burn_common::future::DynFut;
+use burn_std::future::DynFut;
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{

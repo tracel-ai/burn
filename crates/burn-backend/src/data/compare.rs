@@ -1,9 +1,10 @@
-use crate::{DType, bf16, element::Element, f16};
 use alloc::format;
 use alloc::string::String;
+use burn_std::{DType, bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
+use crate::element::Element;
 
 /// The tolerance used to compare to floating point numbers.
 ///

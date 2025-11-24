@@ -22,7 +22,7 @@ pub(crate) use unary_int::*;
 pub(crate) use unary_numeric::*;
 
 pub use crate::cubecl::prelude::KernelMetadata;
-pub use burn_common::PLANE_DIM_APPROX;
+pub use burn_std::PLANE_DIM_APPROX;
 
 /// Convolution kernels
 pub mod conv;

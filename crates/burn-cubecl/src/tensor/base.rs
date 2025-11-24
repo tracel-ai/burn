@@ -1,7 +1,7 @@
 use crate::CubeRuntime;
 use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
-use burn_common::tensor::is_contiguous;
+use burn_std::tensor::is_contiguous;
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;

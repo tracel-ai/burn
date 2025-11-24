@@ -12,7 +12,7 @@ use crate::{
     },
     strides_dyn_rank,
 };
-use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
+use burn_std::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;

@@ -17,7 +17,7 @@ workspace = true
 [features]
 default = [
     "std",
-    "burn-common/default",
+    "burn-std/default",
     "burn-dataset?/default",
     "burn-tensor/default",
 ]
@@ -26,7 +26,7 @@ doc = [
     "dataset",
     "audio",
     # Doc features
-    "burn-common/doc",
+    "burn-std/doc",
     "burn-dataset/doc",
     "burn-tensor/doc",
 ]
@@ -37,7 +37,7 @@ sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 std = [
     "bincode/std",
-    "burn-common/std",
+    "burn-std/std",
     "burn-tensor/std",
     "flate2",
     "half/std",
@@ -85,7 +85,7 @@ test-memory-checks = ["burn-fusion/memory-checks"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.2", default-features = false }
 burn-dataset = { path = "../burn-dataset", version = "=0.20.0-pre.2", optional = true, default-features = false }
 burn-derive = { path = "../burn-derive", version = "=0.20.0-pre.2" }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.2", default-features = false }

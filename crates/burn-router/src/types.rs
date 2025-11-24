@@ -1,4 +1,4 @@
-use burn_common::future::DynFut;
+use burn_std::future::DynFut;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
     DType, Shape, TensorData,
@@ -67,7 +67,7 @@ macro_rules! impl_multi_backend_types {
                 }
             }
 
-            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> burn_common::device::Device for MultiDevice<$DefaultBackend, $($OtherBackend),+> {
+            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> burn_std::device::Device for MultiDevice<$DefaultBackend, $($OtherBackend),+> {
                 fn from_id(_device_id: DeviceId) -> Self {
                     // TODO: Should be fix with the new router backend.
                     Default::default()

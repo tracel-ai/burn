@@ -9,8 +9,11 @@ use rand::RngCore;
 
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
-use crate::quantization::{QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes};
-use crate::{Bytes, DType, bf16, f16};
+use burn_std::tensor::DType;
+use burn_std::tensor::quantization::{
+    QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes,
+};
+use burn_std::{Bytes, bf16, f16};
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

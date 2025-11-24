@@ -584,7 +584,7 @@ dependencies = [
 name = "burn-autodiff"
 version = "0.20.0-pre.2"
 dependencies = [
- "burn-common",
+ "burn-std",
  "burn-tensor",
  "burn-tensor-testgen",
  "derive-new",
@@ -599,12 +599,9 @@ dependencies = [
 name = "burn-backend"
 version = "0.20.0-pre.2"
 dependencies = [
- "burn-common",
+ "burn-std",
  "bytemuck",
- "cubecl",
- "cubecl-quant",
  "derive-new",
- "half",
  "num-traits",
  "paste",
  "rand 0.9.2",
@@ -617,7 +614,7 @@ name = "burn-candle"
 version = "0.20.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-common",
+ "burn-std",
  "burn-tch",
  "burn-tensor",
  "candle-core",
@@ -629,10 +626,10 @@ dependencies = [
 name = "burn-collective"
 version = "0.20.0-pre.2"
 dependencies = [
- "burn-common",
  "burn-communication",
  "burn-cuda",
  "burn-ndarray",
+ "burn-std",
  "burn-tensor",
  "burn-wgpu",
  "bytes",
@@ -651,8 +648,8 @@ version = "0.20.0-pre.2"
 dependencies = [
  "burn",
  "burn-collective",
- "burn-common",
  "burn-communication",
+ "burn-std",
  "futures",
  "interprocess",
  "rmp-serde",
@@ -664,24 +661,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-common"
-version = "0.20.0-pre.2"
-dependencies = [
- "cubecl-common",
- "dashmap",
- "indicatif 0.18.3",
- "rayon",
- "reqwest",
- "serde",
- "tokio",
-]
-
-[[package]]
 name = "burn-communication"
 version = "0.20.0-pre.2"
 dependencies = [
  "axum",
- "burn-common",
+ "burn-std",
  "burn-tensor",
  "bytes",
  "derive-new",
@@ -705,7 +689,6 @@ dependencies = [
  "ahash",
  "bincode",
  "burn-autodiff",
- "burn-common",
  "burn-cuda",
  "burn-dataset",
  "burn-derive",
@@ -714,6 +697,7 @@ dependencies = [
  "burn-remote",
  "burn-rocm",
  "burn-router",
+ "burn-std",
  "burn-tch",
  "burn-tensor",
  "burn-vision",
@@ -758,11 +742,12 @@ name = "burn-cubecl"
 version = "0.20.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-common",
+ "burn-backend",
  "burn-cubecl-fusion",
  "burn-fusion",
  "burn-ir",
  "burn-ndarray",
+ "burn-std",
  "burn-tensor",
  "burn-tensor-testgen",
  "bytemuck",
@@ -786,9 +771,9 @@ dependencies = [
 name = "burn-cubecl-fusion"
 version = "0.20.0-pre.2"
 dependencies = [
- "burn-common",
  "burn-fusion",
  "burn-ir",
+ "burn-std",
  "burn-tensor",
  "cubecl",
  "cubecl-quant",
@@ -816,7 +801,6 @@ dependencies = [
 name = "burn-dataset"
 version = "0.20.0-pre.2"
 dependencies = [
- "burn-common",
  "csv",
  "derive-new",
  "dirs",
@@ -827,12 +811,14 @@ dependencies = [
  "globwalk",
  "hound",
  "image",
+ "indicatif 0.18.3",
  "planus",
  "polars",
  "r2d2",
  "r2d2_sqlite",
  "rand 0.9.2",
  "rayon",
+ "reqwest",
  "rmp-serde",
  "rstest",
  "rusqlite",
@@ -844,6 +830,7 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.17",
+ "tokio",
  "zip 6.0.0",
 ]
 
@@ -861,8 +848,8 @@ dependencies = [
 name = "burn-fusion"
 version = "0.20.0-pre.2"
 dependencies = [
- "burn-common",
  "burn-ir",
+ "burn-std",
  "burn-tensor",
  "derive-new",
  "half",
@@ -916,8 +903,8 @@ dependencies = [
  "atomic_float",
  "blas-src",
  "burn-autodiff",
- "burn-common",
  "burn-ir",
+ "burn-std",
  "burn-tensor",
  "bytemuck",
  "const-random",
@@ -932,6 +919,7 @@ dependencies = [
  "paste",
  "portable-atomic-util",
  "rand 0.9.2",
+ "rayon",
  "seq-macro",
  "spin",
 ]
@@ -993,11 +981,11 @@ version = "0.20.0-pre.2"
 dependencies = [
  "async-channel",
  "axum",
- "burn-common",
  "burn-communication",
  "burn-ir",
  "burn-ndarray",
  "burn-router",
+ "burn-std",
  "burn-tensor",
  "bytes",
  "derive-new",
@@ -1033,9 +1021,9 @@ name = "burn-router"
 version = "0.20.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-common",
  "burn-ir",
  "burn-ndarray",
+ "burn-std",
  "burn-tensor",
  "burn-wgpu",
  "hashbrown 0.15.5",
@@ -1044,9 +1032,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-shape"
+name = "burn-std"
 version = "0.20.0-pre.2"
 dependencies = [
+ "bytemuck",
+ "cubecl",
+ "cubecl-common",
+ "cubecl-quant",
+ "dashmap",
+ "half",
+ "num-traits",
  "serde",
 ]
 
@@ -1080,7 +1075,7 @@ name = "burn-tch"
 version = "0.20.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-common",
+ "burn-std",
  "burn-tensor",
  "cc",
  "half",
@@ -1096,8 +1091,7 @@ name = "burn-tensor"
 version = "0.20.0-pre.2"
 dependencies = [
  "burn-backend",
- "burn-common",
- "burn-shape",
+ "burn-std",
  "burn-tensor-testgen",
  "colored 3.0.0",
  "cubecl",

@@ -5,11 +5,11 @@ mod api;
 pub use api::*;
 
 // Re-exported types
-// pub use burn_dtype::{DType, FloatDType, IntDType, distribution::*, element::*};
-pub use burn_backend::{
-    DType, DataError, FloatDType, IntDType, TensorData, Tolerance, distribution::*, element::*,
+pub use burn_backend::{DataError, TensorData, Tolerance, distribution::*, element::*};
+pub use burn_std::{
+    DType, FloatDType, IntDType, s,
+    tensor::{indexing::*, shape::*, slice::*},
 };
-pub use burn_shape::*;
 
 /// The activation module.
 pub mod activation;

@@ -3,7 +3,7 @@ mod parameters;
 mod primitive;
 mod scheme;
 
-pub use burn_backend::quantization::QuantizedBytes;
+pub use burn_std::quantization::QuantizedBytes;
 pub use calibration::*;
 pub use parameters::*;
 pub use primitive::*;

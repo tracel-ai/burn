@@ -1,6 +1,8 @@
+//! Tensor data type.
+
 use serde::{Deserialize, Serialize};
 
-use crate::quantization::{QuantScheme, QuantStore, QuantValue};
+use crate::tensor::quantization::{QuantScheme, QuantStore, QuantValue};
 use crate::{bf16, f16};
 
 #[allow(missing_docs)]

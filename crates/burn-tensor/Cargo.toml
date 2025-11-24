@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-cubecl = ["dep:cubecl", "burn-backend/cubecl"]
+cubecl = ["dep:cubecl", "burn-std/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
@@ -26,16 +26,14 @@ experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
 std = [
     "num-traits/std",
-    "burn-common/std",
-    "burn-shape/std",
+    "burn-std/std",
     "burn-backend/std",
     "colored",
 ]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.20.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "0.20.0-pre.2", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.2", optional = true }
-burn-shape = { path = "../burn-shape", version = "0.20.0-pre.2", default-features = false }
 burn-backend = { path = "../burn-backend", version = "0.20.0-pre.2", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
 

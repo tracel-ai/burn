@@ -21,7 +21,7 @@ doc = ["tch/doc-only"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.2", default-features = false }
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.2", default-features = false }
 
 half = { workspace = true, features = ["std"] }
 libc = { workspace = true }

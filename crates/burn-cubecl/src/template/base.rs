@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
-use burn_common::ExecutionMode;
+use burn_std::ExecutionMode;
 use cubecl::{Compiler, compute::CubeTask, prelude::*};
 
 use super::SourceTemplate;

@@ -1,3 +1,5 @@
+//! Quantization data representation.
+
 // Re-exported types
 pub use cubecl_quant::scheme::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
@@ -7,8 +9,7 @@ use alloc::vec::Vec;
 use core::any::TypeId;
 use num_traits::PrimInt;
 
-use crate::Bytes;
-use crate::element::Element;
+use crate::bytes::Bytes;
 
 /// The quantization tensor data parameters.
 #[derive(Clone, Debug)]
@@ -37,7 +38,11 @@ pub struct QuantizedBytes {
 
 impl QuantizedBytes {
     /// Creates a new quantized bytes representation.
-    pub fn new<E: Element>(value: Vec<E>, scheme: QuantScheme, scales: &[f32]) -> Self {
+    pub fn new<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
+        value: Vec<E>,
+        scheme: QuantScheme,
+        scales: &[f32],
+    ) -> Self {
         let num_elements = value.len();
         // Only used for 8-bit quantization data comparison in tests
         if TypeId::of::<E>() != TypeId::of::<i8>() {

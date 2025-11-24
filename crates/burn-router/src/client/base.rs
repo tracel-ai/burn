@@ -1,7 +1,7 @@
 use crate::{RouterTensor, RunnerChannel};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use burn_common::future::DynFut;
+use burn_std::future::DynFut;
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
     TensorData,

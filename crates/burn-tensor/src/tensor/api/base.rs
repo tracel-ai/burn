@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_common::stub::RwLock;
+use burn_std::stub::RwLock;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -2529,7 +2529,7 @@ where
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
             let data =
-                burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
+                burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
 
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();

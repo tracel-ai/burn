@@ -55,11 +55,16 @@ std = [
 template = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.2" }
 burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.2", default-features = false, optional = true }
 burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.20.0-pre.2", default-features = false, optional = true }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.2", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.2", default-features = false, features = [
+    "cubecl",
+] }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.2", default-features = false, features = [
+    "cubecl",
+] }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.2", default-features = false, features = [
     "cubecl",
 ] }
 cubecl = { workspace = true, features = [

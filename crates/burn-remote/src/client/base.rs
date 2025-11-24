@@ -1,7 +1,7 @@
 use super::worker::{ClientRequest, ClientWorker};
 use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponseContent};
 use async_channel::Sender;
-use burn_common::id::StreamId;
+use burn_std::id::StreamId;
 use burn_communication::ProtocolClient;
 use burn_ir::TensorId;
 use std::{

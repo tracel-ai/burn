@@ -24,12 +24,11 @@ pub use burn_tensor_testgen::might_panic;
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
-pub use burn_common::stream_id::StreamId;
+pub use burn_std::stream_id::StreamId;
 
 // Re-exported types
-pub use burn_backend::{Bytes, bf16, f16};
-
-pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.
+pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
+pub use burn_std::{Bytes, bf16, f16};
 
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {

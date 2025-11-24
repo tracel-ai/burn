@@ -1,6 +1,6 @@
 use core::mem::size_of;
 
-use crate::{bf16, f16};
+use burn_std::{bf16, f16};
 
 /// A generic trait for converting a value to a number.
 /// Adapted from num_traits::ToPrimitive to support [bool].
@@ -518,7 +518,7 @@ impl ToElement for bf16 {
 }
 
 #[cfg(feature = "cubecl")]
-impl ToElement for cubecl::flex32 {
+impl ToElement for burn_std::flex32 {
     #[inline]
     fn to_i64(&self) -> i64 {
         Self::to_f32(*self).to_i64()
@@ -561,7 +561,7 @@ impl ToElement for cubecl::flex32 {
     }
     #[inline]
     fn to_bool(&self) -> bool {
-        *self != cubecl::flex32::from_f32(0.0)
+        *self != burn_std::flex32::from_f32(0.0)
     }
 }
 
