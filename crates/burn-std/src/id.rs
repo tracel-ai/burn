@@ -1,3 +1,4 @@
+//! # Unique Identifiers
 use crate::rand::gen_random;
 
 /// Simple ID generator.

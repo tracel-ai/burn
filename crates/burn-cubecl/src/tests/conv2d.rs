@@ -105,8 +105,8 @@ mod tests {
                 .tensor(),
         );
 
-        into_data_sync::<TestRuntime, Float>(output).assert_approx_eq::<FT>(
-            &into_data_sync::<TestRuntime, Float>(output_ref),
+        into_data_sync::<TestRuntime>(output).assert_approx_eq::<FT>(
+            &into_data_sync::<TestRuntime>(output_ref),
             Tolerance::default(),
         );
     }
