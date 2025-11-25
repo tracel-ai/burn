@@ -236,18 +236,18 @@ impl FusedMatmulSelector {
                 multi_rows,
                 tile_matmul,
             } => match multi_rows {
-                false => format!("simple_{tile_matmul:?}").to_lowercase(),
-                true => format!("simple_multirows_{tile_matmul:?}").to_lowercase(),
+                false => format!("simple_{tile_matmul}"),
+                true => format!("simple_multirows_{tile_matmul}"),
             },
             FusedMatmulSelector::DoubleBuffering {
                 specialized,
                 tile_matmul,
             } => match specialized {
-                false => format!("double_buffering_{tile_matmul:?}").to_lowercase(),
-                true => format!("double_buffering_specialized_{tile_matmul:?}").to_lowercase(),
+                false => format!("double_buffering_{tile_matmul}"),
+                true => format!("double_buffering_specialized_{tile_matmul}"),
             },
             FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
-                format!("double_buffering_ordered_{tile_matmul:?}").to_lowercase()
+                format!("double_buffering_ordered_{tile_matmul}").to_lowercase()
             }
             FusedMatmulSelector::SimpleVecMat => "simple_vec_mat".into(),
             FusedMatmulSelector::DoubleVecMat => "double_buffering_vec_mat".into(),
