@@ -44,13 +44,11 @@ pub fn conv_transpose2d<R: CubeRuntime>(
     strategy: ConvTranspose2dStrategy,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
     match strategy {
-        ConvTranspose2dStrategy::Direct => {
-            conv_transpose2d_direct::<R>(input, weight, bias, options)
-        }
+        ConvTranspose2dStrategy::Direct => conv_transpose2d_direct(input, weight, bias, options),
         #[cfg(feature = "autotune")]
         ConvTranspose2dStrategy::Autotune => {
-            Ok(conv_transpose2d_autotune::<R>(input, weight, bias, options))
+            Ok(conv_transpose2d_autotune(input, weight, bias, options))
         }
-        ConvTranspose2dStrategy::Gemm => conv_transpose2d_col2im::<R>(input, weight, bias, options),
+        ConvTranspose2dStrategy::Gemm => conv_transpose2d_col2im(input, weight, bias, options),
     }
 }

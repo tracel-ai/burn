@@ -32,7 +32,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        TunableSet::new(create_key::<R>, input_gen::<R>)
+        TunableSet::new(create_key, input_gen)
             .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
             .with(Tunable::new(tune_reduce::<R, BT>))
             .with(Tunable::new(tune_reduce_plane::<R, BT>))
@@ -40,7 +40,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&arg.info.client, &arg.info.device),
+        &CubeTuneId::new(&arg.info.client, &arg.info.device),
         &arg.info.client.clone(),
         tunables,
         TuneInput::new(context, arg),

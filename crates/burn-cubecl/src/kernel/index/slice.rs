@@ -44,13 +44,13 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
             tensor.dtype,
         )
     } else {
-        let output = empty_device_dtype::<R>(
+        let output = empty_device_dtype(
             tensor.client.clone(),
             tensor.device.clone(),
             dims,
             tensor.dtype,
         );
-        slice_on_output::<R>(tensor, output, indices)
+        slice_on_output(tensor, output, indices)
     }
 }
 
@@ -105,7 +105,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        slice_kernel::launch_unchecked::<R>(
+        slice_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -180,14 +180,14 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             .enumerate()
             .map(|(i, slice)| slice.to_range(tensor.shape[i]))
             .collect();
-        return slice::<R>(tensor, &simple_ranges);
+        return slice(tensor, &simple_ranges);
     }
 
     // Calculate output shape
     let shape_output = tensor.shape.clone().slice(slices).unwrap();
 
     // Create output tensor
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         shape_output.clone(),
@@ -218,7 +218,7 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     let cube_count = calculate_cube_count_elemwise(shape_output.num_elements(), cube_dim);
 
     unsafe {
-        slice_with_steps_kernel::launch_unchecked::<R>(
+        slice_with_steps_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,

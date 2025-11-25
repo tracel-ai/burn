@@ -37,7 +37,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     out: Option<CubeTensor<R>>,
     out_dtype: DType,
 ) -> CubeTensor<R> {
-    let output = out.unwrap_or_else(|| init_matmul_output::<R>(&lhs, &rhs, out_dtype));
+    let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
     let client = lhs.client.clone();
 
@@ -165,8 +165,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 )
         }
 
-        let set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-            .with(Tunable::new(naive::<R>).group(&unit, |key| {
+        let set = TunableSet::new(create_key, matmul_input_gen)
+            .with(Tunable::new(naive).group(&unit, |key| {
                 if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
                     || matches!(key.analysis.kind, MatmulKind::InnerProduct)
                 {
@@ -177,7 +177,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }))
             .with(
                 Tunable::new(|lhs, rhs, out| {
-                    simple_unit::<R>(lhs, rhs, out, TileSizeSelection::MinTileSize)
+                    simple_unit(lhs, rhs, out, TileSizeSelection::MinTileSize)
                 })
                 .group(&unit, |key| {
                     if matches!(key.analysis.kind, MatmulKind::General)
@@ -191,13 +191,13 @@ pub fn matmul_autotune<R: CubeRuntime>(
             )
             .with(
                 Tunable::new(|lhs, rhs, out| {
-                    simple_unit::<R>(lhs, rhs, out, TileSizeSelection::MaxTileSize)
+                    simple_unit(lhs, rhs, out, TileSizeSelection::MaxTileSize)
                 })
                 .group(&unit, |_| PRIORITY_MAX),
             )
-            .with(Tunable::new(simple_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(double_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(double_unit::<R>).group(&unit, |key| {
+            .with(Tunable::new(simple_vec_mat).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_vec_mat).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_unit).group(&unit, |key| {
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
             }));
 
@@ -206,7 +206,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
+        &CubeTuneId::new(&lhs.client, &lhs.device),
         &client,
         tunables,
         (lhs, rhs, output.clone()),
@@ -220,7 +220,7 @@ fn create_key<R: CubeRuntime>(
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,
 ) -> MatmulAutotuneKey {
-    MatmulAutotuneKey::generate::<R>(
+    MatmulAutotuneKey::generate(
         &lhs.client,
         &lhs.shape.dims,
         &rhs.shape.dims,
@@ -254,7 +254,7 @@ fn matmul_simple<R: CubeRuntime, const MMA: bool>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Cyclic,
             selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
@@ -275,7 +275,7 @@ fn matmul_simple_tma<R: CubeRuntime, const MMA: bool>(
     if lhs.qparams.is_some() || rhs.qparams.is_some() {
         return Err("TMA can't be used for quantization right now".into());
     }
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Tma,
             selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
@@ -293,7 +293,7 @@ fn matmul_simple_multi_rows<R: CubeRuntime, const MMA: bool>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Cyclic,
             selection: Selection::Inferred(SimpleArgs { multi_rows: true }),
@@ -311,7 +311,7 @@ fn matmul_double_buffering<R: CubeRuntime, const MMA: bool>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::DoubleBuffering {
             read_strategy: PartialReadingStrategy::Tilewise,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
@@ -332,7 +332,7 @@ fn matmul_double_buffering_tma<R: CubeRuntime, const MMA: bool>(
     if lhs.qparams.is_some() || rhs.qparams.is_some() {
         return Err("TMA can't be used for quantization right now".into());
     }
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::DoubleBuffering {
             read_strategy: PartialReadingStrategy::Tma,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
@@ -350,7 +350,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, const MMA: bool>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::DoubleBuffering {
             read_strategy: PartialReadingStrategy::Tilewise,
             selection: Selection::Inferred(DoubleBufferingArgs { specialized: true }),
@@ -371,7 +371,7 @@ fn matmul_specialized_tma<R: CubeRuntime, const MMA: bool>(
     if lhs.qparams.is_some() || rhs.qparams.is_some() {
         return Err("TMA can't be used for quantization right now".into());
     }
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::Specialized {
             selection: Selection::Inferred(()),
             tile_kind: tile_kind(MMA),
@@ -392,7 +392,7 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, const MMA: bool>(
         DType::F16 | DType::BF16 => 8,
         _ => 4,
     };
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::OrderedDoubleBuffering {
             selection: Selection::Inferred(OrderedSelectionArgs {
                 partition_k: Some(2),
@@ -414,7 +414,7 @@ fn simple_unit<R: CubeRuntime>(
     out: CubeTensor<R>,
     tile_size: TileSizeSelection,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs { tile_size })),
         lhs,
         rhs,
@@ -428,7 +428,7 @@ fn double_unit<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(&Strategy::DoubleUnit(Default::default()), lhs, rhs, out)
+    launch_matmul(&Strategy::DoubleUnit(Default::default()), lhs, rhs, out)
         .map_err(|err| format!("{err:?}"))
 }
 
@@ -437,7 +437,7 @@ fn simple_vec_mat<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::SimpleVecMat(Selection::Inferred(())),
         lhs,
         rhs,
@@ -451,7 +451,7 @@ fn double_vec_mat<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(
+    launch_matmul(
         &Strategy::DoubleVecMat(Selection::Inferred(())),
         lhs,
         rhs,
@@ -465,5 +465,5 @@ fn naive<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    launch_matmul::<R>(&Strategy::Naive, lhs, rhs, out).map_err(|err| format!("{err:?}"))
+    launch_matmul(&Strategy::Naive, lhs, rhs, out).map_err(|err| format!("{err:?}"))
 }
