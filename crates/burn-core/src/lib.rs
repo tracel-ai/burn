@@ -8,9 +8,12 @@
 #[macro_use]
 extern crate derive_new;
 
-/// Re-export serde for proc macros.
+/// Re-export serde and macros.
+/// - Supports burn proc macros,
+/// - Permits clients to define serializable structs with the pinned serde.
+#[allow(unused_imports)]
 #[macro_use]
-pub use serde;
+pub extern crate serde;
 
 /// The configuration module.
 pub mod config;
