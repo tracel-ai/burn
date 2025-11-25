@@ -20,8 +20,14 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
 
     let tune_set = TUNER.init(|| {
         TunableSet::new(create_key::<R>, create_transpose2d_input::<R>)
-            .with(Tunable::new(conv_transpose2d_direct::<R>))
-            .with(Tunable::new(conv_transpose2d_col2im::<R>))
+            .with(Tunable::new(
+                "conv_transpose2d_direct",
+                conv_transpose2d_direct::<R>,
+            ))
+            .with(Tunable::new(
+                "conv_transpose2d_col2im",
+                conv_transpose2d_col2im::<R>,
+            ))
     });
 
     TUNER.execute(

@@ -117,56 +117,72 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 }
             });
 
-            set.with(Tunable::new(matmul_simple::<R, MMA>).group(tile, |_| PRIORITY_MAX))
-                .with(
-                    Tunable::new(matmul_simple_tma::<R, MMA>)
-                        .group(tile, tma_priority)
-                        .group(&odd, tma_priority),
+            set.with(
+                Tunable::new("matmul_simple", matmul_simple::<R, MMA>)
+                    .group(tile, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new("matmul_simple_tma", matmul_simple_tma::<R, MMA>)
+                    .group(tile, tma_priority)
+                    .group(&odd, tma_priority),
+            )
+            .with(
+                Tunable::new(
+                    "matmul_simple_multi_rows",
+                    matmul_simple_multi_rows::<R, MMA>,
                 )
-                .with(
-                    Tunable::new(matmul_simple_multi_rows::<R, MMA>).group(tile, |_| PRIORITY_MAX),
+                .group(tile, |_| PRIORITY_MAX),
+            )
+            .with(
+                // Ordered should be tried most of the time.
+                Tunable::new(
+                    "matmul_ordered_double_buffering",
+                    matmul_ordered_double_buffering::<R, MMA>,
                 )
-                .with(
-                    // Ordered should be tried most of the time.
-                    Tunable::new(matmul_ordered_double_buffering::<R, MMA>)
-                        .group(tile, |_| PRIORITY_MAX),
+                .group(tile, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(
+                    "matmul_double_buffering_specialized",
+                    matmul_double_buffering_specialized::<R, MMA>,
                 )
-                .with(
-                    Tunable::new(matmul_double_buffering_specialized::<R, MMA>)
-                        .group(tile, |key| {
-                            double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                        })
-                        .group(&odd, |_| PRIORITY_MAX),
+                .group(tile, |key| {
+                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                })
+                .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new("matmul_double_buffering", matmul_double_buffering::<R, MMA>)
+                    .group(tile, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(
+                    "matmul_double_buffering_tma",
+                    matmul_double_buffering_tma::<R, MMA>,
                 )
-                .with(
-                    Tunable::new(matmul_double_buffering::<R, MMA>)
-                        .group(tile, |key| {
-                            double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                        })
-                        .group(&odd, |_| PRIORITY_MAX),
-                )
-                .with(
-                    Tunable::new(matmul_double_buffering_tma::<R, MMA>)
-                        // TMA is often the best double buffering algorithm when available
-                        .group(tile, |key| {
-                            double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
-                                .min(tma_priority(key))
-                        })
-                        .group(&odd, tma_priority),
-                )
-                .with(
-                    Tunable::new(matmul_specialized_tma::<R, MMA>)
-                        // TMA is often the best double buffering algorithm when available
-                        .group(tile, |key| {
-                            double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
-                                .min(tma_priority(key))
-                        })
-                        .group(&odd, tma_priority),
-                )
+                // TMA is often the best double buffering algorithm when available
+                .group(tile, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
+                        .min(tma_priority(key))
+                })
+                .group(&odd, tma_priority),
+            )
+            .with(
+                Tunable::new("matmul_specialized_tma", matmul_specialized_tma::<R, MMA>)
+                    // TMA is often the best double buffering algorithm when available
+                    .group(tile, |key| {
+                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
+                            .min(tma_priority(key))
+                    })
+                    .group(&odd, tma_priority),
+            )
         }
 
         let set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-            .with(Tunable::new(naive::<R>).group(&unit, |key| {
+            .with(Tunable::new("naive", naive::<R>).group(&unit, |key| {
                 if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
                     || matches!(key.analysis.kind, MatmulKind::InnerProduct)
                 {
@@ -176,7 +192,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 }
             }))
             .with(
-                Tunable::new(|lhs, rhs, out| {
+                Tunable::new("simple_unit", |lhs, rhs, out| {
                     simple_unit::<R>(lhs, rhs, out, TileSizeSelection::MinTileSize)
                 })
                 .group(&unit, |key| {
@@ -190,16 +206,22 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 }),
             )
             .with(
-                Tunable::new(|lhs, rhs, out| {
+                Tunable::new("simple_unit_max", |lhs, rhs, out| {
                     simple_unit::<R>(lhs, rhs, out, TileSizeSelection::MaxTileSize)
                 })
                 .group(&unit, |_| PRIORITY_MAX),
             )
-            .with(Tunable::new(simple_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(double_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(double_unit::<R>).group(&unit, |key| {
-                double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
-            }));
+            .with(
+                Tunable::new("simple_vec_mat", simple_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new("double_vec_mat", double_vec_mat::<R>).group(&unit, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new("double_unit", double_unit::<R>).group(&unit, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                }),
+            );
 
         let set = accelerated::<R, false>(set, &cmma);
         accelerated::<R, true>(set, &mma)

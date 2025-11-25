@@ -1,12 +1,8 @@
-use super::optimization::{MatmulOptimizationTuneArg, MatmulVariantSelection};
+use super::optimization::MatmulOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
-    optim::matmul::optimization::{
-        DoubleBuffering, DoubleBufferingMma, DoubleUnit, DoubleVecMat, Ordered, OrderedMma, Simple,
-        SimpleMma, SimpleMultiRows, SimpleMultiRowsMma, SimpleUnit, SimpleVecMat, Specialized,
-        SpecializedMma,
-    },
+    optim::matmul::FusedMatmulSelector,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
@@ -14,6 +10,7 @@ use burn_tensor::DType;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     matmul::{
+        AcceleratedTileKind,
         components::MatmulKind,
         tune_key::{
             MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
@@ -103,53 +100,87 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         }
 
-        TunableSet::new(create_key::<R>, input_gen::<R>)
-            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
-            .with(Tunable::new(tune_fused::<R, BT, SimpleUnit>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(tune_fused::<R, BT, SimpleVecMat>).group(&unit, |_| PRIORITY_MAX))
-            .with(Tunable::new(tune_fused::<R, BT, DoubleVecMat>).group(&unit, |_| PRIORITY_MAX))
-            .with(
-                Tunable::new(tune_fused::<R, BT, DoubleUnit>).group(&unit, |key| {
-                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>).with(Tunable::new(
+            "fused_matmul_fallback",
+            tune_fallback::<R, BT>,
+        )); // First one should always work.
+
+        // Unit matmuls
+        for (selector, double_buf) in [
+            (FusedMatmulSelector::SimpleUnit, false),
+            (FusedMatmulSelector::DoubleUnit, true),
+            (FusedMatmulSelector::SimpleVecMat, false),
+            (FusedMatmulSelector::DoubleVecMat, true),
+        ] {
+            set = set.with(
+                Tunable::new(selector.name(), move |input| {
+                    tune_fused::<R, BT>(input, selector)
+                })
+                .group(&unit, move |key| match double_buf {
+                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                    false => PRIORITY_MAX,
                 }),
-            )
-            .with(Tunable::new(tune_fused::<R, BT, Simple>).group(&cmma, |_| PRIORITY_MAX))
-            .with(Tunable::new(tune_fused::<R, BT, SimpleMma>).group(&mma, |_| PRIORITY_MAX))
-            .with(Tunable::new(tune_fused::<R, BT, SimpleMultiRows>).group(&cmma, |_| PRIORITY_MAX))
-            .with(
-                Tunable::new(tune_fused::<R, BT, SimpleMultiRowsMma>).group(&mma, |_| PRIORITY_MAX),
-            )
-            // Ordered should be tried most of the time.
-            .with(Tunable::new(tune_fused::<R, BT, Ordered>).group(&cmma, |_| PRIORITY_MAX))
-            .with(Tunable::new(tune_fused::<R, BT, OrderedMma>).group(&mma, |_| PRIORITY_MAX))
-            .with(
-                Tunable::new(tune_fused::<R, BT, Specialized>)
-                    .group(&cmma, |key| {
-                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
-                    })
-                    .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(tune_fused::<R, BT, SpecializedMma>)
-                    .group(&cmma, |key| {
-                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
-                    })
-                    .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(tune_fused::<R, BT, DoubleBuffering>)
-                    .group(&cmma, |key| {
-                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                    })
-                    .group(&odd, |_| PRIORITY_MAX),
-            )
-            .with(
-                Tunable::new(tune_fused::<R, BT, DoubleBufferingMma>)
-                    .group(&cmma, |key| {
-                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                    })
-                    .group(&odd, |_| PRIORITY_MAX),
-            )
+            );
+        }
+
+        for (tile, group) in [
+            (AcceleratedTileKind::Cmma, &cmma),
+            (AcceleratedTileKind::Mma, &mma),
+        ] {
+            for (selector, double_buf, extra_group) in [
+                (
+                    FusedMatmulSelector::Simple {
+                        multi_rows: false,
+                        tile_matmul: tile,
+                    },
+                    false,
+                    None,
+                ),
+                (
+                    FusedMatmulSelector::Simple {
+                        multi_rows: true,
+                        tile_matmul: tile,
+                    },
+                    false,
+                    None,
+                ),
+                (
+                    FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul: tile },
+                    true,
+                    None,
+                ),
+                (
+                    FusedMatmulSelector::DoubleBuffering {
+                        specialized: false,
+                        tile_matmul: tile,
+                    },
+                    true,
+                    None,
+                ),
+                (
+                    FusedMatmulSelector::DoubleBuffering {
+                        specialized: true,
+                        tile_matmul: tile,
+                    },
+                    true,
+                    Some(&odd),
+                ),
+            ] {
+                let mut tunable = Tunable::new(selector.name(), move |input| {
+                    tune_fused::<R, BT>(input, selector)
+                })
+                .group(group, move |key| match double_buf {
+                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                    false => PRIORITY_MAX,
+                });
+                if let Some(group) = extra_group {
+                    tunable = tunable.group(group, |_| PRIORITY_MAX);
+                }
+                set = set.with(tunable);
+            }
+        }
+
+        set
     });
 
     TUNER.execute(
@@ -169,18 +200,9 @@ pub(crate) fn create_key<R: Runtime>(
         TuneContext::Fork(_) => panic!("Not supported when generating key"),
     };
 
-    let lhs = context
-        .tensors
-        .get(&opt.info.variants.simple.op.lhs.id)
-        .unwrap();
-    let rhs = context
-        .tensors
-        .get(&opt.info.variants.simple.op.rhs.id)
-        .unwrap();
-    let out = context
-        .tensors
-        .get(&opt.info.variants.simple.op.out.id)
-        .unwrap();
+    let lhs = context.tensors.get(&opt.info.matmul.op.lhs.id).unwrap();
+    let rhs = context.tensors.get(&opt.info.matmul.op.rhs.id).unwrap();
+    let out = context.tensors.get(&opt.info.matmul.op.out.id).unwrap();
 
     let lhs_strides = context
         .handles
@@ -220,21 +242,23 @@ fn input_gen<R: Runtime>(
     input.clone()
 }
 
-fn tune_fused<R: Runtime, BT: CubeElement, S: MatmulVariantSelection>(
+fn tune_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
+    selector: FusedMatmulSelector,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => match optimization.execute_fused::<BT, S>(context) {
+        TuneContext::Original(context) => match optimization.execute_fused::<BT>(context, selector)
+        {
             Ok(out) => Ok(out),
             Err(_) => {
                 return tune_fallback::<R, BT>(input);
             }
         },
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused::<BT, S>(&mut context_owned.as_context())
+            optimization.execute_fused::<BT>(&mut context_owned.as_context(), selector)
         }
     }
     .map_err(|e| format!("{e:?}"))

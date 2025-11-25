@@ -33,10 +33,10 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
 
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R>, input_gen::<R>)
-            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
-            .with(Tunable::new(tune_reduce::<R, BT>))
-            .with(Tunable::new(tune_reduce_plane::<R, BT>))
-            .with(Tunable::new(tune_reduce_shared_plane::<R, BT>))
+            .with(Tunable::new("tune_name", tune_fallback::<R, BT>)) // First one should always work.
+            .with(Tunable::new("tune_name", tune_reduce::<R, BT>))
+            .with(Tunable::new("tune_name", tune_reduce_plane::<R, BT>))
+            .with(Tunable::new("tune_name", tune_reduce_shared_plane::<R, BT>))
     });
 
     TUNER.execute(
