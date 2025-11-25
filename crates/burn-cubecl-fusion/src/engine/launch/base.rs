@@ -50,9 +50,12 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
             &mut plan,
         );
 
-        match LaunchPlanExecutor::new(&self.trace.resources, &self.trace.blocks)
-            .execute::<_, BT>(client, self.runner, context, plan)
-        {
+        match LaunchPlanExecutor::new(&self.trace.resources, &self.trace.blocks).execute::<_, BT>(
+            client,
+            self.runner,
+            context,
+            plan,
+        ) {
             Err(err) => {
                 self.rollback(context, err.handles_input, err.handles_output);
                 Err(err.error)

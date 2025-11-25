@@ -393,9 +393,7 @@ where
             Distribution::Uniform(low, high) => {
                 random_uniform(shape, device, low.elem(), high.elem(), dtype)
             }
-            Distribution::Bernoulli(prob) => {
-                random_bernoulli(shape, device, prob as f32, dtype)
-            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob as f32, dtype),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem(), std.elem(), dtype)
             }
