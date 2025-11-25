@@ -123,7 +123,8 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             );
         }
 
-        for (tile, group) in [
+        // Accelerated matmuls
+        for (tile_matmul, group) in [
             (AcceleratedTileKind::Cmma, &cmma),
             (AcceleratedTileKind::Mma, &mma),
         ] {
@@ -131,7 +132,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                 (
                     FusedMatmulSelector::Simple {
                         multi_rows: false,
-                        tile_matmul: tile,
+                        tile_matmul,
                     },
                     false,
                     None,
@@ -139,20 +140,20 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                 (
                     FusedMatmulSelector::Simple {
                         multi_rows: true,
-                        tile_matmul: tile,
+                        tile_matmul,
                     },
                     false,
                     None,
                 ),
                 (
-                    FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul: tile },
+                    FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul },
                     true,
                     None,
                 ),
                 (
                     FusedMatmulSelector::DoubleBuffering {
                         specialized: false,
-                        tile_matmul: tile,
+                        tile_matmul,
                     },
                     true,
                     None,
@@ -160,7 +161,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                 (
                     FusedMatmulSelector::DoubleBuffering {
                         specialized: true,
-                        tile_matmul: tile,
+                        tile_matmul,
                     },
                     true,
                     Some(&odd),

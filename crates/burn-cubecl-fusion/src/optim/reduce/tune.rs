@@ -6,7 +6,7 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    reduce::tune_key::ReduceAutotuneKey,
+    reduce::{ReduceStrategy, tune_key::ReduceAutotuneKey},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
@@ -32,11 +32,27 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        TunableSet::new(create_key::<R>, input_gen::<R>)
-            .with(Tunable::new("tune_name", tune_fallback::<R, BT>)) // First one should always work.
-            .with(Tunable::new("tune_name", tune_reduce::<R, BT>))
-            .with(Tunable::new("tune_name", tune_reduce_plane::<R, BT>))
-            .with(Tunable::new("tune_name", tune_reduce_shared_plane::<R, BT>))
+        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>).with(Tunable::new(
+            "fused_reduce_fallback",
+            tune_fallback::<R, BT>,
+        )); // First one should always work.
+
+        for use_planes in [true, false] {
+            for shared in [true, false] {
+                let mut name = "reduce".to_string();
+                if use_planes {
+                    name += "_plane";
+                }
+                if shared {
+                    name += "_shared";
+                }
+
+                set = set.with(Tunable::new(name, move |input| {
+                    tune_reduce::<R, BT>(input, ReduceStrategy { use_planes, shared })
+                }));
+            }
+        }
+        set
     });
 
     TUNER.execute(
@@ -87,46 +103,15 @@ fn input_gen<R: Runtime>(
 
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
+    strategy: ReduceStrategy,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_fused::<BT>(context, strategy),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
-fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
-) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce_plane::<BT>(context),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce_plane::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
-fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
-) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => {
-            optimization.execute_fused_reduce_shared_plane::<BT>(context)
-        }
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce_shared_plane::<BT>(&mut context_owned.as_context())
+            optimization.execute_fused::<BT>(&mut context_owned.as_context(), strategy)
         }
     }
     .map_err(|e| format!("{e:?}"))

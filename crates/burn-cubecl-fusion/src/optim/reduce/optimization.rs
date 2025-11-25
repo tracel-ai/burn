@@ -43,8 +43,6 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) len: usize,
     pub(crate) len_read: usize,
     pub(crate) reduce: FusedReduce,
-    pub(crate) reduce_plane: FusedReduce,
-    pub(crate) reduce_shared_plane: FusedReduce,
 }
 
 pub(crate) struct ReduceOptimizationTuneArg<R: Runtime> {
@@ -74,8 +72,6 @@ pub struct ReduceOptimizationState {
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
-    pub(crate) reduce_plane: FusedReduce,
-    pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
     len_read: usize,
 }
@@ -100,18 +96,10 @@ pub struct FusedReduce {
     inst: ReduceInstruction,
 }
 
-impl FusedReduce {
-    pub fn with_strategy(&self, strategy: ReduceStrategy) -> Self {
-        Self {
-            input: self.input.clone(),
-            output: self.output.clone(),
-            acc: self.acc,
-            axis: self.axis,
-            op: self.op.clone(),
-            strategy,
-            inst: self.inst,
-        }
-    }
+#[derive(new)]
+pub struct FusedReduceLaunch<'a> {
+    reduce: &'a FusedReduce,
+    strategy: ReduceStrategy,
 }
 
 #[derive(Debug)]
@@ -122,27 +110,13 @@ pub enum FusedReduceError {
 }
 
 impl<R: Runtime> ReduceOptimizationTuneArg<R> {
-    pub fn execute_fused_reduce<BT: CubeElement>(
+    pub fn execute_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
+        strategy: ReduceStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce);
-        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
-    }
-
-    pub fn execute_fused_reduce_plane<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce_plane);
-        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
-    }
-
-    pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &self.info.reduce_shared_plane);
+        let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
+        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
         launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
@@ -194,15 +168,6 @@ impl<R: Runtime> ReduceOptimization<R> {
         len_read: usize,
         reduce: FusedReduce,
     ) -> Self {
-        let reduce_plane = reduce.with_strategy(ReduceStrategy {
-            use_planes: true,
-            shared: false,
-        });
-        let reduce_shared_plane = reduce.with_strategy(ReduceStrategy {
-            use_planes: true,
-            shared: true,
-        });
-
         let info = ReduceOptimizationInfo {
             trace,
             trace_read_fallback,
@@ -212,8 +177,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             len,
             len_read,
             reduce,
-            reduce_plane,
-            reduce_shared_plane,
         };
 
         Self {
@@ -252,8 +215,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             trace_read_fallback: self.info.trace_read_fallback.clone(),
             trace_write_fallback: self.info.trace_write_fallback.clone(),
             reduce: self.info.reduce.clone(),
-            reduce_plane: self.info.reduce_plane.clone(),
-            reduce_shared_plane: self.info.reduce_shared_plane.clone(),
             len: self.info.len,
             len_read: self.info.len_read,
         }
@@ -267,8 +228,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
             reduce: state.reduce,
-            reduce_plane: state.reduce_plane,
-            reduce_shared_plane: state.reduce_shared_plane,
             len: state.len,
             len_read: state.len_read,
             client,
@@ -286,9 +245,9 @@ impl<R: Runtime> ReduceOptimization<R> {
     }
 }
 
-impl<R: Runtime> Vectorization<R> for FusedReduce {}
+impl<R: Runtime> Vectorization<R> for FusedReduceLaunch<'_> {}
 
-impl<R: Runtime> TraceRunner<R> for FusedReduce {
+impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     type Error = FusedReduceError;
 
     fn run<'a>(
@@ -313,10 +272,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
         let reduce_count: u32 = shape
             .iter()
             .enumerate()
-            .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
+            .map(|(i, s)| if i == self.reduce.axis { 1 } else { *s as u32 })
             .product();
 
-        let line_mode = match self.axis == config_read.rank as usize - 1 {
+        let line_mode = match self.reduce.axis == config_read.rank as usize - 1 {
             true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
@@ -350,20 +309,20 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             client,
             inputs,
             outputs,
-            axis: self.axis as u32,
+            axis: self.reduce.axis as u32,
             strategy: &strategy,
             config_reduce,
             config_fuse_read: config_read.clone(),
             config_fuse_write: config_write.clone(),
-            input: self.input.clone(),
-            output: self.output.clone(),
+            input: self.reduce.input.clone(),
+            output: self.reduce.output.clone(),
         };
         launch_reduce_mixed_precision::<R>(
             kwargs,
-            self.inst,
-            self.op.input.dtype,
-            self.op.out.dtype,
-            DType::from(self.acc.into_elem()),
+            self.reduce.inst,
+            self.reduce.op.input.dtype,
+            self.reduce.op.out.dtype,
+            DType::from(self.reduce.acc.into_elem()),
         );
 
         Ok(())
