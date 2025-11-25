@@ -42,7 +42,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         const PRIORITY_MEDIUM: i8 = 1;
         const PRIORITY_MIN: i8 = 0;
 
-        let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+        let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new("cmma", |key| {
             if matches!(
                 key.matmul_key.analysis.kind,
                 MatmulKind::General
@@ -55,7 +55,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         });
 
-        let mma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+        let mma = TuneGroup::<FusedMatmulAutotuneKey>::new("mma", |key| {
             if matches!(
                 key.matmul_key.analysis.kind,
                 // General is usually bad, but I think shapes like 16x8196 would be classed as
@@ -69,7 +69,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         });
 
-        let odd = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+        let odd = TuneGroup::<FusedMatmulAutotuneKey>::new("odd", |key| {
             if key.matmul_key.definition.lhs_pow2_factor == 0
                 || key.matmul_key.definition.rhs_pow2_factor == 0
             {
@@ -79,7 +79,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         });
 
-        let unit = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+        let unit = TuneGroup::<FusedMatmulAutotuneKey>::new("unit", |key| {
             if !matches!(key.matmul_key.analysis.kind, MatmulKind::General)
                 || matches!(
                     key.matmul_key.analysis.scale_global,

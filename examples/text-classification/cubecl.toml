@@ -4,14 +4,14 @@ logger = { log = "info", level = "disabled" }
 [autotune]
 level = "balanced"
 cache = "target"
-logger = { log = "info", level = "minimal" }
+logger = { file = "/tmp/autotune.log", level = "disabled" }
 
 [compilation]
 logger = { level = "disabled" }
 cache = "target"
 
 [memory]
-logger = { level = "basic", file = "/tmp/memory.log" }
+logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [streaming]

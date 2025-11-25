@@ -50,7 +50,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         const PRIORITY_MIN: i8 = 0;
         const PRIORITY_NEVER: i8 = -1;
 
-        let cmma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+        let cmma = TuneGroup::<MatmulAutotuneKey>::new("cmma", |key| {
             if matches!(
                 key.analysis.kind,
                 MatmulKind::General
@@ -63,7 +63,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
-        let mma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+        let mma = TuneGroup::<MatmulAutotuneKey>::new("mma", |key| {
             if matches!(
                 key.analysis.kind,
                 // General is usually bad, but I think shapes like 16x8196 would be classed as
@@ -77,7 +77,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
-        let unit = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+        let unit = TuneGroup::<MatmulAutotuneKey>::new("unit", |key| {
             if !matches!(key.analysis.kind, MatmulKind::General)
                 || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
             {
@@ -87,7 +87,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
-        let tma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+        let tma = TuneGroup::<MatmulAutotuneKey>::new("tma", |key| {
             // For large matmul, we set the max priority to TMA kernels, higher than any other
             // matmuls, since they are the best kernels no matter what.
             let priority_max = if matches!(key.analysis.kind, MatmulKind::General)
