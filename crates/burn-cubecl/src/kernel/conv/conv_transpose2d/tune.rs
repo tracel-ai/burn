@@ -31,7 +31,7 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.client, &input.device),
+        &CubeTuneId::new(&input.client, &input.device),
         &client,
         tune_set,
         (input, weights, bias, options),

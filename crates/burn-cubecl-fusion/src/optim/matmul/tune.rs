@@ -185,7 +185,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&optimization.info.client, &optimization.info.device),
+        &CubeTuneId::new(&optimization.info.client, &optimization.info.device),
         &optimization.info.client.clone(),
         tunables,
         TuneInput::new(context, optimization),
@@ -214,7 +214,7 @@ pub(crate) fn create_key<R: Runtime>(
         .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
         .strides;
 
-    let key = MatmulAutotuneKey::generate::<R>(
+    let key = MatmulAutotuneKey::generate(
         &opt.info.client,
         &lhs.shape.dims,
         &rhs.shape.dims,

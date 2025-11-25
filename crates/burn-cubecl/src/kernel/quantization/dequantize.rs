@@ -13,7 +13,7 @@ where
         _ => return tensor,
     };
 
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         tensor.shape.clone(),
@@ -21,7 +21,7 @@ where
     );
     let (values, params) = tensor.quantized_handles().unwrap();
 
-    cubecl_quant::dequantize::launch_ref::<R>(
+    cubecl_quant::dequantize::launch_ref(
         &values.client,
         &values.as_handle_ref(),
         &output.as_handle_ref(),

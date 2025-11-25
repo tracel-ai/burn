@@ -62,7 +62,7 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
     let out_layout = linear_layout(&output, line_size);
 
     unsafe {
-        interpolate_nearest_kernel::launch_unchecked::<R>(
+        interpolate_nearest_kernel::launch_unchecked(
             &client,
             cube_count,
             cube_dim,

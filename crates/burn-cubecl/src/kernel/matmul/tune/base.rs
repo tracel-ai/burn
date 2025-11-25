@@ -37,7 +37,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     out: Option<CubeTensor<R>>,
     out_dtype: DType,
 ) -> CubeTensor<R> {
-    let output = out.unwrap_or_else(|| init_matmul_output::<R>(&lhs, &rhs, out_dtype));
+    let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
     let client = lhs.client.clone();
 
@@ -303,7 +303,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
+        &CubeTuneId::new(&lhs.client, &lhs.device),
         &client,
         tunables,
         (lhs, rhs, output.clone()),
@@ -317,7 +317,7 @@ fn create_key<R: CubeRuntime>(
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,
 ) -> MatmulAutotuneKey {
-    MatmulAutotuneKey::generate::<R>(
+    MatmulAutotuneKey::generate(
         &lhs.client,
         &lhs.shape.dims,
         &rhs.shape.dims,

@@ -85,7 +85,7 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        interpolate_nearest_backward_kernel::launch_unchecked::<R>(
+        interpolate_nearest_backward_kernel::launch_unchecked(
             &out_grad.client,
             cube_count,
             cube_dim,

@@ -157,7 +157,7 @@ fn im2col<R: CubeRuntime, const N: usize>(
     let k = in_channels * kernel_shape.iter().product::<usize>();
     let m = batch_size * out_shape.iter().product::<usize>();
     let shape_col = Shape::new([m, k]);
-    let columns = empty_device_optimized_dtype::<R>(
+    let columns = empty_device_optimized_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_col,
@@ -197,7 +197,7 @@ fn im2col<R: CubeRuntime, const N: usize>(
     }
 
     unsafe {
-        im2col_kernel::launch_unchecked::<R>(
+        im2col_kernel::launch_unchecked(
             &input.client,
             cube_count,
             cube_dim,
@@ -268,7 +268,7 @@ pub fn conv_im2col<R: CubeRuntime, const N: usize>(
     let mut out = if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
         let shape_out = Shape::new([runs, batches_per_run, out_shape_prod, out_channels]);
-        let out = empty_device_dtype::<R>(
+        let out = empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             shape_out,
@@ -277,8 +277,8 @@ pub fn conv_im2col<R: CubeRuntime, const N: usize>(
         let input = split_dim(input, 0, &[runs, batches_per_run]);
 
         for run in 0..runs {
-            let input = index::<R>(input.clone(), run);
-            let mut out_slice = index::<R>(out.clone(), run);
+            let input = index(input.clone(), run);
+            let mut out_slice = index(out.clone(), run);
             out_slice.shape.dims = vec![shape_m, shape_n];
             out_slice.strides = vec![out_slice.strides[1], out_slice.strides[2]];
             execute::<R, N>(
@@ -292,7 +292,7 @@ pub fn conv_im2col<R: CubeRuntime, const N: usize>(
         let merged = merge_dims(out, 0, 1);
         split_dim(merged, 1, &out_shape)
     } else {
-        let mut out = empty_device_dtype::<R>(
+        let mut out = empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             matmul_shape,
@@ -346,7 +346,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
         return Err(ConvSetupError::Unknown);
     }
 
-    let input = reshape_input::<R>(input); // [(NHW), C] : [M, K]
+    let input = reshape_input(input); // [(NHW), C] : [M, K]
     let dtype = input.dtype;
 
     // Efficient permutation that takes the stride required for TMA into account
@@ -367,7 +367,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
     // efficient for matmul, and allows skipping a contiguous kernel
     let weight = swap_dims(weight, 0, 1); // [K, N]
 
-    let out = matmul::<R>(input, weight, None, MatmulStrategy::default(), dtype)?; // [M, N]
+    let out = matmul(input, weight, None, MatmulStrategy::default(), dtype)?; // [M, N]
 
     // Skip reshape to avoid potential `into_contiguous`. We're only splitting dims so it's safe.
     let mut out = split_dim(out, 0, &split_m); // [N, H, W, C]
@@ -394,8 +394,8 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
 
     if !is_spatial_contiguous(&input.shape, &input.strides) {
         let contiguous =
-            into_contiguous_pitched::<R>(&input.client, &input.as_handle_ref(), dtype.into());
-        input = from_handle::<R>(&input.client, &input.device, contiguous, dtype);
+            into_contiguous_pitched(&input.client, &input.as_handle_ref(), dtype.into());
+        input = from_handle(&input.client, &input.device, contiguous, dtype);
     }
     input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
     input.strides = vec![input.strides[dim_c - 1], input.strides[dim_c]];
@@ -420,7 +420,7 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 }
 
 fn from_handle<R: CubeRuntime>(
-    client: &ComputeClient<R::Server>,
+    client: &ComputeClient<R>,
     device: &R::Device,
     handle: TensorHandle<R>,
     dtype: DType,
@@ -457,7 +457,7 @@ fn execute<R: CubeRuntime, const N: usize>(
     let weight = swap_dims(weight, 0, 1); // Col-major [K, N]
 
     let dtype = columns.dtype;
-    matmul::<R>(
+    matmul(
         columns,
         weight,
         Some(out.clone()),

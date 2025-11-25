@@ -56,7 +56,7 @@ pub struct MatmulOptimizationTuneArg<R: Runtime> {
 pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R::Server>,
+    pub(crate) client: ComputeClient<R>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) matmul: FusedMatmul,
@@ -106,7 +106,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
             handles: Default::default(),
         };
         #[cfg(not(feature = "autotune-checks"))]
-        let output = TuneOutput::UnChecked(core::marker::PhantomData::<R>);
+        let output = TuneOutput::UnChecked(core::marker::PhantomData);
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
@@ -137,7 +137,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn new(
         trace: FuseTrace,
         trace_fallback: FuseTrace,
-        client: ComputeClient<R::Server>,
+        client: ComputeClient<R>,
         device: R::Device,
         len: usize,
         matmul: FusedMatmul,
@@ -353,7 +353,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R::Server>,
+        client: &'a ComputeClient<R>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
@@ -364,7 +364,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
             self.matmul.out.precision().into_type(),
         );
         let dtypes = MatmulElems::from_globals(lhs, rhs, out);
-        self.matmul_fused::<R>(client, inputs, outputs, &configs[0], dtypes)
+        self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)
     }
 }
 
@@ -386,7 +386,7 @@ macro_rules! with_tile_kind {
 impl FusedMatmulLaunch<'_> {
     fn matmul_fused<'a, R: Runtime>(
         &'a self,
-        client: &'a ComputeClient<R::Server>,
+        client: &'a ComputeClient<R>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a FuseBlockConfig,
@@ -644,7 +644,7 @@ impl FusedMatmulLaunch<'_> {
 }
 
 fn launch_inner_fix_dtype<'a, R: Runtime, A: Algorithm>(
-    client: &ComputeClient<R::Server>,
+    client: &ComputeClient<R>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
@@ -661,7 +661,7 @@ fn launch_inner_fix_dtype<'a, R: Runtime, A: Algorithm>(
         if plane_dim == 0 { 32 } else { plane_dim }
     };
 
-    let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
+    let plane_size = fix_plane_dim(A::select_plane_dim(client));
 
     launch_kernel_virtual::<FusedMatmulArgs, R, A>(
         client,

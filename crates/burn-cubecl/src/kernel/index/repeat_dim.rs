@@ -38,7 +38,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
     let shape = input.shape.clone().repeat(dim, times).unwrap();
 
     // Create output handle
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         shape,
@@ -49,7 +49,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        repeat_dim_kernel::launch_unchecked::<R>(
+        repeat_dim_kernel::launch_unchecked(
             &input.client,
             cube_count,
             cube_dim,

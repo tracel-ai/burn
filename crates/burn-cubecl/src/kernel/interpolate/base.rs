@@ -27,7 +27,7 @@ pub fn interpolate<R: CubeRuntime>(
     let input = permute_nchw_to_nhwc(input);
 
     let shape_out = Shape::new([batch_size, out_height, out_width, channels]);
-    let output = empty_device_optimized_dtype::<R>(
+    let output = empty_device_optimized_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out,
@@ -35,9 +35,9 @@ pub fn interpolate<R: CubeRuntime>(
     );
 
     let output = match options.mode {
-        InterpolateMode::Nearest => interpolate_nearest_launch::<R>(input, output),
-        InterpolateMode::Bilinear => interpolate_bilinear_launch::<R>(input, output),
-        InterpolateMode::Bicubic => interpolate_bicubic_launch::<R>(input, output),
+        InterpolateMode::Nearest => interpolate_nearest_launch(input, output),
+        InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output),
+        InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output),
     };
 
     permute_nhwc_to_nchw(output)
@@ -56,7 +56,7 @@ pub fn interpolate_backward<R: CubeRuntime>(
     let out_grad = permute_nchw_to_nhwc(out_grad);
 
     let output_shape = input.shape.clone();
-    let output = empty_device_optimized_dtype::<R>(
+    let output = empty_device_optimized_dtype(
         input.client.clone(),
         input.device.clone(),
         output_shape,
@@ -64,7 +64,7 @@ pub fn interpolate_backward<R: CubeRuntime>(
     );
 
     let output = match options.mode {
-        InterpolateMode::Nearest => interpolate_nearest_backward_launch::<R>(out_grad, output),
+        InterpolateMode::Nearest => interpolate_nearest_backward_launch(out_grad, output),
         InterpolateMode::Bilinear => {
             panic!("bilinear interpolation backward is not supported by JIT backend")
         }

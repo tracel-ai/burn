@@ -37,7 +37,7 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.client, &input.device),
+        &CubeTuneId::new(&input.client, &input.device),
         &client,
         tunables,
         (input, weights, bias, options),

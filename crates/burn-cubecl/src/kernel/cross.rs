@@ -68,7 +68,7 @@ pub(crate) fn cross<R: CubeRuntime>(
     // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
     let line_size = 1;
 
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         lhs.client.clone(),
         lhs.device.clone(),
         output_shape.clone(),
@@ -82,7 +82,7 @@ pub(crate) fn cross<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(num_vectors, cube_dim);
 
     unsafe {
-        cross_kernel::launch_unchecked::<R>(
+        cross_kernel::launch_unchecked(
             &lhs.client,
             cube_count,
             cube_dim,

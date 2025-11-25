@@ -138,13 +138,13 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     let dilation = 1;
 
     let out_shape = Shape::new([batches, height, width, channels]);
-    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), out_shape, x.dtype);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        avg_pool2d_backward_kernel::launch_unchecked::<R>(
+        avg_pool2d_backward_kernel::launch_unchecked(
             &grad.client,
             cube_count,
             cube_dim,

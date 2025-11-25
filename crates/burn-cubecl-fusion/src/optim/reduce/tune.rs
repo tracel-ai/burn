@@ -60,7 +60,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&arg.info.client, &arg.info.device),
+        &CubeTuneId::new(&arg.info.client, &arg.info.device),
         &arg.info.client.clone(),
         tunables,
         TuneInput::new(context, arg),

@@ -94,14 +94,14 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     let line_size = max_line_size(&out_grad);
 
     let out_shape = Shape::new([batches, height, width, channels]);
-    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), out_shape, x.dtype);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
     let num_elems = output.shape.num_elements();
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    adaptive_avg_pool2d_backward_direct::launch::<R>(
+    adaptive_avg_pool2d_backward_direct::launch(
         &x.client,
         cube_count,
         cube_dim,
