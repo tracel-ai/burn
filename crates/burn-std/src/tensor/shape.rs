@@ -131,7 +131,7 @@ impl Shape {
     /// # Examples
     ///
     /// ```rust
-    /// use burn_shape::{Shape, Slice, s};
+    /// use burn_std::{Shape, Slice, s};
     ///
     /// fn example() {
     ///     // 1D slicing

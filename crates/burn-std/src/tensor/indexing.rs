@@ -6,7 +6,7 @@ use core::fmt::Debug;
 ///
 /// # Example
 /// ```rust
-/// use burn_shape::{AsIndex, canonicalize_dim};
+/// use burn_std::{AsIndex, canonicalize_dim};
 ///
 /// fn example<I: AsIndex, const D: usize>(dim: I, size: usize) -> isize {
 ///    let dim: usize = canonicalize_dim(dim, D, false);

@@ -10,6 +10,8 @@ pub use quantization::*;
 pub use shape::*;
 pub use slice::*;
 
+use alloc::{vec, vec::Vec};
+
 /// Check if the current tensor is contiguous.
 ///
 /// A tensor is considered contiguous if its elements are stored in memory
