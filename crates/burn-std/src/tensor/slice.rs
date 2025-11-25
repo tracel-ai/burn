@@ -7,9 +7,6 @@ use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
 
-use super::Shape;
-use super::indexing::AsIndex;
-
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
 /// and arrays of slices (from `s![.., ..]` or `[0..5, 1..3]`).
