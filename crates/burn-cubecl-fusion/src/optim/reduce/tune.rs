@@ -32,14 +32,17 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>).with(Tunable::new(
+        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
+
+        // First one should always work.
+        set = set.with(Tunable::new(
             "fused_reduce_fallback",
             tune_fallback::<R, BT>,
-        )); // First one should always work.
+        ));
 
-        for use_planes in [true, false] {
-            for shared in [true, false] {
-                let mut name = "reduce".to_string();
+        for shared in [true, false] {
+            for use_planes in [true, false] {
+                let mut name = "fused_reduce".to_string();
                 if use_planes {
                     name += "_plane";
                 }
@@ -52,6 +55,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
                 }));
             }
         }
+
         set
     });
 
