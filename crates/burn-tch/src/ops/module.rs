@@ -10,13 +10,43 @@ use burn_tensor::{
 
 impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
     fn embedding(weights: TchTensor, indices: TchTensor) -> TchTensor {
-        let tensor = tch::Tensor::embedding(&weights.tensor, &indices.tensor, -1, false, false);
+        // Workaround for MPS "Placeholder storage has not been allocated" error.
+        // See: https://github.com/pytorch/pytorch/issues/123995
+        // MPS uses lazy allocation and the embedding operation (which uses index_select)
+        // can fail if the tensors haven't been materialized yet.
+        // We work around this by performing the embedding on CPU and transferring back to MPS.
+        if matches!(weights.tensor.device(), tch::Device::Mps) {
+            let cpu_weights = weights.tensor.to(tch::Device::Cpu);
+            let cpu_indices = indices.tensor.to(tch::Device::Cpu);
+            let result = tch::Tensor::embedding(&cpu_weights, &cpu_indices, -1, false, false)
+                .to(tch::Device::Mps);
+            return TchTensor::new(result);
+        }
 
+        let tensor = tch::Tensor::embedding(&weights.tensor, &indices.tensor, -1, false, false);
         TchTensor::new(tensor)
     }
 
     fn embedding_backward(weights: TchTensor, output: TchTensor, indices: TchTensor) -> TchTensor {
         let [n_embedding, _d_model] = weights.shape().dims();
+
+        // Workaround for MPS "Placeholder storage has not been allocated" error.
+        // See: https://github.com/pytorch/pytorch/issues/123995
+        if matches!(output.tensor.device(), tch::Device::Mps) {
+            let cpu_output = output.tensor.to(tch::Device::Cpu);
+            let cpu_indices = indices.tensor.to(tch::Device::Cpu);
+            let result = tch::Tensor::embedding_backward(
+                &cpu_output,
+                &cpu_indices,
+                n_embedding as i64,
+                -1,
+                false,
+                false,
+            )
+            .to(tch::Device::Mps);
+            return TchTensor::new(result);
+        }
+
         let tensor = tch::Tensor::embedding_backward(
             &output.tensor,
             &indices.tensor,
