@@ -117,8 +117,10 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
         let num_loop_carried_outputs = num_loop_vars;
         let num_scan_outputs = self.outputs.len() - num_loop_carried_outputs;
 
-        // Initialize loop-carried dependency variables
-        let mut init_stmts = quote! {};
+        // Get body input and output variable names
+        // Body inputs: [iter_num, cond_in, v_in...]
+        let iter_name = arg_to_ident(&self.config.body.inputs[0]);
+        let cond_in_name = arg_to_ident(&self.config.body.inputs[1]);
         let loop_var_names: Vec<_> = self
             .config
             .body
@@ -128,12 +130,30 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
             .map(arg_to_ident)
             .collect();
 
+        // Body outputs: [cond_out, v_out..., scan_outputs...]
+        let cond_out_name = arg_to_ident(&self.config.body.outputs[0]);
+        let loop_out_names: Vec<_> = self
+            .config
+            .body
+            .outputs
+            .iter()
+            .skip(1)
+            .take(num_loop_carried_outputs)
+            .map(arg_to_ident)
+            .collect();
+
+        // Initialize loop-carried dependency variables
+        // Only mark as mutable if the variable is actually updated (different name from output)
+        let mut init_stmts = quote! {};
         for (idx, initial_arg) in v_initial_args.iter().enumerate() {
             let var_name = &loop_var_names[idx];
             let init_value = arg_to_ident(initial_arg);
 
-            // Variables that are updated by the loop need to be mutable
-            if idx < num_loop_carried_outputs {
+            // Check if this variable will be updated (different name means it gets assigned)
+            let needs_mut = idx < num_loop_carried_outputs
+                && loop_out_names.get(idx).is_some_and(|out| var_name != out);
+
+            if needs_mut {
                 init_stmts.extend(quote! {
                     let mut #var_name = #init_value;
                 });
@@ -143,11 +163,6 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
                 });
             }
         }
-
-        // Initialize iteration counter and condition
-        // Body inputs: [iter_num, cond_in, v_in...]
-        let iter_name = arg_to_ident(&self.config.body.inputs[0]);
-        let cond_in_name = arg_to_ident(&self.config.body.inputs[1]);
 
         // Initialize scan output collectors if any
         let mut scan_init = quote! {};
@@ -178,26 +193,24 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
         let body_code =
             generate_loop_body_code::<PS>(&self.config.body, scope.scope(), node_position);
 
-        // Extract body outputs
-        let cond_out_name = arg_to_ident(&self.config.body.outputs[0]);
-        let loop_out_names: Vec<_> = self
-            .config
-            .body
-            .outputs
-            .iter()
-            .skip(1)
-            .take(num_loop_carried_outputs)
-            .map(arg_to_ident)
-            .collect();
-
         // Update loop-carried variables after iteration
+        // Skip self-assignments when body passes through a value unchanged (same name)
         let mut update_vars = quote! {};
         for (idx, out_name) in loop_out_names.iter().enumerate() {
             let var_name = &loop_var_names[idx];
-            update_vars.extend(quote! {
-                #var_name = #out_name;
-            });
+            if var_name != out_name {
+                update_vars.extend(quote! {
+                    #var_name = #out_name;
+                });
+            }
         }
+
+        // Update condition from body output (skip if same name)
+        let update_cond = if cond_in_name != cond_out_name {
+            quote! { #cond_in_name = #cond_out_name; }
+        } else {
+            quote! {}
+        };
 
         // Collect scan outputs - handle scalar vs tensor
         let mut collect_scans = quote! {};
@@ -279,6 +292,14 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
             quote! { (#(#output_values),*) }
         };
 
+        // cond_in only needs mut if it's actually updated (different name from output)
+        let cond_needs_mut = cond_in_name != cond_out_name;
+        let cond_init = if cond_needs_mut {
+            quote! { let mut #cond_in_name = #init_cond; }
+        } else {
+            quote! { let #cond_in_name = #init_cond; }
+        };
+
         quote! {
             #[allow(unused_variables, unused_assignments)]
             #output_decls = {
@@ -286,7 +307,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
                 #scan_init
 
                 let mut #iter_name = 0_i64;
-                let mut #cond_in_name = #init_cond;
+                #cond_init
 
                 while #cond_in_name && #iter_name < #max_count {
                     #body_code
@@ -298,7 +319,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
                     #update_vars
 
                     // Update condition from body output for next iteration
-                    #cond_in_name = #cond_out_name;
+                    #update_cond
                     #iter_name += 1;
                 }
 
