@@ -196,7 +196,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     options: DeformConvOptions<2>,
     out_dims: (usize, usize),
     kernel_dims: (usize, usize),
-) -> CubeTensor<R> {
+) -> Result<CubeTensor<R>, LaunchError> {
     let client = input.client.clone();
     let device = input.device.clone();
     let dtype = input.dtype;
@@ -262,9 +262,9 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         Some(kernel_width as u32),
         use_mask,
         dtype.into(),
-    );
+    )?;
 
-    output
+    Ok(output)
 }
 
 pub(crate) fn deform_conv2d<R: CubeRuntime>(
@@ -301,7 +301,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
     );
     let out_dims = (out_h, out_w);
 
-    let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
+    let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w))?;
 
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;

@@ -58,6 +58,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             ScalarArg::new(dim as u32),
             output.dtype.into(),
         )
+        .expect("Kernel to never fail");
     };
 
     output

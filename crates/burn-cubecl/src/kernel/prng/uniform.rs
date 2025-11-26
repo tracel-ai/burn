@@ -19,7 +19,8 @@ pub fn random_uniform<R: CubeRuntime>(
         upper_bound,
         output_handle,
         dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }

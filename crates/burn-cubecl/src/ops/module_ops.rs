@@ -95,7 +95,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_transpose3d(x, weight, bias, options)
+        kernel::conv::conv_transpose3d(x, weight, bias, options).expect("Kernel to never fail")
     }
 
     fn avg_pool2d(
