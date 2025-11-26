@@ -110,7 +110,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
 
     if has_non_unit_step {
         // Use slice_assign_with_steps
-        return slice_assign_with_steps::<R>(tensor, indices, value);
+        return slice_assign_with_steps(tensor, indices, value);
     }
 
     let client = tensor.client.clone();
@@ -169,7 +169,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         calculate_cube_count_elemwise(value.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        slice_assign_kernel::launch_unchecked::<R>(
+        slice_assign_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -227,7 +227,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(value.shape.num_elements(), cube_dim);
 
     unsafe {
-        slice_assign_with_steps_kernel::launch_unchecked::<R>(
+        slice_assign_with_steps_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,

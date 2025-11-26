@@ -32,26 +32,30 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
     /// Launches the fuse kernel on the given device modifying the context.
     pub fn launch<BT: CubeElement>(
         &self,
-        client: &ComputeClient<R::Server>,
+        client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
-        let mut plan = LaunchPlan::<R>::new(&self.trace.blocks);
+        let mut plan = LaunchPlan::new(&self.trace.blocks);
 
-        InputPlanner::<R>::new(&self.trace.resources, &self.trace.blocks).run(context, &mut plan);
+        InputPlanner::new(&self.trace.resources, &self.trace.blocks).run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.trace.resources, &self.trace.blocks)
+        OutputPlanner::new(&self.trace.resources, &self.trace.blocks)
             .run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.trace.resources, &self.trace.blocks).run(
+        VectorizationPlanner::new(&self.trace.resources, &self.trace.blocks).run(
+            client,
             self.runner,
             context,
             &mut plan,
         );
 
-        match LaunchPlanExecutor::<R>::new(&self.trace.resources, &self.trace.blocks)
-            .execute::<_, BT>(client, self.runner, context, plan)
-        {
+        match LaunchPlanExecutor::new(&self.trace.resources, &self.trace.blocks).execute::<_, BT>(
+            client,
+            self.runner,
+            context,
+            plan,
+        ) {
             Err(err) => {
                 self.rollback(context, err.handles_input, err.handles_output);
                 Err(err.error)

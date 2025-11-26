@@ -115,7 +115,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                 VectorizationHandle::QuantValues(..) => panic!("Can't be swapped"),
                 VectorizationHandle::QuantParams => panic!("Can't be swapped"),
             };
-            let val = vectorization_swapped::<R>(
+            let val = vectorization_swapped(
                 handle,
                 s,
                 o,

@@ -107,13 +107,13 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     };
 
     let out_shape = Shape::new([batches, height, width, channels]);
-    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), out_shape, x.dtype);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        max_pool2d_with_indices_backward_kernel::launch_unchecked::<R>(
+        max_pool2d_with_indices_backward_kernel::launch_unchecked(
             &x.client,
             cube_count,
             cube_dim,

@@ -38,7 +38,7 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R::Server>,
+    pub(crate) client: ComputeClient<R>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) len_read: usize,
@@ -188,7 +188,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
-        client: ComputeClient<R::Server>,
+        client: ComputeClient<R>,
         device: R::Device,
         len: usize,
         len_read: usize,
@@ -293,14 +293,14 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R::Server>,
+        client: &'a ComputeClient<R>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
         self.strategy
-            .validate::<R>(client)
+            .validate(client)
             .map_err(FusedReduceError::LaunchError)?;
 
         let strategy = self.strategy;
@@ -358,7 +358,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             input: self.input.clone(),
             output: self.output.clone(),
         };
-        launch_reduce_mixed_precision::<R>(
+        launch_reduce_mixed_precision(
             kwargs,
             self.inst,
             self.op.input.dtype,
@@ -371,7 +371,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
 }
 
 struct ReduceKwArgs<'a, 'b, Run: Runtime> {
-    client: &'b ComputeClient<Run::Server>,
+    client: &'b ComputeClient<Run>,
     inputs: GlobalArgsLaunch<'a, Run>,
     outputs: GlobalArgsLaunch<'a, Run>,
     axis: u32,

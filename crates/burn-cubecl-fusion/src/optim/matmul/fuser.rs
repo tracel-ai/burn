@@ -121,7 +121,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
         let trace = self.fuser.finish();
         let trace_fallback = self.fuser_fallback.finish();
 
-        let matmul = MatmulOptimization::<R>::new(
+        let matmul = MatmulOptimization::new(
             trace,
             trace_fallback,
             client,

@@ -28,7 +28,7 @@ pub fn full<R: CubeRuntime, E: CubeElement>(
 
 /// Creates a tensor filled with `value`
 pub fn full_client<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     shape: Shape,
     device: R::Device,
     value: E,
@@ -39,13 +39,13 @@ pub fn full_client<R: CubeRuntime, E: CubeElement>(
 
 /// Creates a tensor filled with `value`
 pub fn full_device_dtype<R: CubeRuntime>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     shape: Shape,
     device: R::Device,
     value: InputScalar,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let empty = empty_device_dtype::<R>(client, device, shape, dtype);
+    let empty = empty_device_dtype(client, device, shape, dtype);
 
     #[cube(launch_unchecked)]
     pub fn full_kernel<C: Numeric>(
@@ -67,7 +67,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     unsafe {
-        full_kernel::launch_unchecked::<R>(
+        full_kernel::launch_unchecked(
             &empty.client,
             cube_count,
             cube_dim,
@@ -83,47 +83,47 @@ pub fn full_device_dtype<R: CubeRuntime>(
 /// Creates a tensor filled with zeros
 pub fn zeros<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> CubeTensor<R> {
     let client = R::client(&device);
-    full_device_dtype::<R>(client, shape, device, InputScalar::new(0u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(0u32, dtype), dtype)
 }
 
 /// Creates a tensor filled with ones
 pub fn ones<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> CubeTensor<R> {
     let client = R::client(&device);
-    full_device_dtype::<R>(client, shape, device, InputScalar::new(1u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
 /// Creates a tensor filled with zeros
 pub fn zeros_client<R: CubeRuntime>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    full_device_dtype::<R>(client, shape, device, InputScalar::new(0u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(0u32, dtype), dtype)
 }
 
 /// Creates a tensor filled with ones
 pub fn ones_client<R: CubeRuntime>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    full_device_dtype::<R>(client, shape, device, InputScalar::new(1u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
 /// Creates a tensor with uninitialized memory
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    empty_device_dtype::<R>(client, device, shape, E::dtype())
+    empty_device_dtype(client, device, shape, E::dtype())
 }
 
 /// Creates a tensor with uninitialized memory with the specific dtype.
 pub fn empty_device_dtype<R: CubeRuntime>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
     dtype: DType,
@@ -135,7 +135,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -146,7 +146,7 @@ pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device_optimized_dtype<R: CubeRuntime>(
-    client: ComputeClient<R::Server>,
+    client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
     dtype: DType,
@@ -411,7 +411,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
     let client = input.client.clone();
     let device = input.device.clone();
 
-    let output = empty_device_dtype::<R>(client.clone(), device, input.shape.clone(), input.dtype);
+    let output = empty_device_dtype(client.clone(), device, input.shape.clone(), input.dtype);
 
     let num_elems = output.shape.num_elements();
     let cube_dim = CubeDim::default();

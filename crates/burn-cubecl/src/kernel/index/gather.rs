@@ -53,7 +53,7 @@ pub(crate) fn gather<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let shape_output = indices.shape.clone();
     let total_elem = shape_output.num_elements();
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         shape_output,
@@ -63,7 +63,7 @@ pub(crate) fn gather<R: CubeRuntime>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
     unsafe {
-        gather_kernel::launch_unchecked::<R>(
+        gather_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,

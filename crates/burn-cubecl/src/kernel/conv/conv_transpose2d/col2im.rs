@@ -70,7 +70,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
         let runs = batch_size / batches_per_run;
 
         let im_shape = Shape::new([runs, batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device_dtype::<R>(
+        let image = empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             im_shape,
@@ -82,12 +82,12 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
         let input_shape_run = Shape::new([batches_per_run, input_channels, input_h, input_w]);
 
         for run in 0..runs {
-            let input = index::<R>(input.clone(), run);
+            let input = index(input.clone(), run);
             let input = reshape(input, input_shape_run.clone());
             let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-            let image_slice = index::<R>(image.clone(), run);
+            let image_slice = index(image.clone(), run);
             let image_slice = reshape(image_slice, im_shape);
-            execute::<R>(
+            execute(
                 input,
                 weight.clone(),
                 bias.clone(),
@@ -103,13 +103,13 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
         ))
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device_dtype::<R>(
+        let image = empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             im_shape,
             input.dtype,
         );
-        execute::<R>(
+        execute(
             input,
             weight,
             bias,
@@ -128,7 +128,7 @@ pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTens
     for dim in tensor.shape[1..].iter() {
         indices.push(0..*dim);
     }
-    let mut tensor = slice::<R>(tensor, &indices);
+    let mut tensor = slice(tensor, &indices);
     tensor.shape.remove(0);
     tensor.strides.remove(0);
     tensor
@@ -154,10 +154,10 @@ fn execute<R: CubeRuntime>(
     let input = reshape(input, input_shape);
 
     let dtype = input.dtype;
-    let columns = matmul::<R>(weight, input, None, MatmulStrategy::default(), dtype)?;
+    let columns = matmul(weight, input, None, MatmulStrategy::default(), dtype)?;
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
-    col2im::<R>(
+    col2im(
         columns, bias, image, kernel_h, kernel_w, input_h, input_w, options,
     );
 
@@ -181,7 +181,7 @@ fn col2im<R: CubeRuntime>(
     let columns = into_contiguous(columns);
     let has_bias = bias.is_some();
     let bias = bias.map(into_contiguous).unwrap_or_else(|| {
-        empty_device_dtype::<R>(
+        empty_device_dtype(
             columns.client.clone(),
             columns.device.clone(),
             Shape::new([1]),
@@ -196,7 +196,7 @@ fn col2im<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        col2im_kernel::launch_unchecked::<R>(
+        col2im_kernel::launch_unchecked(
             &columns.client,
             cube_count,
             cube_dim,
