@@ -237,7 +237,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         let trace_write_fallback = self.fuser_write_fallback.finish();
         let fuse_reduce = self.reduce.as_ref().unwrap();
 
-        let reduce = ReduceOptimization::<R>::new(
+        let reduce = ReduceOptimization::new(
             trace,
             trace_read_fallback,
             trace_write_fallback,

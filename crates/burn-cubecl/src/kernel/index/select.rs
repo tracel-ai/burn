@@ -42,7 +42,7 @@ pub(crate) fn select<R: CubeRuntime>(
     let total_elem = shape_output.num_elements();
     let indices = into_contiguous(indices);
 
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         shape_output,
@@ -54,7 +54,7 @@ pub(crate) fn select<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
     unsafe {
-        select_kernel::launch_unchecked::<R>(
+        select_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,

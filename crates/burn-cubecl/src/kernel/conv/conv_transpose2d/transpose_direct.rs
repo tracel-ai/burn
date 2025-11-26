@@ -146,7 +146,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
 
     let shape_out = Shape::new([batch_size, out_channels * options.groups, out_0, out_1]);
 
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
@@ -160,7 +160,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         }
         None => {
             let shape = Shape::from([output.shape[0], 1, 1, 1]);
-            zeros_client::<R>(
+            zeros_client(
                 input.client.clone(),
                 input.device.clone(),
                 shape,
@@ -172,7 +172,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    conv_transpose2d_direct_kernel::launch::<R>(
+    conv_transpose2d_direct_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,

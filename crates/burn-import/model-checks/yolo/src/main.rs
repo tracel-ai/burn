@@ -40,6 +40,7 @@ fn get_model_display_name(model_name: &str) -> &str {
         "yolov8s" => "YOLOv8s",
         "yolov10n" => "YOLOv10n",
         "yolo11x" => "YOLO11x",
+        "yolo12x" => "YOLO12x",
         _ => model_name,
     }
 }
@@ -76,6 +77,7 @@ fn main() {
         eprintln!("  - yolov8s");
         eprintln!("  - yolov10n");
         eprintln!("  - yolo11x");
+        eprintln!("  - yolo12x");
         std::process::exit(1);
     }
 

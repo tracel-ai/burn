@@ -5,7 +5,7 @@ use std::path::Path;
 
 fn main() {
     // Supported models
-    let supported_models = vec!["yolov5s", "yolov8n", "yolov8s", "yolov10n", "yolo11x"];
+    let supported_models = vec!["yolov5s", "yolov8n", "yolov8s", "yolov10n", "yolo11x", "yolo12x"];
 
     // Get the model name from environment variable (required)
     let model_name = env::var("YOLO_MODEL").unwrap_or_else(|_| {

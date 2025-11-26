@@ -41,13 +41,13 @@ pub(crate) fn flip<R: CubeRuntime>(
     indices: &[usize],
     dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         tensor.shape.clone(),
         tensor.dtype,
     );
-    flip_on_output::<R>(tensor, output, indices, dtype_bool)
+    flip_on_output(tensor, output, indices, dtype_bool)
 }
 
 pub(crate) fn flip_on_output<R: CubeRuntime>(
@@ -72,7 +72,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        flip_kernel::launch_unchecked::<R>(
+        flip_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,

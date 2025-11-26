@@ -18,7 +18,7 @@ pub mod tensor;
 /// Elements for JIT backend
 pub mod element;
 
-use cubecl::{Runtime, compute::CubeTask};
+use cubecl::{CubeTask, Runtime};
 pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 
 mod backend;

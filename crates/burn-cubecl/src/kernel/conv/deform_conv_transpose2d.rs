@@ -50,9 +50,9 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
 
     let gradient_bias = bias.map(|bias| {
         let grad =
-            reduce_dim::<R>(out_grad.clone(), 0, Default::default(), ReduceFnConfig::Sum).unwrap();
-        let grad = reduce_dim::<R>(grad, 2, Default::default(), ReduceFnConfig::Sum).unwrap();
-        let grad = reduce_dim::<R>(grad, 3, Default::default(), ReduceFnConfig::Sum).unwrap();
+            reduce_dim(out_grad.clone(), 0, Default::default(), ReduceFnConfig::Sum).unwrap();
+        let grad = reduce_dim(grad, 2, Default::default(), ReduceFnConfig::Sum).unwrap();
+        let grad = reduce_dim(grad, 3, Default::default(), ReduceFnConfig::Sum).unwrap();
 
         reshape(grad, bias.shape)
     });
@@ -61,7 +61,7 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
     let offset = into_contiguous(offset);
     let mask = mask.map(|it| into_contiguous(it));
 
-    let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs::<R>(
+    let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs(
         input.clone(),
         weight.clone(),
         offset.clone(),
@@ -71,7 +71,7 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
         (kernel_h, kernel_w),
     )?;
 
-    let weight_grad = compute_weight_grad::<R>(
+    let weight_grad = compute_weight_grad(
         input,
         offset,
         mask,
@@ -108,7 +108,7 @@ fn compute_weight_grad<R: CubeRuntime>(
     let in_c_per_group = in_channels / groups;
     let out_c_per_group = out_channels / groups;
 
-    let columns = deform_im2col::<R>(input, offset, mask, options, out_dims, kernel_dims);
+    let columns = deform_im2col(input, offset, mask, options, out_dims, kernel_dims);
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
 
@@ -118,7 +118,7 @@ fn compute_weight_grad<R: CubeRuntime>(
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
     let columns = swap_dims(columns, 1, 2);
 
-    let grad_weight = matmul::<R>(out_grad, columns, None, MatmulStrategy::default(), dtype)?;
+    let grad_weight = matmul(out_grad, columns, None, MatmulStrategy::default(), dtype)?;
 
     Ok(reshape(
         grad_weight,
@@ -149,7 +149,7 @@ fn backward_gradient_inputs<R: CubeRuntime>(
     let col_shape_0 = in_c_per_group * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
     let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
-    let mut columns = empty_device_dtype::<R>(client, device, col_shape, weight.dtype);
+    let mut columns = empty_device_dtype(client, device, col_shape, weight.dtype);
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
@@ -159,11 +159,11 @@ fn backward_gradient_inputs<R: CubeRuntime>(
 
     for group in 0..groups {
         let dtype = weight.dtype;
-        let weight = swap_dims(index::<R>(weight.clone(), group), 0, 1);
-        let out_grad = index::<R>(out_grad.clone(), group);
-        let values = matmul::<R>(weight, out_grad, None, MatmulStrategy::default(), dtype)?;
+        let weight = swap_dims(index(weight.clone(), group), 0, 1);
+        let out_grad = index(out_grad.clone(), group);
+        let values = matmul(weight, out_grad, None, MatmulStrategy::default(), dtype)?;
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
-        columns = slice_assign::<R>(
+        columns = slice_assign(
             columns,
             &[
                 burn_tensor::Slice::from(group..group + 1),
@@ -177,7 +177,7 @@ fn backward_gradient_inputs<R: CubeRuntime>(
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
     let input_shape = image.shape.clone();
-    let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient::<R>(
+    let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient(
         columns.clone(),
         image,
         offset.clone(),
@@ -187,7 +187,7 @@ fn backward_gradient_inputs<R: CubeRuntime>(
     )?;
 
     let input_gradient =
-        compute_input_grad::<R>(columns, offset, mask, options, kernel_dims, input_shape);
+        compute_input_grad(columns, offset, mask, options, kernel_dims, input_shape);
 
     Ok((input_gradient, offset_gradient, mask_gradient))
 }
@@ -207,7 +207,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let use_mask = mask.is_some();
 
     let mask = mask.unwrap_or_else(|| {
-        ones_client::<R>(
+        ones_client(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -220,13 +220,13 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
         )
     });
 
-    let grad_offset = empty_device_dtype::<R>(
+    let grad_offset = empty_device_dtype(
         client.clone(),
         device.clone(),
         offset.shape.clone(),
         offset.dtype,
     );
-    let grad_mask = empty_device_dtype::<R>(
+    let grad_mask = empty_device_dtype(
         client.clone(),
         device.clone(),
         mask.shape.clone(),
@@ -239,7 +239,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
 
     let dtype: StorageType = image.dtype.into();
     unsafe {
-        deform_col2img_coord_kernel::launch_unchecked::<R>(
+        deform_col2img_coord_kernel::launch_unchecked(
             &image.client,
             cube_count,
             cube_dim,
@@ -487,15 +487,15 @@ fn compute_input_grad<R: CubeRuntime>(
     let shape = Shape::new([batch_size, in_channels, height, width]);
     let grad_in = match supports_fadd && supports_same_type {
         // Use type as is to save a cast
-        true => zeros_client::<R>(client.clone(), device.clone(), shape, columns.dtype),
+        true => zeros_client(client.clone(), device.clone(), shape, columns.dtype),
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
-        false => zeros_client::<R>(client.clone(), device.clone(), shape, DType::F32),
+        false => zeros_client(client.clone(), device.clone(), shape, DType::F32),
     };
     let grad_arg = grad_in.as_tensor_arg(1);
 
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_client::<R>(
+        ones_client(
             client.clone(),
             device.clone(),
             Shape::new([1, 1, 1, 1]),
@@ -546,7 +546,7 @@ fn compute_input_grad<R: CubeRuntime>(
     };
 
     if !supports_same_type || !supports_fadd {
-        cast::<R>(grad_in, dtype)
+        cast(grad_in, dtype)
     } else {
         grad_in
     }

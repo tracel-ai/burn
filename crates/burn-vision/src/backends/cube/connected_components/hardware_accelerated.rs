@@ -570,7 +570,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         };
         if stats_opt.compact_labels {
             let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.max_label);
-            let max_label = into_data_sync::<R, I>(max_label);
+            let max_label = into_data_sync::<R>(max_label);
             let max_label = ToElement::to_usize(&max_label.as_slice::<I>().unwrap()[0]);
             let sliced = kernel::slice::<R>(
                 stats.area.clone(),

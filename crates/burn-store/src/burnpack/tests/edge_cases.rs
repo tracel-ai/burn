@@ -34,7 +34,7 @@ fn test_maximum_metadata_size() {
 #[test]
 fn test_zero_size_tensor_shapes() {
     // Test various zero-dimensional shapes
-    let test_cases = vec![
+    let test_cases = [
         (vec![0], vec![]),        // Empty 1D
         (vec![0, 10], vec![]),    // Zero rows
         (vec![10, 0], vec![]),    // Zero columns
@@ -132,7 +132,7 @@ fn test_unicode_in_names_and_metadata() {
 #[test]
 fn test_all_supported_dtypes() {
     // Test all DTypes with their boundary values
-    let dtypes_with_data = vec![
+    let dtypes_with_data = [
         (
             DType::F32,
             [

@@ -17,7 +17,7 @@ pub(crate) fn mask_fill_auto<R: CubeRuntime>(
         MaskFillStrategy::Readonly
     };
 
-    super::mask_fill::<R>(tensor, mask, value, strategy, dtype_bool)
+    super::mask_fill(tensor, mask, value, strategy, dtype_bool)
 }
 
 /// Execute the mask where kernel.
@@ -35,5 +35,5 @@ pub(crate) fn mask_where_auto<R: CubeRuntime>(
         MaskWhereStrategy::Readonly
     };
 
-    super::mask_where::<R>(tensor, mask, value, strategy, dtype_bool)
+    super::mask_where(tensor, mask, value, strategy, dtype_bool)
 }

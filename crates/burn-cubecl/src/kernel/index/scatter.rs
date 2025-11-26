@@ -105,7 +105,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        scatter_kernel::launch_unchecked::<R>(
+        scatter_kernel::launch_unchecked(
             &indices.client.clone(),
             cube_count,
             cube_dim,

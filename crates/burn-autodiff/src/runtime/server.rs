@@ -71,6 +71,14 @@ impl AutodiffServer {
         gradients
     }
 
+    pub(crate) fn free_unused_roots(&mut self, mut on_free_graph: impl FnMut(&NodeId)) {
+        self.memory_management.free_unused_roots(|node_id| {
+            self.steps.remove(node_id);
+            self.actions_builder.remove(node_id);
+            on_free_graph(node_id);
+        });
+    }
+
     fn build_tape(
         &mut self,
         node: NodeId,
@@ -127,5 +135,9 @@ impl AutodiffServer {
         assert!(checkpointer.is_empty());
 
         grads
+    }
+
+    pub(crate) fn maybe_useful(&self) -> bool {
+        self.memory_management.maybe_useful()
     }
 }
