@@ -90,7 +90,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     pub fn run<BT: CubeElement>(
         mut self,
-        client: &ComputeClient<R::Server>,
+        client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -392,7 +392,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn normal_output<BT: CubeElement>(
         &mut self,
-        client: &ComputeClient<R::Server>,
+        client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -467,7 +467,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn reshaped_output<BT: CubeElement>(
         &mut self,
-        client: &ComputeClient<R::Server>,
+        client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -546,7 +546,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn swapped_dims_output<BT: CubeElement>(
         &mut self,
-        client: &ComputeClient<R::Server>,
+        client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,

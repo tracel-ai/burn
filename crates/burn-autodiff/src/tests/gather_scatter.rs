@@ -65,4 +65,40 @@ mod tests {
             .to_data()
             .assert_eq(&TensorData::from([[19., 19., 19.], [64., 64., 64.]]), false);
     }
+
+    #[test]
+    fn test_scatter_add_grad_partial_indices() {
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(
+            TensorData::from([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]),
+            &device,
+        )
+        .require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(
+            TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]),
+            &device,
+        )
+        .require_grad();
+        let values = TestAutodiffTensor::from_data(TensorData::from([[4.0, 5.0, 6.0]]), &device)
+            .require_grad();
+        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(
+            TensorData::from([[2, 1, 0]]),
+            &device,
+        );
+
+        let tensor_3 = tensor_1.clone().mul(tensor_2);
+        let tensor_4 = tensor_3.clone().scatter_add(1, indices, values.clone());
+
+        let grads = tensor_4.backward();
+
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = values.grad(&grads).unwrap();
+
+        grad_1
+            .to_data()
+            .assert_eq(&TensorData::from([[1., 2., 3., 4., 5., 6.]]), false);
+        grad_2
+            .to_data()
+            .assert_eq(&TensorData::from([[1., 1., 1.]]), false);
+    }
 }

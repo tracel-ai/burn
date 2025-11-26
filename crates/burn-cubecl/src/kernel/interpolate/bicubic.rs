@@ -161,7 +161,7 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
-    interpolate_bicubic_kernel::launch::<R>(
+    interpolate_bicubic_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,

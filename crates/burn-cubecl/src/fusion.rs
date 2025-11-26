@@ -130,15 +130,15 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            Box::new(ElementWiseFuser::<R>::new(
+            Box::new(ElementWiseFuser::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
-            Box::new(MatmulFuser::<R>::new(
+            Box::new(MatmulFuser::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
-            Box::new(ReduceFuser::<R>::new(
+            Box::new(ReduceFuser::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
@@ -161,7 +161,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
     type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
 
     fn cast_float(tensor: burn_tensor::ops::FloatTensor<Self>, dtype: DType) -> Self::Handle {
-        kernel::cast::<R>(tensor, dtype).into()
+        kernel::cast(tensor, dtype).into()
     }
 }
 

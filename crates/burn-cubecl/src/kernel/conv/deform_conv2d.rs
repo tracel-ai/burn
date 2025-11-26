@@ -210,10 +210,10 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         batch_size * out_height * out_width,
     ]);
 
-    let output = zeros_client::<R>(client.clone(), device.clone(), shape_out.clone(), dtype);
+    let output = zeros_client(client.clone(), device.clone(), shape_out.clone(), dtype);
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_client::<R>(
+        ones_client(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -230,7 +230,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_kernels, cube_dim);
 
-    deform_im2col_kernel::launch::<R>(
+    deform_im2col_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,
@@ -301,7 +301,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
     );
     let out_dims = (out_h, out_w);
 
-    let columns = deform_im2col::<R>(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
+    let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
 
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
@@ -310,7 +310,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
     let dtype = weight.dtype;
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let out = matmul::<R>(weight, columns, None, MatmulStrategy::default(), dtype)?;
+    let out = matmul(weight, columns, None, MatmulStrategy::default(), dtype)?;
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);

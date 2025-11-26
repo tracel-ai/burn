@@ -986,7 +986,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct Scatter;
 
         impl<B: Backend> Backward<B, 2> for Scatter {
-            type State = (usize, IntTensor<B>, Shape, Shape, B::Device);
+            type State = (usize, IntTensor<B>);
 
             fn backward(
                 self,
@@ -994,21 +994,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (dim, indices, shape_lhs, shape_rhs, device) = ops.state;
-                let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+                let (dim, indices) = ops.state;
+                let [_, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
                 binary::<B, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| {
-                        let zeros = B::float_zeros(shape_lhs, &device, grad.dtype().into());
-                        B::float_scatter_add(dim, grad, indices_4lhs.unwrap(), zeros)
-                    },
-                    |grad| {
-                        let zeros = B::float_zeros(shape_rhs, &device, grad.dtype().into());
-                        B::float_scatter_add(dim, zeros, indices_4rhs.unwrap(), grad)
-                    },
+                    |grad| grad,
+                    |grad| B::float_gather(dim, grad, indices_4rhs.unwrap()),
                 );
             }
         }
@@ -1019,13 +1013,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                (
-                    dim,
-                    indices.clone(),
-                    tensor.primitive.shape(),
-                    value.primitive.shape(),
-                    B::float_device(&value.primitive),
-                ),
+                (dim, indices.clone()),
                 B::float_scatter_add(dim, tensor.primitive, indices, value.primitive),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_add(

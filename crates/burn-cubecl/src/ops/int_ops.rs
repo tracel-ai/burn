@@ -33,11 +33,11 @@ where
 {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
-        super::empty::<R>(shape, device, dtype)
+        super::empty(shape, device, dtype)
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
-        super::into_data::<R>(tensor).await
+        super::into_data(tensor).await
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
@@ -49,7 +49,7 @@ where
             | DType::U64
             | DType::U32
             | DType::U16
-            | DType::U8 => super::from_data::<R>(data, device),
+            | DType::U8 => super::from_data(data, device),
             _ => unimplemented!("Unsupported dtype for `int_from_data`"),
         }
     }
@@ -78,10 +78,10 @@ where
                 .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
-            kernel::slice::<R>(tensor, &simple_ranges)
+            kernel::slice(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
-            kernel::slice_with_steps::<R>(tensor, slices)
+            kernel::slice_with_steps(tensor, slices)
         }
     }
 
@@ -90,12 +90,12 @@ where
         ranges: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::slice_assign::<R>(tensor, ranges, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
+        matmul(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
     fn int_mask_where(
@@ -103,7 +103,7 @@ where
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_where_auto::<R>(tensor, mask, value, BT::dtype())
+        kernel::mask_where_auto(tensor, mask, value, BT::dtype())
     }
 
     fn int_mask_fill(
@@ -112,7 +112,7 @@ where
         value: IntElem<Self>,
     ) -> IntTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::mask_fill_auto::<R>(tensor, mask, InputScalar::new(value, dtype), BT::dtype())
+        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), BT::dtype())
     }
 
     fn int_gather(
@@ -120,7 +120,7 @@ where
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::gather::<R>(dim, tensor, indices)
+        kernel::gather(dim, tensor, indices)
     }
 
     fn int_scatter_add(
@@ -129,7 +129,7 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::scatter::<R>(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value)
     }
 
     fn int_select(
@@ -137,7 +137,7 @@ where
         dim: usize,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::select::<R>(tensor, dim, indices)
+        kernel::select(tensor, dim, indices)
     }
 
     fn int_select_add(
@@ -146,107 +146,107 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::select_assign::<R>(tensor, dim, indices, value, false)
+        kernel::select_assign(tensor, dim, indices, value, false)
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal::<R>(lhs, rhs, BT::dtype())
+        kernel::equal(lhs, rhs, BT::dtype())
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater::<R>(lhs, rhs, BT::dtype())
+        kernel::greater(lhs, rhs, BT::dtype())
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal::<R>(lhs, rhs, BT::dtype())
+        kernel::greater_equal(lhs, rhs, BT::dtype())
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower::<R>(lhs, rhs, BT::dtype())
+        kernel::lower(lhs, rhs, BT::dtype())
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal::<R>(lhs, rhs, BT::dtype())
+        kernel::lower_equal(lhs, rhs, BT::dtype())
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::add::<R>(lhs, rhs)
+        numeric::add(lhs, rhs)
     }
 
     fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::add_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::add_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::sub::<R>(lhs, rhs)
+        numeric::sub(lhs, rhs)
     }
 
     fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::sub_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::mul::<R>(lhs, rhs)
+        numeric::mul(lhs, rhs)
     }
 
     fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::mul_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::div::<R>(lhs, rhs)
+        numeric::div(lhs, rhs)
     }
 
     fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::div_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::div_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::remainder::<R>(lhs, rhs)
+        numeric::remainder(lhs, rhs)
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::remainder_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
-        numeric::zeros::<R>(device.clone(), shape, dtype)
+        numeric::zeros(device.clone(), shape, dtype)
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
-        numeric::ones::<R>(device.clone(), shape, dtype)
+        numeric::ones(device.clone(), shape, dtype)
     }
 
     fn int_full(
@@ -257,7 +257,7 @@ where
     ) -> IntTensor<Self> {
         let dtype: DType = dtype.into();
         let client = R::client(device);
-        numeric::full_device_dtype::<R>(
+        numeric::full_device_dtype(
             client,
             shape,
             device.clone(),
@@ -267,71 +267,71 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::sum_fallback::<R>(tensor, Default::default()).unwrap()
+        reduce::sum_fallback(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Prod).unwrap()
     }
 
     fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Mean).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Mean).unwrap()
     }
 
     fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        numeric::cumsum::<R>(tensor, dim)
+        numeric::cumsum(tensor, dim)
     }
 
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        numeric::cumprod::<R>(tensor, dim)
+        numeric::cumprod(tensor, dim)
     }
 
     fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        numeric::cummin::<R>(tensor, dim)
+        numeric::cummin(tensor, dim)
     }
 
     fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        numeric::cummax::<R>(tensor, dim)
+        numeric::cummax(tensor, dim)
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::ArgMax).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::ArgMax).unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::ArgMin).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::ArgMin).unwrap()
     }
 
     fn int_clamp(
@@ -340,7 +340,7 @@ where
         max: IntElem<Self>,
     ) -> IntTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::clamp::<R>(
+        kernel::clamp(
             tensor,
             InputScalar::new(min, dtype),
             InputScalar::new(max, dtype),
@@ -368,7 +368,7 @@ where
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        kernel::cast::<R>(tensor, F::dtype())
+        kernel::cast(tensor, F::dtype())
     }
 
     fn int_swap_dims(mut tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
@@ -379,7 +379,7 @@ where
     }
 
     fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
-        kernel::repeat_dim::<R>(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn int_random(
@@ -393,9 +393,7 @@ where
             Distribution::Uniform(low, high) => {
                 random_uniform(shape, device, low.elem(), high.elem(), dtype)
             }
-            Distribution::Bernoulli(prob) => {
-                random_bernoulli::<R>(shape, device, prob as f32, dtype)
-            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob as f32, dtype),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem(), std.elem(), dtype)
             }
@@ -411,34 +409,34 @@ where
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        kernel::flip::<R>(tensor, axes, BT::dtype())
+        kernel::flip(tensor, axes, BT::dtype())
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::bitwise_and::<R>(lhs, rhs)
+        numeric::bitwise_and(lhs, rhs)
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::bitwise_and_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::bitwise_and_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::bitwise_or::<R>(lhs, rhs)
+        numeric::bitwise_or(lhs, rhs)
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::bitwise_or_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::bitwise_or_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::bitwise_xor::<R>(lhs, rhs)
+        numeric::bitwise_xor(lhs, rhs)
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::bitwise_xor_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::bitwise_xor_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -464,7 +462,7 @@ where
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        kernel::cast::<R>(tensor, dtype.into())
+        kernel::cast(tensor, dtype.into())
     }
 
     fn int_unfold(

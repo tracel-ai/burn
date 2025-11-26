@@ -112,7 +112,7 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
-    interpolate_bilinear_kernel::launch::<R>(
+    interpolate_bilinear_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,

@@ -125,7 +125,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device_dtype::<R>(x.client.clone(), x.device.clone(), shape_out, x.dtype);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
     let cube_dim = CubeDim::default();
     let cube_count =
@@ -183,14 +183,13 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         x.client.clone(),
         x.device.clone(),
         shape_out.clone(),
         x.dtype,
     );
-    let indices =
-        empty_device_dtype::<R>(x.client.clone(), x.device.clone(), shape_out, dtype_indices);
+    let indices = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, dtype_indices);
 
     let cube_dim = CubeDim::default();
     let cube_count =

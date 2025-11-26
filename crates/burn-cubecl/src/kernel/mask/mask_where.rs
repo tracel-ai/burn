@@ -55,7 +55,7 @@ pub fn mask_where<R: CubeRuntime>(
     let out_shape = broadcast_shape(&[&input, &mask, &value]);
 
     let output = match strategy {
-        MaskWhereStrategy::Readonly => empty_device_dtype::<R>(
+        MaskWhereStrategy::Readonly => empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             out_shape,
@@ -71,7 +71,7 @@ pub fn mask_where<R: CubeRuntime>(
         MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, line_size, 1),
     };
 
-    mask_where_kernel::launch::<R>(
+    mask_where_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,

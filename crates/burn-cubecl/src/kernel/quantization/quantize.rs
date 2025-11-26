@@ -14,7 +14,7 @@ where
     let output = empty_qtensor_optimized(tensor.shape.clone(), *scheme, &tensor.device);
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
 
-    cubecl_quant::quantize::launch_ref::<R>(
+    cubecl_quant::quantize::launch_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         &out_values.as_handle_ref(),

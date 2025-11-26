@@ -179,7 +179,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             dtype_bool,
         )
     } else {
-        let output = empty_device_dtype::<R>(
+        let output = empty_device_dtype(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,
@@ -239,7 +239,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             dtype_bool,
         )
     } else {
-        let output = empty_device_dtype::<R>(
+        let output = empty_device_dtype(
             tensor.client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
@@ -404,7 +404,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         tensor.shape.clone(),

@@ -46,7 +46,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
     pub fn execute<Runner: TraceRunner<R>, BT: CubeElement>(
         self,
-        client: &ComputeClient<R::Server>,
+        client: &ComputeClient<R>,
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,

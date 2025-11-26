@@ -27,9 +27,7 @@ where
 {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         match data.dtype {
-            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => {
-                super::from_data::<R>(data, device)
-            }
+            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => super::from_data(data, device),
             _ => unimplemented!("Unsupported dtype for `float_from_data`"),
         }
     }
@@ -45,9 +43,7 @@ where
             Distribution::Uniform(low, high) => {
                 random_uniform(shape, device, low.elem(), high.elem(), dtype)
             }
-            Distribution::Bernoulli(prob) => {
-                random_bernoulli::<R>(shape, device, prob as f32, dtype)
-            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob as f32, dtype),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem(), std.elem(), dtype)
             }
@@ -55,7 +51,7 @@ where
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
-        super::into_data::<R>(tensor).await
+        super::into_data(tensor).await
     }
 
     fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
@@ -68,21 +64,21 @@ where
 
     fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         let dtype = dtype.into();
-        super::empty::<R>(shape, device, dtype)
+        super::empty(shape, device, dtype)
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        numeric::add::<R>(lhs, rhs)
+        numeric::add(lhs, rhs)
     }
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::add_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::add_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         let dtype = dtype.into();
-        numeric::zeros::<R>(device.clone(), shape, dtype)
+        numeric::zeros(device.clone(), shape, dtype)
     }
 
     fn float_full(
@@ -93,7 +89,7 @@ where
     ) -> FloatTensor<Self> {
         let dtype: DType = dtype.into();
         let client = R::client(device);
-        numeric::full_device_dtype::<R>(
+        numeric::full_device_dtype(
             client,
             shape,
             device.clone(),
@@ -104,48 +100,48 @@ where
 
     fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         let dtype = dtype.into();
-        numeric::ones::<R>(device.clone(), shape, dtype)
+        numeric::ones(device.clone(), shape, dtype)
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        numeric::sub::<R>(lhs, rhs)
+        numeric::sub(lhs, rhs)
     }
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::sub_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        numeric::mul::<R>(lhs, rhs)
+        numeric::mul(lhs, rhs)
     }
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::mul_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        numeric::div::<R>(lhs, rhs)
+        numeric::div(lhs, rhs)
     }
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::div_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::div_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        numeric::remainder::<R>(lhs, rhs)
+        numeric::remainder(lhs, rhs)
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::remainder_scalar::<R>(lhs, InputScalar::new(rhs, dtype))
+        numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype))
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
+        matmul(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
     fn float_cross(
@@ -153,7 +149,7 @@ where
         rhs: FloatTensor<Self>,
         dim: usize,
     ) -> FloatTensor<Self> {
-        kernel::cross::<R>(lhs, rhs, dim)
+        kernel::cross(lhs, rhs, dim)
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
@@ -169,7 +165,7 @@ where
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::gather::<R>(dim, tensor, indices)
+        kernel::gather(dim, tensor, indices)
     }
 
     fn float_scatter_add(
@@ -178,7 +174,7 @@ where
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::scatter::<R>(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value)
     }
 
     fn float_select(
@@ -186,7 +182,7 @@ where
         dim: usize,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::select::<R>(tensor, dim, indices)
+        kernel::select(tensor, dim, indices)
     }
 
     fn float_select_add(
@@ -195,7 +191,7 @@ where
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::select_assign::<R>(tensor, dim, indices, value, false)
+        kernel::select_assign(tensor, dim, indices, value, false)
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
@@ -210,10 +206,10 @@ where
                 .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
-            kernel::slice::<R>(tensor, &simple_ranges)
+            kernel::slice(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
-            kernel::slice_with_steps::<R>(tensor, slices)
+            kernel::slice_with_steps(tensor, slices)
         }
     }
 
@@ -222,7 +218,7 @@ where
         ranges: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::slice_assign::<R>(tensor, ranges, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn float_mask_where(
@@ -230,7 +226,7 @@ where
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::mask_where_auto::<R>(tensor, mask, value, BT::dtype())
+        kernel::mask_where_auto(tensor, mask, value, BT::dtype())
     }
 
     fn float_mask_fill(
@@ -239,113 +235,113 @@ where
         value: FloatElem<Self>,
     ) -> FloatTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::mask_fill_auto::<R>(tensor, mask, InputScalar::new(value, dtype), BT::dtype())
+        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), BT::dtype())
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal::<R>(lhs, rhs, BT::dtype())
+        kernel::equal(lhs, rhs, BT::dtype())
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater::<R>(lhs, rhs, BT::dtype())
+        kernel::greater(lhs, rhs, BT::dtype())
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal::<R>(lhs, rhs, BT::dtype())
+        kernel::greater_equal(lhs, rhs, BT::dtype())
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower::<R>(lhs, rhs, BT::dtype())
+        kernel::lower(lhs, rhs, BT::dtype())
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal::<R>(lhs, rhs, BT::dtype())
+        kernel::lower_equal(lhs, rhs, BT::dtype())
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem::<R>(lhs, InputScalar::new(rhs, dtype), BT::dtype())
+        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        let tensor = into_contiguous::<R>(tensor);
-        reduce::sum_fallback::<R>(tensor, Default::default()).unwrap()
+        let tensor = into_contiguous(tensor);
+        reduce::sum_fallback(tensor, Default::default()).unwrap()
     }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
     }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
     }
 
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Mean).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Mean).unwrap()
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        numeric::cumsum::<R>(tensor, dim)
+        numeric::cumsum(tensor, dim)
     }
 
     fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        numeric::cumprod::<R>(tensor, dim)
+        numeric::cumprod(tensor, dim)
     }
 
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        numeric::cummin::<R>(tensor, dim)
+        numeric::cummin(tensor, dim)
     }
 
     fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        numeric::cummax::<R>(tensor, dim)
+        numeric::cummax(tensor, dim)
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce::<R>(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Prod).unwrap()
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -422,15 +418,15 @@ where
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::ArgMax).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::ArgMax).unwrap()
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R>(tensor, dim, Default::default(), ReduceFnConfig::ArgMin).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::ArgMin).unwrap()
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
-        kernel::cast::<R>(tensor, I::dtype())
+        kernel::cast(tensor, I::dtype())
     }
 
     fn float_clamp(
@@ -439,7 +435,7 @@ where
         max: FloatElem<Self>,
     ) -> FloatTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::clamp::<R>(
+        kernel::clamp(
             tensor,
             InputScalar::new(min, dtype),
             InputScalar::new(max, dtype),
@@ -451,11 +447,11 @@ where
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
-        kernel::repeat_dim::<R>(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        numeric::pow::<R>(lhs, rhs)
+        numeric::pow(lhs, rhs)
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
@@ -467,11 +463,11 @@ where
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        kernel::flip::<R>(tensor, axes, BT::dtype())
+        kernel::flip(tensor, axes, BT::dtype())
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        kernel::cast::<R>(tensor, dtype.into())
+        kernel::cast(tensor, dtype.into())
     }
 
     fn float_unfold(
@@ -484,10 +480,10 @@ where
     }
 
     fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::is_nan::<R>(tensor, BT::dtype())
+        kernel::is_nan(tensor, BT::dtype())
     }
 
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        kernel::is_inf::<R>(tensor, BT::dtype())
+        kernel::is_inf(tensor, BT::dtype())
     }
 }
