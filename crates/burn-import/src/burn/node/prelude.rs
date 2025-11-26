@@ -21,7 +21,10 @@ pub(crate) use crate::burn::{BurnImports, Field, Scope, ToTokens};
 pub(crate) use burn::record::PrecisionSettings;
 
 // Re-export common onnx_ir types
-pub(crate) use onnx_ir::{Argument, ir::ArgType};
+pub(crate) use onnx_ir::{
+    Argument,
+    ir::{ArgType, DType},
+};
 
 // Re-export common proc_macro2 types
 pub(crate) use proc_macro2::{Ident, Span, TokenStream};

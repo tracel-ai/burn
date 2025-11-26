@@ -36,13 +36,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::DivNo
                 }
             }
             (ArgType::Tensor(_), ArgType::Scalar(_)) => quote! { #lhs.div_scalar(#rhs) },
-            (ArgType::Scalar(dtype), ArgType::Tensor(_)) => {
+            (ArgType::Scalar(dtype), ArgType::Tensor(tensor)) => {
                 // Use the built-in Div impl: f32 / Tensor -> tensor.recip().mul_scalar(f32)
-                // For non-float scalars, cast to f32 first
                 if dtype.is_float() {
                     quote! { #lhs / #rhs }
                 } else if dtype.is_int() || dtype.is_uint() {
-                    quote! { (#lhs as f32) / #rhs }
+                    // Cast to the tensor's float type
+                    let cast_type = match tensor.dtype {
+                        DType::F64 => quote! { f64 },
+                        _ => quote! { f32 }, // F32, F16, BF16, Flex32 all use f32
+                    };
+                    quote! { (#lhs as #cast_type) / #rhs }
                 } else {
                     panic!("Unsupported scalar type for division: {:?}", dtype)
                 }
