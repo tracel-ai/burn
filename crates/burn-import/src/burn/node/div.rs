@@ -36,13 +36,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::DivNo
                 }
             }
             (ArgType::Tensor(_), ArgType::Scalar(_)) => quote! { #lhs.div_scalar(#rhs) },
-            (ArgType::Scalar(_), ArgType::Tensor(_)) => {
-                // Scalar / Tensor: convert scalar to tensor and divide
-                quote! {
-                    {
-                        let scalar_tensor = Tensor::<B, 1>::from_data([#lhs.elem::<B::FloatElem>()], &*self.device);
-                        scalar_tensor.div(#rhs)
-                    }
+            (ArgType::Scalar(dtype), ArgType::Tensor(_)) => {
+                // Use the built-in Div impl: f32 / Tensor -> tensor.recip().mul_scalar(f32)
+                // For non-float scalars, cast to f32 first
+                if dtype.is_float() {
+                    quote! { #lhs / #rhs }
+                } else if dtype.is_int() || dtype.is_uint() {
+                    quote! { (#lhs as f32) / #rhs }
+                } else {
+                    panic!("Unsupported scalar type for division: {:?}", dtype)
                 }
             }
             (ArgType::Scalar(_), ArgType::Scalar(_)) => quote! { #lhs / #rhs },
@@ -136,13 +138,7 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, lhs: f32, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
-            let output = {
-                let scalar_tensor = Tensor::<
-                    B,
-                    1,
-                >::from_data([lhs.elem::<B::FloatElem>()], &*self.device);
-                scalar_tensor.div(rhs)
-            };
+            let output = lhs / rhs;
             output
         }
         ");
