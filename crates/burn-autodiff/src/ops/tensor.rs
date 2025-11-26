@@ -2407,18 +2407,22 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend> Step for CatStep<B> {
             fn step(self: Box<Self>, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
                 let grad = grads.consume::<B>(&self.output);
-                let ranges: Vec<_> = grad.shape().iter().map(|v| 0..*v).collect();
-
-                let mut current_index = 0;
+                let ranges_template: Vec<_> = grad.shape().iter().map(|&v| 0..v).collect();
 
                 self.nodes
                     .into_iter()
                     .zip(self.dim_sizes)
-                    .filter_map(|(node, dim_size)| node.map(|node| (node, dim_size)))
-                    .for_each(|(node, dim_size)| {
-                        let mut ranges = ranges.clone();
-                        ranges[self.dim] = current_index..dim_size + current_index;
-                        current_index += dim_size;
+                    .scan(0, |offset, (node_opt, dim_size)| {
+                        let start = *offset;
+                        let end = start + dim_size;
+                        *offset = end;
+                        Some(node_opt.map(|node| (node, start, end)))
+                    })
+                    .flatten()
+                    .for_each(|(node, start, end)| {
+                        let mut ranges = ranges_template.clone();
+                        ranges[self.dim] = start..end;
+
                         let slices: Vec<burn_tensor::Slice> = ranges
                             .iter()
                             .map(|r| {
