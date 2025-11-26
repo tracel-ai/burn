@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, IntDType, Shape, Slice, TensorData,
+    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, UpdateComputation,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
 };
 use std::marker::PhantomData;
@@ -327,7 +327,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
@@ -345,7 +345,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_int_tensor::<B>(&self.desc.value);
 
-                let output = B::int_scatter(self.desc.dim, tensor, indices, value);
+                let output = B::int_scatter_add(self.desc.dim, tensor, indices, value);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
@@ -359,6 +359,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
+            UpdateComputation::Add,
             || client.create_empty_handle(),
         );
 
@@ -409,7 +410,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_select_assign(
+    fn int_select_add(
         tensor: IntTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -427,7 +428,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_int_tensor::<B>(&self.desc.value);
 
-                let output = B::int_select_assign(tensor, self.desc.dim, indices, value);
+                let output = B::int_select_add(tensor, self.desc.dim, indices, value);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
@@ -441,6 +442,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
+            UpdateComputation::Add,
             || client.create_empty_handle(),
         );
 

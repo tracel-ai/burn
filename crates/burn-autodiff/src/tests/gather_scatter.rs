@@ -49,7 +49,7 @@ mod tests {
         );
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().scatter(1, indices, values.clone());
+        let tensor_3 = tensor_1.clone().scatter_add(1, indices, values.clone());
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();

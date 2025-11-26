@@ -29,7 +29,7 @@ mod tests {
     }
 
     #[test]
-    fn test_select_assign_grad() {
+    fn test_select_add_grad() {
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::<2>::from_data(
             TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
@@ -45,7 +45,7 @@ mod tests {
             Tensor::<TestAutodiffBackend, 1, Int>::from_data(TensorData::from([1, 0]), &device);
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().select_assign(0, indices, values.clone());
+        let tensor_3 = tensor_1.clone().select_add(0, indices, values.clone());
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();
@@ -63,14 +63,14 @@ mod tests {
     }
 
     #[test]
-    fn test_select_assign_grad_different_shapes() {
+    fn test_select_add_grad_different_shapes() {
         let device = Default::default();
 
         let indices: Tensor<TestAutodiffBackend, 1, Int> = Tensor::from_ints([1], &device);
         let x: Tensor<TestAutodiffBackend, 2> = Tensor::ones([1, 1], &device).require_grad();
         let y = Tensor::ones([2, 1], &device).require_grad();
 
-        let w = y.clone().select_assign(0, indices, x.clone());
+        let w = y.clone().select_add(0, indices, x.clone());
         let w = w.matmul(y.clone().transpose());
 
         let grads = w.backward();

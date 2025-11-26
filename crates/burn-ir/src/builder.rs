@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    DType, Distribution, Shape, Slice, calculate_matmul_output,
+    DType, Distribution, Shape, Slice, UpdateComputation, calculate_matmul_output,
     ops::{
         conv::{
             calculate_conv_output_shape, calculate_conv_transpose_output_shape,
@@ -287,7 +287,8 @@ impl_ir_create!(
         tensor: TensorIr,
         dim: usize,
         indices: TensorIr,
-        value: TensorIr
+        value: TensorIr,
+        update: UpdateComputation
     },
     shape = tensor.shape.clone(), // TODO: check dims compat between tensor and indices
     dtype = output_dtype([&tensor.dtype, &value.dtype]).unwrap()
@@ -339,7 +340,8 @@ impl_ir_create!(
         tensor: TensorIr,
         dim: usize,
         indices: TensorIr,
-        value: TensorIr
+        value: TensorIr,
+        update: UpdateComputation
     },
     // TODO: check value and indices shape match for dim
     shape = tensor.shape.clone(),

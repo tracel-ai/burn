@@ -191,7 +191,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     ) -> Tensor<B, 2> {
         let [batch_size, nr_classes] = shape;
         let device = &targets.device();
-        let targets_matrix = Tensor::<B, 2>::zeros(shape, device).scatter(
+        let targets_matrix = Tensor::<B, 2>::zeros(shape, device).scatter_add(
             1,
             targets.reshape([batch_size, 1]),
             Tensor::ones([batch_size, 1], device),

@@ -297,7 +297,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::gather(dim, tensor, indices)
     }
 
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: TchTensor,
         indices: TchTensor,
@@ -310,7 +310,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn int_select_assign(
+    fn int_select_add(
         tensor: TchTensor,
         dim: usize,
         indices: TchTensor,

@@ -134,7 +134,7 @@ where
         kernel::select::<R>(tensor, dim, indices)
     }
 
-    fn bool_select_assign(
+    fn bool_select_add(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,

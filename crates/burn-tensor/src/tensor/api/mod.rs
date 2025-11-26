@@ -26,3 +26,12 @@ pub use numeric::*;
 pub use slice::*;
 pub use sort::{argsort, sort, sort_with_indices};
 pub use transaction::*;
+
+/// Computation to be used to update the existing values in indexed assignment operations (scatter/select).
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum UpdateComputation {
+    // Assign,
+    /// Performs an addition.
+    Add,
+    // Mul
+}

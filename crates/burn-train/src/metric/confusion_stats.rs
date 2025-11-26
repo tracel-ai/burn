@@ -63,7 +63,7 @@ impl<B: Backend> ConfusionStats<B> {
                         .argsort_descending(1)
                         .narrow(1, 0, top_k.get());
                 let values = indexes.ones_like().float();
-                mask.scatter(1, indexes, values).bool()
+                mask.scatter_add(1, indexes, values).bool()
             }
         };
         Self {

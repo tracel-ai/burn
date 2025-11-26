@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(select_assign)]
+#[burn_tensor_testgen::testgen(select_add)]
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Int, Tensor, backend::Backend};
@@ -6,31 +6,31 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    fn select_assign_should_work_with_multiple_workgroups_2d_dim0() {
-        select_assign_same_as_ref(0, [256, 6]);
+    fn select_add_should_work_with_multiple_workgroups_2d_dim0() {
+        select_add_same_as_ref(0, [256, 6]);
     }
 
     #[test]
-    fn select_assign_should_work_with_multiple_workgroups_2d_dim1() {
-        select_assign_same_as_ref(1, [6, 256]);
+    fn select_add_should_work_with_multiple_workgroups_2d_dim1() {
+        select_add_same_as_ref(1, [6, 256]);
     }
 
     #[test]
-    fn select_assign_should_work_with_multiple_workgroups_3d_dim0() {
-        select_assign_same_as_ref(0, [256, 6, 6]);
+    fn select_add_should_work_with_multiple_workgroups_3d_dim0() {
+        select_add_same_as_ref(0, [256, 6, 6]);
     }
 
     #[test]
-    fn select_assign_should_work_with_multiple_workgroups_3d_dim1() {
-        select_assign_same_as_ref(1, [6, 256, 6]);
+    fn select_add_should_work_with_multiple_workgroups_3d_dim1() {
+        select_add_same_as_ref(1, [6, 256, 6]);
     }
 
     #[test]
-    fn select_assign_should_work_with_multiple_workgroups_3d_dim2() {
-        select_assign_same_as_ref(2, [6, 6, 256]);
+    fn select_add_should_work_with_multiple_workgroups_3d_dim2() {
+        select_add_same_as_ref(2, [6, 6, 256]);
     }
 
-    fn select_assign_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
+    fn select_add_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
         let device = Default::default();
         TestBackend::seed(&device, 0);
 
@@ -50,8 +50,8 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data(), &Default::default());
 
-        let actual = tensor.select_assign(dim, indices, value);
-        let expected = tensor_ref.select_assign(dim, indices_ref, value_ref);
+        let actual = tensor.select_add(dim, indices, value);
+        let expected = tensor_ref.select_add(dim, indices_ref, value_ref);
 
         expected
             .into_data()

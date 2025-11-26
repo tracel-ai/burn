@@ -123,7 +123,7 @@ where
         kernel::gather::<R>(dim, tensor, indices)
     }
 
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
@@ -140,7 +140,7 @@ where
         kernel::select::<R>(tensor, dim, indices)
     }
 
-    fn int_select_assign(
+    fn int_select_add(
         tensor: IntTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,

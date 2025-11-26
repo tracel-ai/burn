@@ -209,26 +209,26 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_gather(dim, tensor, indices)
     }
 
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: IntTensor<B>,
         indices: IntTensor<B>,
         value: IntTensor<B>,
     ) -> IntTensor<B> {
-        B::int_scatter(dim, tensor, indices, value)
+        B::int_scatter_add(dim, tensor, indices, value)
     }
 
     fn int_select(tensor: IntTensor<B>, dim: usize, indices: IntTensor<B>) -> IntTensor<B> {
         B::int_select(tensor, dim, indices)
     }
 
-    fn int_select_assign(
+    fn int_select_add(
         tensor: IntTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
         value: IntTensor<B>,
     ) -> IntTensor<B> {
-        B::int_select_assign(tensor, dim, indices, value)
+        B::int_select_add(tensor, dim, indices, value)
     }
 
     fn int_mask_where(

@@ -172,7 +172,7 @@ where
         kernel::gather::<R>(dim, tensor, indices)
     }
 
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -189,7 +189,7 @@ where
         kernel::select::<R>(tensor, dim, indices)
     }
 
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,

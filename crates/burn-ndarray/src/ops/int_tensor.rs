@@ -232,7 +232,7 @@ where
         })
     }
 
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: NdArrayTensor,
         indices: NdArrayTensor,
@@ -253,7 +253,7 @@ where
         })
     }
 
-    fn int_select_assign(
+    fn int_select_add(
         tensor: NdArrayTensor,
         dim: usize,
         indices: NdArrayTensor,

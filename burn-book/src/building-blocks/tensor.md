@@ -164,7 +164,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.roll(shifts, dims)`                  | `tensor.roll(shifts, dims)`                                               |
 | `tensor.roll_dim(shift, dim)`                | `tensor.roll([shift], [dim])`                                             |
 | `tensor.select(dim, indices)`                | `tensor.index_select(dim, indices)`                                       |
-| `tensor.select_assign(dim, indices, values)` | N/A                                                                       |
+| `tensor.select_add(dim, indices, values)`    | `tensor.index_add(dim, indices, values)`                                  |
 | `tensor.shape()`                             | `tensor.shape`                                                            |
 | `tensor.slice(slices)`                       | `tensor[(*ranges,)]`                                                      |
 | `tensor.slice_assign(slices, values)`        | `tensor[(*ranges,)] = values`                                             |
@@ -252,7 +252,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.prod_dim(dim)`                                          | `tensor.prod(dim, keepdim=True)`               |
 | `tensor.prod_dims(dims)`                                        | `tensor.prod(dims, keepdim=True)`              |
 | `tensor.rem(other)` or `tensor % other`                         | `tensor % other`                               |
-| `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
+| `tensor.scatter_add(dim, indices, values)`                      | `tensor.scatter_add(dim, indices, values)`     |
 | `tensor.sign()`                                                 | `tensor.sign()`                                |
 | `tensor.sort(dim)`                                              | `tensor.sort(dim).values`                      |
 | `tensor.sort_descending(dim)`                                   | `tensor.sort(dim, descending=True).values`     |
