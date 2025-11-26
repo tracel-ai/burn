@@ -5,10 +5,9 @@
 
 use super::NodeCodegen;
 use crate::burn::Scope;
-use crate::burn::argument_helpers::arg_type_tokens;
+use crate::burn::argument_helpers::{codegen_fn_params, codegen_return_expr, codegen_return_type};
 use burn::record::PrecisionSettings;
 use onnx_ir::ir::ArgType;
-use proc_macro2::{Ident, Span};
 use quote::quote;
 
 /// Generate forward pass code for a node with optional clone behavior
@@ -66,48 +65,27 @@ where
     let mut scope_at_pos = scope.at_position(node_position);
     let body = node.forward(&mut scope_at_pos);
 
-    // Generate function parameters from inputs
-    let params: Vec<_> = node
+    // Filter inputs to only include dynamic inputs (not constants/initializers)
+    let dynamic_inputs: Vec<_> = node
         .inputs()
         .iter()
         .filter(|arg| {
-            // Only include dynamic inputs (not constants/initializers)
             matches!(
                 arg.ty,
                 ArgType::Tensor(_) | ArgType::Scalar(_) | ArgType::Shape(_)
             ) && arg.value().is_none()
         })
-        .map(|arg| {
-            let name = Ident::new(&arg.name, Span::call_site());
-            let ty = arg_type_tokens(arg);
-            quote! { #name: #ty }
-        })
+        .cloned()
         .collect();
 
-    // Generate return type from outputs
-    let outputs = node.outputs();
-    let return_type = if outputs.len() == 1 {
-        arg_type_tokens(&outputs[0])
-    } else {
-        let types: Vec<_> = outputs.iter().map(arg_type_tokens).collect();
-        quote! { (#(#types),*) }
-    };
-
-    // Generate return expression
-    let return_expr = if outputs.len() == 1 {
-        let name = Ident::new(&outputs[0].name, Span::call_site());
-        quote! { #name }
-    } else {
-        let names: Vec<_> = outputs
-            .iter()
-            .map(|arg| Ident::new(&arg.name, Span::call_site()))
-            .collect();
-        quote! { (#(#names),*) }
-    };
+    // Use shared helpers for generating function signature parts
+    let input_def = codegen_fn_params(&dynamic_inputs);
+    let return_type = codegen_return_type(node.outputs());
+    let return_expr = codegen_return_expr(node.outputs());
 
     // Generate the full forward function
     let forward_fn = quote! {
-        pub fn forward(&self, #(#params),*) -> #return_type {
+        pub fn forward(&self, #input_def) -> #return_type {
             #body
             #return_expr
         }

@@ -50,3 +50,46 @@ pub fn scalar_type_tokens(dtype: &DType) -> TokenStream {
 pub fn arg_ident(arg: &Argument) -> Ident {
     Ident::new(&arg.name, Span::call_site())
 }
+
+/// Generate function parameters from a slice of arguments
+///
+/// Produces: `name1: Type1, name2: Type2, ...`
+pub fn codegen_fn_params(args: &[Argument]) -> TokenStream {
+    let params: Vec<_> = args
+        .iter()
+        .map(|arg| {
+            let name = arg_ident(arg);
+            let ty = arg_type_tokens(arg);
+            quote! { #name: #ty }
+        })
+        .collect();
+
+    quote! { #(#params),* }
+}
+
+/// Generate return type from output arguments
+///
+/// Single output: `Type`
+/// Multiple outputs: `(Type1, Type2, ...)`
+pub fn codegen_return_type(outputs: &[Argument]) -> TokenStream {
+    if outputs.len() == 1 {
+        arg_type_tokens(&outputs[0])
+    } else {
+        let types: Vec<_> = outputs.iter().map(arg_type_tokens).collect();
+        quote! { (#(#types),*) }
+    }
+}
+
+/// Generate return expression from output arguments
+///
+/// Single output: `name`
+/// Multiple outputs: `(name1, name2, ...)`
+pub fn codegen_return_expr(outputs: &[Argument]) -> TokenStream {
+    if outputs.len() == 1 {
+        let name = arg_ident(&outputs[0]);
+        quote! { #name }
+    } else {
+        let names: Vec<_> = outputs.iter().map(arg_ident).collect();
+        quote! { (#(#names),*) }
+    }
+}

@@ -520,51 +520,9 @@ impl<PS: PrecisionSettings + 'static> BurnGraph<PS> {
     }
 
     fn codegen_forward(&mut self) -> TokenStream {
-        let mut input_def = quote! {};
-        let mut output_type_def = quote! {};
-        let mut output_return_def = quote! {};
-
-        self.graph_input_args.iter().for_each(|input| {
-            let name = crate::burn::arg_ident(input);
-            let ty = crate::burn::arg_type_tokens(input);
-
-            input_def.extend(quote! {
-                #name: #ty,
-
-            })
-        });
-
-        let multiple_output = self.graph_output_args.len() > 1;
-
-        self.graph_output_args.iter().for_each(|output| {
-            let name = crate::burn::arg_ident(output);
-            let ty = crate::burn::arg_type_tokens(output);
-
-            if multiple_output {
-                output_type_def.extend(quote! {
-                    #ty,
-                });
-                output_return_def.extend(quote! {
-                    #name,
-                });
-            } else {
-                output_type_def.extend(quote! {
-                    #ty
-                });
-                output_return_def.extend(quote! {
-                    #name
-                });
-            }
-        });
-
-        if multiple_output {
-            output_return_def = quote! {
-                (#output_return_def)
-            };
-            output_type_def = quote! {
-                (#output_type_def)
-            };
-        }
+        let input_def = crate::burn::codegen_fn_params(&self.graph_input_args);
+        let output_type_def = crate::burn::codegen_return_type(&self.graph_output_args);
+        let output_return_def = crate::burn::codegen_return_expr(&self.graph_output_args);
 
         let mut body = quote! {};
         for (index, node) in self.nodes.iter().enumerate() {
