@@ -289,6 +289,9 @@ macro_rules! testgen_with_float_param {
 
         // test padding
         burn_tensor::testgen_padding!();
+
+        // test transaction
+        burn_tensor::testgen_transaction!();
     };
 }
 
