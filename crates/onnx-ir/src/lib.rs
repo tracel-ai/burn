@@ -17,7 +17,3 @@ mod util;
 pub use ir::*;
 pub use node::*;
 pub use pipeline::{OnnxIrError, parse_onnx};
-
-// Export GraphState for testing
-#[doc(hidden)]
-pub use graph_state::GraphState;
