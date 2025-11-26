@@ -140,7 +140,7 @@ impl ApplyResult {
             .unused
             .iter()
             .map(|available| {
-                let distance = levenshtein::levenshtein(missing_path, available);
+                let distance = textdistance::str::levenshtein(missing_path, available);
                 (available.clone(), distance)
             })
             .collect();

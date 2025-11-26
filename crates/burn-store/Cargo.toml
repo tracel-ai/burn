@@ -43,7 +43,7 @@ burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.2", default-feat
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
-levenshtein =  { workspace = true }
+textdistance = { workspace = true }
 half = { workspace = true }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
