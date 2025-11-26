@@ -10,7 +10,7 @@ use cubecl::{
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<R: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
-    client: &ComputeClient<R::Server>,
+    client: &ComputeClient<R>,
     input: CubeTensor<R>,
     output: CubeTensor<R>,
     dim: usize,
@@ -23,14 +23,17 @@ pub fn autotune_reduce<R: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
 
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R, Rd>, reduce_input_gen::<R, Rd>)
-            .with(Tunable::new(reduce::<R, Rd>))
-            .with(Tunable::new(reduce_shared::<R, Rd>))
-            .with(Tunable::new(reduce_plane::<R, Rd>))
-            .with(Tunable::new(reduce_shared_plane::<R, Rd>))
+            .with(Tunable::new("reduce", reduce::<R, Rd>))
+            .with(Tunable::new("reduce_shared", reduce_shared::<R, Rd>))
+            .with(Tunable::new("reduce_plane", reduce_plane::<R, Rd>))
+            .with(Tunable::new(
+                "reduce_shared_plane",
+                reduce_shared_plane::<R, Rd>,
+            ))
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.client, &input.device),
+        &CubeTuneId::new(&input.client, &input.device),
         client,
         tunables,
         (input, output, dim, config, dtypes),
@@ -174,7 +177,7 @@ mod reduce_ops {
 /// Executes autotune on reduce operations.
 #[cfg(feature = "autotune")]
 pub fn autotune_sum<R: CubeRuntime>(
-    client: &ComputeClient<R::Server>,
+    client: &ComputeClient<R>,
     input: CubeTensor<R>,
 ) -> CubeTensor<R> {
     use sum_ops::*;
@@ -183,18 +186,18 @@ pub fn autotune_sum<R: CubeRuntime>(
 
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key_sum::<R>, sum_input_gen::<R>)
-            .with(Tunable::new(sum_chained::<R>))
-            .with(Tunable::new(sum_one_shot::<R, 1>))
-            .with(Tunable::new(sum_one_shot::<R, 2>))
-            .with(Tunable::new(sum_one_shot::<R, 4>))
-            .with(Tunable::new(sum_one_shot::<R, 8>))
-            .with(Tunable::new(sum_one_shot::<R, 16>))
-            .with(Tunable::new(sum_one_shot::<R, 32>))
-            .with(Tunable::new(sum_one_shot::<R, 64>))
+            .with(Tunable::new("sum_chained", sum_chained::<R>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 1>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 2>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 4>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 8>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 16>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 32>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 64>))
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.client, &input.device),
+        &CubeTuneId::new(&input.client, &input.device),
         client,
         tunables,
         input,

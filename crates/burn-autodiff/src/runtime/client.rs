@@ -10,15 +10,6 @@ use burn_tensor::backend::Backend;
 pub trait AutodiffClient: Send + Clone {
     /// Register a new step.
     fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder);
-    /// Register a new untracked step.
-    fn register_untracked(
-        &self,
-        node_id: NodeRefCount,
-        step: StepBoxed,
-        actions: CheckpointerBuilder,
-    ) {
-        self.register(node_id, step, actions);
-    }
     /// Call backpropagation from the given tensor.
     fn backward<B: Backend>(&self, tensor: AutodiffTensor<B>) -> Gradients;
 }

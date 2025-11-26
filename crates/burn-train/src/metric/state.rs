@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::metric::{MetricEntry, MetricName, NumericEntry, format_float};
+use crate::metric::{MetricName, NumericEntry, SerializedEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -81,7 +81,12 @@ impl NumericMetricState {
     }
 
     /// Update the state.
-    pub fn update(&mut self, value: f64, batch_size: usize, format: FormatOptions) -> MetricEntry {
+    pub fn update(
+        &mut self,
+        value: f64,
+        batch_size: usize,
+        format: FormatOptions,
+    ) -> SerializedEntry {
         self.sum += value * batch_size as f64;
         self.count += batch_size;
         self.current = value;
@@ -111,7 +116,7 @@ impl NumericMetricState {
             None => format!("epoch {formatted_running} - batch {formatted_current}"),
         };
 
-        MetricEntry::new(format.name, formatted, serialized)
+        SerializedEntry::new(formatted, serialized)
     }
 
     /// Get the numeric value.

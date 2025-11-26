@@ -7,7 +7,7 @@ pub fn init_matmul_output<R: CubeRuntime>(
     rhs: &CubeTensor<R>,
     dtype: DType,
 ) -> CubeTensor<R> {
-    empty_device_optimized_dtype::<R>(
+    empty_device_optimized_dtype(
         lhs.client.clone(),
         lhs.device.clone(),
         calculate_matmul_output(&lhs.shape, &rhs.shape).unwrap(),

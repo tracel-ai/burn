@@ -25,16 +25,19 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
 
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>)
-            .with(Tunable::new(conv_direct::<R, N>))
-            .with(Tunable::new(conv_im2col_1x1::<R, N>))
-            .with(Tunable::new(conv_im2col::<R, N>))
-            .with(Tunable::new(conv_gemm_cyclic::<R, N>))
-            .with(Tunable::new(conv_gemm_tma::<R, N>))
-            .with(Tunable::new(conv_gemm_tma_multi_stage::<R, N>))
+            .with(Tunable::new("conv_direct", conv_direct::<R, N>))
+            .with(Tunable::new("conv_im2col_1x1", conv_im2col_1x1::<R, N>))
+            .with(Tunable::new("conv_im2col", conv_im2col::<R, N>))
+            .with(Tunable::new("conv_gemm_cyclic", conv_gemm_cyclic::<R, N>))
+            .with(Tunable::new("conv_gemm_tma", conv_gemm_tma::<R, N>))
+            .with(Tunable::new(
+                "conv_gemm_tma_multi_stage",
+                conv_gemm_tma_multi_stage::<R, N>,
+            ))
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.client, &input.device),
+        &CubeTuneId::new(&input.client, &input.device),
         &client,
         tunables,
         (input, weights, bias, options),

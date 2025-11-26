@@ -55,16 +55,27 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
         match event {
+            EvaluatorEvent::Start => {
+                let definitions = self.metrics.metric_definitions();
+                self.store
+                    .add_event_train(crate::metric::store::Event::MetricsInit(
+                        definitions.clone(),
+                    ));
+                definitions
+                    .iter()
+                    .for_each(|definition| self.renderer.register_metric(definition.clone()));
+            }
             EvaluatorEvent::ProcessedItem(name, item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
 
-                let mut update = self.metrics.update_test(&item, &metadata);
-                update.tag(name.name.clone());
+                let update = self.metrics.update_test(&item, &metadata);
 
-                self.store
-                    .add_event_test(crate::metric::store::Event::MetricsUpdate(update.clone()));
+                self.store.add_event_test(
+                    crate::metric::store::Event::MetricsUpdate(update.clone()),
+                    name.name.clone(),
+                );
 
                 update.entries.into_iter().for_each(|entry| {
                     self.renderer
@@ -101,7 +112,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
             LearnerEvent::Start => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
-                    .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
+                    .add_event_train(crate::metric::store::Event::MetricsInit(
+                        definitions.clone(),
+                    ));
+                definitions
+                    .iter()
+                    .for_each(|definition| self.renderer.register_metric(definition.clone()));
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();

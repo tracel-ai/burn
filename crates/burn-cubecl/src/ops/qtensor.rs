@@ -191,11 +191,11 @@ where
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize::<R>(tensor, scheme, qparams.scales)
+        kernel::quantization::quantize(tensor, scheme, qparams.scales)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        kernel::quantization::dequantize::<R>(tensor, FloatElem::<Self>::dtype())
+        kernel::quantization::dequantize(tensor, FloatElem::<Self>::dtype())
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
@@ -212,14 +212,14 @@ where
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         if tensor.qparams.is_none() {
-            return into_data::<R>(tensor).await;
+            return into_data(tensor).await;
         }
 
         let (shape, dtype) = (tensor.shape.dims.clone(), tensor.dtype);
         let (values, params) = tensor.quantized_handles().unwrap();
 
-        let mut data_values = into_data::<R>(values).await;
-        let data_params = into_data::<R>(params).await;
+        let mut data_values = into_data(values).await;
+        let data_params = into_data(params).await;
 
         data_values.bytes.extend_from_byte_slice(&data_params.bytes);
 
@@ -296,8 +296,8 @@ where
             TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
         };
 
-        let out = kernel::matmul::matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), out_dtype)
-            .unwrap();
+        let out =
+            kernel::matmul::matmul(lhs, rhs, None, MatmulStrategy::default(), out_dtype).unwrap();
 
         match propagation {
             QuantPropagation::Propagate => {

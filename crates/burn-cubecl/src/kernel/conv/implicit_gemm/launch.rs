@@ -123,7 +123,7 @@ where
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);
 
-    let out = empty_device_optimized_dtype::<R>(
+    let out = empty_device_optimized_dtype(
         input.client.clone(),
         input.device.clone(),
         out_shape.into(),

@@ -278,7 +278,7 @@ mod tests {
     use super::*;
     pub use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
     use crate::{
-        OptimizationBuilder,
+        OperationFuser,
         stream::tests::{operation_1, operation_2, operation_3},
     };
 
@@ -432,7 +432,7 @@ mod tests {
         );
     }
 
-    fn builders() -> Vec<Box<dyn OptimizationBuilder<TestOptimization>>> {
+    fn builders() -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
         let builder_1 = TestOptimizationBuilder::new(0, vec![operation_1(); 10]);
         let builder_2 = TestOptimizationBuilder::new(1, vec![operation_2(); 10]);
 

@@ -10,7 +10,7 @@ pub fn random_normal<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let output = empty_device_dtype::<R>(client.clone(), device.clone(), shape, dtype);
+    let output = empty_device_dtype(client.clone(), device.clone(), shape, dtype);
     let output_handle = output.as_handle_ref();
 
     cubecl::random::random_normal(&client, mean, std, output_handle, dtype.into());

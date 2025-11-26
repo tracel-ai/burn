@@ -15,7 +15,7 @@ use burn_ir::{
 use burn_tensor::{DType, Shape};
 
 use crate::{
-    NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    FuserProperties, FuserStatus, NumOperations, OperationFuser,
     search::BlockOptimization,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
@@ -432,7 +432,7 @@ fn should_support_overlapping_optimizations() {
 
 impl TestStream {
     /// Create a new stream with the given optimization builders.
-    fn new(optimizations: Vec<Box<dyn OptimizationBuilder<TestOptimization>>>) -> Self {
+    fn new(optimizations: Vec<Box<dyn OperationFuser<TestOptimization>>>) -> Self {
         Self {
             processor: Processor::<TestOptimization>::new(optimizations),
             store: ExecutionPlanStore::<TestOptimization>::new(),
@@ -497,14 +497,14 @@ impl TestOptimizationBuilder {
     }
 }
 
-impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
+impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
     /// Register a new operation.
-    fn register(&mut self, operation: &OperationIr) {
+    fn fuse(&mut self, operation: &OperationIr) {
         self.actual.push(operation.clone());
     }
 
     /// Build the optimization.
-    fn build(&self) -> TestOptimization {
+    fn finish(&self) -> TestOptimization {
         TestOptimization::new(self.builder_id, self.len())
     }
 
@@ -514,26 +514,26 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     }
 
     /// Return the optimization status.
-    fn status(&self) -> OptimizationStatus {
+    fn status(&self) -> FuserStatus {
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
             return match self.actual == operations {
                 // Still optimizing.
-                true => OptimizationStatus::Open,
+                true => FuserStatus::Open,
                 // Never gonna be possible on that stream.
-                false => OptimizationStatus::Closed,
+                false => FuserStatus::Closed,
             };
         }
 
-        OptimizationStatus::Closed
+        FuserStatus::Closed
     }
 
     /// Return the properties of this optimization.
-    fn properties(&self) -> OptimizationProperties {
+    fn properties(&self) -> FuserProperties {
         if self.actual.len() < self.expected_operations.len() {
             // Optimization not possible.
-            return OptimizationProperties {
+            return FuserProperties {
                 score: 0,
                 ready: false,
             };
@@ -544,14 +544,14 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
 
         if !stream_is_ok {
             // Optimization not possible.
-            return OptimizationProperties {
+            return FuserProperties {
                 score: 0,
                 ready: false,
             };
         }
 
         // Optimization possible.
-        OptimizationProperties {
+        FuserProperties {
             score: 1,
             ready: true,
         }
@@ -561,7 +561,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     fn len(&self) -> usize {
         self.expected_operations.len()
     }
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<TestOptimization>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
         Box::new(self.clone())
     }
 }

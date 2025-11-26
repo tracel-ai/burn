@@ -143,7 +143,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        TestBackend,
+        EventProcessorTraining, TestBackend,
         logger::InMemoryMetricLogger,
         metric::{
             LossMetric,
@@ -230,6 +230,7 @@ mod tests {
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
         let mut epoch = 1;
+        processor.process_train(crate::LearnerEvent::Start);
         for (points, should_start, comment) in data {
             for point in points.iter() {
                 process_train(&mut processor, *point, epoch);

@@ -222,7 +222,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
             rhs
         } else {
             let output =
-                empty_device_dtype::<R>(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
+                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
 
             kernel_binop::launch_unchecked::<O, R>(
                 &client,
@@ -266,7 +266,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
             tensor
         } else {
-            let output = empty_device_dtype::<R>(
+            let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
                 tensor.shape.clone(),

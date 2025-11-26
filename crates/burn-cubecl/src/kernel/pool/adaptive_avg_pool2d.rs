@@ -90,7 +90,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
 
     let output_shape = Shape::new([batch_size, output_size[0], output_size[1], channels]);
     let num_elems: usize = output_shape.num_elements();
-    let output = empty_device_dtype::<R>(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         output_shape,
@@ -100,7 +100,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    adaptive_avg_pool2d_direct::launch::<R>(
+    adaptive_avg_pool2d_direct::launch(
         &input.client,
         cube_count,
         cube_dim,
