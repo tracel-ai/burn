@@ -101,9 +101,9 @@ model.load_from(&mut store)?;
 use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter, PytorchStore};
 
 // Load PyTorch .pth file directly (PyTorchToBurnAdapter is applied automatically)
+// Note: skip_enum_variants defaults to true for PytorchStore
 let mut store = PytorchStore::from_file("pytorch_model.pth")
     .with_top_level_key("state_dict")         // Access nested state dict
-    .skip_enum_variants(true)                 // Match PyTorch paths to Burn enum paths
     .allow_partial(true);                     // Skip unknown tensors
 
 burn_model.load_from(&mut store)?;
@@ -250,6 +250,7 @@ model.load_from(&mut encoder_store)?;  // Overlays encoder weights
 use burn_store::{ModuleSnapshot, PytorchStore};
 
 // Load directly from PyTorch .pth file (automatic PyTorchToBurnAdapter)
+// Note: skip_enum_variants defaults to true for PytorchStore
 let mut store = PytorchStore::from_file("pytorch_transformer.pth")
     // Access the state dict
     .with_top_level_key("state_dict")
@@ -259,8 +260,6 @@ let mut store = PytorchStore::from_file("pytorch_transformer.pth")
     .with_key_remapping(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
     // Rename attention layers
     .with_key_remapping(r"\.attn\.", ".attention.")
-    // Match PyTorch paths to Burn enum paths
-    .skip_enum_variants(true)
     // Handle missing tensors gracefully
     .allow_partial(true);
 

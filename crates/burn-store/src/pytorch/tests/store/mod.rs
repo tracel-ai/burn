@@ -589,7 +589,9 @@ mod enum_variant_tests {
         let pytorch_file = store_test_data_path("model_without_enum_variants.pt");
 
         // Try to load from PyTorch format (without enum variants)
+        // Explicitly disable skip_enum_variants to demonstrate the mismatch problem
         let mut store = PytorchStore::from_file(pytorch_file)
+            .skip_enum_variants(false) // Disable to show the mismatch
             .allow_partial(true) // Allow partial to see what's missing
             .validate(false); // Disable validation to get detailed missing info
 

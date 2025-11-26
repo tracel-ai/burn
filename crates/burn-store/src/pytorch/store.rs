@@ -97,7 +97,8 @@ impl PytorchStore {
             validate: true,
             allow_partial: false,
             top_level_key: None,
-            skip_enum_variants: false,
+            // PyTorch models never include enum variant names in paths
+            skip_enum_variants: true,
         }
     }
 
@@ -242,20 +243,21 @@ impl PytorchStore {
         self
     }
 
-    /// Skip enum variant names when matching tensor paths.
+    /// Skip enum variant names when matching tensor paths (default: true).
     ///
     /// When enabled, tensor paths from PyTorch that don't include enum variants
     /// can be matched against Burn module paths that do include them.
     /// For example, PyTorch path "feature.weight" can match Burn path "feature.BaseConv.weight".
     ///
-    /// This is useful when loading PyTorch models into Burn modules that use enums,
-    /// since PyTorch doesn't include enum variant names in its parameter paths.
+    /// This defaults to `true` for PytorchStore since PyTorch models never include
+    /// enum variant names in their parameter paths.
     ///
     /// # Example
     /// ```rust,no_run
     /// # use burn_store::PytorchStore;
+    /// // Disable enum variant skipping (not typical)
     /// let store = PytorchStore::from_file("model.pth")
-    ///     .skip_enum_variants(true);
+    ///     .skip_enum_variants(false);
     /// ```
     pub fn skip_enum_variants(mut self, skip: bool) -> Self {
         self.skip_enum_variants = skip;
