@@ -135,24 +135,26 @@ impl ApplyResult {
             return vec![stripped];
         }
 
-        // Fall back to Levenshtein distance
-        let mut similarities: Vec<(String, usize)> = self
+        // Fall back to Jaro similarity (used by Elixir for "did you mean?" suggestions)
+        // Jaro gives higher weight to matching prefixes, ideal for hierarchical tensor paths
+        let mut similarities: Vec<(String, f64)> = self
             .unused
             .iter()
             .map(|available| {
-                let distance = textdistance::str::levenshtein(missing_path, available);
-                (available.clone(), distance)
+                let similarity = textdistance::nstr::jaro(missing_path, available);
+                (available.clone(), similarity)
             })
             .collect();
 
-        // Sort by similarity (lower distance = more similar)
-        similarities.sort_by_key(|(_, dist)| *dist);
+        // Sort by similarity (higher = more similar)
+        similarities
+            .sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(core::cmp::Ordering::Equal));
 
-        // Only suggest paths that are reasonably similar (within 30% edit distance)
-        let threshold = missing_path.len() / 3;
+        // Only suggest paths with >= 70% similarity
+        const SIMILARITY_THRESHOLD: f64 = 0.7;
         similarities
             .into_iter()
-            .filter(|(_, dist)| *dist <= threshold)
+            .filter(|(_, sim)| *sim >= SIMILARITY_THRESHOLD)
             .take(max_suggestions)
             .map(|(path, _)| path)
             .collect()
