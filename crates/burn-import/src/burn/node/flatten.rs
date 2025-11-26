@@ -50,7 +50,12 @@ mod tests {
     fn test_flatten_forward_axis_0() {
         let node = create_flatten_node("flatten1", 0);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.reshape::<2>([1, -1]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = input.reshape::<2>([1, -1]);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -58,10 +63,13 @@ mod tests {
         let node = create_flatten_node("flatten1", 1);
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = {
                 let leading_dim = input.shape().dims[..1].iter().product::<usize>() as i32;
                 input.reshape::<2, _>([leading_dim, -1])
             };
+            output
+        }
         ");
     }
 
@@ -70,10 +78,13 @@ mod tests {
         let node = create_flatten_node("flatten1", 2);
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = {
                 let leading_dim = input.shape().dims[..2].iter().product::<usize>() as i32;
                 input.reshape::<2, _>([leading_dim, -1])
             };
+            output
+        }
         ");
     }
 }

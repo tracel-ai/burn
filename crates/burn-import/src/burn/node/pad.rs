@@ -64,13 +64,23 @@ mod tests {
     fn test_pad_simple() {
         let node = create_pad_node("pad1", vec![1, 1, 1, 1], 0.0);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.pad((1, 1, 1, 1), 0_f32);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.pad((1, 1, 1, 1), 0_f32);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_pad_asymmetric() {
         let node = create_pad_node("pad1", vec![0, 2, 1, 0], 5.5);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.pad((0, 2, 1, 0), 5.5_f32);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.pad((0, 2, 1, 0), 5.5_f32);
+            output
+        }
+        ");
     }
 }

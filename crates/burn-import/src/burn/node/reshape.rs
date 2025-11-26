@@ -187,7 +187,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let reshaped = data.reshape([2, 3]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 3>) -> Tensor<B, 2> {
+            let reshaped = data.reshape([2, 3]);
+            reshaped
+        }
+        ");
     }
 
     #[test]
@@ -201,7 +206,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let result = tensor.reshape([2, -1]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, tensor: Tensor<B, 3>) -> Tensor<B, 2> {
+            let result = tensor.reshape([2, -1]);
+            result
+        }
+        ");
     }
 
     #[test]
@@ -215,7 +225,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let flattened = input.reshape([-1]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 1> {
+            let flattened = input.reshape([-1]);
+            flattened
+        }
+        ");
     }
 
     // Static Tensor -> Scalar (all scalar types)
@@ -230,7 +245,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let scalar = tensor.into_scalar().elem::<f32>();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, tensor: Tensor<B, 1>) -> f32 {
+            let scalar = tensor.into_scalar().elem::<f32>();
+            scalar
+        }
+        ");
     }
 
     #[test]
@@ -244,7 +264,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let value = input.into_scalar().elem::<f64>();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 1>) -> f64 {
+            let value = input.into_scalar().elem::<f64>();
+            value
+        }
+        ");
     }
 
     #[test]
@@ -258,7 +283,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let int_val = data.into_scalar().elem::<i32>();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 1, Int>) -> i32 {
+            let int_val = data.into_scalar().elem::<i32>();
+            int_val
+        }
+        ");
     }
 
     #[test]
@@ -272,7 +302,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let long_val = input.into_scalar().elem::<i64>();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 1, Int>) -> i64 {
+            let long_val = input.into_scalar().elem::<i64>();
+            long_val
+        }
+        ");
     }
 
     #[test]
@@ -286,7 +321,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let flag = mask.into_scalar().elem::<bool>();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, mask: Tensor<B, 1, Bool>) -> bool {
+            let flag = mask.into_scalar().elem::<bool>();
+            flag
+        }
+        ");
     }
 
     // Static Shape -> Scalar
@@ -301,7 +341,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let dim = shape_in[0] as i64;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_in: [i64; 1]) -> i64 {
+            let dim = shape_in[0] as i64;
+            dim
+        }
+        ");
     }
 
     #[test]
@@ -315,7 +360,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let size = shape_data[0] as i32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_data: [i64; 1]) -> i32 {
+            let size = shape_data[0] as i32;
+            size
+        }
+        ");
     }
 
     // Static Shape -> Shape (same rank)
@@ -330,7 +380,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output_shape = input_shape;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input_shape: [i64; 1]) -> [i64; 1] {
+            let output_shape = input_shape;
+            output_shape
+        }
+        ");
     }
 
     // Static Shape -> Shape (different rank)
@@ -345,7 +400,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let large_shape = small_shape;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, small_shape: [i64; 1]) -> [i64; 1] {
+            let large_shape = small_shape;
+            large_shape
+        }
+        ");
     }
 
     #[test]
@@ -359,7 +419,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let tiny_shape = big_shape;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, big_shape: [i64; 1]) -> [i64; 1] {
+            let tiny_shape = big_shape;
+            tiny_shape
+        }
+        ");
     }
 
     // Static Shape -> Tensor
@@ -375,11 +440,14 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let tensor_dims = {
+        pub fn forward(&self, dims: [i64; 1]) -> Tensor<B, 1, Int> {
+            let tensor_dims = {
                 let shape_array = dims as [i64; 1usize];
                 Tensor::<B, 1, Int>::from_data(TensorData::from(shape_array), &self.device)
             }
                 .reshape([3]);
+            tensor_dims
+        }
         ");
     }
 
@@ -399,7 +467,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let reshaped = data.reshape(target_shape);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 3>, target_shape: [i64; 1]) -> Tensor<B, 2> {
+            let reshaped = data.reshape(target_shape);
+            reshaped
+        }
+        ");
     }
 
     // Runtime shape with Tensor argument (rank 2)
@@ -419,9 +492,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let shape_data = new_shape.to_data();
+        pub fn forward(&self, x: Tensor<B, 3>, new_shape: Tensor<B, 1, Int>) -> Tensor<B, 2> {
+            let shape_data = new_shape.to_data();
             let shape_array = shape_data.as_slice::<i64>().unwrap();
             let y = x.reshape([shape_array[0] as usize, shape_array[1] as usize]);
+            y
+        }
         ");
     }
 
@@ -442,7 +518,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let shape_data = shape_tensor.to_data();
+        pub fn forward(
+            &self,
+            input: Tensor<B, 4>,
+            shape_tensor: Tensor<B, 1, Int>,
+        ) -> Tensor<B, 3> {
+            let shape_data = shape_tensor.to_data();
             let shape_array = shape_data.as_slice::<i64>().unwrap();
             let output = input
                 .reshape([
@@ -450,6 +531,8 @@ mod tests {
                     shape_array[1] as usize,
                     shape_array[2] as usize,
                 ]);
+            output
+        }
         ");
     }
 
@@ -470,7 +553,8 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let shape_data = dims.to_data();
+        pub fn forward(&self, tensor_in: Tensor<B, 2>, dims: Tensor<B, 1, Int>) -> Tensor<B, 4> {
+            let shape_data = dims.to_data();
             let shape_array = shape_data.as_slice::<i64>().unwrap();
             let tensor_out = tensor_in
                 .reshape([
@@ -479,6 +563,8 @@ mod tests {
                     shape_array[2] as usize,
                     shape_array[3] as usize,
                 ]);
+            tensor_out
+        }
         ");
     }
 }

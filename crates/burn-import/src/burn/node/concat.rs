@@ -74,13 +74,28 @@ mod tests {
     fn test_concat_two_tensors() {
         let node = create_concat_node("concat1", 2, 0);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = burn::tensor::Tensor::cat([input0, input1].into(), 0);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input0: Tensor<B, 2>, input1: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = burn::tensor::Tensor::cat([input0, input1].into(), 0);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_concat_three_tensors() {
         let node = create_concat_node("concat1", 3, 1);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = burn::tensor::Tensor::cat([input0, input1, input2].into(), 1);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input0: Tensor<B, 2>,
+            input1: Tensor<B, 2>,
+            input2: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = burn::tensor::Tensor::cat([input0, input1, input2].into(), 1);
+            output
+        }
+        ");
     }
 }

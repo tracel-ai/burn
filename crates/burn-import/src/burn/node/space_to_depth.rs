@@ -43,13 +43,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = {
                 let [b, c, h, w] = input.shape().dims();
                 input
                     .reshape([b, c, h / 2usize, 2usize, w / 2usize, 2usize])
                     .permute([0, 3, 5, 1, 2, 4])
                     .reshape([b, c * 2usize * 2usize, h / 2usize, w / 2usize])
             };
+            output
+        }
         ");
     }
 }

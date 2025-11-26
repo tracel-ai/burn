@@ -51,13 +51,23 @@ mod tests {
     fn test_tile_simple() {
         let node = create_tile_node("tile1", vec![2, 3]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.repeat(&[2, 3]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.repeat(&[2, 3]);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_tile_single_repeat() {
         let node = create_tile_node("tile1", vec![1, 2, 3]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.repeat(&[1, 2, 3]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.repeat(&[1, 2, 3]);
+            output
+        }
+        ");
     }
 }

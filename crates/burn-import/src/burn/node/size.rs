@@ -33,6 +33,11 @@ mod tests {
             .output_scalar("output", DType::I64)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.shape.num_elements();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> i64 {
+            let output = input.shape.num_elements();
+            output
+        }
+        ");
     }
 }

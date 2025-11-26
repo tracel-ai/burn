@@ -208,7 +208,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let upsampled = self.upsample.forward(signal);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, signal: Tensor<B, 3>) -> Tensor<B, 3> {
+            let upsampled = self.upsample.forward(signal);
+            upsampled
+        }
+        ");
     }
 
     #[test]
@@ -225,7 +230,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let resampled = self.interpolate.forward(audio);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, audio: Tensor<B, 3>) -> Tensor<B, 3> {
+            let resampled = self.interpolate.forward(audio);
+            resampled
+        }
+        ");
     }
 
     #[test]
@@ -242,7 +252,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = self.resize1d.forward(waveform);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, waveform: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = self.resize1d.forward(waveform);
+            output
+        }
+        ");
     }
 
     // ==================== Static Resize - Rank 4 (2D) Tests ====================
@@ -261,7 +276,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let resized = self.resize.forward(image);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, image: Tensor<B, 4>) -> Tensor<B, 4> {
+            let resized = self.resize.forward(image);
+            resized
+        }
+        ");
     }
 
     #[test]
@@ -278,7 +298,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output_img = self.upscale.forward(input_img);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input_img: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output_img = self.upscale.forward(input_img);
+            output_img
+        }
+        ");
     }
 
     #[test]
@@ -295,7 +320,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let scaled = self.bicubic_resize.forward(features);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, features: Tensor<B, 4>) -> Tensor<B, 4> {
+            let scaled = self.bicubic_resize.forward(features);
+            scaled
+        }
+        ");
     }
 
     #[test]
@@ -312,7 +342,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let doubled = self.double_size.forward(tensor);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, tensor: Tensor<B, 4>) -> Tensor<B, 4> {
+            let doubled = self.double_size.forward(tensor);
+            doubled
+        }
+        ");
     }
 
     #[test]
@@ -329,7 +364,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let lores = self.downsample.forward(hires);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, hires: Tensor<B, 4>) -> Tensor<B, 4> {
+            let lores = self.downsample.forward(hires);
+            lores
+        }
+        ");
     }
 
     #[test]
@@ -346,7 +386,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let result = self.scale_up.forward(data);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 4>) -> Tensor<B, 4> {
+            let result = self.scale_up.forward(data);
+            result
+        }
+        ");
     }
 
     // ==================== Runtime Resize with Shape Input Tests ====================
@@ -370,7 +415,8 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, input: Tensor<B, 4>, target_size: [i64; 1]) -> Tensor<B, 4> {
+            let output = {
                 let target_height = target_size[2] as usize;
                 let target_width = target_size[3] as usize;
                 burn::tensor::module::interpolate(
@@ -381,6 +427,8 @@ mod tests {
                     ),
                 )
             };
+            output
+        }
         ");
     }
 
@@ -403,7 +451,8 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let resized_img = {
+        pub fn forward(&self, img: Tensor<B, 4>, new_dims: [i64; 1]) -> Tensor<B, 4> {
+            let resized_img = {
                 let target_height = new_dims[2] as usize;
                 let target_width = new_dims[3] as usize;
                 burn::tensor::module::interpolate(
@@ -414,6 +463,8 @@ mod tests {
                     ),
                 )
             };
+            resized_img
+        }
         ");
     }
 
@@ -436,7 +487,8 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let dest = {
+        pub fn forward(&self, source: Tensor<B, 4>, output_shape: [i64; 1]) -> Tensor<B, 4> {
+            let dest = {
                 let target_height = output_shape[2] as usize;
                 let target_width = output_shape[3] as usize;
                 burn::tensor::module::interpolate(
@@ -447,6 +499,8 @@ mod tests {
                     ),
                 )
             };
+            dest
+        }
         ");
     }
 
@@ -471,7 +525,8 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let y = {
+        pub fn forward(&self, x: Tensor<B, 4>, size_tensor: Tensor<B, 1, Int>) -> Tensor<B, 4> {
+            let y = {
                 let sizes_data = size_tensor.to_data().convert::<i64>();
                 let sizes_array = sizes_data.as_slice::<i64>().unwrap();
                 let target_height = sizes_array[2] as usize;
@@ -484,6 +539,8 @@ mod tests {
                     ),
                 )
             };
+            y
+        }
         ");
     }
 
@@ -506,7 +563,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let resampled_frame = {
+        pub fn forward(
+            &self,
+            frame: Tensor<B, 4>,
+            dims_tensor: Tensor<B, 1, Int>,
+        ) -> Tensor<B, 4> {
+            let resampled_frame = {
                 let sizes_data = dims_tensor.to_data().convert::<i64>();
                 let sizes_array = sizes_data.as_slice::<i64>().unwrap();
                 let target_height = sizes_array[2] as usize;
@@ -519,6 +581,8 @@ mod tests {
                     ),
                 )
             };
+            resampled_frame
+        }
         ");
     }
 
@@ -541,7 +605,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output_data = {
+        pub fn forward(
+            &self,
+            input_data: Tensor<B, 4>,
+            target_dims: Tensor<B, 1, Int>,
+        ) -> Tensor<B, 4> {
+            let output_data = {
                 let sizes_data = target_dims.to_data().convert::<i64>();
                 let sizes_array = sizes_data.as_slice::<i64>().unwrap();
                 let target_height = sizes_array[2] as usize;
@@ -554,6 +623,8 @@ mod tests {
                     ),
                 )
             };
+            output_data
+        }
         ");
     }
 }

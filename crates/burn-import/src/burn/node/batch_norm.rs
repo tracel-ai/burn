@@ -108,13 +108,23 @@ mod tests {
     fn test_batch_norm_forward() {
         let node = create_batch_norm_node("batch_norm1");
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = self.batch_norm1.forward(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = self.batch_norm1.forward(input);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_batch_norm_forward_with_clone() {
         let node = create_batch_norm_node("batch_norm1");
         let code = codegen_forward_with_clone(&node);
-        assert_snapshot!(code, @"let output = self.batch_norm1.forward(input.clone());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = self.batch_norm1.forward(input.clone());
+            output
+        }
+        ");
     }
 }

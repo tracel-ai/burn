@@ -109,6 +109,11 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.matmul(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = lhs.matmul(rhs);
+            output
+        }
+        ");
     }
 }

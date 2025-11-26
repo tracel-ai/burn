@@ -105,7 +105,17 @@ mod tests {
             config,
         };
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = self.linear1.forward(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input: Tensor<B, 2>,
+            weight: Tensor<B, 2>,
+            bias: Tensor<B, 1>,
+        ) -> Tensor<B, 2> {
+            let output = self.linear1.forward(input);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -130,6 +140,11 @@ mod tests {
             config,
         };
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = self.linear2.forward(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>, weight: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = self.linear2.forward(input);
+            output
+        }
+        ");
     }
 }

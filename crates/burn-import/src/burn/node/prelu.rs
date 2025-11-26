@@ -79,6 +79,11 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = self.prelu1.forward(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>, slope: Tensor<B, 1>) -> Tensor<B, 2> {
+            let output = self.prelu1.forward(input);
+            output
+        }
+        ");
     }
 }

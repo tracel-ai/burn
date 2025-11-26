@@ -5549,11 +5549,11 @@ dependencies = [
 
 [[package]]
 name = "onnx-ir-derive"
-version = "0.20.0-pre.2"
+version = "0.20.0-pre.3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.110",
+ "syn 2.0.111",
 ]
 
 [[package]]

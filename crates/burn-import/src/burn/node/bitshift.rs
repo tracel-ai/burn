@@ -87,7 +87,16 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_left_shift(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_left_shift(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -100,7 +109,16 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_right_shift(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_right_shift(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -113,7 +131,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_left_shift_scalar(rhs.elem());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2, Int>, rhs: i32) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_left_shift_scalar(rhs.elem());
+            output
+        }
+        ");
     }
 
     #[test]
@@ -126,7 +149,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_right_shift_scalar(rhs.elem());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2, Int>, rhs: i32) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_right_shift_scalar(rhs.elem());
+            output
+        }
+        ");
     }
 
     #[test]
@@ -140,10 +168,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = {
                 let _scalar_tensor = Tensor::full(rhs.shape(), lhs, &rhs.device());
                 _scalar_tensor.bitwise_left_shift(rhs)
             };
+            output
+        }
         ");
     }
 
@@ -158,10 +189,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = {
                 let _scalar_tensor = Tensor::full(rhs.shape(), lhs, &rhs.device());
                 _scalar_tensor.bitwise_right_shift(rhs)
             };
+            output
+        }
         ");
     }
 
@@ -175,7 +209,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs << rhs;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: i32) -> i32 {
+            let output = lhs << rhs;
+            output
+        }
+        ");
     }
 
     #[test]
@@ -188,6 +227,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs >> rhs;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: i32) -> i32 {
+            let output = lhs >> rhs;
+            output
+        }
+        ");
     }
 }

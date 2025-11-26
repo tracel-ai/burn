@@ -72,8 +72,11 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let split_tensors = input.split(2, 0);
+        pub fn forward(&self, input: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 2>) {
+            let split_tensors = input.split(2, 0);
             let [output0, output1] = split_tensors.try_into().unwrap();
+            (output0, output1)
+        }
         ");
     }
 
@@ -93,8 +96,14 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let split_tensors = input.split_with_sizes(vec![1, 3, 2], 1);
+        pub fn forward(
+            &self,
+            input: Tensor<B, 2>,
+        ) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
+            let split_tensors = input.split_with_sizes(vec![1, 3, 2], 1);
             let [output0, output1, output2] = split_tensors.try_into().unwrap();
+            (output0, output1, output2)
+        }
         ");
     }
 }

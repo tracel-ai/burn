@@ -43,7 +43,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.triu(0);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.triu(0);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -55,6 +60,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.tril(1);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.tril(1);
+            output
+        }
+        ");
     }
 }

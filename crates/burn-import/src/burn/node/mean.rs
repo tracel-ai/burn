@@ -37,7 +37,17 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = (a + b + c) / 3u32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2>,
+            b: Tensor<B, 2>,
+            c: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = (a + b + c) / 3u32;
+            output
+        }
+        ");
     }
 
     #[test]
@@ -48,6 +58,11 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = (a + b) / 2u32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = (a + b) / 2u32;
+            output
+        }
+        ");
     }
 }

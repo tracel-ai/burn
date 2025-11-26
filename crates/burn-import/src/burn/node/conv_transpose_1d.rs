@@ -121,13 +121,23 @@ mod tests {
     fn test_conv_transpose_1d_forward() {
         let node = create_conv_transpose_1d_node("conv_transpose1");
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = self.conv_transpose1.forward(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = self.conv_transpose1.forward(input);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_conv_transpose_1d_forward_with_clone() {
         let node = create_conv_transpose_1d_node("conv_transpose1");
         let code = codegen_forward_with_clone(&node);
-        assert_snapshot!(code, @"let output = self.conv_transpose1.forward(input.clone());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = self.conv_transpose1.forward(input.clone());
+            output
+        }
+        ");
     }
 }

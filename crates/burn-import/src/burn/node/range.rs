@@ -91,6 +91,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = Tensor::arange_step(0i64..10i64, 2i64 as usize, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> Tensor<B, 1, Int> {
+            let output = Tensor::arange_step(0i64..10i64, 2i64 as usize, &*self.device);
+            output
+        }
+        ");
     }
 }

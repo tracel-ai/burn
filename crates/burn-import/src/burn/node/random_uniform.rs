@@ -52,11 +52,14 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = Tensor::random(
+        pub fn forward(&self) -> Tensor<B, 2> {
+            let output = Tensor::random(
                 Shape::new([3usize, 4usize]),
                 Distribution::Uniform(0f64, 1f64),
                 &*self.device,
             );
+            output
+        }
         ");
     }
 }

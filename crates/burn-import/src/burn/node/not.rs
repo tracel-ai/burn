@@ -33,6 +33,11 @@ mod tests {
             .output_tensor("output", 2, DType::Bool)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.bool_not();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
+            let output = input.bool_not();
+            output
+        }
+        ");
     }
 }

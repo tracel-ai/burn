@@ -253,7 +253,12 @@ mod tests {
             }),
         );
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let weights_out = self.weights.val();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> Tensor<B, 2> {
+            let weights_out = self.weights.val();
+            weights_out
+        }
+        ");
     }
 
     #[test]
@@ -269,7 +274,12 @@ mod tests {
             }),
         );
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let bias_tensor_out = self.bias_tensor.val();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> Tensor<B, 3> {
+            let bias_tensor_out = self.bias_tensor.val();
+            bias_tensor_out
+        }
+        ");
     }
 
     #[test]
@@ -285,7 +295,12 @@ mod tests {
             }),
         );
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let indices_out = self.indices.val();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> Tensor<B, 1, Int> {
+            let indices_out = self.indices.val();
+            indices_out
+        }
+        ");
     }
 
     #[test]
@@ -301,7 +316,12 @@ mod tests {
             }),
         );
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let shape_data_out = self.shape_data.val();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> Tensor<B, 4, Int> {
+            let shape_data_out = self.shape_data.val();
+            shape_data_out
+        }
+        ");
     }
 
     #[test]
@@ -317,7 +337,12 @@ mod tests {
             }),
         );
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let mask_out = self.mask.val();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> Tensor<B, 2, Bool> {
+            let mask_out = self.mask.val();
+            mask_out
+        }
+        ");
     }
 
     // ==================== Scalar Output Tests ====================
@@ -327,7 +352,12 @@ mod tests {
         let data = TensorData::new(vec![3.14f32], vec![]);
         let node = create_constant_node("pi", data, ArgType::Scalar(DType::F32));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let pi_out = 3.14f32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> f32 {
+            let pi_out = 3.14f32;
+            pi_out
+        }
+        ");
     }
 
     #[test]
@@ -335,7 +365,12 @@ mod tests {
         let data = TensorData::new(vec![2.718f64], vec![]);
         let node = create_constant_node("euler", data, ArgType::Scalar(DType::F64));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let euler_out = 2.718f64;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> f64 {
+            let euler_out = 2.718f64;
+            euler_out
+        }
+        ");
     }
 
     #[test]
@@ -343,7 +378,12 @@ mod tests {
         let data = TensorData::new(vec![42i32], vec![]);
         let node = create_constant_node("answer", data, ArgType::Scalar(DType::I32));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let answer_out = 42i32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> i32 {
+            let answer_out = 42i32;
+            answer_out
+        }
+        ");
     }
 
     #[test]
@@ -351,7 +391,12 @@ mod tests {
         let data = TensorData::new(vec![1000i64], vec![]);
         let node = create_constant_node("count", data, ArgType::Scalar(DType::I64));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let count_out = 1000i64;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> i64 {
+            let count_out = 1000i64;
+            count_out
+        }
+        ");
     }
 
     #[test]
@@ -359,7 +404,12 @@ mod tests {
         let data = TensorData::new(vec![true], vec![]);
         let node = create_constant_node("flag", data, ArgType::Scalar(DType::Bool));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let flag_out = true;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> bool {
+            let flag_out = true;
+            flag_out
+        }
+        ");
     }
 
     #[test]
@@ -367,7 +417,12 @@ mod tests {
         let data = TensorData::new(vec![false], vec![]);
         let node = create_constant_node("enabled", data, ArgType::Scalar(DType::Bool));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let enabled_out = false;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> bool {
+            let enabled_out = false;
+            enabled_out
+        }
+        ");
     }
 
     // ==================== Shape Output Tests ====================
@@ -377,7 +432,12 @@ mod tests {
         let data = TensorData::new(vec![10i64], vec![1]);
         let node = create_constant_node("single_dim", data, ArgType::Shape(1));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let single_dim_out: [i64; 1] = [10i64];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> [i64; 1] {
+            let single_dim_out: [i64; 1] = [10i64];
+            single_dim_out
+        }
+        ");
     }
 
     #[test]
@@ -385,7 +445,12 @@ mod tests {
         let data = TensorData::new(vec![5i64, 10], vec![2]);
         let node = create_constant_node("dims", data, ArgType::Shape(2));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let dims_out: [i64; 2] = [5i64, 10i64];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> [i64; 2] {
+            let dims_out: [i64; 2] = [5i64, 10i64];
+            dims_out
+        }
+        ");
     }
 
     #[test]
@@ -393,7 +458,12 @@ mod tests {
         let data = TensorData::new(vec![2i64, 3, 4], vec![3]);
         let node = create_constant_node("shape_vec", data, ArgType::Shape(3));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let shape_vec_out: [i64; 3] = [2i64, 3i64, 4i64];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> [i64; 3] {
+            let shape_vec_out: [i64; 3] = [2i64, 3i64, 4i64];
+            shape_vec_out
+        }
+        ");
     }
 
     #[test]
@@ -401,6 +471,11 @@ mod tests {
         let data = TensorData::new(vec![1i64, 2, 3, 4], vec![4]);
         let node = create_constant_node("full_shape", data, ArgType::Shape(4));
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let full_shape_out: [i64; 4] = [1i64, 2i64, 3i64, 4i64];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self) -> [i64; 4] {
+            let full_shape_out: [i64; 4] = [1i64, 2i64, 3i64, 4i64];
+            full_shape_out
+        }
+        ");
     }
 }

@@ -106,20 +106,35 @@ mod tests {
     fn test_add_forward_tensor_tensor() {
         let node = create_add_node_tensor_tensor("add1", 2, 2);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.add(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = lhs.add(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_add_forward_tensor_scalar() {
         let node = create_add_node_tensor_scalar("add1");
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.add_scalar(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: f32) -> Tensor<B, 2> {
+            let output = lhs.add_scalar(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_add_forward_broadcast() {
         let node = create_add_node_tensor_tensor("add1", 3, 2);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.add(rhs.unsqueeze_dims(&[0isize]));");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 3>, rhs: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output = lhs.add(rhs.unsqueeze_dims(&[0isize]));
+            output
+        }
+        ");
     }
 }

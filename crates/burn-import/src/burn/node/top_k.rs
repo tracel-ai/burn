@@ -51,6 +51,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let (values, indices) = input.topk_with_indices(5, 1);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 2, Int>) {
+            let (values, indices) = input.topk_with_indices(5, 1);
+            (values, indices)
+        }
+        ");
     }
 }

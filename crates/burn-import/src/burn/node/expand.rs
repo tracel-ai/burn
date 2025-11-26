@@ -68,13 +68,23 @@ mod tests {
     fn test_expand_static() {
         let node = create_expand_node_static("expand1", vec![2, 3, 4]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.expand([2, 3, 4]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output = input.expand([2, 3, 4]);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_expand_broadcast() {
         let node = create_expand_node_static("expand1", vec![1, 5, 10]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.expand([1, 5, 10]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output = input.expand([1, 5, 10]);
+            output
+        }
+        ");
     }
 }

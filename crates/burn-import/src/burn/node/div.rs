@@ -102,7 +102,12 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.div(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = lhs.div(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -113,7 +118,12 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.div_scalar(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: f32) -> Tensor<B, 2> {
+            let output = lhs.div_scalar(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -125,13 +135,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, lhs: f32, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = {
                 let scalar_tensor = Tensor::<
                     B,
                     1,
                 >::from_data([lhs.elem::<B::FloatElem>()], &*self.device);
                 scalar_tensor.div(rhs)
             };
+            output
+        }
         ");
     }
 }

@@ -120,8 +120,11 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub(Tensor::zeros_like(&a)))
+        pub fn forward(&self, a: Tensor<B, 2, Int>, b: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = ((a).sub(Tensor::zeros_like(&a)))
                 .matmul((b).sub(Tensor::zeros_like(&b)));
+            output
+        }
         ");
     }
 
@@ -136,8 +139,17 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub((a_zero_point).unsqueeze::<2usize>()))
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2, Int>,
+            b: Tensor<B, 2, Int>,
+            a_zero_point: Tensor<B, 2, Int>,
+            b_zero_point: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = ((a).sub((a_zero_point).unsqueeze::<2usize>()))
                 .matmul((b).sub((b_zero_point).unsqueeze::<2usize>()));
+            output
+        }
         ");
     }
 
@@ -151,8 +163,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub((a_zero_point).unsqueeze::<2usize>()))
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2, Int>,
+            b: Tensor<B, 2, Int>,
+            a_zero_point: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = ((a).sub((a_zero_point).unsqueeze::<2usize>()))
                 .matmul((b).sub(Tensor::zeros_like(&b)));
+            output
+        }
         ");
     }
 
@@ -165,8 +185,11 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub(Tensor::zeros_like(&a)))
+        pub fn forward(&self, a: Tensor<B, 3, Int>, b: Tensor<B, 2, Int>) -> Tensor<B, 3, Int> {
+            let output = ((a).sub(Tensor::zeros_like(&a)))
                 .matmul(((b).sub(Tensor::zeros_like(&b))).unsqueeze::<3usize>());
+            output
+        }
         ");
     }
 
@@ -179,9 +202,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub(Tensor::zeros_like(&a)))
+        pub fn forward(&self, a: Tensor<B, 2, Int>, b: Tensor<B, 3, Int>) -> Tensor<B, 3, Int> {
+            let output = ((a).sub(Tensor::zeros_like(&a)))
                 .unsqueeze::<3usize>()
                 .matmul((b).sub(Tensor::zeros_like(&b)));
+            output
+        }
         ");
     }
 
@@ -194,9 +220,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub(Tensor::zeros_like(&a)))
+        pub fn forward(&self, a: Tensor<B, 2, Int>, b: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
+            let output = ((a).sub(Tensor::zeros_like(&a)))
                 .matmul(((b).sub(Tensor::zeros_like(&b))).unsqueeze_dims(&[-1isize]))
                 .squeeze_dim::<1usize>(1usize);
+            output
+        }
         ");
     }
 
@@ -209,10 +238,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub(Tensor::zeros_like(&a)))
+        pub fn forward(&self, a: Tensor<B, 1, Int>, b: Tensor<B, 2, Int>) -> Tensor<B, 1, Int> {
+            let output = ((a).sub(Tensor::zeros_like(&a)))
                 .unsqueeze::<2usize>()
                 .matmul((b).sub(Tensor::zeros_like(&b)))
                 .squeeze_dim::<1usize>(0usize);
+            output
+        }
         ");
     }
 
@@ -225,9 +257,12 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = ((a).sub(Tensor::zeros_like(&a)))
+        pub fn forward(&self, a: Tensor<B, 3, Int>, b: Tensor<B, 1, Int>) -> Tensor<B, 2, Int> {
+            let output = ((a).sub(Tensor::zeros_like(&a)))
                 .matmul(((b).sub(Tensor::zeros_like(&b))).unsqueeze_dims(&[-1isize, 0isize]))
                 .squeeze_dim::<2usize>(2usize);
+            output
+        }
         ");
     }
 
@@ -241,6 +276,17 @@ mod tests {
             .output_tensor("output", 1, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = ((a).sub(a_zero_point)).matmul((b).sub(b_zero_point));");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 1, Int>,
+            b: Tensor<B, 1, Int>,
+            a_zero_point: Tensor<B, 1, Int>,
+            b_zero_point: Tensor<B, 1, Int>,
+        ) -> Tensor<B, 1, Int> {
+            let output = ((a).sub(a_zero_point)).matmul((b).sub(b_zero_point));
+            output
+        }
+        ");
     }
 }

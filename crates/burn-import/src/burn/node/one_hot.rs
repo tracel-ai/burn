@@ -98,7 +98,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = indices.one_hot_fill(10usize, 1f32, 0f32, -1i64).float();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1, Int>) -> Tensor<B, 2> {
+            let output = indices.one_hot_fill(10usize, 1f32, 0f32, -1i64).float();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -114,7 +119,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1, Int>) -> Tensor<B, 2, Int> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -130,7 +140,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1>) -> Tensor<B, 2> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -146,7 +161,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).int();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1>) -> Tensor<B, 2, Int> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).int();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -162,7 +182,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64).bool();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1, Int>) -> Tensor<B, 2, Bool> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64).bool();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -178,6 +203,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).bool();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1>) -> Tensor<B, 2, Bool> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).bool();
+            output
+        }
+        ");
     }
 }

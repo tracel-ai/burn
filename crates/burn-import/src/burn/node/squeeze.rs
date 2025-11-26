@@ -123,14 +123,24 @@ mod tests {
     fn test_squeeze_forward_static_axes() {
         let node = create_squeeze_node_static("squeeze1", vec![1]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.squeeze_dims::<2>(&[1]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = input.squeeze_dims::<2>(&[1]);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_squeeze_forward_multiple_axes() {
         let node = create_squeeze_node_static("squeeze1", vec![0, 2]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.squeeze_dims::<2>(&[0, 2]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = input.squeeze_dims::<2>(&[0, 2]);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -142,6 +152,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.squeeze::<1>();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 1> {
+            let output = input.squeeze::<1>();
+            output
+        }
+        ");
     }
 }

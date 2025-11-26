@@ -66,7 +66,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.is_inf();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.is_inf();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -78,7 +83,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.clone().is_inf().bool_and(input.greater_elem(0.0));");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.clone().is_inf().bool_and(input.greater_elem(0.0));
+            output
+        }
+        ");
     }
 
     #[test]
@@ -90,7 +100,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.clone().is_inf().bool_and(input.lower_elem(0.0));");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.clone().is_inf().bool_and(input.lower_elem(0.0));
+            output
+        }
+        ");
     }
 
     #[test]
@@ -102,7 +117,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.zeros_like().bool();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.zeros_like().bool();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -114,7 +134,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.is_infinite();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = input.is_infinite();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -126,7 +151,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.is_infinite() && input.is_sign_positive();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = input.is_infinite() && input.is_sign_positive();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -138,7 +168,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.is_infinite() && input.is_sign_negative();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = input.is_infinite() && input.is_sign_negative();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -150,6 +185,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = false;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = false;
+            output
+        }
+        ");
     }
 }

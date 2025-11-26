@@ -63,7 +63,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.argmin(1);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3, Int> {
+            let output = input.argmin(1);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -76,8 +81,11 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let argmin_result = input.argmin(0);
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 1, Int> {
+            let argmin_result = input.argmin(0);
             let output = argmin_result.squeeze_dim::<1usize>(0);
+            output
+        }
         ");
     }
 
@@ -91,8 +99,11 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let argmin_result = input.argmin(0);
+        pub fn forward(&self, input: Tensor<B, 1>) -> i64 {
+            let argmin_result = input.argmin(0);
             let output = argmin_result.into_scalar().elem::<i64>();
+            output
+        }
         ");
     }
 }

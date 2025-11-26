@@ -94,7 +94,12 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.mul(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = lhs.mul(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -105,6 +110,11 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.mul_scalar(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: f32) -> Tensor<B, 2> {
+            let output = lhs.mul_scalar(rhs);
+            output
+        }
+        ");
     }
 }

@@ -289,7 +289,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output,) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+        ) -> Tensor<B, 4> {
+            let (output,) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -303,6 +309,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output,)
             };
+            output
+        }
         ");
     }
 
@@ -326,7 +334,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output,) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 3>,
+            key: Tensor<B, 3>,
+            value: Tensor<B, 3>,
+        ) -> Tensor<B, 3> {
+            let (output,) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -358,6 +372,8 @@ mod tests {
                     .reshape([batch_size as i32, q_sequence_length as i32, -1]);
                 (output,)
             };
+            output
+        }
         ");
     }
 
@@ -381,7 +397,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output,) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+        ) -> Tensor<B, 4> {
+            let (output,) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -408,6 +430,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output,)
             };
+            output
+        }
         ");
     }
 
@@ -432,7 +456,14 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output,) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+            mask: Tensor<B, 4>,
+        ) -> Tensor<B, 4> {
+            let (output,) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -453,6 +484,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output,)
             };
+            output
+        }
         ");
     }
 
@@ -476,7 +509,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output,) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+        ) -> Tensor<B, 4> {
+            let (output,) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -494,6 +533,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output,)
             };
+            output
+        }
         ");
     }
 
@@ -517,7 +558,13 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output,) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+        ) -> Tensor<B, 4> {
+            let (output,) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -531,6 +578,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output,)
             };
+            output
+        }
         ");
     }
 
@@ -559,7 +608,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output, present_k, present_v) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+            bias: Tensor<B, 4>,
+            past_k: Tensor<B, 4>,
+            past_v: Tensor<B, 4>,
+        ) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+            let (output, present_k, present_v) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -584,6 +642,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output, present_k, present_v)
             };
+            (output, present_k, present_v)
+        }
         ");
     }
 
@@ -613,7 +673,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output, present_k, present_v, qk_output) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+            mask: Tensor<B, 4>,
+            past_k: Tensor<B, 4>,
+            past_v: Tensor<B, 4>,
+        ) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+            let (output, present_k, present_v, qk_output) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -639,6 +708,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output, present_k, present_v, qk_output)
             };
+            (output, present_k, present_v, qk_output)
+        }
         ");
     }
 
@@ -668,7 +739,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output, present_k, present_v, qk_output) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+            bias: Tensor<B, 4>,
+            past_k: Tensor<B, 4>,
+            past_v: Tensor<B, 4>,
+        ) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+            let (output, present_k, present_v, qk_output) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -698,6 +778,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output, present_k, present_v, qk_output)
             };
+            (output, present_k, present_v, qk_output)
+        }
         ");
     }
 
@@ -727,7 +809,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let (output, present_k, present_v, qk_output) = {
+        pub fn forward(
+            &self,
+            query: Tensor<B, 4>,
+            key: Tensor<B, 4>,
+            value: Tensor<B, 4>,
+            bias: Tensor<B, 4>,
+            past_k: Tensor<B, 4>,
+            past_v: Tensor<B, 4>,
+        ) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+            let (output, present_k, present_v, qk_output) = {
                 let q = query;
                 let k = key;
                 let v = value;
@@ -753,6 +844,8 @@ mod tests {
                 let output = scores.matmul(v);
                 (output, present_k, present_v, qk_output)
             };
+            (output, present_k, present_v, qk_output)
+        }
         ");
     }
 }

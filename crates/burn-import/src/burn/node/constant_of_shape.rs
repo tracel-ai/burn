@@ -139,7 +139,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let result = 3.14f32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> f32 {
+            let result = 3.14f32;
+            result
+        }
+        ");
     }
 
     #[test]
@@ -154,7 +159,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let value = 2.718f64;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_in: [i64; 1]) -> f64 {
+            let value = 2.718f64;
+            value
+        }
+        ");
     }
 
     #[test]
@@ -169,7 +179,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let num = 42i32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, s: [i64; 1]) -> i32 {
+            let num = 42i32;
+            num
+        }
+        ");
     }
 
     #[test]
@@ -184,7 +199,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = 999i64;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_data: [i64; 1]) -> i64 {
+            let output = 999i64;
+            output
+        }
+        ");
     }
 
     #[test]
@@ -199,7 +219,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let flag = true;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_vec: [i64; 1]) -> bool {
+            let flag = true;
+            flag
+        }
+        ");
     }
 
     #[test]
@@ -214,7 +239,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let zero = 0.0f32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, s: [i64; 1]) -> f32 {
+            let zero = 0.0f32;
+            zero
+        }
+        ");
     }
 
     // ==================== Tensor with Static Shape Tests ====================
@@ -231,7 +261,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let filled = Tensor::full([2usize, 3usize, 4usize], 1.5f32, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, target_shape: [i64; 1]) -> Tensor<B, 3> {
+            let filled = Tensor::full([2usize, 3usize, 4usize], 1.5f32, &*self.device);
+            filled
+        }
+        ");
     }
 
     #[test]
@@ -246,7 +281,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let matrix = Tensor::full([10usize, 20usize], 0.5f64, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> Tensor<B, 2> {
+            let matrix = Tensor::full([10usize, 20usize], 0.5f64, &*self.device);
+            matrix
+        }
+        ");
     }
 
     #[test]
@@ -261,7 +301,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let grid = Tensor::full([5usize, 5usize], 7i32, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, size: [i64; 1]) -> Tensor<B, 2, Int> {
+            let grid = Tensor::full([5usize, 5usize], 7i32, &*self.device);
+            grid
+        }
+        ");
     }
 
     #[test]
@@ -276,7 +321,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let vector = Tensor::full([8usize], 100i64, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, length: [i64; 1]) -> Tensor<B, 1, Int> {
+            let vector = Tensor::full([8usize], 100i64, &*self.device);
+            vector
+        }
+        ");
     }
 
     #[test]
@@ -291,7 +341,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let mask = Tensor::<B, 2, Int>::ones([3usize, 4usize], &*self.device).bool();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_dims: [i64; 1]) -> Tensor<B, 2, Bool> {
+            let mask = Tensor::<B, 2, Int>::ones([3usize, 4usize], &*self.device).bool();
+            mask
+        }
+        ");
     }
 
     #[test]
@@ -307,8 +362,11 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let flags = Tensor::<B, 3, Int>::zeros([6usize, 7usize, 8usize], &*self.device)
+        pub fn forward(&self, dimensions: [i64; 1]) -> Tensor<B, 3, Bool> {
+            let flags = Tensor::<B, 3, Int>::zeros([6usize, 7usize, 8usize], &*self.device)
                 .bool();
+            flags
+        }
         ");
     }
 
@@ -324,7 +382,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let zeros = Tensor::full([2usize, 2usize], 0.0f32, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, size: [i64; 1]) -> Tensor<B, 2> {
+            let zeros = Tensor::full([2usize, 2usize], 0.0f32, &*self.device);
+            zeros
+        }
+        ");
     }
 
     // ==================== Tensor with Runtime Shape Tests ====================
@@ -344,7 +407,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let tensor = Tensor::full(dynamic_shape, 2.5f32, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dynamic_shape: [i64; 1]) -> Tensor<B, 3> {
+            let tensor = Tensor::full(dynamic_shape, 2.5f32, &*self.device);
+            tensor
+        }
+        ");
     }
 
     #[test]
@@ -362,7 +430,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let data = Tensor::full(shape_param, 255i64, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_param: [i64; 1]) -> Tensor<B, 2, Int> {
+            let data = Tensor::full(shape_param, 255i64, &*self.device);
+            data
+        }
+        ");
     }
 
     #[test]
@@ -380,7 +453,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let bitmask = Tensor::<B, 4, Int>::ones(sz, &*self.device).bool();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, sz: [i64; 1]) -> Tensor<B, 4, Bool> {
+            let bitmask = Tensor::<B, 4, Int>::ones(sz, &*self.device).bool();
+            bitmask
+        }
+        ");
     }
 
     #[test]
@@ -398,7 +476,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let empty_mask = Tensor::<B, 2, Int>::zeros(target_dims, &*self.device).bool();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, target_dims: [i64; 1]) -> Tensor<B, 2, Bool> {
+            let empty_mask = Tensor::<B, 2, Int>::zeros(target_dims, &*self.device).bool();
+            empty_mask
+        }
+        ");
     }
 
     #[test]
@@ -416,7 +499,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let zeros = Tensor::full(runtime_shape, 0.0f32, &*self.device);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, runtime_shape: [i64; 1]) -> Tensor<B, 3> {
+            let zeros = Tensor::full(runtime_shape, 0.0f32, &*self.device);
+            zeros
+        }
+        ");
     }
 
     // ==================== Shape Output Tests ====================
@@ -433,7 +521,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let out_shape: [i64; 1] = [10i64];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, in_shape: [i64; 1]) -> [i64; 1] {
+            let out_shape: [i64; 1] = [10i64];
+            out_shape
+        }
+        ");
     }
 
     #[test]
@@ -448,6 +541,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let result: [i64; 1] = [0.0f32];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> [i64; 1] {
+            let result: [i64; 1] = [0.0f32];
+            result
+        }
+        ");
     }
 }

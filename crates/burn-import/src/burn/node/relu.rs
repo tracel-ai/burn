@@ -35,6 +35,11 @@ mod tests {
             .output_tensor("output", 4, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = burn::tensor::activation::relu(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = burn::tensor::activation::relu(input);
+            output
+        }
+        ");
     }
 }

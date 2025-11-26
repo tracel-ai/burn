@@ -59,7 +59,12 @@ mod tests {
             .output_tensor("output", 2, DType::I64)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.not_equal_elem(0.0).argwhere().transpose();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Int> {
+            let output = input.not_equal_elem(0.0).argwhere().transpose();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -69,7 +74,12 @@ mod tests {
             .output_tensor("output", 2, DType::I64)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.not_equal_elem(0).argwhere().transpose();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = input.not_equal_elem(0).argwhere().transpose();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -79,6 +89,11 @@ mod tests {
             .output_tensor("output", 2, DType::I64)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.argwhere().transpose();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2, Bool>) -> Tensor<B, 2, Int> {
+            let output = input.argwhere().transpose();
+            output
+        }
+        ");
     }
 }

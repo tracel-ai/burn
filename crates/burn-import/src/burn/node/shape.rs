@@ -83,13 +83,16 @@ mod tests {
         };
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output: [i64; 3] = input
+        pub fn forward(&self, input: Tensor<B, 3>) -> [i64; 3] {
+            let output: [i64; 3] = input
                 .dims()[0..3]
                 .iter()
                 .map(|&x| x as i64)
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
+            output
+        }
         ");
     }
 
@@ -109,13 +112,16 @@ mod tests {
         };
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output: [i64; 2] = input
+        pub fn forward(&self, input: Tensor<B, 4>) -> [i64; 2] {
+            let output: [i64; 2] = input
                 .dims()[1..3]
                 .iter()
                 .map(|&x| x as i64)
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
+            output
+        }
         ");
     }
 
@@ -131,6 +137,11 @@ mod tests {
             config,
         };
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output: [i64; 1] = [3i64];");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: [i64; 3]) -> [i64; 1] {
+            let output: [i64; 1] = [3i64];
+            output
+        }
+        ");
     }
 }

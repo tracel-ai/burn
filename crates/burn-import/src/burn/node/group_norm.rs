@@ -109,10 +109,13 @@ mod tests {
         let node = create_group_norm_node("group_norm1");
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = {
                 let dtype = input.dtype();
                 self.group_norm1.forward(input.cast(burn::tensor::DType::F32)).cast(dtype)
             };
+            output
+        }
         ");
     }
 
@@ -121,12 +124,15 @@ mod tests {
         let node = create_group_norm_node("group_norm1");
         let code = codegen_forward_with_clone(&node);
         assert_snapshot!(code, @r"
-        let output = {
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = {
                 let dtype = input.clone().dtype();
                 self.group_norm1
                     .forward(input.clone().cast(burn::tensor::DType::F32))
                     .cast(dtype)
             };
+            output
+        }
         ");
     }
 }

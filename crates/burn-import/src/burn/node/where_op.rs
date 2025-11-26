@@ -159,7 +159,17 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = y.mask_where(condition, x);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            condition: Tensor<B, 2, Bool>,
+            x: Tensor<B, 2>,
+            y: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = y.mask_where(condition, x);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -171,7 +181,17 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = y.mask_fill(condition, x);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            condition: Tensor<B, 2, Bool>,
+            x: f32,
+            y: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = y.mask_fill(condition, x);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -183,6 +203,11 @@ mod tests {
             .output_scalar("output", DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = if condition { x } else { y };");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, condition: bool, x: f32, y: f32) -> f32 {
+            let output = if condition { x } else { y };
+            output
+        }
+        ");
     }
 }

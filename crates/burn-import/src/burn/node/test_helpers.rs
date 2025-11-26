@@ -5,9 +5,15 @@
 
 use super::NodeCodegen;
 use crate::burn::Scope;
+use crate::burn::argument_helpers::arg_type_tokens;
 use burn::record::PrecisionSettings;
+use onnx_ir::ir::ArgType;
+use proc_macro2::{Ident, Span};
+use quote::quote;
 
 /// Generate forward pass code for a node with optional clone behavior
+///
+/// Generates a complete forward function signature with inputs, outputs, and body.
 ///
 /// # Arguments
 /// * `node` - The node to generate code for
@@ -19,11 +25,16 @@ use burn::record::PrecisionSettings;
 /// ```ignore
 /// let node = create_my_node("test");
 /// let code = codegen_forward(&node, 0, false, 1);
-/// assert_snapshot!(code, @"...");
+/// assert_snapshot!(code, @r#"
+///     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+///         let output = input.abs();
+///         output
+///     }
+/// "#);
 /// ```
 pub fn codegen_forward<T, PS>(
     node: &T,
-    input_idx: usize,
+    _input_idx: usize,
     with_clone: bool,
     node_position: usize,
 ) -> String
@@ -33,14 +44,19 @@ where
 {
     let mut scope = Scope::default();
 
-    if let Some(input) = node.inputs().get(input_idx) {
-        // Register the variable at position 0
+    // Register all inputs as variables
+    for input in node.inputs().iter() {
+        // Skip non-dynamic inputs (constants, initializers)
+        if !matches!(
+            input.ty,
+            ArgType::Tensor(_) | ArgType::Scalar(_) | ArgType::Shape(_)
+        ) {
+            continue;
+        }
         scope.tensor_register_variable(input, 0);
 
         if with_clone {
-            // Register two future uses to trigger clone:
-            // 1. The current use (at node_position)
-            // 2. A future use (after node_position) to ensure clone is needed
+            // Register two future uses to trigger clone
             scope.tensor_register_future_use(input, node_position);
             scope.tensor_register_future_use(input, node_position + 1);
         }
@@ -48,10 +64,56 @@ where
 
     // Generate code using the node's forward method with ScopeAtPosition
     let mut scope_at_pos = scope.at_position(node_position);
-    let code = node.forward(&mut scope_at_pos);
+    let body = node.forward(&mut scope_at_pos);
 
-    // Format the statement by wrapping in a function, formatting, then extracting
-    format_statement(code)
+    // Generate function parameters from inputs
+    let params: Vec<_> = node
+        .inputs()
+        .iter()
+        .filter(|arg| {
+            // Only include dynamic inputs (not constants/initializers)
+            matches!(
+                arg.ty,
+                ArgType::Tensor(_) | ArgType::Scalar(_) | ArgType::Shape(_)
+            ) && arg.value().is_none()
+        })
+        .map(|arg| {
+            let name = Ident::new(&arg.name, Span::call_site());
+            let ty = arg_type_tokens(arg);
+            quote! { #name: #ty }
+        })
+        .collect();
+
+    // Generate return type from outputs
+    let outputs = node.outputs();
+    let return_type = if outputs.len() == 1 {
+        arg_type_tokens(&outputs[0])
+    } else {
+        let types: Vec<_> = outputs.iter().map(arg_type_tokens).collect();
+        quote! { (#(#types),*) }
+    };
+
+    // Generate return expression
+    let return_expr = if outputs.len() == 1 {
+        let name = Ident::new(&outputs[0].name, Span::call_site());
+        quote! { #name }
+    } else {
+        let names: Vec<_> = outputs
+            .iter()
+            .map(|arg| Ident::new(&arg.name, Span::call_site()))
+            .collect();
+        quote! { (#(#names),*) }
+    };
+
+    // Generate the full forward function
+    let forward_fn = quote! {
+        pub fn forward(&self, #(#params),*) -> #return_type {
+            #body
+            #return_expr
+        }
+    };
+
+    format_tokens(forward_fn)
 }
 
 /// Generate forward pass code with default parameters
@@ -65,7 +127,12 @@ where
 /// ```ignore
 /// let node = create_my_node("test");
 /// let code = codegen_forward_default(&node);
-/// assert_snapshot!(code, @"...");
+/// assert_snapshot!(code, @r#"
+///     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+///         let output = input.abs();
+///         output
+///     }
+/// "#);
 /// ```
 pub fn codegen_forward_default<T>(node: &T) -> String
 where
@@ -94,48 +161,12 @@ where
     codegen_forward(node, 0, true, 1)
 }
 
-/// Format a statement-level TokenStream by wrapping it in a function,
-/// formatting, then extracting the statement
-fn format_statement(stmt: proc_macro2::TokenStream) -> String {
-    use quote::quote;
+/// Format a TokenStream using PrettyPlease
+fn format_tokens(tokens: proc_macro2::TokenStream) -> String {
     use rust_format::{Config, Formatter, PostProcess, PrettyPlease};
 
-    // Wrap statement in a dummy function
-    let wrapped = quote! {
-        fn __fmt() {
-            #stmt
-        }
-    };
-
-    // Format the function
     let config = Config::new_str().post_proc(PostProcess::ReplaceMarkersAndDocBlocks);
     let formatter = PrettyPlease::from_config(config);
-    let formatted = formatter
-        .format_tokens(wrapped)
-        .unwrap_or_else(|_| stmt.to_string());
-
-    // Extract just the statement (remove function wrapper)
-    // The formatted code will look like:
-    // fn __fmt() {
-    //     let output = ...;
-    // }
-    //
-    // We want to extract just the "let output = ...;" part
-    extract_statement_from_function(&formatted)
-}
-
-/// Extract the statement from a formatted function body
-fn extract_statement_from_function(formatted: &str) -> String {
-    // Find the opening brace and closing brace
-    let start = formatted.find('{').map(|i| i + 1);
-    let end = formatted.rfind('}');
-
-    if let (Some(start), Some(end)) = (start, end) {
-        let body = &formatted[start..end];
-        // Trim whitespace and return just the statement
-        body.trim().to_string()
-    } else {
-        // Fallback to original if parsing fails
-        formatted.to_string()
-    }
+    let fallback = tokens.to_string();
+    formatter.format_tokens(tokens).unwrap_or(fallback)
 }

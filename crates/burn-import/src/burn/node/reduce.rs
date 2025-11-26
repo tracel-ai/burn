@@ -403,7 +403,12 @@ mod tests {
         let config = ReduceConfig::new(vec![1], true);
         let node = create_reduce_max_node("reduce_max1", config);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = { input.max_dim(1usize) };");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.max_dim(1usize) };
+            output
+        }
+        ");
     }
 
     #[test]
@@ -415,7 +420,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = { input.mean_dim(1usize) };");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.mean_dim(1usize) };
+            output
+        }
+        ");
     }
 
     #[test]
@@ -427,7 +437,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = { input.sum_dim(1usize) };");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.sum_dim(1usize) };
+            output
+        }
+        ");
     }
 
     #[test]
@@ -435,7 +450,12 @@ mod tests {
         let config = ReduceConfig::new(vec![1, 2], true);
         let node = create_reduce_max_node("reduce_max1", config);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = { input.max_dim(1usize).max_dim(2usize) };");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.max_dim(1usize).max_dim(2usize) };
+            output
+        }
+        ");
     }
 
     #[test]
@@ -447,6 +467,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = { input.sum_dim(1usize).sum_dim(2usize).squeeze_dims(&[1, 2]) };");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 1> {
+            let output = { input.sum_dim(1usize).sum_dim(2usize).squeeze_dims(&[1, 2]) };
+            output
+        }
+        ");
     }
 }

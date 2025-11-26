@@ -62,6 +62,15 @@ mod tests {
             .output_tensor("output", 2, DType::Bool)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bool_and(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Bool>,
+            rhs: Tensor<B, 2, Bool>,
+        ) -> Tensor<B, 2, Bool> {
+            let output = lhs.bool_and(rhs);
+            output
+        }
+        ");
     }
 }

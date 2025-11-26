@@ -56,7 +56,12 @@ mod tests {
             .output_tensor("output", 2, DType::Bool)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.random_like(Distribution::Default).lower(input);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -66,7 +71,12 @@ mod tests {
             .output_tensor("output", 2, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input).int();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Int> {
+            let output = input.random_like(Distribution::Default).lower(input).int();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -76,7 +86,12 @@ mod tests {
             .output_tensor("output", 2, DType::F32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input).float();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.random_like(Distribution::Default).lower(input).float();
+            output
+        }
+        ");
     }
 
     #[test]
@@ -86,6 +101,11 @@ mod tests {
             .output_tensor("output", 2, DType::I64)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.random_like(Distribution::Default).lower(input).int();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Int> {
+            let output = input.random_like(Distribution::Default).lower(input).int();
+            output
+        }
+        ");
     }
 }

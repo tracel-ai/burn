@@ -45,13 +45,23 @@ mod tests {
     fn test_log_softmax_forward_last_axis() {
         let node = create_log_softmax_node("log_softmax1", 1);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = log_softmax(input, 1);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = log_softmax(input, 1);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_log_softmax_forward_axis_0() {
         let node = create_log_softmax_node("log_softmax1", 0);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = log_softmax(input, 0);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = log_softmax(input, 0);
+            output
+        }
+        ");
     }
 }

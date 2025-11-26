@@ -109,48 +109,93 @@ mod tests {
     fn test_gemm_basic_ab() {
         let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 0, 0, false);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.matmul(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.matmul(b);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_gemm_with_alpha() {
         let node = create_gemm_node_ab("gemm1", 2.5, 1.0, 0, 0, false);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.matmul(b) * 2.5f32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.matmul(b) * 2.5f32;
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_gemm_with_alpha_and_c() {
         let node = create_gemm_node_ab("gemm1", 2.5, 1.0, 0, 0, true);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.matmul(b) * 2.5f32 + c.unsqueeze();");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2>,
+            b: Tensor<B, 2>,
+            c: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = a.matmul(b) * 2.5f32 + c.unsqueeze();
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_gemm_with_alpha_beta_c() {
         let node = create_gemm_node_ab("gemm1", 2.0, 3.0, 0, 0, true);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.matmul(b) * 2f32 + (c.unsqueeze()) * 3f32;");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2>,
+            b: Tensor<B, 2>,
+            c: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = a.matmul(b) * 2f32 + (c.unsqueeze()) * 3f32;
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_gemm_with_trans_a() {
         let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 1, 0, false);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.transpose().matmul(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.transpose().matmul(b);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_gemm_with_trans_b() {
         let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 0, 1, false);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.matmul(b.transpose());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.matmul(b.transpose());
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_gemm_with_trans_a_and_b() {
         let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 1, 1, false);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.transpose().matmul(b.transpose());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.transpose().matmul(b.transpose());
+            output
+        }
+        ");
     }
 }

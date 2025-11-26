@@ -627,7 +627,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let sliced = data.slice(s![0..2, .., ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 3>) -> Tensor<B, 3> {
+            let sliced = data.slice(s![0..2, .., ..]);
+            sliced
+        }
+        ");
     }
 
     #[test]
@@ -644,7 +649,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let result = tensor.slice(s![.., 1..3, ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, tensor: Tensor<B, 3>) -> Tensor<B, 3> {
+            let result = tensor.slice(s![.., 1..3, ..]);
+            result
+        }
+        ");
     }
 
     #[test]
@@ -661,7 +671,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.slice(s![0..2, 1..3, 0..3]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = input.slice(s![0..2, 1..3, 0..3]);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -678,7 +693,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let y = x.slice(s![0..10; 2, .., ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, x: Tensor<B, 3>) -> Tensor<B, 3> {
+            let y = x.slice(s![0..10; 2, .., ..]);
+            y
+        }
+        ");
     }
 
     #[test]
@@ -695,7 +715,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let tail = tensor.slice(s![.., .., 5.., ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, tensor: Tensor<B, 4>) -> Tensor<B, 4> {
+            let tail = tensor.slice(s![.., .., 5.., ..]);
+            tail
+        }
+        ");
     }
 
     #[test]
@@ -712,7 +737,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let every_third = data.slice(s![.., 0..; 3, ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 3>) -> Tensor<B, 3> {
+            let every_third = data.slice(s![.., 0..; 3, ..]);
+            every_third
+        }
+        ");
     }
 
     #[test]
@@ -729,7 +759,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let cropped = volume.slice(s![1..5, .., 2..8, ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, volume: Tensor<B, 4>) -> Tensor<B, 4> {
+            let cropped = volume.slice(s![1..5, .., 2..8, ..]);
+            cropped
+        }
+        ");
     }
 
     // ===== Runtime Tensor Slicing with Shape arguments =====
@@ -756,7 +791,17 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let sliced = data.slice(s![.., start_idx[0]..end_idx[0], ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            data: Tensor<B, 3>,
+            start_idx: [i64; 1],
+            end_idx: [i64; 1],
+        ) -> Tensor<B, 3> {
+            let sliced = data.slice(s![.., start_idx[0]..end_idx[0], ..]);
+            sliced
+        }
+        ");
     }
 
     #[test]
@@ -781,7 +826,17 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let result = tensor.slice(s![starts[0]..ends[0], ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            tensor: Tensor<B, 2>,
+            starts: [i64; 1],
+            ends: [i64; 1],
+        ) -> Tensor<B, 2> {
+            let result = tensor.slice(s![starts[0]..ends[0], ..]);
+            result
+        }
+        ");
     }
 
     // ===== Runtime Tensor Slicing with Scalar arguments =====
@@ -808,7 +863,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let y = x.slice(s![(start as usize).. (end as usize), ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, x: Tensor<B, 2>, start: i64, end: i64) -> Tensor<B, 2> {
+            let y = x.slice(s![(start as usize).. (end as usize), ..]);
+            y
+        }
+        ");
     }
 
     // ===== Mixed Static/Runtime Slicing =====
@@ -831,7 +891,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let prefix = data.slice(s![.., 0..end_pos[0], ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 3>, end_pos: [i64; 1]) -> Tensor<B, 3> {
+            let prefix = data.slice(s![.., 0..end_pos[0], ..]);
+            prefix
+        }
+        ");
     }
 
     #[test]
@@ -852,7 +917,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let segment = array.slice(s![5.. (stop as usize), ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, array: Tensor<B, 2>, stop: i64) -> Tensor<B, 2> {
+            let segment = array.slice(s![5.. (stop as usize), ..]);
+            segment
+        }
+        ");
     }
 
     #[test]
@@ -873,7 +943,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let chunk = tensor.slice(s![begin[0]..10, ..]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, tensor: Tensor<B, 2>, begin: [i64; 1]) -> Tensor<B, 2> {
+            let chunk = tensor.slice(s![begin[0]..10, ..]);
+            chunk
+        }
+        ");
     }
 
     // ===== Shape Slicing =====
@@ -892,7 +967,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output_shape: [i64; 1] = input_shape[1..1].try_into().unwrap();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input_shape: [i64; 1]) -> [i64; 1] {
+            let output_shape: [i64; 1] = input_shape[1..1].try_into().unwrap();
+            output_shape
+        }
+        ");
     }
 
     #[test]
@@ -909,7 +989,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let last_two: [i64; 1] = dims[0..1].try_into().unwrap();");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> [i64; 1] {
+            let last_two: [i64; 1] = dims[0..1].try_into().unwrap();
+            last_two
+        }
+        ");
     }
 
     #[test]
@@ -927,13 +1012,16 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let shape_out: [i64; 1] = shape_in[0..1]
+        pub fn forward(&self, shape_in: [i64; 1]) -> [i64; 1] {
+            let shape_out: [i64; 1] = shape_in[0..1]
                 .iter()
                 .step_by(2i64 as usize)
                 .copied()
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
+            shape_out
+        }
         ");
     }
 
@@ -952,11 +1040,14 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let reversed: [i64; 1] = {
+        pub fn forward(&self, original: [i64; 1]) -> [i64; 1] {
+            let reversed: [i64; 1] = {
                 let mut slice = original[0..1].to_vec();
                 slice.reverse();
                 slice.try_into().unwrap()
             };
+            reversed
+        }
         ");
     }
 
@@ -983,7 +1074,8 @@ mod tests {
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        let sliced_shape: [i64; 1] = {
+        pub fn forward(&self, shape_data: [i64; 1], start: i64, end: i64) -> [i64; 1] {
+            let sliced_shape: [i64; 1] = {
                 let start_val = start as i64;
                 let end_val = end as i64;
                 let start_idx = if start_val < 0 {
@@ -998,6 +1090,8 @@ mod tests {
                 };
                 shape_data[start_idx..end_idx].try_into().unwrap()
             };
+            sliced_shape
+        }
         ");
     }
 }

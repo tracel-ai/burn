@@ -47,6 +47,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = input.random_like(Distribution::Uniform(0f64, 1f64));");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.random_like(Distribution::Uniform(0f64, 1f64));
+            output
+        }
+        ");
     }
 }

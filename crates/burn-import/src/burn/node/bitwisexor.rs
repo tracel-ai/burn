@@ -68,7 +68,16 @@ mod tests {
             .output_tensor("output", 2, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_xor(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_xor(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -79,7 +88,12 @@ mod tests {
             .output_tensor("output", 2, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_xor_scalar((rhs as i64).elem());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2, Int>, rhs: i32) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_xor_scalar((rhs as i64).elem());
+            output
+        }
+        ");
     }
 
     #[test]
@@ -90,7 +104,12 @@ mod tests {
             .output_tensor("output", 2, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = rhs.bitwise_xor_scalar((lhs as i64).elem());");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = rhs.bitwise_xor_scalar((lhs as i64).elem());
+            output
+        }
+        ");
     }
 
     #[test]
@@ -101,7 +120,12 @@ mod tests {
             .output_scalar("output", DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs ^ rhs;");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: i32) -> i32 {
+            let output = lhs ^ rhs;
+            output
+        }
+        ");
     }
 
     #[test]
@@ -112,7 +136,16 @@ mod tests {
             .output_tensor("output", 3, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.bitwise_xor(rhs.unsqueeze_dims(&[0isize]));");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 3, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 3, Int> {
+            let output = lhs.bitwise_xor(rhs.unsqueeze_dims(&[0isize]));
+            output
+        }
+        ");
     }
 
     #[test]
@@ -123,6 +156,15 @@ mod tests {
             .output_tensor("output", 3, DType::I32)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = lhs.unsqueeze_dims(&[0isize]).bitwise_xor(rhs);");
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 3, Int>,
+        ) -> Tensor<B, 3, Int> {
+            let output = lhs.unsqueeze_dims(&[0isize]).bitwise_xor(rhs);
+            output
+        }
+        ");
     }
 }

@@ -109,7 +109,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.remainder(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.remainder(b);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -122,7 +127,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.fmod(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.fmod(b);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -135,7 +145,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.remainder_scalar(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: f32) -> Tensor<B, 2> {
+            let output = a.remainder_scalar(b);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -148,7 +163,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.fmod_scalar(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: f32) -> Tensor<B, 2> {
+            let output = a.fmod_scalar(b);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -161,7 +181,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.unsqueeze_dims(&[0isize]).remainder(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = a.unsqueeze_dims(&[0isize]).remainder(b);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -174,7 +199,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.remainder(b.unsqueeze_dims(&[0isize]));");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 3>, b: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output = a.remainder(b.unsqueeze_dims(&[0isize]));
+            output
+        }
+        ");
     }
 
     #[test]
@@ -187,7 +217,12 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.unsqueeze_dims(&[0isize]).fmod(b);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = a.unsqueeze_dims(&[0isize]).fmod(b);
+            output
+        }
+        ");
     }
 
     #[test]
@@ -200,6 +235,11 @@ mod tests {
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output = a.fmod(b.unsqueeze_dims(&[0isize]));");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 3>, b: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output = a.fmod(b.unsqueeze_dims(&[0isize]));
+            output
+        }
+        ");
     }
 }

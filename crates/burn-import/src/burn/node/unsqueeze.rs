@@ -140,20 +140,35 @@ mod tests {
     fn test_unsqueeze_forward_single_axis() {
         let node = create_unsqueeze_node("unsqueeze1", vec![0]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[0]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[0]);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_unsqueeze_forward_axis_1() {
         let node = create_unsqueeze_node("unsqueeze1", vec![1]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[1]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[1]);
+            output
+        }
+        ");
     }
 
     #[test]
     fn test_unsqueeze_forward_axis_2() {
         let node = create_unsqueeze_node("unsqueeze1", vec![2]);
         let code = codegen_forward_default(&node);
-        assert_snapshot!(code, @"let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[2]);");
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output: Tensor<B, 3> = input.unsqueeze_dims::<3>(&[2]);
+            output
+        }
+        ");
     }
 }
