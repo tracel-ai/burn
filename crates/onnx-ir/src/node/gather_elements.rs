@@ -19,9 +19,9 @@
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Argument, Node, RawNode, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -34,7 +34,7 @@ pub struct GatherElementsConfig {
 }
 
 /// Node representation for GatherElements operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GatherElementsNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -73,7 +73,7 @@ impl NodeProcessor for GatherElementsProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -94,11 +94,7 @@ impl NodeProcessor for GatherElementsProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {
             crate::ir::ArgType::Tensor(tensor) => tensor.rank as i64,
@@ -162,7 +158,7 @@ impl NodeProcessor for GatherElementsProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

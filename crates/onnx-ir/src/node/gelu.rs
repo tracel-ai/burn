@@ -11,15 +11,15 @@
 //! ## Opset Versions
 //! - **Opset 20+**: Initial version
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     validate_opset,
 };
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for Gelu operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GeluNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -43,7 +43,7 @@ impl NodeProcessor for GeluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -52,7 +52,7 @@ impl NodeProcessor for GeluProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Gelu(GeluNode {
             name: builder.name,
             inputs: builder.inputs,

@@ -18,11 +18,11 @@
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Node, RawNode, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -44,7 +44,7 @@ pub struct ClipConfig {
 }
 
 /// Node representation for Clip operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ClipNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -66,7 +66,7 @@ impl NodeProcessor for ClipProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values
@@ -82,7 +82,7 @@ impl NodeProcessor for ClipProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -98,16 +98,8 @@ impl NodeProcessor for ClipProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        fn get_clip_input(
-            node: &NodeBuilder,
-            index: usize,
-            _param_name: &str,
-        ) -> Option<ClipInput> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
+        fn get_clip_input(node: &RawNode, index: usize, _param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
 
             // In ONNX, optional inputs are represented by empty strings
@@ -176,7 +168,7 @@ impl NodeProcessor for ClipProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -196,7 +188,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> NodeBuilder {
+    fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None);

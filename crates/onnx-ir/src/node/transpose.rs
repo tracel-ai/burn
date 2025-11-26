@@ -17,9 +17,9 @@
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -32,7 +32,7 @@ pub struct TransposeConfig {
 }
 
 /// Node representation for Transpose operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct TransposeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -56,7 +56,7 @@ impl NodeProcessor for TransposeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -97,11 +97,7 @@ impl NodeProcessor for TransposeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -127,7 +123,7 @@ impl NodeProcessor for TransposeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -147,7 +143,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> NodeBuilder {
+    fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::Transpose, "test_transpose")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("transposed", rank, None);

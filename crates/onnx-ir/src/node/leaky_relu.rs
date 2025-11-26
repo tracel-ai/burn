@@ -21,12 +21,12 @@
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 //! - TODO: No test for zero-size tensors - Empty tensor handling
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for LeakyRelu operations
 #[derive(Debug, Clone, new)]
@@ -36,7 +36,7 @@ pub struct LeakyReluConfig {
 }
 
 /// Node representation for LeakyRelu operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LeakyReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -60,7 +60,7 @@ impl NodeProcessor for LeakyReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -86,11 +86,7 @@ impl NodeProcessor for LeakyReluProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract alpha attribute
         let mut alpha = 0.01;
         for (key, value) in node.attrs.iter() {
@@ -104,7 +100,7 @@ impl NodeProcessor for LeakyReluProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -124,7 +120,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(alpha: f32) -> NodeBuilder {
+    fn create_test_node(alpha: f32) -> RawNode {
         TestNodeBuilder::new(NodeType::LeakyRelu, "test_leaky_relu")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None)

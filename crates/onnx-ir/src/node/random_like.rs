@@ -14,11 +14,11 @@
 //! ## Opset Versions
 //! - Available since opset version 1
 //! - Current version: 22
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -47,7 +47,7 @@ pub enum RandomLikeConfig {
 }
 
 /// Node representation for RandomNormalLike operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomNormalLikeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -56,7 +56,7 @@ pub struct RandomNormalLikeNode {
 }
 
 /// Node representation for RandomUniformLike operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomUniformLikeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -80,7 +80,7 @@ impl NodeProcessor for RandomLikeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -122,11 +122,7 @@ impl NodeProcessor for RandomLikeProcessor {
         }
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let config = match node.node_type {
             crate::ir::NodeType::RandomNormalLike => {
                 let mean = node
@@ -165,7 +161,7 @@ impl NodeProcessor for RandomLikeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -202,7 +198,7 @@ mod tests {
         dtype: i32,
         input_rank: usize,
         static_shape: Option<Vec<usize>>,
-    ) -> NodeBuilder {
+    ) -> RawNode {
         TestNodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
             .input_tensor_f32("input", input_rank, static_shape)
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated

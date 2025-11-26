@@ -16,15 +16,15 @@
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Argument, Node, RawNode, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
 
 /// Node representation for Dropout operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct DropoutNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -71,7 +71,7 @@ impl NodeProcessor for DropoutProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // For opset 12+, ratio is an input (input[1])
         // Only lift it if it's a static constant (has a value)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -88,7 +88,7 @@ impl NodeProcessor for DropoutProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -112,11 +112,7 @@ impl NodeProcessor for DropoutProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // TODO: Validate 'seed' attribute mentioned in spec (opset 12+) - currently not handled
         // TODO: Validate ratio value is in range [0.0, 1.0] per ONNX spec - Missing constraint validation - Should return error for invalid ratios
         // Opset 7 and older store probability as an attribute
@@ -159,7 +155,7 @@ impl NodeProcessor for DropoutProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

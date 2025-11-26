@@ -12,13 +12,13 @@
 //! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
 
 /// Represents either a static value or a runtime argument for squeeze axes.
 #[derive(Debug, Clone)]
@@ -42,7 +42,7 @@ pub struct SqueezeConfig {
 }
 
 /// Node representation for Squeeze operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SqueezeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -64,7 +64,7 @@ impl NodeProcessor for SqueezeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
@@ -78,7 +78,7 @@ impl NodeProcessor for SqueezeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -170,12 +170,8 @@ impl NodeProcessor for SqueezeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
-        fn get_squeeze_axes(node: &NodeBuilder) -> Option<SqueezeInput> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
+        fn get_squeeze_axes(node: &RawNode) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input
             if node.inputs.len() < 2 {
                 return None; // No axes input means squeeze all dims with size 1
@@ -202,7 +198,7 @@ impl NodeProcessor for SqueezeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

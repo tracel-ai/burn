@@ -12,16 +12,16 @@
 //! - **Opset 1-6**: Limited broadcast support
 //! - **Opset 7+**: Multidirectional (Numpy-style) broadcasting
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     same_as_input_broadcast,
 };
 
 /// Node representation for Or operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct OrNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -45,7 +45,7 @@ impl NodeProcessor for OrProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -53,7 +53,7 @@ impl NodeProcessor for OrProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Or(OrNode {
             name: builder.name,
             inputs: builder.inputs,

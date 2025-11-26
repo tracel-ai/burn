@@ -44,15 +44,15 @@
 //! - When both inputs are scalars, the output is a scalar boolean
 //! - Special handling for Shape-to-Shape comparisons where the output is also a Shape type
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Equal operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct EqualNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -60,7 +60,7 @@ pub struct EqualNode {
 }
 
 /// Node representation for Greater operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GreaterNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -68,7 +68,7 @@ pub struct GreaterNode {
 }
 
 /// Node representation for GreaterOrEqual operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GreaterOrEqualNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -76,7 +76,7 @@ pub struct GreaterOrEqualNode {
 }
 
 /// Node representation for Less operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LessNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -84,7 +84,7 @@ pub struct LessNode {
 }
 
 /// Node representation for LessOrEqual operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LessOrEqualNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -92,7 +92,7 @@ pub struct LessOrEqualNode {
 }
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
-pub(crate) fn elementwise_comparison_outputs(node: &mut NodeBuilder) {
+pub(crate) fn elementwise_comparison_outputs(node: &mut RawNode) {
     // Check if both inputs are Shape types
     let both_shapes = node.inputs.len() == 2
         && matches!(&node.inputs[0].ty, ArgType::Shape(_))
@@ -140,7 +140,7 @@ impl NodeProcessor for ComparisonProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -202,7 +202,7 @@ impl NodeProcessor for ComparisonProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         match builder.node_type {
             crate::ir::NodeType::Equal => Node::Equal(EqualNode {
                 name: builder.name,
@@ -240,7 +240,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(input1_rank: usize, input2_rank: usize) -> NodeBuilder {
+    fn create_test_node(input1_rank: usize, input2_rank: usize) -> RawNode {
         TestNodeBuilder::new(NodeType::Equal, "test_comparison")
             .input_tensor_f32("A", input1_rank, None)
             .input_tensor_f32("B", input2_rank, None)

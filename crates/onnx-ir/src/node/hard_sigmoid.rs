@@ -17,12 +17,12 @@
 //! - **Opset 1-5**: Earlier versions with different default values
 //! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for HardSigmoid operation
 #[derive(Debug, Clone, new)]
@@ -32,7 +32,7 @@ pub struct HardSigmoidConfig {
 }
 
 /// Node representation for HardSigmoid operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct HardSigmoidNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -56,7 +56,7 @@ impl NodeProcessor for HardSigmoidProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -80,11 +80,7 @@ impl NodeProcessor for HardSigmoidProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract alpha and beta attributes
         let mut alpha = 0.2;
         let mut beta = 0.5;
@@ -101,7 +97,7 @@ impl NodeProcessor for HardSigmoidProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -121,7 +117,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(alpha: f32, beta: f32) -> NodeBuilder {
+    fn create_test_node(alpha: f32, beta: f32) -> RawNode {
         TestNodeBuilder::new(NodeType::HardSigmoid, "test_hard_sigmoid")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None)

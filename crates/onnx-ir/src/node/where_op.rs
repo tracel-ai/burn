@@ -15,16 +15,16 @@
 //!
 //! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     compute_broadcast_rank, compute_broadcast_static_shape,
 };
 
 /// Node representation for Where operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct WhereNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -75,7 +75,7 @@ impl NodeProcessor for WhereProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -132,7 +132,7 @@ impl NodeProcessor for WhereProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Where(WhereNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -147,7 +147,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(condition_rank: usize, x_rank: usize, y_rank: usize) -> NodeBuilder {
+    fn create_test_node(condition_rank: usize, x_rank: usize, y_rank: usize) -> RawNode {
         TestNodeBuilder::new(NodeType::Where, "test_where")
             .input_tensor_bool("condition", condition_rank, None)
             .input_tensor_f32("X", x_rank, None)

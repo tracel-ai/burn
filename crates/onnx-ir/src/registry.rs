@@ -3,7 +3,7 @@
 //! This module provides a centralized registry that maps ONNX node types
 //! to their corresponding processor implementations.
 
-use crate::ir::{Node, NodeBuilder, NodeType};
+use crate::ir::{Node, NodeType, RawNode};
 use crate::processor::{InputPreferences, NodeSpec, OutputPreferences, ProcessError};
 use std::collections::HashMap;
 
@@ -14,17 +14,17 @@ pub trait ProcessorMethods: Send + Sync {
     fn spec(&self) -> NodeSpec;
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError>;
-    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError>;
+    fn lift_constants(&self, node: &mut RawNode, opset: usize) -> Result<(), ProcessError>;
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError>;
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node;
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node;
 }
 
 /// Blanket implementation: all NodeProcessor types implement ProcessorMethods
@@ -35,26 +35,26 @@ impl<T: crate::processor::NodeProcessor> ProcessorMethods for T {
 
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         crate::processor::NodeProcessor::input_preferences(self, node, opset)
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, opset: usize) -> Result<(), ProcessError> {
         crate::processor::NodeProcessor::lift_constants(self, node, opset)
     }
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::NodeProcessor::infer_types(self, node, opset, output_preferences)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         crate::processor::NodeProcessor::build_node(self, builder, opset)
     }
 }

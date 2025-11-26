@@ -17,11 +17,11 @@
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, AttributeValue, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, AttributeValue, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -35,7 +35,7 @@ pub struct CastConfig {
 }
 
 /// Node representation for Cast operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct CastNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -59,7 +59,7 @@ impl NodeProcessor for CastProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -118,11 +118,7 @@ impl NodeProcessor for CastProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the target element type from attributes
         let elem_type = match node.attrs.get("to") {
             Some(AttributeValue::Int64(type_id)) => element_type_from_proto(*type_id as i32)
@@ -145,7 +141,7 @@ impl NodeProcessor for CastProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -166,7 +162,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
     use protobuf::Enum;
-    fn create_test_node(input_rank: usize, to_type: i64) -> NodeBuilder {
+    fn create_test_node(input_rank: usize, to_type: i64) -> RawNode {
         TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", input_rank, None) // Element type will be overwritten
@@ -175,7 +171,7 @@ mod tests {
     }
 
     // Additional test function to demonstrate scalar inputs
-    fn create_scalar_test_node(to_type: i64) -> NodeBuilder {
+    fn create_scalar_test_node(to_type: i64) -> RawNode {
         TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_scalar_f32("X")
             .output_scalar_f32("Y") // Element type will be overwritten

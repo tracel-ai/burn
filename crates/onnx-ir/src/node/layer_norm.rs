@@ -20,9 +20,9 @@
 //! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -53,7 +53,7 @@ impl LayerNormConfig {
 }
 
 /// Node representation for LayerNormalization operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LayerNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -75,7 +75,7 @@ impl NodeProcessor for LayerNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -89,7 +89,7 @@ impl NodeProcessor for LayerNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -138,11 +138,7 @@ impl NodeProcessor for LayerNormProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -169,7 +165,7 @@ impl NodeProcessor for LayerNormProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

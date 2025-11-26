@@ -8,7 +8,7 @@ use syn::{Data, DeriveInput, Fields, parse_macro_input};
 ///
 /// # Example
 /// ```ignore
-/// #[derive(Debug, Clone, NodeBuilderDerive)]
+/// #[derive(Debug, Clone, NodeBuilder)]
 /// pub struct AddNode {
 ///     pub name: String,
 ///     pub inputs: Vec<Argument>,
@@ -27,7 +27,7 @@ use syn::{Data, DeriveInput, Fields, parse_macro_input};
 /// - `output_shape(name)` - Add shape output
 /// - `config(config)` - Set config (if node has a config field)
 /// - `build()` - Build the node
-#[proc_macro_derive(NodeBuilderDerive)]
+#[proc_macro_derive(NodeBuilder)]
 pub fn node_builder_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 

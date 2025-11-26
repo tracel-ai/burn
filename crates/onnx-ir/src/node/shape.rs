@@ -21,9 +21,9 @@
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -36,7 +36,7 @@ pub struct ShapeConfig {
 }
 
 /// Node representation for Shape operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ShapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -60,7 +60,7 @@ impl NodeProcessor for ShapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -91,11 +91,7 @@ impl NodeProcessor for ShapeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the rank/dimension count from the input
         let rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -141,7 +137,7 @@ impl NodeProcessor for ShapeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -161,7 +157,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> NodeBuilder {
+    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::Shape, "test_shape")
             .input_tensor_f32("data", rank, None)
             .output_tensor_i64("shape", 1, None);

@@ -10,11 +10,11 @@
 //! - **Opset 11**: Clarified behavior
 //! - **Opset 16**: Further refinements
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, Node, NodeBuilder, OnnxGraph};
+use crate::ir::{ArgType, Node, OnnxGraph, RawNode};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Configuration for Scan operation
@@ -29,7 +29,7 @@ pub struct ScanConfig {
 }
 
 /// Node representation for Scan operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ScanNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -45,7 +45,7 @@ impl NodeProcessor for ScanProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -149,11 +149,7 @@ impl NodeProcessor for ScanProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
         let body_attr = node
             .attrs
@@ -224,7 +220,7 @@ impl NodeProcessor for ScanProcessor {
         })
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

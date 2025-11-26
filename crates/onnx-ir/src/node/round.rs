@@ -11,16 +11,16 @@
 //! ## Opset Versions
 //! - **Opset 11+**: Initial version with rounding mode support
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     validate_opset,
 };
 
 /// Node representation for Round operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RoundNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -44,7 +44,7 @@ impl NodeProcessor for RoundProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -53,7 +53,7 @@ impl NodeProcessor for RoundProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Round(RoundNode {
             name: builder.name,
             inputs: builder.inputs,

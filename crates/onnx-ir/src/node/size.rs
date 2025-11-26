@@ -8,15 +8,15 @@
 //! - **Since version 23**: Current version
 //! - **Since version 1**: Initial implementation
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, DType, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Size operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SizeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -39,7 +39,7 @@ impl NodeProcessor for SizeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -48,7 +48,7 @@ impl NodeProcessor for SizeProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Size(SizeNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -63,7 +63,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(rank: usize) -> NodeBuilder {
+    fn create_test_node(rank: usize) -> RawNode {
         let builder = TestNodeBuilder::new(NodeType::Size, "test_size")
             .input_tensor_f32("data", rank, None)
             .output_scalar_i64("size");

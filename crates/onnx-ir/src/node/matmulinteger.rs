@@ -12,15 +12,15 @@
 //! The spec allows 2-4 inputs (optional zero-point tensors), but implementation only validates minimum
 //! of 2 inputs (see FIXME at line 44).
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
 
 /// Node representation for MatMulInteger operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct MatMulIntegerNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -34,7 +34,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -91,7 +91,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
         }
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::MatMulInteger(MatMulIntegerNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -106,7 +106,7 @@ mod tests {
     use crate::ir::{DType, NodeType};
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(a_rank: usize, b_rank: usize) -> NodeBuilder {
+    fn create_test_node(a_rank: usize, b_rank: usize) -> RawNode {
         TestNodeBuilder::new(NodeType::MatMulInteger, "test_matmulinteger")
             .input_tensor_i32("A", a_rank, None)
             .input_tensor_i32("B", b_rank, None)

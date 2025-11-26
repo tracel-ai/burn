@@ -53,7 +53,7 @@
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
@@ -98,7 +98,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -134,7 +134,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         use crate::ir::NodeType;
 
         let node = ElementwiseUnaryNode {
@@ -179,7 +179,7 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::NodeBuilder {
+        let mut node = crate::ir::RawNode {
             node_type: NodeType::Asin,
             name: "test_asin".to_string(),
             inputs: vec![Argument {
@@ -218,7 +218,7 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::NodeBuilder {
+        let mut node = crate::ir::RawNode {
             node_type: NodeType::ThresholdedRelu,
             name: "test_thresholded_relu".to_string(),
             inputs: vec![Argument {

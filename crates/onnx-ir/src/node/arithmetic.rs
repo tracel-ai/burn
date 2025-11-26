@@ -26,15 +26,15 @@
 //! - **Shape arithmetic**: When operating on Shape types with constants, prefers constants as Shape
 //! - **Scalar arithmetic**: When operating on Scalar types with constants, prefers constants as Scalar
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError, same_as_input_broadcast,
 };
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for Add operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct AddNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -42,7 +42,7 @@ pub struct AddNode {
 }
 
 /// Node representation for Sub operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SubNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -50,7 +50,7 @@ pub struct SubNode {
 }
 
 /// Node representation for Mul operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct MulNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -58,7 +58,7 @@ pub struct MulNode {
 }
 
 /// Node representation for Div operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct DivNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -90,7 +90,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -136,7 +136,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -146,7 +146,7 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         match builder.node_type {
             crate::ir::NodeType::Add => Node::Add(AddNode {
                 name: builder.name,

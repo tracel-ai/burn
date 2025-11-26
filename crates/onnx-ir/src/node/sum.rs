@@ -16,16 +16,16 @@
 //! - **Opset 8**: Multidirectional (Numpy-style) broadcasting
 //! - **Opset 13**: Extended type support including bfloat16
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     same_as_input_broadcast,
 };
 
 /// Node representation for Sum operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SumNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -49,7 +49,7 @@ impl NodeProcessor for SumProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -67,7 +67,7 @@ impl NodeProcessor for SumProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Sum(SumNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -85,7 +85,7 @@ mod tests {
     fn test_sum_processor_two_inputs() {
         let processor = SumProcessor;
 
-        let mut node = crate::ir::NodeBuilder {
+        let mut node = crate::ir::RawNode {
             node_type: NodeType::Sum,
             name: "test_sum".to_string(),
             inputs: vec![
@@ -132,7 +132,7 @@ mod tests {
     fn test_sum_processor_multiple_inputs() {
         let processor = SumProcessor;
 
-        let mut node = crate::ir::NodeBuilder {
+        let mut node = crate::ir::RawNode {
             node_type: NodeType::Sum,
             name: "test_sum".to_string(),
             inputs: vec![

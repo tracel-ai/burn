@@ -7,11 +7,11 @@
 //! ## Opset Versions
 //!
 //! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -20,7 +20,7 @@ use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
 /// Node representation for Bernoulli operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct BernoulliNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -43,7 +43,7 @@ impl NodeProcessor for BernoulliProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -87,7 +87,7 @@ impl NodeProcessor for BernoulliProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Bernoulli(BernoulliNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -103,7 +103,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: Option<i32>, static_shape: Option<Vec<usize>>) -> NodeBuilder {
+    fn create_test_node(dtype: Option<i32>, static_shape: Option<Vec<usize>>) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::Bernoulli, "test_bernoulli")
             .input_tensor_f32("input", 4, static_shape) // Rank 0 will be updated
             .output_tensor_f32("output", 0, None); // Rank 0 will be updated

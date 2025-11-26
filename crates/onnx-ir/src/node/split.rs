@@ -12,9 +12,9 @@
 //! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
 //!   explicitly providing split sizes.
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -46,7 +46,7 @@ pub struct SplitConfig {
 }
 
 /// Node representation for Split operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SplitNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -68,7 +68,7 @@ impl NodeProcessor for SplitProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift split input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -79,7 +79,7 @@ impl NodeProcessor for SplitProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -106,11 +106,7 @@ impl NodeProcessor for SplitProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;
         // Holds the uniform split size if calculated or provided
@@ -303,7 +299,7 @@ impl NodeProcessor for SplitProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

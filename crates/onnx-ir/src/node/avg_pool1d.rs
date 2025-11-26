@@ -10,11 +10,11 @@
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Node, RawNode, TensorType};
 use crate::node::padding::padding_config_1d;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -38,7 +38,7 @@ pub struct AvgPool1dConfig {
 }
 
 /// Node representation for AveragePool1d operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct AveragePool1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -62,7 +62,7 @@ impl NodeProcessor for AvgPool1dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -135,11 +135,7 @@ impl NodeProcessor for AvgPool1dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];
@@ -170,7 +166,7 @@ impl NodeProcessor for AvgPool1dProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -197,7 +193,7 @@ mod tests {
         count_include_pad: i64,
         ceil_mode: i64,
         dilations: Option<Vec<i64>>,
-    ) -> NodeBuilder {
+    ) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::AveragePool1d, "test_avgpool1d")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)

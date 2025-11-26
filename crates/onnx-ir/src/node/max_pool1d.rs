@@ -24,13 +24,13 @@
 //! - TODO: No test for edge case: kernel larger than input dimension
 //! - TODO: No test validating input is 3D (N x C x L) - Lower/higher rank should be rejected
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::{
-    ir::{Argument, Node, NodeBuilder},
+    ir::{Argument, Node, RawNode},
     node::padding::padding_config_1d,
 };
 
@@ -50,7 +50,7 @@ pub struct MaxPool1dConfig {
 }
 
 /// Node representation for MaxPool1d operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct MaxPool1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -94,7 +94,7 @@ impl NodeProcessor for MaxPool1dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -155,11 +155,7 @@ impl NodeProcessor for MaxPool1dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1];
         let mut pads = vec![0, 0];
@@ -190,7 +186,7 @@ impl NodeProcessor for MaxPool1dProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -216,7 +212,7 @@ mod tests {
         dilation: Vec<i64>,
         ceil_mode: i64,
         auto_pad: Option<&str>,
-    ) -> NodeBuilder {
+    ) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::MaxPool1d, "test_maxpool1d")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)

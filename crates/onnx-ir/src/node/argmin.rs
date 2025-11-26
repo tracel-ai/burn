@@ -10,11 +10,11 @@
 //! - **Opset 12**: Added `select_last_index` attribute.
 //! - **Opset 13**: No significant changes (added bfloat16 type support).
 
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -29,7 +29,7 @@ pub struct ArgMinConfig {
 }
 
 /// Node representation for ArgMin operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ArgMinNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -53,7 +53,7 @@ impl NodeProcessor for ArgMinProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -98,11 +98,7 @@ impl NodeProcessor for ArgMinProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
             _ => {
@@ -158,7 +154,7 @@ impl NodeProcessor for ArgMinProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -180,7 +176,7 @@ mod tests {
     use crate::ir::{Argument, DType, NodeType};
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> NodeBuilder {
+    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> RawNode {
         TestNodeBuilder::new(NodeType::ArgMin, "test_argmin")
             .input_tensor_f32("data", 3, None)
             .output_tensor_i64("output", 3, None)

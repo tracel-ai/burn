@@ -110,9 +110,9 @@ processor-based architecture. For each operation:
 3. **Create a node struct** in your module file (e.g., `squeeze.rs`) with the standard fields:
 
    ```rust
-   use onnx_ir_derive::NodeBuilderDerive;
+   use onnx_ir_derive::NodeBuilder;
 
-   #[derive(Debug, Clone, NodeBuilderDerive)]
+   #[derive(Debug, Clone, NodeBuilder)]
    pub struct SqueezeNode {
        pub name: String,
        pub inputs: Vec<Argument>,
@@ -120,6 +120,9 @@ processor-based architecture. For each operation:
        pub config: SqueezeConfig,
    }
    ```
+
+   The `NodeBuilder` derive macro generates a test builder (e.g., `SqueezeNodeBuilder`) with methods
+   for constructing nodes in tests.
 
 4. **Add to the macro invocation** in `crates/onnx-ir/src/ir/node.rs` by adding a mapping to the
    `define_node_enum!` macro:
@@ -285,7 +288,7 @@ implement:
 Example `build_node()` implementation:
 
 ```rust
-fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+fn build_node(&self, builder: RawNode, opset: usize) -> Node {
     let config = self.extract_config(&builder, opset).expect("Config extraction failed");
     Node::Squeeze(SqueezeNode {
         name: builder.name,
@@ -295,6 +298,9 @@ fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
     })
 }
 ```
+
+Note: `RawNode` is the intermediate node representation used during processing. The `build_node()`
+method converts it into the final typed `Node` enum variant.
 
 For complete examples, see existing processors:
 
@@ -340,7 +346,7 @@ pipeline:
 #### Phase 2: Node Conversion
 
 - Converts ONNX nodes to IR nodes using registered processors
-- Creates `NodeBuilder` instances from ONNX proto nodes
+- Creates `RawNode` instances from ONNX proto nodes (intermediate representation)
 - Processors extract configuration and construct typed `Node` enum variants
 - Handles constant nodes specially (extracting values from attributes into tensor store)
 - Each processor is responsible for its own type inference and node construction

@@ -14,12 +14,12 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder};
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for Softmax operations
 #[derive(Debug, Clone, new)]
@@ -29,7 +29,7 @@ pub struct SoftmaxConfig {
 }
 
 /// Node representation for Softmax operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SoftmaxNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -53,7 +53,7 @@ impl NodeProcessor for SoftmaxProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -70,11 +70,7 @@ impl NodeProcessor for SoftmaxProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -106,7 +102,7 @@ impl NodeProcessor for SoftmaxProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -126,7 +122,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize) -> NodeBuilder {
+    fn create_test_node(axis: i64, input_rank: usize) -> RawNode {
         TestNodeBuilder::new(NodeType::Softmax, "test_softmax")
             .input_tensor_f32("data", input_rank, None)
             .output_tensor_f32("output", input_rank, None)

@@ -9,7 +9,7 @@ use super::argument::Argument;
 use super::attribute::Attributes;
 
 // ============================================================================
-// NodeBuilder - Intermediate representation from ONNX parsing
+// RawNode - Intermediate representation from ONNX parsing
 // ============================================================================
 
 /// Reference to a runtime input by name and index.
@@ -30,7 +30,7 @@ impl RuntimeInputRef {
 
 /// Nodes produced by the ONNX parser
 #[derive(Clone, Debug)]
-pub(crate) struct NodeBuilder {
+pub(crate) struct RawNode {
     /// The type of the node.
     /// This should be a valid ONNX operator.
     pub node_type: NodeType,

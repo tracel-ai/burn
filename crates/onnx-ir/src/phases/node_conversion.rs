@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, AttributeValue, NodeBuilder, NodeType, TensorData, TensorDataExt},
+    ir::{ArgType, AttributeValue, NodeType, RawNode, TensorData, TensorDataExt},
     pipeline::OnnxIrError,
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
@@ -159,7 +159,7 @@ fn convert_nodes_impl(
 }
 
 /// Extract constant data from node attributes and move to tensor store
-fn extract_constant_from_attributes(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>>) {
+fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
     let keys = [
         "value",
         "value_float",
@@ -221,7 +221,7 @@ fn extract_constant_from_attributes(node: &mut NodeBuilder, state_rc: &Rc<RefCel
 }
 
 /// Attach value_store references to all node arguments
-fn attach_value_stores(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>>) {
+fn attach_value_stores(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
     for arg in &mut node.inputs {
         arg.value_store = Some(state_rc.clone());
     }
@@ -232,7 +232,7 @@ fn attach_value_stores(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>
 
 /// Rename node with type-based counter
 fn rename_node(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     counters: &mut HashMap<NodeType, usize>,
     name_registry: Option<&crate::graph_state::NameRegistry>,
 ) {
@@ -259,7 +259,7 @@ fn rename_node(
 }
 
 /// Remap node type using kernel shape
-fn remap_node_with_kernel_shape<F>(node: &mut NodeBuilder, new_node_type: F)
+fn remap_node_with_kernel_shape<F>(node: &mut RawNode, new_node_type: F)
 where
     F: FnOnce(usize) -> NodeType,
 {
@@ -281,7 +281,7 @@ where
 }
 
 /// Remap node type to a more specific one
-fn remap_node_type(node: &mut NodeBuilder) {
+fn remap_node_type(node: &mut RawNode) {
     match node.node_type {
         NodeType::Conv => remap_node_with_kernel_shape(node, |spatial_dims| match spatial_dims {
             1 => NodeType::Conv1d,
@@ -317,7 +317,7 @@ fn remap_node_type(node: &mut NodeBuilder) {
 
 /// Coalesce adjacent nodes into a single node (Gemm→Linear, MatMul+Add→Linear)
 fn coalesce(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
     graph_data: &mut GraphState,
 ) {
@@ -332,7 +332,7 @@ fn coalesce(
 }
 
 /// Convert Gemm to Linear (when alpha=1, beta=1, transB=1)
-fn convert_gemm_to_linear(node: &mut NodeBuilder, graph_data: &mut GraphState) {
+fn convert_gemm_to_linear(node: &mut RawNode, graph_data: &mut GraphState) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -370,7 +370,7 @@ fn convert_gemm_to_linear(node: &mut NodeBuilder, graph_data: &mut GraphState) {
 }
 
 /// Transpose linear weights (required for Gemm → Linear conversion)
-fn transpose_linear_node_weights(node: &mut NodeBuilder, graph_data: &mut GraphState) {
+fn transpose_linear_node_weights(node: &mut RawNode, graph_data: &mut GraphState) {
     assert!(
         node.inputs.len() > 1,
         "Linear node must have at least 2 input"
@@ -452,7 +452,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 
 /// Convert MatMul to Linear, fusing the following Add node as bias if present
 fn convert_matmul_to_linear(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
     graph_data: &mut GraphState,
 ) {
@@ -495,8 +495,8 @@ fn convert_matmul_to_linear(
 
 /// Check if the peeked node is an Add with bias for the current MatMul
 fn is_add_node_with_bias(
-    peek_node: &NodeBuilder,
-    current_node: &NodeBuilder,
+    peek_node: &RawNode,
+    current_node: &RawNode,
     graph_data: &GraphState,
 ) -> bool {
     // Check structural requirements first
@@ -512,7 +512,7 @@ fn is_add_node_with_bias(
 }
 
 /// Merge the Add node's bias into the MatMul node
-fn convert_and_remove_add_node(bias_node: &NodeBuilder, current_node: &mut NodeBuilder) {
+fn convert_and_remove_add_node(bias_node: &RawNode, current_node: &mut RawNode) {
     // The bias is whichever input is NOT the matmul output
     let bias_input = if bias_node.inputs[0].name == current_node.outputs[0].name {
         bias_node.inputs[1].clone()
@@ -532,7 +532,7 @@ fn convert_and_remove_add_node(bias_node: &NodeBuilder, current_node: &mut NodeB
 /// When onnx-ir processes nodes, it renames outputs (e.g., var2 -> add3_out1).
 /// Subgraph inputs reference original ONNX names, so we need to update them
 /// to use the renamed names from the parent scope.
-fn update_subgraph_inputs(node: &mut NodeBuilder, graph_state: &GraphState) {
+fn update_subgraph_inputs(node: &mut RawNode, graph_state: &GraphState) {
     // Get the node_output_map which maps original ONNX names to (node_idx, output_idx)
     let node_output_map = graph_state.node_output_map();
 

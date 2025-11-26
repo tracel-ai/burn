@@ -7,17 +7,17 @@
 //! ## Opset Versions
 //! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
 //! - **Opset 13**: Extended type support (bfloat16)
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 use crate::ir::{
-    ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType,
+    ArgType, Argument, DType, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType,
 };
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Expand operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ExpandNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -49,7 +49,7 @@ impl NodeProcessor for ExpandProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // Runtime shapes should remain in the graph
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -61,7 +61,7 @@ impl NodeProcessor for ExpandProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -158,11 +158,7 @@ impl NodeProcessor for ExpandProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract config
         let config = match node.inputs[1].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
@@ -181,7 +177,7 @@ impl NodeProcessor for ExpandProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

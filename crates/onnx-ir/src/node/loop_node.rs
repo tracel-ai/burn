@@ -11,9 +11,9 @@
 //! - **Opset 16**: Further refinements
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
+use crate::ir::{ArgType, Argument, DType, Node, OnnxGraph, RawNode};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -54,7 +54,7 @@ pub struct LoopConfig {
 }
 
 /// Node representation for Loop operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LoopNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -70,7 +70,7 @@ impl NodeProcessor for LoopProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -246,11 +246,7 @@ impl NodeProcessor for LoopProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
         let body_attr = node
             .attrs
@@ -281,7 +277,7 @@ impl NodeProcessor for LoopProcessor {
         Ok(LoopConfig { body })
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

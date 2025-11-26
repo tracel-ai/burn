@@ -13,15 +13,15 @@
 //! - **Opset 6+**: Improved shape inference
 //! - **Opset 13+**: Added support for bfloat16
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
     validate_opset,
 };
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for Sigmoid operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SigmoidNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -45,7 +45,7 @@ impl NodeProcessor for SigmoidProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -54,7 +54,7 @@ impl NodeProcessor for SigmoidProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Sigmoid(SigmoidNode {
             name: builder.name,
             inputs: builder.inputs,

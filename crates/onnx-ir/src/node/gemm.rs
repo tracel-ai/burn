@@ -32,9 +32,9 @@
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -50,7 +50,7 @@ pub struct GemmConfig {
 }
 
 /// Node representation for Gemm operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GemmNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -74,7 +74,7 @@ impl NodeProcessor for GemmProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -125,11 +125,7 @@ impl NodeProcessor for GemmProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut alpha: f32 = 1.0;
         let mut beta: f32 = 1.0;
         let mut trans_a: i64 = 0;
@@ -154,7 +150,7 @@ impl NodeProcessor for GemmProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -179,7 +175,7 @@ mod tests {
         beta: Option<f32>,
         trans_a: Option<i64>,
         trans_b: Option<i64>,
-    ) -> NodeBuilder {
+    ) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::Gemm, "test_gemm")
             .input_tensor_f32("A", 2, None)
             .input_tensor_f32("B", 2, None)

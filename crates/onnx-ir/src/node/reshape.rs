@@ -27,9 +27,9 @@
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
 use derive_new::new;
-use onnx_ir_derive::NodeBuilderDerive;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -57,7 +57,7 @@ impl Default for ReshapeInput {
 }
 
 /// Node representation for Reshape operation
-#[derive(Debug, Clone, NodeBuilderDerive)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReshapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -96,7 +96,7 @@ fn determine_output_type(
     input_info: &InputInfo,
     output_rank: usize,
     static_shape: Option<Vec<usize>>,
-    node: &NodeBuilder,
+    node: &RawNode,
 ) -> ArgType {
     // Case 1: Scalar output (rank 0)
     if output_rank == 0 {
@@ -122,7 +122,7 @@ fn determine_output_type(
 /// Calculate the output size for Shape type outputs
 fn calculate_shape_output_size(
     input_size: usize,
-    node: &NodeBuilder,
+    node: &RawNode,
     static_shape: &Option<Vec<usize>>,
 ) -> usize {
     // Try to get size from static reshape parameter
@@ -148,7 +148,7 @@ fn calculate_shape_output_size(
 }
 
 /// Infer output rank for reshape operation from available information
-fn infer_reshape_output_rank(node: &NodeBuilder) -> usize {
+fn infer_reshape_output_rank(node: &RawNode) -> usize {
     // Try sources in order of preference
 
     // 1. Static shape from constant shape input
@@ -175,7 +175,7 @@ fn infer_reshape_output_rank(node: &NodeBuilder) -> usize {
 }
 
 /// Get rank from shape input if available
-fn get_rank_from_shape_input(node: &NodeBuilder) -> Option<usize> {
+fn get_rank_from_shape_input(node: &RawNode) -> Option<usize> {
     if node.inputs.len() != 2 {
         return None;
     }
@@ -192,7 +192,7 @@ fn get_rank_from_shape_input(node: &NodeBuilder) -> Option<usize> {
 }
 
 /// Get rank from output tensor if available
-fn get_rank_from_output(node: &NodeBuilder) -> Option<usize> {
+fn get_rank_from_output(node: &RawNode) -> Option<usize> {
     match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => Some(tensor.rank),
         ArgType::Scalar(_) => Some(0),
@@ -201,7 +201,7 @@ fn get_rank_from_output(node: &NodeBuilder) -> Option<usize> {
 }
 
 /// Extract static shape from reshape node if available
-fn get_static_shape(node: &NodeBuilder) -> Option<Vec<i64>> {
+fn get_static_shape(node: &RawNode) -> Option<Vec<i64>> {
     // Check shape input
     if node.inputs.len() == 2
         && let Some(value) = node.inputs[1].value()
@@ -227,7 +227,7 @@ impl NodeProcessor for ReshapeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[1]) if it has a static value
         // If it's a runtime argument (no value), it should remain in the graph
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
@@ -239,7 +239,7 @@ impl NodeProcessor for ReshapeProcessor {
 
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -256,7 +256,7 @@ impl NodeProcessor for ReshapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -357,11 +357,7 @@ impl NodeProcessor for ReshapeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract shape input as either static or runtime
         let shape = match &node.inputs[1].ty {
             ArgType::Tensor(_tensor) => {
@@ -400,7 +396,7 @@ impl NodeProcessor for ReshapeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
