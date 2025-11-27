@@ -2,7 +2,10 @@ use alloc::vec::Vec;
 use core::future::Future;
 
 use super::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use crate::{TensorData, backend::Backend};
+use crate::{
+    TensorData,
+    backend::{Backend, DeferedError},
+};
 
 #[derive(Default)]
 /// Contains all tensor primitives that are going to be read.
@@ -19,7 +22,7 @@ pub struct TransactionPrimitive<B: Backend> {
 
 #[derive(Default)]
 /// Contains all [data](TensorData) related to a [transaction](TransactionPrimitive).
-pub struct TransactionPrimitiveResult {
+pub struct TransactionPrimitiveData {
     /// Float tensor data.
     pub read_floats: Vec<TensorData>,
     /// Quantized tensor data.
@@ -37,7 +40,7 @@ pub trait TransactionOps<B: Backend> {
     /// [result](TransactionPrimitiveResult).
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
-    ) -> impl Future<Output = TransactionPrimitiveResult> + Send {
+    ) -> impl Future<Output = Result<TransactionPrimitiveData, DeferedError>> + Send {
         async move {
             let mut floats = Vec::new();
             let mut qfloats = Vec::new();
@@ -45,24 +48,24 @@ pub trait TransactionOps<B: Backend> {
             let mut bools = Vec::new();
 
             for t in transaction.read_floats {
-                floats.push(B::float_into_data(t).await);
+                floats.push(B::float_into_data(t).await?);
             }
             for t in transaction.read_qfloats {
-                qfloats.push(B::q_into_data(t).await);
+                qfloats.push(B::q_into_data(t).await?);
             }
             for t in transaction.read_ints {
-                ints.push(B::int_into_data(t).await);
+                ints.push(B::int_into_data(t).await?);
             }
             for t in transaction.read_bools {
-                bools.push(B::bool_into_data(t).await);
+                bools.push(B::bool_into_data(t).await?);
             }
 
-            TransactionPrimitiveResult {
+            Ok(TransactionPrimitiveData {
                 read_floats: floats,
                 read_qfloats: qfloats,
                 read_ints: ints,
                 read_bools: bools,
-            }
+            })
         }
     }
 }

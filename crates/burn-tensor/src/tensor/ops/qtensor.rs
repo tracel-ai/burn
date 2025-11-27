@@ -3,7 +3,7 @@ use cubecl_quant::scheme::QuantScheme;
 
 use crate::{
     Device, Shape, TensorData, TensorMetadata, TensorPrimitive,
-    backend::Backend,
+    backend::{Backend, DeferedError},
     quantization::{
         Calibration, QTensorPrimitive, QuantPropagation, QuantizationParametersPrimitive,
         compute_q_params_primitive, compute_range_primitive,
@@ -189,7 +189,9 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn q_into_data(tensor: QuantizedTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn q_into_data(
+        tensor: QuantizedTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send;
 
     /// Detaches a tensor from the computation graph.
     fn q_detach(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {

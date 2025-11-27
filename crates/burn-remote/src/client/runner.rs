@@ -4,7 +4,7 @@ use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
     Shape, TensorData,
-    backend::{DeviceId, DeviceOps},
+    backend::{DeferedError, DeviceId, DeviceOps, SyncError},
 };
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
@@ -30,7 +30,7 @@ impl RunnerClient for RemoteClient {
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
-    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<TensorData> {
+    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<Result<TensorData, DeferedError>> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
 
@@ -56,16 +56,16 @@ impl RunnerClient for RemoteClient {
         self.device.clone()
     }
 
-    fn sync(&self) {
+    fn sync(&self) -> Result<(), SyncError> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
 
         let runtime = self.runtime.clone();
 
         match runtime.block_on(fut) {
-            TaskResponseContent::SyncBackend => {}
+            TaskResponseContent::SyncBackend(result) => result,
             _ => panic!("Invalid message type"),
-        };
+        }
     }
 
     fn seed(&self, seed: u64) {

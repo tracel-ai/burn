@@ -2,6 +2,7 @@ use crate::{CubeRuntime, kernel, tensor::CubeTensor};
 use burn_common::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use burn_tensor::{
     DType, Shape, TensorData,
+    backend::DeferedError,
     quantization::{QTensorPrimitive, QuantLevel, params_shape},
 };
 use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
@@ -16,20 +17,29 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
-pub(crate) async fn into_data<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+) -> Result<TensorData, DeferedError> {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
     let shape = &tensor.shape.dims;
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
-    let bytes = tensor.client.read_one_tensor_async(binding).await;
-    TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
+    let bytes = tensor
+        .client
+        .read_one_tensor_async(binding)
+        .await
+        .map_err(|err| DeferedError::Generic {
+            context: format!("{err}"),
+        })?;
+
+    Ok(TensorData::from_bytes(bytes, tensor.shape, tensor.dtype))
 }
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
-    burn_common::future::block_on(into_data(tensor))
+    burn_common::future::block_on(into_data(tensor)).unwrap()
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(

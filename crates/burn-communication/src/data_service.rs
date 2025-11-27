@@ -93,7 +93,7 @@ impl<B: Backend, P: Protocol> TensorDataService<B, P> {
         max_downloads: u32,
         transfer_id: TensorTransferId,
     ) {
-        let data = B::float_into_data(tensor).await;
+        let data = B::float_into_data(tensor).await.unwrap();
         self.expose_data(data, max_downloads, transfer_id).await
     }
 

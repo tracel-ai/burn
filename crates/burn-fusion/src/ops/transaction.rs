@@ -1,11 +1,14 @@
-use burn_tensor::ops::{TransactionOps, TransactionPrimitive};
+use burn_tensor::{
+    backend::DeferedError,
+    ops::{TransactionOps, TransactionPrimitive},
+};
 
 use crate::{Fusion, FusionBackend};
 
 impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
     async fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> burn_tensor::ops::TransactionPrimitiveResult {
+    ) -> Result<burn_tensor::ops::TransactionPrimitiveData, DeferedError> {
         B::tr_execute(TransactionPrimitive {
             read_floats: transaction
                 .read_floats

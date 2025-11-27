@@ -19,12 +19,12 @@ use crate::{
     utils::duplicate,
 };
 
-use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::{
     Device, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
+use burn_tensor::{backend::DeferedError, ops::unfold::calculate_unfold_windows};
 
 use super::maxmin::MaxMinDim;
 
@@ -65,7 +65,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AutodiffTensor::new(B::float_ones(shape, device, dtype))
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, DeferedError> {
         B::float_into_data(tensor.primitive).await
     }
 

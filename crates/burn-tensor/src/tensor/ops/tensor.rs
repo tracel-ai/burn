@@ -2,6 +2,7 @@ use super::cat::cat_with_slice_assign;
 use super::grid_sample::float_grid_sample_2d_bilinear;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
+use crate::backend::DeferedError;
 use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
@@ -99,7 +100,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn float_into_data(
+        tensor: FloatTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send;
 
     /// Gets the device of the tensor.
     ///

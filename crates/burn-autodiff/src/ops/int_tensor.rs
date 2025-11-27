@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 
 use burn_tensor::{
     Device, Distribution, IntDType, Shape, TensorData,
-    backend::Backend,
+    backend::{Backend, DeferedError},
     ops::{BoolTensor, IntTensor, IntTensorOps},
 };
 
@@ -12,7 +12,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_from_data(data, device)
     }
 
-    async fn int_into_data(tensor: IntTensor<B>) -> TensorData {
+    async fn int_into_data(tensor: IntTensor<B>) -> Result<TensorData, DeferedError> {
         B::int_into_data(tensor).await
     }
 

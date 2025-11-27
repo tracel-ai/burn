@@ -4,7 +4,7 @@ use crate::{
 };
 use burn_common::device::{Device, DeviceContext, DeviceState};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_tensor::TensorData;
+use burn_tensor::{TensorData, backend::DeferedError};
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
@@ -120,7 +120,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -132,7 +132,7 @@ where
         self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -144,7 +144,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -156,7 +156,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {

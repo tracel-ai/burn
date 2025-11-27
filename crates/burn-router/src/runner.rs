@@ -4,7 +4,10 @@ use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_tensor::{DType, Shape, TensorData, backend::Backend};
+use burn_tensor::{
+    DType, Shape, TensorData,
+    backend::{Backend, DeferedError, SyncError},
+};
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
@@ -1294,7 +1297,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         }
     }
 
-    fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData> {
+    fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, DeferedError>> {
         let mut ctx = self.context.lock().unwrap();
 
         enum Output<B: Backend> {
@@ -1334,9 +1337,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         self.device.clone()
     }
 
-    fn sync(&self) {
+    fn sync(&self) -> Result<(), SyncError> {
         let device = self.device.clone();
-        B::sync(&device);
+        B::sync(&device)
     }
 
     fn seed(&self, seed: u64) {

@@ -15,6 +15,7 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use super::{Slice, SliceArg, TensorMetadata, Transaction};
+use crate::backend::DeferedError;
 use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
@@ -1653,11 +1654,13 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
-        crate::try_read_sync(self.into_data_async()).expect(
-            "Failed to read tensor data synchronously.
+        crate::try_read_sync(self.into_data_async())
+            .expect("Error while reading data: use `try_into_data` instead to catch the error at runtime")
+            .expect(
+                "Failed to read tensor data synchronously.
         This can happen on platforms that don't support blocking futures like WASM.
         If possible, try using into_data_async instead.",
-        )
+            )
     }
 
     /// Converts the data of the current tensor.
@@ -1672,12 +1675,12 @@ where
     }
 
     /// Returns the data of the current tensor.
-    pub async fn into_data_async(self) -> TensorData {
+    pub async fn into_data_async(self) -> Result<TensorData, DeferedError> {
         K::into_data_async(self.primitive).await
     }
 
     /// Returns the data of the current tensor.
-    pub async fn to_data_async(&self) -> TensorData {
+    pub async fn to_data_async(&self) -> Result<TensorData, DeferedError> {
         self.clone().into_data_async().await
     }
 
@@ -2326,7 +2329,9 @@ where
     /// }
     /// ```
     pub fn into_scalar(self) -> K::Elem {
-        crate::try_read_sync(self.into_scalar_async()).expect(
+        crate::try_read_sync(self.into_scalar_async())
+            .expect("Error while reading data: use `try_into_scalar` instead to catch the error at runtime")
+            .expect(
             "Failed to read tensor data synchronously. This can happen on platforms
             that don't support blocking futures like WASM. Try into_scalar_async instead.",
         )
@@ -2337,10 +2342,10 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    pub async fn into_scalar_async(self) -> K::Elem {
+    pub async fn into_scalar_async(self) -> Result<K::Elem, DeferedError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
 
-        self.into_data_async().await.iter().next().unwrap()
+        Ok(self.into_data_async().await?.iter().next().unwrap())
     }
 
     /// Broadcast the tensor to the given shape.
@@ -2531,7 +2536,7 @@ where
             let data =
                 burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
 
-            if let Some(data) = data {
+            if let Some(Ok(data)) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
                     (Some(p), "Float") => acc.push_str(&format!("{elem:.p$}")),
@@ -3136,7 +3141,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
     #[allow(clippy::wrong_self_convention)]
-    fn into_data_async(tensor: Self::Primitive) -> impl Future<Output = TensorData> + Send;
+    fn into_data_async(
+        tensor: Self::Primitive,
+    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send;
 
     /// Read the data from the tensor using a transaction.
     ///
@@ -3509,7 +3516,7 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, DeferedError> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
             TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
@@ -3689,7 +3696,7 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, DeferedError> {
         B::int_into_data(tensor).await
     }
 
@@ -3842,7 +3849,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, DeferedError> {
         B::bool_into_data(tensor).await
     }
 

@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use burn_tensor::backend::DeferedError;
 use burn_tensor::ops::{BoolTensor, FloatTensor};
 use burn_tensor::{
     DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
@@ -66,10 +67,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tch::Tensor::ones(shape.dims, (dtype.into_kind(), device)))
     }
 
-    async fn float_into_data(tensor: TchTensor) -> TensorData {
+    async fn float_into_data(tensor: TchTensor) -> Result<TensorData, DeferedError> {
         let shape = tensor.shape();
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
-        match tensor.tensor.kind() {
+        Ok(match tensor.tensor.kind() {
             tch::Kind::Half => {
                 let values: Vec<f16> = tensor.tensor.try_into().unwrap();
                 TensorData::new(values, shape)
@@ -87,7 +88,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
                 TensorData::new(values, shape)
             }
             _ => panic!("Not a valid float kind"),
-        }
+        })
     }
 
     fn float_device(tensor: &TchTensor) -> LibTorchDevice {

@@ -4,7 +4,7 @@ use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
+use burn_tensor::{DType, Shape, TensorData, TensorMetadata, backend::DeferedError};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {
@@ -42,7 +42,7 @@ impl<C: RunnerClient> RouterTensor<C> {
         }
     }
 
-    pub(crate) async fn into_data(self) -> TensorData {
+    pub(crate) async fn into_data(self) -> Result<TensorData, DeferedError> {
         self.client.clone().read_tensor(self.into_ir()).await
     }
 

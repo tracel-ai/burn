@@ -1,7 +1,7 @@
 use super::{BasicOps, Tensor, TensorPrimitive};
 use crate::{
     TensorData,
-    backend::Backend,
+    backend::{Backend, DeferedError},
     ops::{BoolTensor, IntTensor, TransactionPrimitive},
 };
 use alloc::vec::Vec;
@@ -44,19 +44,21 @@ impl<B: Backend> Transaction<B> {
     /// in which they were [registered](Self::register).
     pub fn execute(self) -> Vec<TensorData> {
         burn_common::future::block_on(self.execute_async())
+            .expect("Error while reading data: use `try_execute` to handle error at runtime")
     }
 
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
-    pub async fn execute_async(self) -> Vec<TensorData> {
-        let result = B::tr_execute(self.op).await;
+    pub async fn execute_async(self) -> Result<Vec<TensorData>, DeferedError> {
+        let result = B::tr_execute(self.op).await?;
 
         let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();
         let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
         let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
         let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
 
-        self.orders
+        Ok(self
+            .orders
             .into_iter()
             .map(|order| match order {
                 Order::Float(index) => floats.get_mut(index).unwrap().take().unwrap(),
@@ -64,7 +66,7 @@ impl<B: Backend> Transaction<B> {
                 Order::Int(index) => ints.get_mut(index).unwrap().take().unwrap(),
                 Order::Bool(index) => bools.get_mut(index).unwrap().take().unwrap(),
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>())
     }
 
     pub(crate) fn register_float(&mut self, tensor: TensorPrimitive<B>) {

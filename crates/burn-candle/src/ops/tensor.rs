@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 
 use burn_tensor::{
     Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
+    backend::DeferedError,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
 use candle_core::{Tensor, backend::BackendStorage, shape};
@@ -64,7 +65,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         }
     }
 
-    async fn float_into_data(tensor: CandleTensor) -> TensorData {
+    async fn float_into_data(tensor: CandleTensor) -> Result<TensorData, DeferedError> {
         super::base::into_data(tensor)
     }
 

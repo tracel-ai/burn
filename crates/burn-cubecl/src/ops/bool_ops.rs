@@ -3,8 +3,11 @@ use crate::{
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
 };
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor};
 use burn_tensor::{Shape, TensorData};
+use burn_tensor::{
+    backend::DeferedError,
+    ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor},
+};
 use cubecl::std::scalar::InputScalar;
 use std::ops::Range;
 
@@ -29,7 +32,7 @@ where
         numeric::ones(device.clone(), shape, BT::dtype())
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
+    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, DeferedError> {
         super::into_data(tensor).await
     }
 

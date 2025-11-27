@@ -6,7 +6,7 @@ use burn_common::{
 };
 use burn_tensor::{
     Device,
-    backend::{Backend, DeviceId, DeviceOps},
+    backend::{Backend, DeviceId, DeviceOps, SyncError},
     quantization::QTensorPrimitive,
 };
 use candle_core::{DeviceLocation, backend::BackendDevice};
@@ -232,20 +232,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         device.set_seed(seed);
     }
 
-    fn sync(device: &Device<Self>) {
+    fn sync(device: &Device<Self>) -> Result<(), SyncError> {
         let device: candle_core::Device = (device.clone()).into();
 
         match device {
             candle_core::Device::Cpu => (),
             candle_core::Device::Cuda(device) => {
                 #[cfg(feature = "cuda")]
-                device.synchronize().unwrap();
+                device.synchronize().map_err(|err| SyncError::Generic {
+                    context: format!("Can't sync the cuda device: {err}"),
+                })?;
             }
             candle_core::Device::Metal(device) => {
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                panic!("Device synchronization unavailable with Metal device on Candle backend")
+                return Err(SyncError::NotSupported {
+                    context:
+                        "Device synchronization unavailable with Metal device on Candle backend"
+                            .into(),
+                });
             }
         }
+
+        Ok(())
     }
 }
