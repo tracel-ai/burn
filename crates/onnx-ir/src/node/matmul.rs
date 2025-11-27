@@ -25,14 +25,16 @@
 //! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use core::cmp::max;
 
 /// Node representation for MatMul operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct MatMulNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -55,7 +57,7 @@ impl NodeProcessor for MatMulProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -124,7 +126,7 @@ impl NodeProcessor for MatMulProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::MatMul(MatMulNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -139,7 +141,7 @@ mod tests {
     use crate::ir::{DType, NodeType};
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(a_rank: usize, b_rank: usize) -> NodeBuilder {
+    fn create_test_node(a_rank: usize, b_rank: usize) -> RawNode {
         TestNodeBuilder::new(NodeType::MatMul, "test_matmul")
             .input_tensor_f32("A", a_rank, None)
             .input_tensor_f32("B", b_rank, None)

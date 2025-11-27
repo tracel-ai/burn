@@ -18,13 +18,15 @@
 //! unsupported types like string, complex64, complex128 should be explicitly rejected.
 //! Location: infer_types method after line 38
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for NonZero operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct NonZeroNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -47,7 +49,7 @@ impl NodeProcessor for NonZeroProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -81,7 +83,7 @@ impl NodeProcessor for NonZeroProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::NonZero(NonZeroNode {
             name: builder.name,
             inputs: builder.inputs,

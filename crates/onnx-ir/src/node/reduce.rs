@@ -19,25 +19,22 @@
 //! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, NodeType, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, NodeType, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
 }
 
-impl ReduceConfig {
-    pub fn new(dims: Vec<usize>, keepdims: bool) -> Self {
-        Self { dims, keepdims }
-    }
-}
-
 /// Node representation for ReduceMax operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceMaxNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -46,7 +43,7 @@ pub struct ReduceMaxNode {
 }
 
 /// Node representation for ReduceMin operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceMinNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -55,7 +52,7 @@ pub struct ReduceMinNode {
 }
 
 /// Node representation for ReduceMean operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceMeanNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -64,7 +61,7 @@ pub struct ReduceMeanNode {
 }
 
 /// Node representation for ReduceSum operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceSumNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -73,7 +70,7 @@ pub struct ReduceSumNode {
 }
 
 /// Node representation for ReduceProd operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceProdNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -82,7 +79,7 @@ pub struct ReduceProdNode {
 }
 
 /// Node representation for ReduceSumSquare operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceSumSquareNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -91,7 +88,7 @@ pub struct ReduceSumSquareNode {
 }
 
 /// Node representation for ReduceL1 operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceL1Node {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -100,7 +97,7 @@ pub struct ReduceL1Node {
 }
 
 /// Node representation for ReduceL2 operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceL2Node {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -109,7 +106,7 @@ pub struct ReduceL2Node {
 }
 
 /// Node representation for ReduceLogSum operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceLogSumNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -118,7 +115,7 @@ pub struct ReduceLogSumNode {
 }
 
 /// Node representation for ReduceLogSumExp operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReduceLogSumExpNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -140,7 +137,7 @@ impl NodeProcessor for ReduceProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -151,7 +148,7 @@ impl NodeProcessor for ReduceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -249,11 +246,7 @@ impl NodeProcessor for ReduceProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Validate input type and extract tensor info
         let tensor_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -300,7 +293,7 @@ impl NodeProcessor for ReduceProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -379,7 +372,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
     use NodeType;
 
-    fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> NodeBuilder {
+    fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::ReduceMax, "test_reduce_max")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("reduced", 3, None);

@@ -9,7 +9,7 @@ use super::argument::Argument;
 use super::attribute::Attributes;
 
 // ============================================================================
-// NodeBuilder - Intermediate representation from ONNX parsing
+// RawNode - Intermediate representation from ONNX parsing
 // ============================================================================
 
 /// Reference to a runtime input by name and index.
@@ -30,7 +30,7 @@ impl RuntimeInputRef {
 
 /// Nodes produced by the ONNX parser
 #[derive(Clone, Debug)]
-pub(crate) struct NodeBuilder {
+pub(crate) struct RawNode {
     /// The type of the node.
     /// This should be a valid ONNX operator.
     pub node_type: NodeType,
@@ -125,36 +125,36 @@ define_node_enum! {
     Sub => arithmetic::SubNode,
     Mul => arithmetic::MulNode,
     Div => arithmetic::DivNode,
-    Neg => elementwise::ElementwiseUnaryNode,
-    Abs => elementwise::ElementwiseUnaryNode,
-    Pow => elementwise::ElementwiseBinaryNode,
-    Reciprocal => elementwise::ElementwiseUnaryNode,
-    Sqrt => elementwise::ElementwiseUnaryNode,
-    Exp => elementwise::ElementwiseUnaryNode,
-    Log => elementwise::ElementwiseUnaryNode,
-    Ceil => elementwise::ElementwiseUnaryNode,
-    Floor => elementwise::ElementwiseUnaryNode,
-    Round => elementwise::ElementwiseUnaryNode,
-    Sign => elementwise::ElementwiseUnaryNode,
-    Erf => elementwise::ElementwiseUnaryNode,
+    Neg => neg::NegNode,
+    Abs => abs::AbsNode,
+    Pow => pow::PowNode,
+    Reciprocal => reciprocal::ReciprocalNode,
+    Sqrt => sqrt::SqrtNode,
+    Exp => exp::ExpNode,
+    Log => log::LogNode,
+    Ceil => ceil::CeilNode,
+    Floor => floor::FloorNode,
+    Round => round::RoundNode,
+    Sign => sign::SignNode,
+    Erf => erf::ErfNode,
 
     // TRIGONOMETRIC OPERATIONS
-    Sin => elementwise::ElementwiseUnaryNode,
-    Cos => elementwise::ElementwiseUnaryNode,
-    Tan => elementwise::ElementwiseUnaryNode,
+    Sin => sin::SinNode,
+    Cos => cos::CosNode,
+    Tan => tan::TanNode,
     Asin => elementwise::ElementwiseUnaryNode,
     Acos => elementwise::ElementwiseUnaryNode,
     Atan => elementwise::ElementwiseUnaryNode,
-    Sinh => elementwise::ElementwiseUnaryNode,
-    Cosh => elementwise::ElementwiseUnaryNode,
-    Tanh => elementwise::ElementwiseUnaryNode,
+    Sinh => sinh::SinhNode,
+    Cosh => cosh::CoshNode,
+    Tanh => tanh::TanhNode,
     Asinh => elementwise::ElementwiseUnaryNode,
     Acosh => elementwise::ElementwiseUnaryNode,
     Atanh => elementwise::ElementwiseUnaryNode,
 
     // ACTIVATION FUNCTIONS
     Relu => relu::ReluNode,
-    Sigmoid => elementwise::ElementwiseUnaryNode,
+    Sigmoid => sigmoid::SigmoidNode,
     Softmax => softmax::SoftmaxNode,
     LogSoftmax => log_softmax::LogSoftmaxNode,
     LeakyRelu => leaky_relu::LeakyReluNode,
@@ -162,7 +162,7 @@ define_node_enum! {
     Elu => elementwise::ElementwiseUnaryNode,
     Selu => elementwise::ElementwiseUnaryNode,
     Celu => elementwise::ElementwiseUnaryNode,
-    Gelu => elementwise::ElementwiseUnaryNode,
+    Gelu => gelu::GeluNode,
     Mish => elementwise::ElementwiseUnaryNode,
     Softplus => elementwise::ElementwiseUnaryNode,
     Softsign => elementwise::ElementwiseUnaryNode,
@@ -176,17 +176,17 @@ define_node_enum! {
     GreaterOrEqual => comparison::GreaterOrEqualNode,
     Less => comparison::LessNode,
     LessOrEqual => comparison::LessOrEqualNode,
-    And => elementwise::ElementwiseBinaryNode,
-    Or => elementwise::ElementwiseBinaryNode,
-    Xor => elementwise::ElementwiseBinaryNode,
-    Not => elementwise::ElementwiseUnaryNode,
+    And => and::AndNode,
+    Or => or::OrNode,
+    Xor => xor::XorNode,
+    Not => not::NotNode,
     Where => where_op::WhereNode,
 
     // BITWISE OPERATIONS
-    BitwiseAnd => elementwise::ElementwiseBinaryNode,
-    BitwiseOr => elementwise::ElementwiseBinaryNode,
-    BitwiseXor => elementwise::ElementwiseBinaryNode,
-    BitwiseNot => elementwise::ElementwiseUnaryNode,
+    BitwiseAnd => bitwiseand::BitwiseAndNode,
+    BitwiseOr => bitwiseor::BitwiseOrNode,
+    BitwiseXor => bitwisexor::BitwiseXorNode,
+    BitwiseNot => bitwisenot::BitwiseNotNode,
     BitShift => bitshift::BitShiftNode,
 
     // REDUCTION OPERATIONS
@@ -204,8 +204,8 @@ define_node_enum! {
     ReduceSumSquare => reduce::ReduceSumSquareNode,
 
     // AGGREGATION OPERATIONS
-    Max => elementwise::ElementwiseBinaryNode,
-    Min => elementwise::ElementwiseBinaryNode,
+    Max => max::MaxNode,
+    Min => min::MinNode,
     Mean => mean::MeanNode,
     Sum => sum::SumNode,
 

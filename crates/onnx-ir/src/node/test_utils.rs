@@ -1,5 +1,5 @@
 use crate::ir::{
-    ArgType, Argument, AttributeValue, DType, NodeBuilder, NodeType, TensorData, TensorType,
+    ArgType, Argument, AttributeValue, DType, NodeType, RawNode, TensorData, TensorType,
 };
 use std::collections::HashMap;
 
@@ -485,7 +485,7 @@ impl TestNodeBuilder {
         self,
         processor: P,
         opset: usize,
-    ) -> NodeBuilder {
+    ) -> RawNode {
         use crate::processor::OutputPreferences;
 
         let mut node = self.build_with_graph_data(opset);
@@ -498,8 +498,8 @@ impl TestNodeBuilder {
     }
 
     /// Build the node
-    pub(crate) fn build(self) -> NodeBuilder {
-        NodeBuilder {
+    pub(crate) fn build(self) -> RawNode {
+        RawNode {
             node_type: self.node_type,
             name: self.name,
             inputs: self.inputs,
@@ -513,7 +513,7 @@ impl TestNodeBuilder {
     ///
     /// Note: After calling this method, the GraphState will be wrapped in Rc<RefCell<>>
     /// and attached to the node's arguments.
-    pub(crate) fn build_with_graph_data(self, _opset: usize) -> NodeBuilder {
+    pub(crate) fn build_with_graph_data(self, _opset: usize) -> RawNode {
         use std::cell::RefCell;
         use std::rc::Rc;
 

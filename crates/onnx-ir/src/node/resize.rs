@@ -12,9 +12,12 @@
 //! - **Opset 19**: Added antialiasing improvements and clarified coordinate transformation modes.
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, Node, NodeBuilder, RuntimeInputRef};
+use crate::ir::{ArgType, Node, RawNode, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -47,7 +50,8 @@ impl FromStr for ResizeMode {
 }
 
 /// Configuration for the Resize operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ResizeConfig {
     pub mode: ResizeMode,
     pub scales: Option<ResizeScales>,
@@ -57,13 +61,30 @@ pub struct ResizeConfig {
     /// Cubic coefficient for cubic interpolation (default: -0.75)
     pub cubic_coeff_a: f32,
     /// Nearest mode rounding strategy (default: "round_prefer_floor")
-    pub nearest_mode: String,
+    pub nearest_mode: String, // TODO convert to enum
     /// Exclude outside weights (default: 0)
     pub exclude_outside: i32,
     /// Extrapolation value for tf_crop_and_resize mode (default: 0.0)
     pub extrapolation_value: f32,
     /// Antialias flag (default: 0) - opset 13+
     pub antialias: i32,
+    // FIXME add other missing fields
+}
+
+impl Default for ResizeConfig {
+    fn default() -> Self {
+        Self {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: None,
+            coordinate_transformation_mode: "half_pixel".to_string(),
+            cubic_coeff_a: -0.75,
+            nearest_mode: "round_prefer_floor".to_string(), // TODO convert to enum
+            exclude_outside: 0,
+            extrapolation_value: 0.0,
+            antialias: 0,
+        }
+    }
 }
 
 /// Represents either a static value or a runtime argument for resize scales.
@@ -97,7 +118,7 @@ impl Default for ResizeSizes {
 }
 
 /// Node representation for Resize operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ResizeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -106,7 +127,7 @@ pub struct ResizeNode {
 }
 
 /// Extract scales input as either static or runtime
-fn extract_scales_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeScales> {
+fn extract_scales_input(node: &RawNode, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
             // Skip optional inputs (those that were never provided)
@@ -153,7 +174,7 @@ fn extract_scales_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeS
 }
 
 /// Extract sizes input as either static or runtime
-fn extract_sizes_input(node: &NodeBuilder, input_rank: usize) -> Option<ResizeSizes> {
+fn extract_sizes_input(node: &RawNode, input_rank: usize) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
             // Skip optional inputs (those that were never provided)
@@ -216,7 +237,7 @@ impl NodeProcessor for ResizeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift roi input (input[1]) if present and constant
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -237,7 +258,7 @@ impl NodeProcessor for ResizeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -317,10 +338,10 @@ impl NodeProcessor for ResizeProcessor {
                     });
                 }
                 "coordinate_transformation_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CoordinateTransformationMode::HalfPixel
                 }
                 "cubic_coeff_a" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CubicCoeffA::HalfPixel
                 }
                 "exclude_outside" => {
                     if value.clone().into_i32() != 0 {
@@ -349,9 +370,11 @@ impl NodeProcessor for ResizeProcessor {
                         });
                     }
                 }
-                "mode" => {} // Validated in extract_config
+                "mode" => {
+                    // FIXME: Implement conversion to enum
+                } // Validated in extract_config
                 "nearest_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum
                 }
                 _ => {}
             }
@@ -393,11 +416,7 @@ impl NodeProcessor for ResizeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut mode: Option<ResizeMode> = None;
         let mut coordinate_transformation_mode = "half_pixel".to_string();
         let mut cubic_coeff_a = -0.75f32;
@@ -478,7 +497,7 @@ impl NodeProcessor for ResizeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

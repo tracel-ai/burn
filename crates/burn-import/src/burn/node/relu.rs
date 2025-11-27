@@ -1,103 +1,45 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct ReluNode {
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ReluNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::relu::ReluNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = burn::tensor::activation::relu(#input);
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Relu(self)
-    }
-}
-
-impl OnnxIntoNode for ReluNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Relu(n) = node else {
-            panic!("Expected Relu node");
-        };
-        let input = match crate::burn::Type::from(n.inputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("Relu expects tensor input"),
-        };
-        let output = match crate::burn::Type::from(n.outputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("Relu expects tensor output"),
-        };
-        Self::new(input, output)
-    }
+    // No need to register imports since we use the fully qualified path
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::relu::ReluNodeBuilder;
 
     #[test]
-    fn test_codegen_relu() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReluNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::relu(tensor1);
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_relu_forward() {
+        let node = ReluNodeBuilder::new("relu1")
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = burn::tensor::activation::relu(input);
+            output
+        }
+        ");
     }
 }

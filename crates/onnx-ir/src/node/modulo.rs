@@ -16,7 +16,9 @@
 //! - TODO: No test for integer types - Spec supports int8, int16, int32, int64, uint8, uint16, uint32, uint64
 //! - TODO: No test for mixed sign operands - fmod=0 vs fmod=1 produces different results
 
-use crate::ir::{Argument, AttributeValue, Node, NodeBuilder};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{Argument, AttributeValue, Node, RawNode};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
@@ -32,7 +34,7 @@ pub struct ModConfig {
 }
 
 /// Node representation for Mod operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ModNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -63,7 +65,7 @@ impl NodeProcessor for ModuloProcessor {
 
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -101,7 +103,7 @@ impl NodeProcessor for ModuloProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -115,11 +117,7 @@ impl NodeProcessor for ModuloProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract fmod attribute
         let fmod = match node.attrs.get("fmod") {
             Some(AttributeValue::Int64(value)) => {
@@ -133,7 +131,7 @@ impl NodeProcessor for ModuloProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -154,7 +152,7 @@ mod tests {
     use crate::ir::{AttributeValue, NodeType};
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node() -> crate::ir::NodeBuilder {
+    fn create_test_node() -> crate::ir::RawNode {
         TestNodeBuilder::new(NodeType::Mod, "test_mod")
             .input_tensor_f32("A", 2, None)
             .input_tensor_f32("B", 2, None)

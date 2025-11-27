@@ -9,14 +9,16 @@
 //!   the `stash_type` attribute to control intermediate calculation precision.
 //!
 //! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for GroupNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct GroupNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -28,20 +30,8 @@ pub struct GroupNormConfig {
     pub full_precision: bool,
 }
 
-impl GroupNormConfig {
-    /// Create a new GroupNormConfig
-    pub fn new(num_features: usize, num_groups: usize, epsilon: f64, full_precision: bool) -> Self {
-        Self {
-            num_features,
-            num_groups,
-            epsilon,
-            full_precision,
-        }
-    }
-}
-
 /// Node representation for GroupNormalization operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GroupNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -63,7 +53,7 @@ impl NodeProcessor for GroupNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -77,7 +67,7 @@ impl NodeProcessor for GroupNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -116,11 +106,7 @@ impl NodeProcessor for GroupNormProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .as_ref()
@@ -155,7 +141,7 @@ impl NodeProcessor for GroupNormProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

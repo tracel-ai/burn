@@ -911,6 +911,7 @@ dependencies = [
  "candle-core",
  "derive-new",
  "half",
+ "insta",
  "log",
  "onnx-ir",
  "pretty_assertions",
@@ -4418,6 +4419,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "insta"
+version = "1.43.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46fdb647ebde000f43b5b53f773c30cf9b0cb4300453208713fa38b2c70935a0"
+dependencies = [
+ "console 0.15.11",
+ "once_cell",
+ "similar",
+]
+
+[[package]]
 name = "instability"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5538,6 +5550,7 @@ dependencies = [
  "derive-new",
  "half",
  "log",
+ "onnx-ir-derive",
  "pretty_assertions",
  "protobuf",
  "protobuf-codegen",
@@ -5545,6 +5558,15 @@ dependencies = [
  "rstest",
  "serde",
  "strum 0.27.2",
+]
+
+[[package]]
+name = "onnx-ir-derive"
+version = "0.20.0-pre.3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
 ]
 
 [[package]]
@@ -7615,6 +7637,12 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 
 [[package]]
 name = "simple-regression"

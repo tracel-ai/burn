@@ -15,13 +15,15 @@
 //! - **Opset 11-12**: Added sparse_value attribute for sparse tensor support
 //! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorDataExt, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Constant operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ConstantNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -44,7 +46,7 @@ impl NodeProcessor for ConstantProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -119,7 +121,7 @@ impl NodeProcessor for ConstantProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Constant(ConstantNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -134,7 +136,7 @@ mod tests {
     use crate::ir::{DType, NodeType};
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node_with_data(tensor_data: crate::ir::TensorData) -> NodeBuilder {
+    fn create_test_node_with_data(tensor_data: crate::ir::TensorData) -> RawNode {
         use crate::graph_state::GraphState;
         use crate::ir::Argument;
         use std::cell::RefCell;
@@ -187,7 +189,7 @@ mod tests {
         node
     }
 
-    fn create_test_node() -> NodeBuilder {
+    fn create_test_node() -> RawNode {
         // Create a node without data for testing missing value case
         TestNodeBuilder::new(NodeType::Constant, "test_constant")
             .output_tensor_f32("output", 0, None)

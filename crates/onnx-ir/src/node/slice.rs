@@ -16,14 +16,16 @@
 //!   for dynamic slicing support. This enables runtime determination of slice parameters.
 //! - **Opset 11**: Added optional `steps` input for strided slicing.
 //! - **Opset 13**: Added bfloat16 and additional type support.
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for the Slice operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SliceConfig {
     pub starts: SliceInput,
     pub ends: SliceInput,
@@ -32,7 +34,7 @@ pub struct SliceConfig {
 }
 
 /// Node representation for Slice operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SliceNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -117,7 +119,7 @@ impl NodeProcessor for SliceProcessor {
 
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         _opset: usize,
     ) -> Result<Option<crate::processor::InputPreferences>, ProcessError> {
         use crate::processor::{ArgPreference, InputPreferences};
@@ -131,7 +133,7 @@ impl NodeProcessor for SliceProcessor {
         Ok(Some(prefs))
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift starts input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -157,7 +159,7 @@ impl NodeProcessor for SliceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -217,14 +219,10 @@ impl NodeProcessor for SliceProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract config - helper function to get slice inputs
         fn get_slice_input(
-            node: &NodeBuilder,
+            node: &RawNode,
             index: usize,
         ) -> Result<Option<SliceInput>, ProcessError> {
             let input = match node.inputs.get(index) {
@@ -281,8 +279,34 @@ impl NodeProcessor for SliceProcessor {
         let ends = get_slice_input(node, 2)?
             .ok_or_else(|| ProcessError::MissingInput("ends".to_string()))?;
 
-        let mut axes = get_slice_input(node, 3)?;
+        let axes = get_slice_input(node, 3)?;
         let steps = get_slice_input(node, 4)?;
+
+        // Apply ONNX spec defaults for optional parameters
+        // Only apply defaults for static slicing where we can determine the length
+        let (mut axes, steps) = if let SliceInput::Static(ref starts_vec) = starts {
+            let num_slices = starts_vec.len();
+
+            // If steps not provided, default to all 1s (ONNX spec)
+            let steps = if steps.is_none() && num_slices > 0 {
+                Some(SliceInput::Static(vec![1; num_slices]))
+            } else {
+                steps
+            };
+
+            // If axes not provided, default to [0, 1, ..., num_slices-1] (ONNX spec)
+            let axes = if axes.is_none() && num_slices > 0 {
+                Some(SliceInput::Static((0..num_slices as i64).collect()))
+            } else {
+                axes
+            };
+
+            (axes, steps)
+        } else {
+            // For runtime inputs, we can't provide defaults here
+            // They would need to be handled at runtime
+            (axes, steps)
+        };
 
         // Validate steps if present - zeros are not allowed
         if let Some(SliceInput::Static(ref step_values)) = steps
@@ -316,7 +340,7 @@ impl NodeProcessor for SliceProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -420,8 +444,12 @@ mod tests {
                 if let Some(SliceInput::Static(axes)) = &result.axes {
                     assert_eq!(axes, &vec![0, 2]);
                 }
-                // Steps should be None when not provided
-                assert!(result.steps.is_none());
+                // Steps should have ONNX spec default of [1, 1] when not provided
+                if let Some(SliceInput::Static(steps)) = &result.steps {
+                    assert_eq!(steps, &vec![1, 1]);
+                } else {
+                    panic!("Expected steps to have ONNX spec default");
+                }
             }
             _ => panic!("Expected static config"),
         }
@@ -474,8 +502,12 @@ mod tests {
             (SliceInput::Static(starts), SliceInput::Static(ends)) => {
                 assert_eq!(starts, &vec![1, 2]);
                 assert_eq!(ends, &vec![3, 4]);
-                // axes should be None when not provided
-                assert!(result.axes.is_none());
+                // axes should have ONNX spec default of [0, 1] when not provided
+                if let Some(SliceInput::Static(axes)) = &result.axes {
+                    assert_eq!(axes, &vec![0, 1]);
+                } else {
+                    panic!("Expected axes to have ONNX spec default");
+                }
             }
             _ => panic!("Expected static config"),
         }

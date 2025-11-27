@@ -82,6 +82,7 @@ mod take;
 mod tan;
 mod tanh;
 mod topk;
+mod transaction;
 mod transpose;
 mod tri;
 mod tri_mask;
