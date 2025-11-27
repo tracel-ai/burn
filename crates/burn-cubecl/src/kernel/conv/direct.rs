@@ -310,7 +310,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             options.padding.iter().any(|it| *it != 0),
             out_dtype.into(),
         )
-    };
+    }?;
 
     Ok(output)
 }

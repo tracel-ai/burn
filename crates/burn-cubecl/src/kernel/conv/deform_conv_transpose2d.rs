@@ -108,7 +108,7 @@ fn compute_weight_grad<R: CubeRuntime>(
     let in_c_per_group = in_channels / groups;
     let out_c_per_group = out_channels / groups;
 
-    let columns = deform_im2col(input, offset, mask, options, out_dims, kernel_dims);
+    let columns = deform_im2col(input, offset, mask, options, out_dims, kernel_dims)?;
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
 
@@ -187,7 +187,7 @@ fn backward_gradient_inputs<R: CubeRuntime>(
     )?;
 
     let input_gradient =
-        compute_input_grad(columns, offset, mask, options, kernel_dims, input_shape);
+        compute_input_grad(columns, offset, mask, options, kernel_dims, input_shape)?;
 
     Ok((input_gradient, offset_gradient, mask_gradient))
 }
@@ -263,7 +263,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             use_mask,
             dtype,
         )
-    };
+    }?;
 
     let mask_gradient = if use_mask { Some(grad_mask) } else { None };
     Ok((grad_offset, mask_gradient))
@@ -466,7 +466,7 @@ fn compute_input_grad<R: CubeRuntime>(
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     input_shape: Shape,
-) -> CubeTensor<R> {
+) -> Result<CubeTensor<R>, LaunchError> {
     let client = offset.client.clone();
     let device = offset.device.clone();
 
@@ -543,13 +543,13 @@ fn compute_input_grad<R: CubeRuntime>(
             use_mask,
             dtypes,
         )
-    };
+    }?;
 
-    if !supports_same_type || !supports_fadd {
+    Ok(if !supports_same_type || !supports_fadd {
         cast(grad_in, dtype)
     } else {
         grad_in
-    }
+    })
 }
 
 #[derive(CubeLaunch, CubeType)]

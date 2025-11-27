@@ -105,7 +105,8 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
             [tensor.dtype.into(), indices.dtype.into()],
-        );
+        )
+        .expect("Kernel to never fail");
     };
 
     tensor

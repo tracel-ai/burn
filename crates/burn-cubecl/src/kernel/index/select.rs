@@ -71,6 +71,7 @@ pub(crate) fn select<R: CubeRuntime>(
             ScalarArg::new(dim as u32),
             [tensor.dtype.into(), indices.dtype.into()],
         )
+        .expect("Kernel to never fail");
     };
     output
 }

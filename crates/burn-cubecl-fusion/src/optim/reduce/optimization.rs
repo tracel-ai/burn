@@ -104,7 +104,7 @@ pub struct FusedReduceLaunch<'a> {
 
 #[derive(Debug)]
 pub enum FusedReduceError {
-    LaunchError(ReduceError),
+    Reduce(ReduceError),
     InvalidSelection(Box<&'static str>),
     InvalidInput,
 }
@@ -260,7 +260,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
         self.strategy
             .validate(client)
-            .map_err(FusedReduceError::LaunchError)?;
+            .map_err(FusedReduceError::Reduce)?;
 
         let strategy = self.strategy;
         let shape = match &config_read.ref_layout {
@@ -299,9 +299,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
         if let CubeCount::Static(x, y, z) = config_reduce.cube_count {
             let (max_x, max_y, max_z) = R::max_cube_count();
             if x > max_x || y > max_y || z > max_z {
-                return Err(FusedReduceError::LaunchError(
-                    ReduceError::CubeCountTooLarge,
-                ));
+                return Err(FusedReduceError::Reduce(ReduceError::CubeCountTooLarge));
             }
         }
 
@@ -317,7 +315,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             input: self.reduce.input.clone(),
             output: self.reduce.output.clone(),
         };
-        launch_reduce_mixed_precision(
+        let result = launch_reduce_mixed_precision(
             kwargs,
             self.reduce.inst,
             self.reduce.op.input.dtype,
@@ -325,7 +323,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             DType::from(self.reduce.acc.into_elem()),
         );
 
-        Ok(())
+        match result {
+            Ok(_) => Ok(()),
+            Err(err) => Err(FusedReduceError::Reduce(ReduceError::Launch(err))),
+        }
     }
 }
 
@@ -348,7 +349,7 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
-) {
+) -> Result<(), LaunchError> {
     let config = match instruction {
         ReduceInstruction::ArgMax => ReduceFnConfig::ArgMax,
         ReduceInstruction::ArgMin => ReduceFnConfig::ArgMin,
@@ -368,7 +369,7 @@ fn launch_reduce<Run: Runtime, Rd: ReduceFamily>(
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
-) {
+) -> Result<(), LaunchError> {
     let settings = ReduceParams {
         shared: kwargs.strategy.shared.then(|| {
             if kwargs.strategy.use_planes {
@@ -398,7 +399,7 @@ fn launch_reduce<Run: Runtime, Rd: ReduceFamily>(
             dtype_input.into(),
             dtype_output.into(),
             dtype_acc.into(),
-        );
+        )
     }
 }
 

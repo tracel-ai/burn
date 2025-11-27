@@ -96,7 +96,8 @@ mod tests {
 
         type Float = <TestBackend as Backend>::FloatElem;
 
-        let output = nchw_to_nhwc::<TestRuntime, Float>(input.clone().into_primitive().tensor());
+        let output =
+            nchw_to_nhwc::<TestRuntime, Float>(input.clone().into_primitive().tensor()).unwrap();
         let output_ref = into_contiguous(
             input
                 .clone()

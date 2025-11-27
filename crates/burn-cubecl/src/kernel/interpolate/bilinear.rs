@@ -121,7 +121,8 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
         out_shape,
         out_layout,
         output.dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }
