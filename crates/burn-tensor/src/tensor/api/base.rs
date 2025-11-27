@@ -1655,12 +1655,27 @@ where
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
         crate::try_read_sync(self.into_data_async())
-            .expect("Error while reading data: use `try_into_data` instead to catch the error at runtime")
             .expect(
                 "Failed to read tensor data synchronously.
         This can happen on platforms that don't support blocking futures like WASM.
         If possible, try using into_data_async instead.",
             )
+            .expect("Error while reading data: use `try_into_data` instead to catch the error at runtime")
+    }
+
+    /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
+    pub fn try_into_data(self) -> Result<TensorData, DeferedError> {
+        crate::try_read_sync(self.into_data_async()).expect(
+            "Failed to read tensor data synchronously.
+        This can happen on platforms that don't support blocking futures like WASM.
+        If possible, try using into_data_async instead.",
+        )
     }
 
     /// Converts the data of the current tensor.
@@ -2330,8 +2345,25 @@ where
     /// ```
     pub fn into_scalar(self) -> K::Elem {
         crate::try_read_sync(self.into_scalar_async())
-            .expect("Error while reading data: use `try_into_scalar` instead to catch the error at runtime")
             .expect(
+            "Failed to read tensor data synchronously. This can happen on platforms
+            that don't support blocking futures like WASM. Try into_scalar_async instead.",
+            )
+            .expect("Error while reading data: use `try_into_scalar` instead to catch the error at runtime")
+    }
+
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// - If the tensor doesn't have one element.
+    /// - If the backend fails to read the tensor data synchronously.
+    ///
+    /// # Returns
+    ///
+    /// The scalar value of the tensor.
+    pub fn try_into_scalar(self) -> Result<K::Elem, DeferedError> {
+        crate::try_read_sync(self.into_scalar_async()).expect(
             "Failed to read tensor data synchronously. This can happen on platforms
             that don't support blocking futures like WASM. Try into_scalar_async instead.",
         )
