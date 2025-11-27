@@ -10,6 +10,7 @@ mod avgpool2d;
 mod backward;
 mod bridge;
 mod broadcast;
+mod cast;
 mod cat;
 mod ceil;
 mod checkpoint;
@@ -71,6 +72,7 @@ mod sqrt;
 mod sub;
 mod tanh;
 mod transpose;
+mod unfold;
 
 #[macro_export]
 macro_rules! testgen_all {
@@ -195,6 +197,7 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_aggregation!();
         burn_autodiff::testgen_ad_maxmin!();
         burn_autodiff::testgen_ad_cat!();
+        burn_autodiff::testgen_ad_cast!();
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
@@ -237,6 +240,7 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_sign!();
         burn_autodiff::testgen_ad_expand!();
         burn_autodiff::testgen_ad_sort!();
+        burn_autodiff::testgen_ad_unfold!();
         burn_autodiff::testgen_ad_repeat_dim!();
     };
 }
