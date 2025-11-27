@@ -1,6 +1,4 @@
-use cubecl_quant::scheme::QuantScheme;
-
-use crate::quantization::{QuantAcc, QuantPropagation};
+use crate::quantization::{QuantAcc, QuantPropagation, QuantScheme};
 
 /// Quantized tensor primitive.
 pub trait QTensorPrimitive {

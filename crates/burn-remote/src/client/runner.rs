@@ -1,7 +1,7 @@
-use burn_common::future::DynFut;
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
+use burn_std::future::DynFut;
 use burn_tensor::{
     Shape, TensorData,
     backend::{DeviceId, DeviceOps},
@@ -110,7 +110,7 @@ impl Default for RemoteDevice {
     }
 }
 
-impl burn_common::device::Device for RemoteDevice {
+impl burn_std::device::Device for RemoteDevice {
     fn from_id(_device_id: DeviceId) -> Self {
         todo!("Should keep the address as ints, host should be type, port should be index.")
     }

@@ -22,7 +22,7 @@ doc = ["default"]
 std = ["cubecl/std", "burn-tensor/std", "burn-fusion/std"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3" }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3" }
 burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.3", default-features = false }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.3", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false, features = [

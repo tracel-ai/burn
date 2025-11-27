@@ -1,9 +1,9 @@
 use alloc::sync::Arc;
-use burn_common::{future::DynFut, stub::Mutex};
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
+use burn_std::{future::DynFut, stub::Mutex};
 use burn_tensor::{DType, Shape, TensorData, backend::Backend};
 
 use super::{RouterTensor, RunnerClient};

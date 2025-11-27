@@ -5,10 +5,10 @@ macro_rules! run_par {
     (
         $func:expr
     ) => {{
-        use burn_common::rayon::prelude::*;
+        use rayon::prelude::*;
 
         #[allow(clippy::redundant_closure_call)]
-        burn_common::rayon::scope(|_| $func())
+        rayon::scope(|_| $func())
     }};
 }
 

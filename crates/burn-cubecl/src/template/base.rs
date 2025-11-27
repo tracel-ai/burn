@@ -1,6 +1,5 @@
 use super::SourceTemplate;
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
-use burn_common::ExecutionMode;
 use cubecl::{CompilationError, Compiler, CubeTask, prelude::*};
 
 /// Kernel source to create a [source](SourceTemplate)

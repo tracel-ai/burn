@@ -38,10 +38,10 @@
 
 use std::{path::PathBuf, sync::Mutex};
 
-use burn_common::network::downloader;
 use flate2::read::GzDecoder;
 use tar::Archive;
 
+use crate::network::downloader;
 use crate::vision::ImageFolderDataset;
 
 /// CIFAR-10 mirror from [fastai](https://github.com/fastai/fastai/blob/master/fastai/data/external.py#L44).

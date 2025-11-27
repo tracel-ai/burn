@@ -13,7 +13,7 @@ use alloc::sync::Arc;
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
 
-use burn_common::stub::Mutex;
+use burn_std::stub::Mutex;
 use burn_tensor::{
     Tensor,
     backend::{AutodiffBackend, Backend},
@@ -33,7 +33,7 @@ mod threading {
 
 #[cfg(not(feature = "std"))]
 mod threading {
-    pub(super) use burn_common::stub::ThreadId;
+    pub(super) use burn_std::stub::ThreadId;
     pub(super) use hashbrown::HashMap;
 
     #[inline(always)]

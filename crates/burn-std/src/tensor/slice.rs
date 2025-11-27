@@ -1,3 +1,5 @@
+//! Tensor slice utilities.
+
 use crate::Shape;
 use crate::indexing::AsIndex;
 use alloc::vec::Vec;
@@ -208,7 +210,7 @@ macro_rules! s {
         {
             #[allow(clippy::reversed_empty_ranges)]
             {
-                $crate::Slice::from_range_stepped($range, $step)
+                $crate::tensor::Slice::from_range_stepped($range, $step)
             }
         }
     };
@@ -218,7 +220,7 @@ macro_rules! s {
         {
             #[allow(clippy::reversed_empty_ranges)]
             {
-                $crate::Slice::from($range)
+                $crate::tensor::Slice::from($range)
             }
         }
     };
@@ -228,7 +230,7 @@ macro_rules! s {
         {
             #[allow(clippy::reversed_empty_ranges)]
             {
-                $crate::s!(@internal [$crate::Slice::from_range_stepped($range, $step)] $($rest)*)
+                $crate::s!(@internal [$crate::tensor::Slice::from_range_stepped($range, $step)] $($rest)*)
             }
         }
     };
@@ -238,7 +240,7 @@ macro_rules! s {
         {
             #[allow(clippy::reversed_empty_ranges)]
             {
-                $crate::s!(@internal [$crate::Slice::from($range)] $($rest)*)
+                $crate::s!(@internal [$crate::tensor::Slice::from($range)] $($rest)*)
             }
         }
     };
@@ -250,22 +252,22 @@ macro_rules! s {
 
     // Internal: parse range with step followed by comma
     (@internal [$($acc:expr),*] $range:expr; $step:expr, $($rest:tt)*) => {
-        $crate::s!(@internal [$($acc,)* $crate::Slice::from_range_stepped($range, $step as isize)] $($rest)*)
+        $crate::s!(@internal [$($acc,)* $crate::tensor::Slice::from_range_stepped($range, $step as isize)] $($rest)*)
     };
 
     // Internal: parse range with step at end
     (@internal [$($acc:expr),*] $range:expr; $step:expr) => {
-        $crate::s!(@internal [$($acc,)* $crate::Slice::from_range_stepped($range, $step as isize)])
+        $crate::s!(@internal [$($acc,)* $crate::tensor::Slice::from_range_stepped($range, $step as isize)])
     };
 
     // Internal: parse range without step followed by comma
     (@internal [$($acc:expr),*] $range:expr, $($rest:tt)*) => {
-        $crate::s!(@internal [$($acc,)* $crate::Slice::from($range)] $($rest)*)
+        $crate::s!(@internal [$($acc,)* $crate::tensor::Slice::from($range)] $($rest)*)
     };
 
     // Internal: parse range without step at end
     (@internal [$($acc:expr),*] $range:expr) => {
-        $crate::s!(@internal [$($acc,)* $crate::Slice::from($range)])
+        $crate::s!(@internal [$($acc,)* $crate::tensor::Slice::from($range)])
     };
 }
 

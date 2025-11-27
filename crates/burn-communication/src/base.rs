@@ -1,4 +1,4 @@
-use burn_common::future::DynFut;
+use burn_std::future::DynFut;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
