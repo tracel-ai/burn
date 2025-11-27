@@ -1,7 +1,7 @@
 use core::hash::{BuildHasher, Hasher};
 
 use alloc::string::String;
-use burn_common::id::IdGenerator;
+use burn_std::id::IdGenerator;
 use data_encoding::BASE32_DNSSEC;
 
 // Hashbrown changed its default hasher in 0.15, but there are some issues

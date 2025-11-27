@@ -43,7 +43,7 @@ impl<B: Backend> Transaction<B> {
     /// Executes the transaction synchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
     pub fn execute(self) -> Vec<TensorData> {
-        burn_common::future::block_on(self.execute_async())
+        burn_std::future::block_on(self.execute_async())
     }
 
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order

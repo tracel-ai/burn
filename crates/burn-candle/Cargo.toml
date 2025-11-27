@@ -25,7 +25,7 @@ accelerate = ["candle-core/accelerate"]
 [dependencies]
 derive-new = { workspace = true }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false }
 half = { workspace = true }
 candle-core = { workspace = true }
 

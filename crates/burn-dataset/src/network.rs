@@ -4,7 +4,6 @@
 pub mod downloader {
     use indicatif::{ProgressBar, ProgressState, ProgressStyle};
     use reqwest::Client;
-    #[cfg(feature = "std")]
     use std::io::Write;
 
     /// Download the file at the specified url.
@@ -18,7 +17,6 @@ pub mod downloader {
     /// # Returns
     ///
     /// A vector of bytes containing the downloaded file data.
-    #[cfg(feature = "std")]
     #[tokio::main(flavor = "current_thread")]
     pub async fn download_file_as_bytes(url: &str, message: &str) -> Vec<u8> {
         // Get file from web
