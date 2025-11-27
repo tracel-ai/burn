@@ -1,62 +1,25 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone)]
-pub struct SubNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-}
-
-impl SubNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type) -> Self {
-        Self { lhs, rhs, output }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::SubNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("lhs must be a tensor, scalar, or shape"),
-        };
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("rhs must be a tensor, scalar, or shape"),
-        };
+        let lhs = scope.arg(lhs_arg);
 
-        let output = &self.output.name();
+        let rhs = scope.arg(rhs_arg);
 
-        let function = match (&self.lhs, &self.rhs) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+        let function = match (&lhs_arg.ty, &rhs_arg.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
 
@@ -72,10 +35,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     quote! { #lhs.unsqueeze_dims(&[#(#dims),*]).sub(#rhs) }
                 }
             }
-            (Type::Tensor(_), Type::Scalar(_)) => quote! { #lhs.sub_scalar(#rhs) },
-            (Type::Scalar(_), Type::Scalar(_)) => quote! { #lhs - #rhs },
-            (Type::Scalar(_), Type::Tensor(_)) => quote! { -#rhs.sub_scalar(#lhs) },
-            (Type::Shape(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Scalar(_)) => quote! { #lhs.sub_scalar(#rhs) },
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => quote! { #lhs - #rhs },
+            (ArgType::Scalar(_), ArgType::Tensor(_)) => quote! { -#rhs.sub_scalar(#lhs) },
+            (ArgType::Shape(_), ArgType::Shape(_)) => quote! {
                 {
                     let mut result = #lhs;
                     for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
@@ -84,7 +47,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     result
                 }
             },
-            (Type::Shape(_), Type::Scalar(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Scalar(_)) => quote! {
                 {
                     let mut result = #lhs;
                     for result_item in result.iter_mut() {
@@ -93,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     result
                 }
             },
-            (Type::Scalar(_), Type::Shape(_)) => quote! {
+            (ArgType::Scalar(_), ArgType::Shape(_)) => quote! {
                 {
                     let mut result = #rhs;
                     for result_item in result.iter_mut() {
@@ -102,88 +65,40 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SubNode {
                     result
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
                 Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).sub(#rhs)
             },
-            (Type::Tensor(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
                 #lhs.sub(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
             },
-            _ => panic!("Subtraction is supported for tensor, scalar, and shape types only"),
         };
 
         quote! {
             let #output = #function;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Sub(self)
-    }
-}
-
-impl OnnxIntoNode for SubNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Sub(n) = node else {
-            panic!("Expected Sub node");
-        };
-        let lhs = Type::from(n.inputs.first().unwrap());
-        let rhs = Type::from(n.inputs.get(1).unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-
-        Self::new(lhs, rhs, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::arithmetic::SubNodeBuilder;
 
     #[test]
-    fn test_codegen_sub() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SubNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            Type::Tensor(TensorType::new_float("tensor3", 4)),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.sub(tensor2);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_sub_forward() {
+        let node = SubNodeBuilder::new("sub1")
+            .input_tensor("lhs", 2, DType::F32)
+            .input_tensor("rhs", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = lhs.sub(rhs);
+            output
+        }
+        ");
     }
 }

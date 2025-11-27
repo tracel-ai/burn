@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{Argument, NodeBuilder, NodeType},
+    ir::{Argument, NodeType, RawNode},
     processor::get_processor_registry,
     proto_conversion::MIN_OPSET_VERSION,
 };
@@ -76,7 +76,7 @@ fn rewire_subgraph(
 
 /// Rewire subgraphs within a single node (recursive helper)
 fn rewire_node_subgraphs(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     rewire_map: &HashMap<String, String>,
     output_arg_map: &HashMap<String, Argument>,
 ) {
@@ -115,7 +115,7 @@ fn rewire_node_subgraphs(
 
 /// Analyze which Identity nodes can be removed and create rewiring map
 fn plan_identity_elimination(
-    nodes: &[NodeBuilder],
+    nodes: &[RawNode],
     node_output_map: &HashMap<String, (usize, usize)>,
 ) -> IdentityEliminationPlan {
     let mut rewire_map = HashMap::new();
@@ -174,7 +174,7 @@ fn plan_identity_elimination(
 /// 2. Updates graph outputs to bypass removed Identity nodes
 /// 3. Filters out removed nodes
 fn apply_identity_elimination(
-    nodes: &mut Vec<NodeBuilder>,
+    nodes: &mut Vec<RawNode>,
     outputs: &mut [Argument],
     plan: IdentityEliminationPlan,
 ) {
@@ -250,7 +250,7 @@ fn apply_identity_elimination(
 /// Returns (nodes, inputs, outputs) tuple ready for finalization
 pub(crate) fn post_process(
     state_rc: &Rc<RefCell<GraphState>>,
-) -> (Vec<NodeBuilder>, Vec<Argument>, Vec<Argument>) {
+) -> (Vec<RawNode>, Vec<Argument>, Vec<Argument>) {
     // Extract graph data while preserving tensor_store and node_output_map
     let (mut nodes, inputs, mut outputs, node_output_map) = {
         let mut state = state_rc.borrow_mut();
@@ -311,10 +311,10 @@ pub(crate) fn post_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, NodeBuilder, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, RawNode, TensorType};
 
-    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> NodeBuilder {
-        NodeBuilder {
+    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> RawNode {
+        RawNode {
             node_type: NodeType::Identity,
             name: name.to_string(),
             inputs: vec![Argument {
@@ -341,8 +341,8 @@ mod tests {
         }
     }
 
-    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> NodeBuilder {
-        NodeBuilder {
+    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> RawNode {
+        RawNode {
             node_type: NodeType::Add,
             name: name.to_string(),
             inputs: vec![

@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, NodeBuilder},
+    ir::{ArgType, RawNode},
     processor::{ArgPreference, ProcessError, get_processor_registry},
 };
 
@@ -33,7 +33,7 @@ pub(crate) fn infer_types(
 ///
 /// This allows runtime preference collection (e.g., Concat requests Shape after seeing Shape inputs).
 pub(super) fn iterative_type_inference_with_preferences(
-    nodes: &mut [NodeBuilder],
+    nodes: &mut [RawNode],
     opset: usize,
 ) -> Result<(), ProcessError> {
     let registry = get_processor_registry();
@@ -106,6 +106,9 @@ pub(super) fn iterative_type_inference_with_preferences(
 
             // Run type inference on this node
             processor.infer_types(&mut nodes[i], opset, &prefs)?;
+
+            // Validate that no rank-0 tensors were created (invariant: should be Scalars)
+            crate::processor::validate_no_rank_zero_tensors(&nodes[i])?;
 
             // Immediately sync this node's output types to downstream nodes' inputs
             // This allows downstream nodes to see correct types in the same iteration

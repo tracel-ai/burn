@@ -14,21 +14,24 @@
 //! - **Opset 1-12**: Initial version with blocksize attribute
 //! - **Opset 13+**: Extended type support (added bfloat16, uint types)
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 
 /// Configuration for SpaceToDepth operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SpaceToDepthConfig {
     /// Block size for space-to-depth transformation
     pub block_size: usize,
 }
 
 /// Node representation for SpaceToDepth operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct SpaceToDepthNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -52,7 +55,7 @@ impl NodeProcessor for SpaceToDepthProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -129,11 +132,7 @@ impl NodeProcessor for SpaceToDepthProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut block_size: Option<usize> = None;
 
         for (key, value) in node.attrs.iter() {
@@ -149,7 +148,7 @@ impl NodeProcessor for SpaceToDepthProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -171,11 +170,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
-    fn create_test_node(
-        rank: usize,
-        static_shape: Option<Vec<usize>>,
-        block_size: i64,
-    ) -> NodeBuilder {
+    fn create_test_node(rank: usize, static_shape: Option<Vec<usize>>, block_size: i64) -> RawNode {
         let builder = TestNodeBuilder::new(NodeType::DepthToSpace, "test_space_to_depth")
             .input_tensor_f32("input", rank, static_shape)
             .output_tensor_f32("output", rank, None) // Same rank as input

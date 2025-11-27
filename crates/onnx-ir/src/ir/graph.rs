@@ -4,12 +4,12 @@
 //! ONNX computational graph with nodes, inputs, and outputs.
 
 use super::argument::Argument;
-use super::node::{Node, NodeBuilder};
+use super::node::{Node, RawNode};
 
 /// ONNX graph representation containing fully processed nodes
 #[derive(Debug, Clone, Default)]
 pub struct OnnxGraph {
-    /// The nodes of the graph (after conversion from NodeBuilder).
+    /// The nodes of the graph (after conversion from RawNode).
     pub nodes: Vec<Node>,
 
     /// The inputs of the graph.
@@ -25,12 +25,12 @@ pub struct OnnxGraph {
 
 /// Intermediate graph representation used during processing
 ///
-/// This holds NodeBuilder instances while type inference and processing is happening.
+/// This holds RawNode instances while type inference and processing is happening.
 /// After processing is complete, it gets converted to OnnxGraph via convert_to_graph().
 #[derive(Debug, Clone)]
 pub struct OnnxGraphBuilder {
     /// The nodes of the graph (before conversion to final Node enum).
-    pub nodes: Vec<NodeBuilder>,
+    pub nodes: Vec<RawNode>,
 
     /// The inputs of the graph.
     pub inputs: Vec<Argument>,
@@ -43,7 +43,7 @@ pub struct OnnxGraphBuilder {
 }
 
 impl OnnxGraphBuilder {
-    /// Convert this OnnxGraphBuilder to an OnnxGraph by converting all NodeBuilders to Nodes
+    /// Convert this OnnxGraphBuilder to an OnnxGraph by converting all RawNodes to Nodes
     ///
     /// This recursively converts subgraphs for control flow nodes (If, Loop, Scan).
     pub fn convert_to_graph(mut self, opset: usize) -> OnnxGraph {
@@ -58,14 +58,14 @@ impl OnnxGraphBuilder {
     }
 }
 
-/// Convert a vector of NodeBuilders to Nodes, handling subgraphs recursively
-pub fn finalize_graph_nodes(builders: &mut Vec<NodeBuilder>, opset: usize) -> Vec<Node> {
+/// Convert a vector of RawNodes to Nodes, handling subgraphs recursively
+pub fn finalize_graph_nodes(builders: &mut Vec<RawNode>, opset: usize) -> Vec<Node> {
     let taken_builders = std::mem::take(builders);
     convert_builders_to_nodes(taken_builders, opset)
 }
 
-/// Convert a vector of NodeBuilders to Nodes, handling subgraphs recursively
-fn convert_builders_to_nodes(builders: Vec<NodeBuilder>, opset: usize) -> Vec<Node> {
+/// Convert a vector of RawNodes to Nodes, handling subgraphs recursively
+fn convert_builders_to_nodes(builders: Vec<RawNode>, opset: usize) -> Vec<Node> {
     let registry = crate::processor::get_processor_registry();
 
     builders
@@ -83,13 +83,13 @@ fn convert_builders_to_nodes(builders: Vec<NodeBuilder>, opset: usize) -> Vec<No
 }
 
 /// Convert any subgraphs in node attributes from OnnxGraphBuilder to OnnxGraph
-fn convert_subgraphs_in_attributes(mut builder: NodeBuilder, opset: usize) -> NodeBuilder {
+fn convert_subgraphs_in_attributes(mut builder: RawNode, opset: usize) -> RawNode {
     use crate::ir::AttributeValue;
 
     for attr_value in builder.attrs.values_mut() {
         match attr_value {
             AttributeValue::GraphBuilder(subgraph_builder) => {
-                // Convert the subgraph's NodeBuilders to Nodes
+                // Convert the subgraph's RawNodes to Nodes
                 let nodes =
                     convert_builders_to_nodes(std::mem::take(&mut subgraph_builder.nodes), opset);
 

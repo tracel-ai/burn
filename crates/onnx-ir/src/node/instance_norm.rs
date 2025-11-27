@@ -20,14 +20,16 @@
 //! - TODO: No test for custom epsilon values (e.g., epsilon=1e-3) - Only default epsilon tested
 //! - TODO: No test for edge cases: zero-mean inputs, constant inputs, single channel
 //! - TODO: No test validating behavior with different batch sizes or spatial dimensions
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for InstanceNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct InstanceNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -35,18 +37,8 @@ pub struct InstanceNormConfig {
     pub epsilon: f64,
 }
 
-impl InstanceNormConfig {
-    /// Create a new InstanceNormConfig
-    pub fn new(num_features: usize, epsilon: f64) -> Self {
-        Self {
-            num_features,
-            epsilon,
-        }
-    }
-}
-
 /// Node representation for InstanceNormalization operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct InstanceNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -68,7 +60,7 @@ impl NodeProcessor for InstanceNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -82,7 +74,7 @@ impl NodeProcessor for InstanceNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -109,11 +101,7 @@ impl NodeProcessor for InstanceNormProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -136,7 +124,7 @@ impl NodeProcessor for InstanceNormProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

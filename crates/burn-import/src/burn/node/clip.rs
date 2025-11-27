@@ -1,32 +1,36 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct ClipNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub min: Option<f64>, // Should be elem Type
-    pub max: Option<f64>,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::clip::ClipNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        if let Some(min) = self.min {
-            if let Some(max) = self.max {
+        // Extract static values from ClipInput enum
+        let min = match &self.config.min {
+            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
+            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
+                panic!("Clip: runtime min values are not supported in burn-import")
+            }
+            None => None,
+        };
+        let max = match &self.config.max {
+            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
+            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
+                panic!("Clip: runtime max values are not supported in burn-import")
+            }
+            None => None,
+        };
+
+        if let Some(min) = min {
+            if let Some(max) = max {
                 quote! {
                     let #output = #input.clamp(#min, #max);
                 }
@@ -35,7 +39,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
                     let #output = #input.clamp_min(#min);
                 }
             }
-        } else if let Some(max) = self.max {
+        } else if let Some(max) = max {
             quote! {
                 let #output = #input.clamp_max(#max);
             }
@@ -43,185 +47,62 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
             panic!("Clip node must have at least one min or max value");
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Clip(self)
-    }
-}
-
-impl OnnxIntoNode for ClipNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Clip(n) = node else {
-            panic!("Expected Clip node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-
-        // Extract static values from ClipInput enum
-        let min = match &n.config.min {
-            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
-            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
-                panic!("Clip: runtime min values are not supported in burn-import")
-            }
-            None => None,
-        };
-        let max = match &n.config.max {
-            Some(onnx_ir::node::clip::ClipInput::Static(v)) => Some(*v),
-            Some(onnx_ir::node::clip::ClipInput::Runtime(_)) => {
-                panic!("Clip: runtime max values are not supported in burn-import")
-            }
-            None => None,
-        };
-
-        Self::new(input, output, min, max)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::clip::{ClipConfig, ClipNode, ClipNodeBuilder};
+    use onnx_ir::node::clip::ClipInput;
 
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-
-    #[test]
-    fn codegen_nodes_min_max() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ClipNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-            Some(0.0),
-            Some(1.0),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.clamp(0f64, 1f64);
-
-                    tensor2
-                }
-            }
+    fn create_clip_node(name: &str, min: Option<f64>, max: Option<f64>) -> ClipNode {
+        let config = ClipConfig {
+            min: min.map(ClipInput::Static),
+            max: max.map(ClipInput::Static),
         };
 
-        assert_tokens(graph.codegen(), expected);
+        ClipNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
     }
 
     #[test]
-    fn codegen_nodes_min() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ClipNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-            Some(0.0),
-            None,
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.clamp_min(0f64);
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_clip_both_bounds() {
+        let node = create_clip_node("clip1", Some(-1.0), Some(1.0));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.clamp(-1f64, 1f64);
+            output
+        }
+        ");
     }
 
     #[test]
-    fn codegen_nodes_max() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_clip_min_only() {
+        let node = create_clip_node("clip1", Some(0.0), None);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.clamp_min(0f64);
+            output
+        }
+        ");
+    }
 
-        graph.register(ClipNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-            None,
-            Some(1.0),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.clamp_max(1f64);
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_clip_max_only() {
+        let node = create_clip_node("clip1", None, Some(10.0));
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.clamp_max(10f64);
+            output
+        }
+        ");
     }
 }

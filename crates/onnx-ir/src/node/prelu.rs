@@ -25,13 +25,14 @@
 //! - The slope input is lifted to static during constant lifting phase
 //! - This allows the slope to be embedded in the generated code
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for PRelu operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct PReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -52,7 +53,7 @@ impl NodeProcessor for PReluProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift the slope input (input[1]) to static
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;
@@ -62,7 +63,7 @@ impl NodeProcessor for PReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -98,7 +99,7 @@ impl NodeProcessor for PReluProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::PRelu(PReluNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -114,7 +115,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
     use burn_tensor::DType;
 
-    fn create_test_node() -> NodeBuilder {
+    fn create_test_node() -> RawNode {
         TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
             .input_tensor_f32("X", 4, Some(vec![1, 3, 224, 224]))
             .input_tensor_f32("slope", 4, Some(vec![1, 3, 1, 1])) // Per-channel slope
