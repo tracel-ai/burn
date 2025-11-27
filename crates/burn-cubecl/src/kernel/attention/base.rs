@@ -6,7 +6,8 @@ use cubecl::attention::{
 
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
-pub fn attention<R: CubeRuntime>(
+/// Launch a flash attention kernel
+pub fn flash_attention<R: CubeRuntime>(
     query: CubeTensor<R>,
     key: CubeTensor<R>,
     value: CubeTensor<R>,
