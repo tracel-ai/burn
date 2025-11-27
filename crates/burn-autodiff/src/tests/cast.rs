@@ -1,8 +1,11 @@
 #[burn_tensor_testgen::testgen(ad_cast)]
 mod tests {
     use super::*;
+    use burn_tensor::might_panic;
     use burn_tensor::{DType, Tensor, TensorData};
 
+    #[cfg(feature = "std")]
+    #[might_panic(reason = "Unsupported precision for fusion")]
     #[test]
     fn cast_keeps_gradient_flow() {
         let device = Default::default();
@@ -12,8 +15,7 @@ mod tests {
         )
         .require_grad();
 
-        let dtype = x.dtype();
-        let y = x.clone().cast(dtype);
+        let y = x.clone().cast(DType::F64);
         let z = y.sum();
 
         let grads = z.backward();
