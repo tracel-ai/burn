@@ -1,6 +1,6 @@
 use burn_tensor::Element;
 use ndarray::LinalgScalar;
-use num_traits::Signed;
+use num_traits::{Signed, AsPrimitive};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -61,6 +61,8 @@ impl QuantElement for i8 {}
 
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
+impl FloatNdArrayElement for half::f16 {}
+impl FloatNdArrayElement for half::bf16 {}
 
 impl IntNdArrayElement for i64 {}
 impl IntNdArrayElement for i32 {}
@@ -83,28 +85,36 @@ macro_rules! make_elem {
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
-                (self as f64).exp() as $ty
+                let self_f64: f64 = self.as_();
+                self_f64.exp().as_()
             }
 
             #[inline(always)]
             fn log_elem(self) -> Self {
-                (self as f64).ln() as $ty
+                let self_f64: f64 = self.as_();
+                self_f64.ln().as_()
             }
 
             #[inline(always)]
             fn log1p_elem(self) -> Self {
-                log1p(self as f64) as $ty
+                let self_f64: f64 = self.as_();
+                log1p(self_f64).as_()
             }
 
             #[inline(always)]
             fn powf_elem(self, value: f32) -> Self {
-                (self as f64).pow(value) as $ty
+                let self_f64: f64 = self.as_();
+                self_f64.pow(value).as_()
             }
 
             #[inline(always)]
             fn powi_elem(self, value: i32) -> Self {
                 #[cfg(feature = "std")]
-                let val = f64::powi(self as f64, value) as $ty;
+                let val = {
+                    let self_f64: f64 = self.as_();
+                    let val = f64::powi(self_f64, value).as_();
+                    val
+                };
 
                 #[cfg(not(feature = "std"))]
                 let val = Self::powf_elem(self, value as f32);
@@ -114,17 +124,20 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn sqrt_elem(self) -> Self {
-                (self as f64).sqrt() as $ty
+                let self_f64: f64 = self.as_();
+                self_f64.sqrt().as_()
             }
 
             #[inline(always)]
             fn abs_elem(self) -> Self {
-                (self as f64).abs() as $ty
+                let self_f64: f64 = self.as_();
+                self_f64.abs().as_()
             }
 
             #[inline(always)]
             fn int_abs_elem(self) -> Self {
-                (self as i64).abs() as $ty
+                let self_i64: i64 = self.as_();
+                self_i64.abs().as_()
             }
         }
     };
@@ -137,28 +150,36 @@ macro_rules! make_elem {
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
-                (self as f32).exp() as $ty
+                let self_f32: f32 = self.as_();
+                self_f32.exp().as_()
             }
 
             #[inline(always)]
             fn log_elem(self) -> Self {
-                (self as f32).ln() as $ty
+                let self_f32: f32 = self.as_();
+                self_f32.ln().as_()
             }
 
             #[inline(always)]
             fn log1p_elem(self) -> Self {
-                log1pf(self as f32) as $ty
+                let self_f32: f32 = self.as_();
+                log1pf(self_f32).as_()
             }
 
             #[inline(always)]
             fn powf_elem(self, value: f32) -> Self {
-                (self as f32).pow(value) as $ty
+                let self_f32: f32 = self.as_();
+                self_f32.pow(value).as_()
             }
 
             #[inline(always)]
             fn powi_elem(self, value: i32) -> Self {
                 #[cfg(feature = "std")]
-                let val = f32::powi(self as f32, value) as $ty;
+                let val = {
+                    let self_f32: f32 = self.as_();
+                    let val = f32::powi(self_f32, value).as_();
+                    val
+                };
 
                 #[cfg(not(feature = "std"))]
                 let val = Self::powf_elem(self, value as f32);
@@ -168,17 +189,20 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn sqrt_elem(self) -> Self {
-                (self as f32).sqrt() as $ty
+                let self_f32: f32 = self.as_();
+                self_f32.sqrt().as_()
             }
 
             #[inline(always)]
             fn abs_elem(self) -> Self {
-                (self as f32).abs() as $ty
+                let self_f32: f32 = self.as_();
+                self_f32.abs().as_()
             }
 
             #[inline(always)]
             fn int_abs_elem(self) -> Self {
-                (self as i32).unsigned_abs() as $ty
+                let self_i32: i32 = self.as_();
+                self_i32.unsigned_abs().as_()
             }
         }
     };
@@ -190,6 +214,8 @@ make_elem!(double u64);
 
 make_elem!(single f32);
 make_elem!(single i32);
+make_elem!(single half::f16);
+make_elem!(single half::bf16);
 make_elem!(single i16);
 make_elem!(single i8);
 make_elem!(single u32);
