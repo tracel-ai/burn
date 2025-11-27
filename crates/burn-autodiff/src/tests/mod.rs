@@ -72,6 +72,7 @@ mod sqrt;
 mod sub;
 mod tanh;
 mod transpose;
+mod unfold;
 
 #[macro_export]
 macro_rules! testgen_all {
@@ -239,6 +240,7 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_sign!();
         burn_autodiff::testgen_ad_expand!();
         burn_autodiff::testgen_ad_sort!();
+        burn_autodiff::testgen_ad_unfold!();
         burn_autodiff::testgen_ad_repeat_dim!();
     };
 }

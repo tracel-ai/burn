@@ -19,6 +19,7 @@ use crate::{
     utils::duplicate,
 };
 
+use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::{
     Device, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
@@ -2907,7 +2908,84 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         size: usize,
         step: usize,
     ) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_unfold(tensor.primitive, dim, size, step))
+        #[derive(Debug)]
+        struct Unfold;
+
+        impl<B: Backend> Backward<B, 1> for Unfold {
+            type State = (Shape, usize, usize, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (shape_in, dim, size, step) = ops.state;
+                let windows = calculate_unfold_windows(shape_in[dim], size, step);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    let device = B::float_device(&grad);
+                    let mut grad_input =
+                        B::float_zeros(shape_in.clone(), &device, grad.dtype().into());
+
+                    if windows == 0 {
+                        return grad_input;
+                    }
+
+                    let ndims_in = shape_in.num_dims();
+                    let ndims_out = grad.shape().num_dims();
+
+                    let mut target_shape = shape_in.clone();
+                    target_shape[dim] = size;
+
+                    for window_idx in 0..windows {
+                        let mut slices_out = vec![burn_tensor::Slice::new(0, None, 1); ndims_out];
+                        let start = window_idx * step;
+                        let end = start + size;
+                        slices_out[dim] = burn_tensor::Slice::new(
+                            window_idx as isize,
+                            Some((window_idx + 1) as isize),
+                            1,
+                        );
+
+                        let window_grad = B::float_slice(grad.clone(), &slices_out);
+
+                        let last_axis = ndims_out - 1;
+                        let mut permutation: Vec<usize> = (0..dim).collect();
+                        permutation.push(last_axis);
+                        permutation.extend(dim + 1..last_axis);
+                        permutation.push(dim);
+
+                        let window_grad = B::float_permute(window_grad, &permutation);
+                        let window_grad = B::float_reshape(window_grad, target_shape.clone());
+
+                        let mut slices_in = vec![burn_tensor::Slice::new(0, None, 1); ndims_in];
+                        slices_in[dim] =
+                            burn_tensor::Slice::new(start as isize, Some(end as isize), 1);
+
+                        let current = B::float_slice(grad_input.clone(), &slices_in);
+                        let updated = B::float_add(current, window_grad);
+                        grad_input = B::float_slice_assign(grad_input, &slices_in, updated);
+                    }
+
+                    grad_input
+                });
+            }
+        }
+
+        match Unfold
+            .prepare::<C>([tensor.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.shape(), dim, size, step),
+                B::float_unfold(tensor.primitive, dim, size, step),
+            ),
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_unfold(tensor.primitive, dim, size, step))
+            }
+        }
     }
 }
 
