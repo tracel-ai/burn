@@ -2865,7 +2865,37 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_cast(tensor.primitive, dtype))
+        #[derive(Debug)]
+        struct Cast;
+
+        impl<B: Backend> Backward<B, 1> for Cast {
+            type State = FloatDType;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let dtype = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_cast(grad, dtype)
+                });
+            }
+        }
+
+        match Cast
+            .prepare::<C>([tensor.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                tensor.dtype().into(),
+                B::float_cast(tensor.primitive, dtype),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cast(tensor.primitive, dtype)),
+        }
     }
 
     // TODO: Implement float_prod and float_sum

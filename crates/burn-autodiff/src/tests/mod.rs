@@ -10,6 +10,7 @@ mod avgpool2d;
 mod backward;
 mod bridge;
 mod broadcast;
+mod cast;
 mod cat;
 mod ceil;
 mod checkpoint;
@@ -195,6 +196,7 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_aggregation!();
         burn_autodiff::testgen_ad_maxmin!();
         burn_autodiff::testgen_ad_cat!();
+        burn_autodiff::testgen_ad_cast!();
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
