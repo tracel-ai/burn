@@ -64,9 +64,6 @@ burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-feat
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false, features = [
     "cubecl",
 ] }
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.3", default-features = false, features = [
-    "cubecl",
-] }
 cubecl = { workspace = true, features = [
     "matmul",
     "convolution",

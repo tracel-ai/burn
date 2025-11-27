@@ -784,7 +784,6 @@ name = "burn-cubecl"
 version = "0.20.0-pre.3"
 dependencies = [
  "burn-autodiff",
- "burn-backend",
  "burn-cubecl-fusion",
  "burn-fusion",
  "burn-ir",

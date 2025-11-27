@@ -21,7 +21,7 @@ std = ["rand/std", "num-traits/std", "burn-std/std"]
 cubecl = ["burn-std/cubecl"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "0.20.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "0.20.0-pre.3", default-features = false }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }

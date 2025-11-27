@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-cubecl = ["dep:cubecl", "burn-std/cubecl"]
+cubecl = ["dep:cubecl", "burn-std/cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
