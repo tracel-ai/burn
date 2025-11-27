@@ -50,6 +50,7 @@ data-encoding = { version = "2.9.0", default-features = false, features = [
 ] }
 dirs = "6.0.0"
 encoding_rs = "0.8.33"
+textdistance = { version = "1.1.1", default-features = false }
 fake = "4.4.0"
 flate2 = "1.1.4"
 float-cmp = "0.10.0"
