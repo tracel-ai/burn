@@ -20,7 +20,7 @@ impl<B: Backend> Backward<B, 1> for MaxMinDim {
             let dtype = grad.dtype();
             let zeros = B::float_zeros(shape, &device, dtype.into());
 
-            B::float_scatter(dim, zeros, indices, grad)
+            B::float_scatter_add(dim, zeros, indices, grad)
         });
     }
 }

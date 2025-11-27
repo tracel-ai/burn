@@ -20,7 +20,7 @@ use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
-use crate::{DType, Element, TensorPrimitive};
+use crate::{DType, Element, TensorPrimitive, UpdateComputation};
 use crate::{cast::ToElement, check::TensorCheck};
 
 /// A tensor with a given backend, shape and data type.
@@ -1624,7 +1624,45 @@ where
     ///
     /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    #[deprecated(
+        since = "0.20.0",
+        note = "In a future release, `select_assign` will require an update mode.\nUse `select_add` instead for the current additive behavior."
+    )]
     pub fn select_assign(
+        self,
+        dim: impl AsIndex,
+        indices: Tensor<B, 1, Int>,
+        values: Tensor<B, D, K>,
+    ) -> Self {
+        self.select_add(dim, indices, values)
+    }
+
+    /// Assign the selected elements along the given dimension corresponding to the given indices
+    /// from the value tensor to the original tensor using sum reduction.
+    ///
+    /// # Note
+    /// For booleans, the sum operator is logical or.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to select. Supports negative indexing.
+    /// * `indices` - The indices to select from the tensor.
+    /// * `values` - The values to assign to the selected indices.
+    ///
+    /// # Example
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
+    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = -1 (same as dim = 2)`
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    pub fn select_add(
         self,
         dim: impl AsIndex,
         indices: Tensor<B, 1, Int>,
@@ -1642,6 +1680,7 @@ where
             dim,
             indices,
             values.primitive,
+            UpdateComputation::Add,
         ))
     }
 
@@ -3052,6 +3091,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// * `dim` - The axis along which to assign elements.
     /// * `indices` - The indices of the elements to assign.
     /// * `values` - The values to assign to the tensor.
+    /// * `update` - The update computation to perform for the operation.
     ///
     /// # Returns
     ///
@@ -3073,6 +3113,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: UpdateComputation,
     ) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.
@@ -3481,14 +3522,17 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: UpdateComputation,
     ) -> Self::Primitive {
         // Select assign is ambiguous for QFloat
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices.primitive,
-            values.tensor(),
-        ))
+        match update {
+            UpdateComputation::Add => TensorPrimitive::Float(B::float_select_add(
+                tensor.tensor(),
+                dim,
+                indices.primitive,
+                values.tensor(),
+            )),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -3677,8 +3721,11 @@ impl<B: Backend> BasicOps<B> for Int {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: UpdateComputation,
     ) -> Self::Primitive {
-        B::int_select_assign(tensor, dim, indices.primitive, values)
+        match update {
+            UpdateComputation::Add => B::int_select_add(tensor, dim, indices.primitive, values),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -3830,8 +3877,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: UpdateComputation,
     ) -> Self::Primitive {
-        B::bool_select_assign(tensor, dim, indices.primitive, values)
+        match update {
+            UpdateComputation::Add => B::bool_select_add(tensor, dim, indices.primitive, values),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {

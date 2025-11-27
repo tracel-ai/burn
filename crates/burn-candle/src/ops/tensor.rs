@@ -180,7 +180,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.gather(&indices, dim).unwrap())
     }
 
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -202,7 +202,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,

@@ -305,7 +305,7 @@ pub trait ModuleOps<B: Backend> {
             B::float_reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
         let grad = B::float_zeros(Shape::new([n_embeddings, d_model]), &device, dtype.into());
 
-        B::float_select_assign(grad, 0, indices, output_grad)
+        B::float_select_add(grad, 0, indices, output_grad)
     }
     /// One dimensional convolution.
     ///

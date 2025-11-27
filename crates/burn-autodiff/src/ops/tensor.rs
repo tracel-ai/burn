@@ -952,7 +952,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_scatter(dim, zeros, indices, grad)
+                    B::float_scatter_add(dim, zeros, indices, grad)
                 });
             }
         }
@@ -977,7 +977,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: IntTensor<B>,
@@ -1015,9 +1015,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (dim, indices.clone()),
-                B::float_scatter(dim, tensor.primitive, indices, value.primitive),
+                B::float_scatter_add(dim, tensor.primitive, indices, value.primitive),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_scatter(
+            OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_add(
                 dim,
                 tensor.primitive,
                 indices,
@@ -1062,7 +1062,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_select_assign(zeros, dim, indices, grad)
+                    B::float_select_add(zeros, dim, indices, grad)
                 });
             }
         }
@@ -1089,7 +1089,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: IntTensor<B>,
@@ -1110,7 +1110,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
-                let out = B::float_select_assign(tensor, self.dim, self.indices.clone(), value);
+                let out = B::float_select_add(tensor, self.dim, self.indices.clone(), value);
                 states.save(out_node, out)
             }
         }
@@ -1150,9 +1150,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (dim, indices.clone()),
-                B::float_select_assign(tensor.primitive, dim, indices, value.primitive),
+                B::float_select_add(tensor.primitive, dim, indices, value.primitive),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(
+            OpsKind::UnTracked(prep) => prep.finish(B::float_select_add(
                 tensor.primitive,
                 dim,
                 indices,
@@ -1748,7 +1748,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     // Scatter gradients to source positions (sum reduction)
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_scatter(dim, zeros, source_indices, grad)
+                    B::float_scatter_add(dim, zeros, source_indices, grad)
                 });
             }
         }
@@ -1813,7 +1813,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     // Scatter gradients to source positions (sum reduction)
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_scatter(dim, zeros, source_indices, grad)
+                    B::float_scatter_add(dim, zeros, source_indices, grad)
                 });
             }
         }

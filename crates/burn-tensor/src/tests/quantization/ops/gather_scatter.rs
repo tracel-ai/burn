@@ -91,7 +91,7 @@ mod tests {
         let values = QTensor::<TestBackend, 1>::int8([5.0, 4.0, 3.0]);
         let indices = TestTensorInt::from_ints([1, 0, 2], &Default::default());
 
-        let output = tensor.scatter(0, indices, values);
+        let output = tensor.scatter_add(0, indices, values);
 
         // Precision 1 to approximate de/quantization errors
         output.dequantize().into_data().assert_approx_eq::<FT>(
@@ -106,7 +106,7 @@ mod tests {
         let values = QTensor::<TestBackend, 2>::int8([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         let indices = TestTensorInt::from_ints([[1, 0, 1], [1, 1, 0]], &Default::default());
 
-        let output = tensor.scatter(0, indices, values);
+        let output = tensor.scatter_add(0, indices, values);
 
         // Precision 1 to approximate de/quantization errors
         output.dequantize().into_data().assert_approx_eq::<FT>(
@@ -121,7 +121,7 @@ mod tests {
         let values = QTensor::<TestBackend, 2>::int8([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         let indices = TestTensorInt::from_ints([[1, 0, 2], [1, 2, 0]], &Default::default());
 
-        let output = tensor.scatter(1, indices, values);
+        let output = tensor.scatter_add(1, indices, values);
 
         // Precision 1 to approximate de/quantization errors
         output.dequantize().into_data().assert_approx_eq::<FT>(
@@ -145,7 +145,7 @@ mod tests {
             &Default::default(),
         );
 
-        let output = tensor.scatter(1, indices, values);
+        let output = tensor.scatter_add(1, indices, values);
         let expected = TensorData::from([
             [[15.0, 14.0, 33.0], [15.0, 20.0, 5.0]],
             [[45.0, 26.0, 8.0], [9.0, 32.0, 54.0]],
@@ -164,7 +164,7 @@ mod tests {
         let values = QTensor::<TestBackend, 2>::int8([[1.0], [4.0]]);
         let indices = TestTensorInt::from_ints([[1], [2]], &Default::default());
 
-        let output = tensor.scatter(1, indices, values);
+        let output = tensor.scatter_add(1, indices, values);
 
         // Precision 1 to approximate de/quantization errors
         output.dequantize().into_data().assert_approx_eq::<FT>(
@@ -180,6 +180,6 @@ mod tests {
         let values = QTensor::<TestBackend, 1>::int8([1.0, 4.0]);
         let indices = TestTensorInt::from_ints([1, 0, 2], &Default::default());
 
-        tensor.scatter(0, indices, values);
+        tensor.scatter_add(0, indices, values);
     }
 }

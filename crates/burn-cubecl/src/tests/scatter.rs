@@ -57,8 +57,8 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data(), &ref_device);
 
-        let actual = tensor.scatter(dim, indices, value);
-        let expected = tensor_ref.scatter(dim, indices_ref, value_ref);
+        let actual = tensor.scatter_add(dim, indices, value);
+        let expected = tensor_ref.scatter_add(dim, indices_ref, value_ref);
 
         expected
             .into_data()

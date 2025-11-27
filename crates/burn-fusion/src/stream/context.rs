@@ -694,6 +694,7 @@ impl RelativeOps for NumericOperationIr {
                 dim: desc.dim,
                 indices: desc.indices.to_relative(converter),
                 value: desc.value.to_relative(converter),
+                update: desc.update,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Select(desc) => NumericOperationIr::Select(SelectOpIr {
@@ -708,6 +709,7 @@ impl RelativeOps for NumericOperationIr {
                     dim: desc.dim,
                     indices: desc.indices.to_relative(converter),
                     value: desc.value.to_relative(converter),
+                    update: desc.update,
                     out: desc.out.to_relative(converter),
                 })
             }

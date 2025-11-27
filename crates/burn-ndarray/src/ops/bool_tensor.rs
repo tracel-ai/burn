@@ -129,7 +129,7 @@ where
         })
     }
 
-    fn bool_select_assign(
+    fn bool_select_add(
         tensor: NdArrayTensor,
         dim: usize,
         indices: NdArrayTensor,
