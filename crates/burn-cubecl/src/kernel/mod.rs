@@ -24,6 +24,8 @@ pub(crate) use unary_numeric::*;
 pub use crate::cubecl::prelude::KernelMetadata;
 pub use burn_common::PLANE_DIM_APPROX;
 
+/// Attention kernels
+pub mod attention;
 /// Convolution kernels
 pub mod conv;
 /// Interpolation kernels

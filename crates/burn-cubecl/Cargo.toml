@@ -63,6 +63,7 @@ burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-feat
     "cubecl",
 ] }
 cubecl = { workspace = true, features = [
+    "attention",
     "matmul",
     "convolution",
     "reduce",
