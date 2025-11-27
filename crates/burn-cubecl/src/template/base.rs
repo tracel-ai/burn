@@ -1,8 +1,7 @@
+use super::SourceTemplate;
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
 use burn_common::ExecutionMode;
-use cubecl::{Compiler, CubeTask, prelude::*};
-
-use super::SourceTemplate;
+use cubecl::{CompilationError, Compiler, CubeTask, prelude::*};
 
 /// Kernel source to create a [source](SourceTemplate)
 pub trait KernelSource: Send + 'static + Sync {
@@ -25,18 +24,18 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
         _compiler: &mut C,
         _options: &C::CompilationOptions,
         _mode: ExecutionMode,
-    ) -> CompiledKernel<C> {
+    ) -> Result<CompiledKernel<C>, CompilationError> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 
-        CompiledKernel {
+        Ok(CompiledKernel {
             entrypoint_name: "main".to_string(),
             debug_name: Some(core::any::type_name::<K>()),
             source,
             cube_dim: self.cube_dim,
             debug_info: None,
             repr: None,
-        }
+        })
     }
 }
 
