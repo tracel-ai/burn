@@ -312,12 +312,12 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // Linear layer weight should be transposed
-        let snapshot = create_test_snapshot("fc.weight", vec![10, 5], "Struct:Linear");
+        let snapshot = create_test_snapshot("fc.weight", vec![10, 5], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.shape, vec![5, 10]);
 
         // Linear layer bias should not be transposed
-        let snapshot = create_test_snapshot("fc.bias", vec![10], "Struct:Linear");
+        let snapshot = create_test_snapshot("fc.bias", vec![10], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.shape, vec![10]);
     }
@@ -327,12 +327,12 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // BatchNorm weight -> gamma
-        let snapshot = create_test_snapshot("norm.weight", vec![10], "Struct:BatchNorm");
+        let snapshot = create_test_snapshot("norm.weight", vec![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.gamma");
 
         // BatchNorm bias -> beta
-        let snapshot = create_test_snapshot("norm.bias", vec![10], "Struct:BatchNorm");
+        let snapshot = create_test_snapshot("norm.bias", vec![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.beta");
     }
@@ -342,7 +342,7 @@ mod tests {
         let adapter = BurnToPyTorchAdapter;
 
         // Linear layer weight should be transposed
-        let snapshot = create_test_snapshot("fc.weight", vec![5, 10], "Struct:Linear");
+        let snapshot = create_test_snapshot("fc.weight", vec![5, 10], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.shape, vec![10, 5]);
     }
@@ -352,12 +352,12 @@ mod tests {
         let adapter = BurnToPyTorchAdapter;
 
         // BatchNorm gamma -> weight
-        let snapshot = create_test_snapshot("norm.gamma", vec![10], "Struct:BatchNorm");
+        let snapshot = create_test_snapshot("norm.gamma", vec![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.weight");
 
         // BatchNorm beta -> bias
-        let snapshot = create_test_snapshot("norm.beta", vec![10], "Struct:BatchNorm");
+        let snapshot = create_test_snapshot("norm.beta", vec![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.bias");
     }
@@ -393,7 +393,7 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // Without container info, adapter returns unchanged for non-norm parameters
-        let mut snapshot = create_test_snapshot("fc.weight", vec![10, 5], "Struct:Linear");
+        let mut snapshot = create_test_snapshot("fc.weight", vec![10, 5], module_names::LINEAR);
         snapshot.container_stack = None;
 
         // Without container info, no transformation occurs for linear layers
