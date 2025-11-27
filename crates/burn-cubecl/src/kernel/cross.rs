@@ -90,8 +90,9 @@ pub(crate) fn cross<R: CubeRuntime>(
             linear_view_ref(&rhs, &output, line_size),
             linear_view(&output, line_size),
             lhs.dtype.into(),
-        );
-    }
+        )
+        .expect("Kernel to never fail");
+    };
 
     output
 }

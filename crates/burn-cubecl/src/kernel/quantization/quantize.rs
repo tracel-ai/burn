@@ -22,7 +22,8 @@ where
         &out_params.as_handle_ref(),
         scheme,
         tensor.dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }
