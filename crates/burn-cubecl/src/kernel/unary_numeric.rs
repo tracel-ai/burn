@@ -57,7 +57,8 @@ where
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
                 tensor.dtype.into(),
-            );
+            )
+            .expect("Kernel to never fail");
 
             tensor
         } else {
@@ -76,7 +77,9 @@ where
                 linear_view(&output, line_size),
                 args(&()),
                 tensor.dtype.into(),
-            );
+            )
+            .expect("Kernel to never fail");
+
             output
         }
     }

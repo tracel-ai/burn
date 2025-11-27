@@ -8,16 +8,18 @@
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::{
-    ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorData, TensorDataExt,
-    TensorType,
+    ArgType, Argument, DType, Node, RawNode, RuntimeInputRef, TensorData, TensorDataExt, TensorType,
 };
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for ConstantOfShape operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ConstantOfShapeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -26,7 +28,7 @@ pub struct ConstantOfShapeNode {
 }
 
 /// Configuration for the ConstantOfShape operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConstantOfShapeConfig {
     /// Shape information (static or runtime).
     pub shape: ConstantOfShapeShape,
@@ -63,7 +65,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Only lift shape input (input[0]) if it has a static value
         // Runtime shapes should remain in the graph
         if !node.inputs.is_empty() && node.inputs[0].is_constant() {
@@ -75,7 +77,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -187,11 +189,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Check if we have static values or need runtime resolution
         let shape = match node.inputs[0].value() {
             Some(tensor_data) => match tensor_data.to_i64_vec() {
@@ -216,7 +214,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

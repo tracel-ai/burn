@@ -1,38 +1,19 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::split::SplitConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct SplitNode {
-    pub input: TensorType,
-    pub outputs: Vec<TensorType>,
-    pub config: SplitConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
-    fn output_types(&self) -> Vec<Type> {
-        self.outputs
-            .iter()
-            .map(|t| Type::Tensor(t.clone()))
-            .collect()
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::split::SplitNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
         let axis = self.config.axis.to_tokens();
 
-        let outputs = self
-            .outputs
-            .iter()
-            .map(|t| t.name.clone())
-            .collect::<Vec<_>>();
+        let outputs = self.outputs.iter().map(arg_to_ident).collect::<Vec<_>>();
 
         let unpack_outputs = quote! {
             let [#(#outputs),*] = split_tensors.try_into().unwrap();
@@ -41,8 +22,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         if let Some(split_sizes_input) = &self.config.split_sizes {
             // Extract static split sizes from the enum wrapper
             let split_sizes = match split_sizes_input {
-                onnx_ir::node::split::SplitSizesInput::Static(sizes) => sizes,
-                onnx_ir::node::split::SplitSizesInput::Runtime(_) => {
+                onnx_ir::split::SplitSizesInput::Static(sizes) => sizes,
+                onnx_ir::split::SplitSizesInput::Runtime(_) => {
                     panic!("Runtime split sizes are not supported in burn-import")
                 }
             };
@@ -61,10 +42,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Split(self)
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
         // When split_sizes is used, we generate vec![...] which needs the vec macro
         if self.config.split_sizes.is_some() {
@@ -73,86 +50,60 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
     }
 }
 
-impl OnnxIntoNode for SplitNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Split(n) = &node else {
-            panic!("Expected Split node");
-        };
-        let inputs = &n.inputs;
-        let outputs = &n.outputs;
-        let config = &n.config;
-        let input = TensorType::from(inputs.first().unwrap());
-        let outputs = outputs.iter().map(TensorType::from).collect();
-        Self::new(input, outputs, config.clone())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{split::SplitNode, test::assert_tokens},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::split::{SplitConfig, SplitNodeBuilder, SplitSizesInput};
 
     #[test]
-    fn test_codegen_split() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SplitNode::new(
-            TensorType::new_float("tensor1", 2),
-            vec![
-                TensorType::new_float("tensor2", 2),
-                TensorType::new_float("tensor3", 2),
-            ],
-            SplitConfig {
-                axis: 0,
-                split_size: Some(2),
-                split_sizes: None,
-            },
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string(), "tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(
-                    &self,
-                    tensor1: Tensor<B, 2>,
-                ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-                    let split_tensors = tensor1.split(2, 0);
-
-                    let [tensor2, tensor3] = split_tensors.try_into().unwrap();
-                        (tensor2, tensor3)
-                }
-            }
+    fn test_split_equal() {
+        let config = SplitConfig {
+            axis: 0,
+            split_size: Some(2),
+            split_sizes: None,
         };
+        let node = SplitNodeBuilder::new("split1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output0", 2, DType::F32)
+            .output_tensor("output1", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 2>) {
+            let split_tensors = input.split(2, 0);
+            let [output0, output1] = split_tensors.try_into().unwrap();
+            (output0, output1)
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_split_sizes() {
+        let config = SplitConfig {
+            axis: 1,
+            split_size: None,
+            split_sizes: Some(SplitSizesInput::Static(vec![1, 3, 2])),
+        };
+        let node = SplitNodeBuilder::new("split1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output0", 2, DType::F32)
+            .output_tensor("output1", 2, DType::F32)
+            .output_tensor("output2", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input: Tensor<B, 2>,
+        ) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
+            let split_tensors = input.split_with_sizes(vec![1, 3, 2], 1);
+            let [output0, output1, output2] = split_tensors.try_into().unwrap();
+            (output0, output1, output2)
+        }
+        ");
     }
 }

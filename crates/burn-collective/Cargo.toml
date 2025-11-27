@@ -28,7 +28,7 @@ test-cuda = ["burn-cuda"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = true }
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = true }
 
 log = { workspace = true }
 

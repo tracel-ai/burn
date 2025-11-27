@@ -142,7 +142,7 @@ fn im2col<R: CubeRuntime, const N: usize>(
     options: ConvOptions<N>,
     kernel_shape: &[usize],
     out_shape: &[usize],
-) -> CubeTensor<R> {
+) -> Result<CubeTensor<R>, LaunchError> {
     let client = input.client.clone();
     let input = into_contiguous_aligned(input);
 
@@ -212,9 +212,9 @@ fn im2col<R: CubeRuntime, const N: usize>(
             options.padding.iter().any(|it| *it != 0),
             input.dtype.into(),
         )
-    };
+    }?;
 
-    columns
+    Ok(columns)
 }
 
 /// Perform a 2D convolution using the GEMM (im2col) algorithm.
@@ -394,7 +394,8 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
 
     if !is_spatial_contiguous(&input.shape, &input.strides) {
         let contiguous =
-            into_contiguous_pitched(&input.client, &input.as_handle_ref(), dtype.into());
+            into_contiguous_pitched(&input.client, &input.as_handle_ref(), dtype.into())
+                .expect("Kernel to never fail");
         input = from_handle(&input.client, &input.device, contiguous, dtype);
     }
     input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
@@ -448,7 +449,7 @@ fn execute<R: CubeRuntime, const N: usize>(
     let out_channels = weight.shape[0];
     let kernel_shape = &weight.shape[1..dim_c];
 
-    let columns = im2col::<R, N>(input, options.clone(), kernel_shape, out_shape);
+    let columns = im2col::<R, N>(input, options.clone(), kernel_shape, out_shape)?;
 
     let [_, shape_k] = columns.shape.dims();
     let shape_n = out_channels;

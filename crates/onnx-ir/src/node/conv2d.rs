@@ -8,14 +8,17 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for Conv2d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct Conv2dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -24,7 +27,7 @@ pub struct Conv2dNode {
 }
 
 /// Configuration for Conv2d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct Conv2dConfig {
     /// Channels [in, out]
     pub channels: [usize; 2],
@@ -42,29 +45,6 @@ pub struct Conv2dConfig {
     pub bias: bool,
 }
 
-impl Conv2dConfig {
-    /// Create a new Conv2dConfig
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: PaddingConfig2d,
-        dilation: [usize; 2],
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-        }
-    }
-}
-
 /// Node processor for Conv2d operation
 pub(crate) struct Conv2dProcessor;
 
@@ -80,7 +60,7 @@ impl NodeProcessor for Conv2dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -94,7 +74,7 @@ impl NodeProcessor for Conv2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -214,11 +194,7 @@ impl NodeProcessor for Conv2dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
@@ -277,7 +253,7 @@ impl NodeProcessor for Conv2dProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

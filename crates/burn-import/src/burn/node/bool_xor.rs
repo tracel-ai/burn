@@ -1,203 +1,77 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{ScalarKind, Scope, TensorKind, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone)]
-pub struct BoolXorNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-}
-
-impl BoolXorNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type) -> Self {
-        Self { lhs, rhs, output }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BoolXorNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::xor::XorNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("lhs must be a tensor or scalar"),
-        };
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs = self.inputs.first().unwrap();
+        let rhs = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("rhs must be a tensor or scalar"),
-        };
+        let lhs_value = scope.arg(lhs);
 
-        let output = &self.output.name();
+        let rhs_value = scope.arg(rhs);
 
-        let function = match (&self.lhs, &self.rhs) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
-                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
-                    panic!("xor operation requires boolean tensors");
-                }
-
+        let function = match (&lhs.ty, &rhs.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
 
-                // Handle broadcasting for different ranks
+                // XOR is implemented as not_equal for boolean tensors
                 if lhs_rank == rhs_rank {
-                    quote! { #lhs.not_equal(#rhs) }
+                    quote! { #lhs_value.not_equal(#rhs_value) }
                 } else if lhs_rank > rhs_rank {
-                    // Broadcast rhs to match lhs rank by adding leading dimensions
                     let num_dims = lhs_rank - rhs_rank;
                     let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
-                    quote! { #lhs.not_equal(#rhs.unsqueeze_dims(&[#(#dims),*])) }
+                    quote! { #lhs_value.not_equal(#rhs_value.unsqueeze_dims(&[#(#dims),*])) }
                 } else {
-                    // Broadcast lhs to match rhs rank by adding leading dimensions
                     let num_dims = rhs_rank - lhs_rank;
                     let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
-                    quote! { #lhs.unsqueeze_dims(&[#(#dims),*]).not_equal(#rhs) }
+                    quote! { #lhs_value.unsqueeze_dims(&[#(#dims),*]).not_equal(#rhs_value) }
                 }
             }
-            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
-                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
-                    panic!("xor operation requires boolean scalars");
-                }
-                quote! { #lhs ^ #rhs }
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => {
+                quote! { #lhs_value ^ #rhs_value }
             }
-            _ => panic!("xor is supported for tensor and scalar bool only"),
+            _ => panic!("Xor operation requires tensor or scalar inputs"),
         };
 
         quote! {
             let #output = #function;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Xor(self)
-    }
-}
-
-impl OnnxIntoNode for BoolXorNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Xor(n) = node else {
-            panic!("Expected Xor node");
-        };
-        let lhs = Type::from(n.inputs.first().unwrap());
-        let rhs = Type::from(n.inputs.get(1).unwrap());
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(lhs, rhs, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-
-    #[test]
-    fn test_codegen_bool_xor() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(BoolXorNode::new(
-            Type::Tensor(TensorType::new_bool("tensor1", 4)),
-            Type::Tensor(TensorType::new_bool("tensor2", 4)),
-            Type::Tensor(TensorType::new_bool("tensor3", 4)),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
-                    let tensor3 = tensor1.not_equal(tensor2);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
-    }
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::xor::XorNodeBuilder;
 
     #[test]
-    fn test_codegen_bool_xor_broadcast() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(BoolXorNode::new(
-            Type::Tensor(TensorType::new_bool("tensor1", 3)),
-            Type::Tensor(TensorType::new_bool("tensor2", 2)),
-            Type::Tensor(TensorType::new_bool("tensor3", 3)),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 3, Bool>, tensor2: Tensor<B, 2, Bool>) -> Tensor<B, 3, Bool> {
-                    let tensor3 = tensor1.not_equal(tensor2.unsqueeze_dims(&[0isize]));
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_xor_forward() {
+        let node = XorNodeBuilder::new("xor1")
+            .input_tensor("lhs", 2, DType::Bool)
+            .input_tensor("rhs", 2, DType::Bool)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Bool>,
+            rhs: Tensor<B, 2, Bool>,
+        ) -> Tensor<B, 2, Bool> {
+            let output = lhs.not_equal(rhs);
+            output
+        }
+        ");
     }
 }

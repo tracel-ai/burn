@@ -12,29 +12,23 @@
 //! - **Opset 10-19**: Initial version with detect_negative and detect_positive attributes
 //! - **Opset 20+**: Extended type support (added float8 variants)
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct IsInfConfig {
     pub detect_negative: bool,
     pub detect_positive: bool,
 }
 
-impl IsInfConfig {
-    pub fn new(detect_negative: bool, detect_positive: bool) -> Self {
-        Self {
-            detect_negative,
-            detect_positive,
-        }
-    }
-}
-
 /// Node representation for IsInf operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct IsInfNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -58,7 +52,7 @@ impl NodeProcessor for IsInfProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -81,11 +75,7 @@ impl NodeProcessor for IsInfProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract detect_negative and detect_positive attributes
         let mut detect_negative = true;
         let mut detect_positive = true;
@@ -102,7 +92,7 @@ impl NodeProcessor for IsInfProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -122,7 +112,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(detect_negative: Option<i64>, detect_positive: Option<i64>) -> NodeBuilder {
+    fn create_test_node(detect_negative: Option<i64>, detect_positive: Option<i64>) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::IsInf, "test_is_inf")
             .input_tensor_f32("data", 4, None)
             .output_tensor_bool("output", 4, None);

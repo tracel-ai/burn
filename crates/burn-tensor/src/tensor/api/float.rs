@@ -1,10 +1,10 @@
 use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
+use crate::canonicalize_dim;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
-use crate::indexing::canonicalize_dim;
 use crate::ops::InterpolateMode;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;

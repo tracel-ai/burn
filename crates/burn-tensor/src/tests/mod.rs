@@ -289,6 +289,9 @@ macro_rules! testgen_with_float_param {
 
         // test padding
         burn_tensor::testgen_padding!();
+
+        // test transaction
+        burn_tensor::testgen_transaction!();
     };
 }
 
@@ -407,7 +410,7 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
-    use cubecl_quant::scheme::QuantLevel;
+    use crate::quantization::QuantLevel;
 
     use crate::{
         Tensor, TensorData,

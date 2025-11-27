@@ -4,7 +4,7 @@
 //! They are defined here as placeholders to maintain type safety and allow the graph
 //! to be parsed even when it contains unsupported operations.
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -120,7 +120,7 @@ impl NodeProcessor for UnsupportedProcessor {
 
     fn infer_types(
         &self,
-        _node: &mut NodeBuilder,
+        _node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -129,15 +129,11 @@ impl NodeProcessor for UnsupportedProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, _node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         use crate::ir::NodeType;
 
         match builder.node_type {

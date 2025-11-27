@@ -18,7 +18,9 @@ use crate::{
 ///
 /// The input in NHWC format
 ///
-pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(
+    input: CubeTensor<R>,
+) -> Result<CubeTensor<R>, LaunchError> {
     let tiles_per_block = 8;
     let warp_size = 32;
     let tile_dim = 16;
@@ -71,9 +73,9 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
             ScalarArg::new(hw as u32),
             config,
         )
-    };
+    }?;
 
-    out
+    Ok(out)
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]

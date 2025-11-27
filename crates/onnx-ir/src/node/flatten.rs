@@ -12,20 +12,23 @@
 //!
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for Flatten operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct FlattenConfig {
     /// Axis along which to flatten
     pub axis: usize,
 }
 
 /// Node representation for Flatten operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct FlattenNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -49,7 +52,7 @@ impl NodeProcessor for FlattenProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -83,11 +86,7 @@ impl NodeProcessor for FlattenProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -128,7 +127,7 @@ impl NodeProcessor for FlattenProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

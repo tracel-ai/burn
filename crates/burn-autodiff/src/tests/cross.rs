@@ -27,8 +27,8 @@ mod tests {
 
         // For a: b×grad_out, where grad_out = [1,1,1]
         let expected_a = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
-        // For b: -(grad_out×a)
-        let expected_b = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
+        // For b: grad_out×a
+        let expected_b = TensorData::from([[1.0, -2.0, 1.0], [1.0, -2.0, 1.0]]);
 
         a_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_a, Tolerance::default());
         b_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_b, Tolerance::default());
@@ -56,7 +56,7 @@ mod tests {
         let b_grad = b.grad(&grads).unwrap().to_data();
 
         let expected_a = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
-        let expected_b = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
+        let expected_b = TensorData::from([[1.0, -2.0, 1.0], [1.0, -2.0, 1.0]]);
 
         a_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_a, Tolerance::default());
         b_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_b, Tolerance::default());

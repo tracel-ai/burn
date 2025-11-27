@@ -74,7 +74,8 @@ pub fn full_device_dtype<R: CubeRuntime>(
             linear_view(&empty, line_size),
             value,
             dtype.into(),
-        );
+        )
+        .expect("Kernel to never fail");
     }
 
     empty
@@ -427,7 +428,8 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             shape_divmod(&input),
             dim as u32,
             output.dtype.into(),
-        );
+        )
+        .expect("Kernel to never fail");
     }
 
     output

@@ -24,13 +24,16 @@
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, AttributeValue, Node, NodeBuilder, RuntimeInputRef, TensorDataExt};
+use crate::ir::{ArgType, AttributeValue, Node, RawNode, RuntimeInputRef, TensorDataExt};
 
 /// Represents either a static value or a runtime argument for pad values.
 #[derive(Debug, Clone)]
@@ -87,7 +90,7 @@ impl PadMode {
 }
 
 /// Configuration for the Pad operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct PadConfig {
     /// The paddings to be applied to each dimension.
     pub pads: PadInput,
@@ -98,7 +101,7 @@ pub struct PadConfig {
 }
 
 /// Node representation for Pad operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct PadNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -122,7 +125,7 @@ impl NodeProcessor for PadProcessor {
 
     // TODO mark axes inputs as Shape if inputs are constant
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift pads input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -138,7 +141,7 @@ impl NodeProcessor for PadProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -187,13 +190,9 @@ impl NodeProcessor for PadProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Helper function to get mode
-        fn get_mode(node: &NodeBuilder) -> Result<PadMode, ProcessError> {
+        fn get_mode(node: &RawNode) -> Result<PadMode, ProcessError> {
             use std::str::FromStr;
 
             // Check for mode attribute (default is "constant")
@@ -223,7 +222,7 @@ impl NodeProcessor for PadProcessor {
             Ok(PadMode::default())
         }
 
-        fn get_pads(node: &NodeBuilder) -> Result<PadInput, ProcessError> {
+        fn get_pads(node: &RawNode) -> Result<PadInput, ProcessError> {
             if node.inputs.len() >= 4 {
                 return Err(ProcessError::Custom(
                     "Pad: axes input is not supported".to_string(),
@@ -351,7 +350,7 @@ impl NodeProcessor for PadProcessor {
             Ok(vec![left, right, top, bottom])
         }
 
-        fn get_constant_value(node: &NodeBuilder) -> Result<ConstantValueInput, ProcessError> {
+        fn get_constant_value(node: &RawNode) -> Result<ConstantValueInput, ProcessError> {
             // Check for value attribute first (takes precedence)
             if node.attrs.contains_key("value") {
                 let constant_value = node.attrs.get("value").map(|value| match value {
@@ -406,7 +405,7 @@ impl NodeProcessor for PadProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

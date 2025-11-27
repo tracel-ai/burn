@@ -28,7 +28,9 @@
 //! This module includes an important optimization for Int scalar to Shape conversion, which is the
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -43,7 +45,7 @@ pub enum UnsqueezeConfig {
 }
 
 /// Node representation for Unsqueeze operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct UnsqueezeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -65,7 +67,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // In opset 13+, axes is a required input
         // In opset <13, axes is an attribute
@@ -78,7 +80,7 @@ impl NodeProcessor for UnsqueezeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -96,11 +98,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         self.infer_with_axes(node, axes)
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
         // Check if axes attribute exists (only valid in opset <13)
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "axes" {
@@ -174,7 +172,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -191,7 +189,7 @@ impl NodeProcessor for UnsqueezeProcessor {
 impl UnsqueezeProcessor {
     fn infer_with_axes(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         axes: Option<Vec<i64>>,
     ) -> Result<(), ProcessError> {
         let input_rank = match &node.inputs[0].ty {
@@ -232,18 +230,17 @@ impl UnsqueezeProcessor {
 
         // Special case: Int scalar -> Shape[1] conversion (reverse of squeeze)
         match &node.inputs[0].ty {
-            ArgType::Scalar(elem_type) if output_rank == 1 => match elem_type {
-                crate::ir::DType::I32 | crate::ir::DType::I64 => {
+            ArgType::Scalar(elem_type) if output_rank == 1 => {
+                if elem_type.is_int() {
                     node.outputs[0].ty = ArgType::Shape(1);
-                }
-                _ => {
+                } else {
                     node.outputs[0].ty = ArgType::Tensor(TensorType {
                         rank: output_rank,
                         static_shape: None,
                         dtype: *elem_type,
                     });
                 }
-            },
+            }
             _ => {
                 let output_elem = match &node.outputs[0].ty {
                     ArgType::Tensor(_) => node.inputs[0].ty.elem_type(),

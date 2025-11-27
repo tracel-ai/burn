@@ -110,7 +110,9 @@ processor-based architecture. For each operation:
 3. **Create a node struct** in your module file (e.g., `squeeze.rs`) with the standard fields:
 
    ```rust
-   #[derive(Debug, Clone)]
+   use onnx_ir_derive::NodeBuilder;
+
+   #[derive(Debug, Clone, NodeBuilder)]
    pub struct SqueezeNode {
        pub name: String,
        pub inputs: Vec<Argument>,
@@ -118,6 +120,9 @@ processor-based architecture. For each operation:
        pub config: SqueezeConfig,
    }
    ```
+
+   The `NodeBuilder` derive macro generates a test builder (e.g., `SqueezeNodeBuilder`) with methods
+   for constructing nodes in tests.
 
 4. **Add to the macro invocation** in `crates/onnx-ir/src/ir/node.rs` by adding a mapping to the
    `define_node_enum!` macro:
@@ -146,88 +151,93 @@ For example, the squeeze operation in `crates/onnx-ir/src/node/squeeze.rs` conta
 - The `node_spec()` method defines input/output requirements
 - The `process()` method extracts config and constructs the `Node::Squeeze` variant
 
-### Step 2: Node Implementation in burn-import
+### Step 2: Code Generation in burn-import
 
 1. Create a new file named `<operation_name>.rs` in the `crates/burn-import/src/burn/node/`
-   directory. This file will define the structure and functionality of your new operation. By
-   convention, the necessary information for carrying out an operation is encapsulated within a
-   struct named `<operation>Node`. For the `Squeeze` operation, we defined a struct called
-   `SqueezeNode` that holds necessary information about the input tensor, output tensor, and axes
-   for the operation.
+   directory. This file implements code generation for your operation by implementing the
+   `NodeCodegen` trait directly on the onnx-ir node type.
 
-2. Implement the `OnnxIntoNode` trait for your node. This trait has a single method `from_onnx` that
-   converts an ONNX IR node into your Burn node type. Use pattern matching to extract the node
-   struct:
+2. Implement the `NodeCodegen<PS>` trait for the onnx-ir node type. This trait defines how the node
+   generates Rust code during the graph compilation process:
 
    ```rust
-   impl OnnxIntoNode for SqueezeNode {
-       fn from_onnx(node: onnx_ir::ir::Node) -> Self {
-           // Pattern match on the Node enum variant to extract the node struct
-           let squeeze_node = match node {
-               onnx_ir::ir::Node::Squeeze(node) => node,
-               _ => panic!("Expected Squeeze node"),
-           };
+   use super::prelude::*;
 
-           let input = TensorType::from(squeeze_node.inputs.first().unwrap());
-           let output = TensorType::from(squeeze_node.outputs.first().unwrap());
-
-           SqueezeNode::new(input, output, squeeze_node.config.axes)
-       }
-   }
-   ```
-
-3. The core of integrating a new operation involves implementing the `NodeCodegen` trait for your
-   node. This trait defines how the node generates code during the graph compilation process. The
-   implementation must provide methods to define input and output types, to generate the forward
-   pass code, and to encapsulate the node into the more general `Node` structure. Specifically:
-   - `input_types()` - Returns the types of all input arguments
-   - `output_types()` - Returns the types of all output values
-   - `forward()` - Generates the Rust code that performs the operation during execution. Use the
-     `quote!` macro to generate code and ensure it's syntactically correct Burn code
-   - `into_node()` - Wraps the node into the general `Node<PS>` enum
-
-   Example implementation:
-
-   ```rust
-   impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
-       fn input_types(&self) -> Vec<Type> {
-           vec![self.input.clone()]
+   impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
+       fn inputs(&self) -> &[Argument] {
+           &self.inputs
        }
 
-       fn output_types(&self) -> Vec<Type> {
-           vec![self.output.clone()]
+       fn outputs(&self) -> &[Argument] {
+           &self.outputs
        }
 
-       fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-           // Simplified example - actual implementation handles more cases
-           let input = scope.tensor_use_owned(&self.input, node_position);
-           let output = &self.output.name();
+       fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+           let input_arg = self.inputs.first().unwrap();
+           let output_arg = self.outputs.first().unwrap();
 
-           match &self.axes {
+           // Use scope.arg() to handle Tensor/Scalar/Shape arguments automatically
+           let input = scope.arg(input_arg);
+           let output = arg_to_ident(output_arg);
+
+           // Access node configuration
+           match &self.config.axes {
                Some(axes) => {
-                   let axes_tokens = axes.to_tokens();
+                   let axes_values: Vec<_> = axes.iter().map(|&i| {
+                       proc_macro2::Literal::i64_suffixed(i)
+                   }).collect();
                    quote! {
-                       let #output = #input.squeeze_dims(&#axes_tokens);
+                       let #output = #input.squeeze_dims(&[#(#axes_values),*]);
                    }
                }
                None => {
-                   let output_rank = self.output.rank();
+                   // Get output rank from type inference
+                   let output_rank = match &output_arg.ty {
+                       ArgType::Tensor(t) => t.rank,
+                       _ => panic!("Expected tensor output"),
+                   };
                    quote! {
                        let #output = #input.squeeze::<#output_rank>();
                    }
                }
            }
        }
-
-       fn into_node(self) -> Node<PS> {
-           Node::Squeeze(self)
-       }
    }
    ```
 
-4. Add unit tests in the same file to verify the generated code compiles and works correctly. These
-   tests typically call a helper function like `assert_tokens()` to validate the generated code
-   against expected output.
+   Key methods to implement:
+   - `inputs(&self)` - Returns references to input arguments (usually just `&self.inputs`)
+   - `outputs(&self)` - Returns references to output arguments (usually just `&self.outputs`)
+   - `forward(&self, scope)` - Generates Rust code for the operation using the `quote!` macro
+   - `field(&self)` - (Optional) Declares module fields for parameters like weights
+   - `field_serialize(&self, serializer)` - (Optional) Serializes field data for model weights
+
+3. Use helper utilities from `argument_helpers.rs`:
+   - `scope.arg(argument)` - Automatically handles Tensor/Scalar/Shape with proper cloning
+   - `arg_to_ident(argument)` - Converts argument to identifier for code generation
+
+4. Add unit tests using snapshot testing to verify the generated code. These tests typically use the
+   `insta` crate and test helper functions to validate the generated code:
+
+   ```rust
+   #[cfg(test)]
+   mod tests {
+       use super::super::test_helpers::*;
+       use insta::assert_snapshot;
+       use onnx_ir::squeeze::SqueezeNodeBuilder;
+
+       #[test]
+       fn test_squeeze_forward() {
+           let node = SqueezeNodeBuilder::new("squeeze1")
+               .input_tensor("input", 3, DType::F32)
+               .output_tensor("output", 2, DType::F32)
+               .axes(vec![1])
+               .build();
+           let code = codegen_forward_default(&node);
+           assert_snapshot!(code, @"let output = input.squeeze_dims(&[1i64]);");
+       }
+   }
+   ```
 
 ### Step 3: Register in Module System
 
@@ -241,38 +251,27 @@ pub(crate) mod squeeze;
 
 The modules are automatically made visible through re-exports in the same file.
 
-### Step 4: Register in Node Registry
+### Step 4: Register in Code Generation Dispatch
 
-Add your operation to the node registry in `crates/burn-import/src/burn/node_registry.rs`. This is
-the **single source of truth** for all ONNX node conversions.
+Add your operation to the dispatch macro in `crates/burn-import/src/burn/node_codegen.rs`. The
+`impl_node_codegen_dispatch!` macro generates the trait implementation that dispatches to your
+node-specific code.
 
-For a single ONNX operation mapping to a single node type:
+Add the node variant name (as defined in `onnx-ir`'s `Node` enum) to the macro invocation:
 
 ```rust
-node_registry! {
+impl_node_codegen_dispatch! {
     // ... other operations
-    Squeeze => squeeze as SqueezeNode,
+    Squeeze,  // Add your operation here (matches Node::Squeeze variant)
     // ... more operations
 }
 ```
 
-For multiple ONNX operations mapping to the same node type (e.g., various reduce operations):
+The macro automatically generates:
 
-```rust
-node_registry! {
-    // ... other operations
-    [ReduceMax, ReduceMin, ReduceMean, ReduceProd, ReduceSum]
-        => ReduceMax: reduce as ReduceNode,
-    // ... more operations
-}
-```
-
-That's it! The registry automatically generates:
-
-- The `Node<PS>` enum with your operation as a variant
-- The `match_all!` macro for dispatching
-- The ONNX to Burn conversion logic
-- All necessary imports
+- Dispatch implementation for `NodeCodegen<PS>` on `onnx_ir::Node`
+- All required trait methods (`inputs`, `outputs`, `forward`, `field`, etc.)
+- Pattern matching to route to your node-specific implementation
 
 ### Step 5: Processor Implementation
 
@@ -289,7 +288,7 @@ implement:
 Example `build_node()` implementation:
 
 ```rust
-fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+fn build_node(&self, builder: RawNode, opset: usize) -> Node {
     let config = self.extract_config(&builder, opset).expect("Config extraction failed");
     Node::Squeeze(SqueezeNode {
         name: builder.name,
@@ -299,6 +298,9 @@ fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
     })
 }
 ```
+
+Note: `RawNode` is the intermediate node representation used during processing. The `build_node()`
+method converts it into the final typed `Node` enum variant.
 
 For complete examples, see existing processors:
 
@@ -344,7 +346,7 @@ pipeline:
 #### Phase 2: Node Conversion
 
 - Converts ONNX nodes to IR nodes using registered processors
-- Creates `NodeBuilder` instances from ONNX proto nodes
+- Creates `RawNode` instances from ONNX proto nodes (intermediate representation)
 - Processors extract configuration and construct typed `Node` enum variants
 - Handles constant nodes specially (extracting values from attributes into tensor store)
 - Each processor is responsible for its own type inference and node construction

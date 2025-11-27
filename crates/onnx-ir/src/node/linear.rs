@@ -18,13 +18,15 @@
 //! - TODO: No test for zero-size dimensions - Edge case for empty matrices
 //! - TODO: Test uses sum verification instead of exact values - Could miss subtle bugs in weight application
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use derive_new::new;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for Linear operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LinearConfig {
     /// Input dimension (features)
     pub d_input: usize,
@@ -43,23 +45,6 @@ pub struct LinearNode {
     pub config: LinearConfig,
 }
 
-impl LinearConfig {
-    /// Create a new LinearConfig
-    pub fn new(d_input: usize, d_output: usize) -> Self {
-        Self {
-            d_input,
-            d_output,
-            bias: true,
-        }
-    }
-
-    /// Set whether bias is used
-    pub fn with_bias(mut self, bias: bool) -> Self {
-        self.bias = bias;
-        self
-    }
-}
-
 pub(crate) struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
@@ -74,7 +59,7 @@ impl NodeProcessor for LinearProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input 1) and bias (input 2) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -88,7 +73,7 @@ impl NodeProcessor for LinearProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -124,11 +109,7 @@ impl NodeProcessor for LinearProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -143,11 +124,11 @@ impl NodeProcessor for LinearProcessor {
         // check if the bias is present (could be Constant, Static, or Dynamic)
         let bias = node.inputs.len() == 3 && !node.inputs[2].is_optional();
 
-        let config = LinearConfig::new(in_size, out_size).with_bias(bias);
+        let config = LinearConfig::new(in_size, out_size, bias);
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

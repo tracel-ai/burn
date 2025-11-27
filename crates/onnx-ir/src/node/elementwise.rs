@@ -45,24 +45,17 @@
 //! - **Sigmoid**: Sigmoid function 1/(1+e^-x) (Opset 6+)
 //! - **Gelu**: Gaussian Error Linear Unit (Opset 20+)
 // TODO: Gelu supports 'approximate' attribute (default="none", also "tanh") per ONNX spec - Not extracted or validated - Should add config extraction
-//! - **Pow**: Element-wise power a^b (Opset 1+)
 //! - **Max**: Element-wise maximum (Opset 1+)
 //! - **Min**: Element-wise minimum (Opset 1+)
-//! - **And**: Logical AND (Opset 1+)
-//! - **Or**: Logical OR (Opset 1+)
-//! - **Xor**: Logical XOR (Opset 1+)
-//! - **BitwiseAnd**: Bitwise AND (Opset 18+)
-//! - **BitwiseOr**: Bitwise OR (Opset 18+)
-//! - **BitwiseXor**: Bitwise XOR (Opset 18+)
 //! - **BitwiseNot**: Bitwise NOT (Opset 18+)
+//!
 //!
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
-    same_as_input_broadcast,
 };
 
 /// Node representation for element-wise binary operations
@@ -83,79 +76,7 @@ pub struct ElementwiseUnaryNode {
     pub node_type: crate::ir::NodeType,
 }
 
-/// Node processor for element-wise binary operations with broadcasting
-///
-/// Used for simple binary operations that don't require special type propagation:
-/// - **Pow**: Element-wise power (a^b)
-/// - **Max**: Element-wise maximum
-/// - **Min**: Element-wise minimum
-/// - **And**: Logical AND
-/// - **Or**: Logical OR
-/// - **Xor**: Logical XOR
-/// - **BitwiseAnd**: Bitwise AND
-/// - **BitwiseOr**: Bitwise OR
-/// - **BitwiseXor**: Bitwise XOR
-///
-/// These operations support standard ONNX broadcasting semantics without
-/// needing Shape or Scalar type propagation (unlike arithmetic operations).
-pub(crate) struct ElementwiseBinaryProcessor;
-
-impl NodeProcessor for ElementwiseBinaryProcessor {
-    type Config = ();
-
-    fn spec(&self) -> NodeSpec {
-        NodeSpec {
-            min_opset: 1,
-            max_opset: None,
-            inputs: InputSpec::Exact(2),
-            outputs: OutputSpec::Exact(1),
-        }
-    }
-
-    fn infer_types(
-        &self,
-        node: &mut NodeBuilder,
-        _opset: usize,
-        _output_preferences: &OutputPreferences,
-    ) -> Result<(), ProcessError> {
-        // TODO: No opset validation - different binary ops have different minimum opsets
-        // (Pow, Max, Min, And, Or, Xor, BitwiseAnd, BitwiseOr, BitwiseXor)
-        // TODO: BitwiseAnd/BitwiseOr/BitwiseXor require opset 18+ per ONNX spec - Missing opset validation - Should validate minimum opset version
-        // TODO: Validate no unexpected attributes for binary operations - Per spec, these ops have no attributes - Missing attribute validation
-        // TODO: Max and Min support variadic inputs (2+ inputs) per ONNX spec, not just 2 - Missing support for multiple inputs - Should use validate_min_inputs instead
-
-        same_as_input_broadcast(node);
-        Ok(())
-    }
-
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
-        use crate::ir::NodeType;
-
-        let node = ElementwiseBinaryNode {
-            name: builder.name,
-            inputs: builder.inputs,
-            outputs: builder.outputs,
-            node_type: builder.node_type.clone(),
-        };
-
-        match builder.node_type {
-            NodeType::Pow => Node::Pow(node),
-            NodeType::Max => Node::Max(node),
-            NodeType::Min => Node::Min(node),
-            NodeType::And => Node::And(node),
-            NodeType::Or => Node::Or(node),
-            NodeType::Xor => Node::Xor(node),
-            NodeType::BitwiseAnd => Node::BitwiseAnd(node),
-            NodeType::BitwiseOr => Node::BitwiseOr(node),
-            NodeType::BitwiseXor => Node::BitwiseXor(node),
-            _ => panic!(
-                "Unsupported node type for ElementwiseBinaryProcessor: {:?}",
-                builder.node_type
-            ),
-        }
-    }
-}
-
+/// Node processor for element-wise binary
 /// Node processor for element-wise unary operations
 /// Used for: Neg, Abs, Ceil, Floor, Sqrt, Exp, Log, Sin, Cos, etc.
 pub(crate) struct ElementwiseUnaryProcessor;
@@ -177,63 +98,43 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset based on operation type
+        // Note: Only operations still using ElementwiseUnaryNode are handled here
         let min_opset = match node.node_type {
-            // Opset 6 operations (shape inference improvements)
-            crate::ir::NodeType::Abs
-            | crate::ir::NodeType::Ceil
-            | crate::ir::NodeType::Floor
-            | crate::ir::NodeType::Exp
-            | crate::ir::NodeType::Log
-            | crate::ir::NodeType::Neg
-            | crate::ir::NodeType::Reciprocal
-            | crate::ir::NodeType::Sqrt => 6,
-            // Opset 7 operations (trigonometric functions)
-            crate::ir::NodeType::Acos
-            | crate::ir::NodeType::Asin
-            | crate::ir::NodeType::Atan
-            | crate::ir::NodeType::Cos
-            | crate::ir::NodeType::Sin
-            | crate::ir::NodeType::Tan => 7,
-            // TODO: Hyperbolic trig functions (Sinh, Cosh, Tanh) introduced in opset 9 per ONNX spec - Missing from opset validation - Should add to opset 9 operations
-            // TODO: Inverse hyperbolic functions (Asinh, Acosh, Atanh) introduced in opset 9 per ONNX spec - Missing from opset validation - Should add to opset 9 operations
-            // TODO: Sigmoid introduced in opset 6, Gelu in opset 20 - Missing from opset validation - Should add proper opset checks
-            // Opset 9 operations
-            crate::ir::NodeType::Erf
-            | crate::ir::NodeType::Sign
-            | crate::ir::NodeType::Sinh
-            | crate::ir::NodeType::Cosh
-            | crate::ir::NodeType::Tanh
-            | crate::ir::NodeType::Asinh
+            // Opset 7 operations (inverse trigonometric functions)
+            crate::ir::NodeType::Acos | crate::ir::NodeType::Asin | crate::ir::NodeType::Atan => 7,
+            // Opset 9 operations (inverse hyperbolic functions)
+            crate::ir::NodeType::Asinh
             | crate::ir::NodeType::Acosh
             | crate::ir::NodeType::Atanh => 9,
-            // Opset 11 operations
-            crate::ir::NodeType::Round => 11,
-            // Opset 1 operations
-            crate::ir::NodeType::Not => 1,
-            // Opset 18 operations (bitwise)
-            crate::ir::NodeType::BitwiseNot => 18,
-            // Other unary operations (need proper opset validation)
-            crate::ir::NodeType::Sigmoid => 6,
-            crate::ir::NodeType::Gelu => 20, // TODO: Verify Gelu opset requirement - may need custom processor for 'approximate' attribute
-            // Other unary operations
-            _ => 1, // FIXME: Default case should not be needed - all unary ops should be explicitly listed
+            // Other activation functions
+            crate::ir::NodeType::Elu => 6,
+            crate::ir::NodeType::Selu => 6,
+            crate::ir::NodeType::Celu => 12,
+            crate::ir::NodeType::Mish => 18,
+            crate::ir::NodeType::Softplus => 1,
+            crate::ir::NodeType::Softsign => 1,
+            crate::ir::NodeType::ThresholdedRelu => 10,
+            crate::ir::NodeType::HardSwish => 14,
+            _ => {
+                return Err(ProcessError::Custom(format!(
+                    "Unexpected node type for ElementwiseUnaryProcessor: {:?}",
+                    node.node_type
+                )));
+            }
         };
 
         crate::processor::validate_opset(opset, min_opset)?;
 
-        // TODO: Spec mentions Round has optional 'mode' attribute - not validated or extracted
-        // TODO: Validate no unexpected attributes for unary operations except Round - Most unary ops have no attributes - Missing attribute validation
-        // TODO: Hyperbolic functions (Sinh, Cosh, Tanh, Asinh, Acosh, Atanh) not listed in opset validation - May be missing from elementwise processor - Check if handled elsewhere
         same_as_input(node);
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         use crate::ir::NodeType;
 
         let node = ElementwiseUnaryNode {
@@ -244,33 +145,22 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         };
 
         match builder.node_type {
-            NodeType::Abs => Node::Abs(node),
-            NodeType::Ceil => Node::Ceil(node),
-            NodeType::Floor => Node::Floor(node),
-            NodeType::Exp => Node::Exp(node),
-            NodeType::Log => Node::Log(node),
-            NodeType::Neg => Node::Neg(node),
-            NodeType::Reciprocal => Node::Reciprocal(node),
-            NodeType::Sqrt => Node::Sqrt(node),
+            // Inverse trig functions (still using ElementwiseUnaryNode)
             NodeType::Acos => Node::Acos(node),
             NodeType::Asin => Node::Asin(node),
             NodeType::Atan => Node::Atan(node),
-            NodeType::Cos => Node::Cos(node),
-            NodeType::Sin => Node::Sin(node),
-            NodeType::Tan => Node::Tan(node),
-            NodeType::Erf => Node::Erf(node),
-            NodeType::Sign => Node::Sign(node),
-            NodeType::Sinh => Node::Sinh(node),
-            NodeType::Cosh => Node::Cosh(node),
-            NodeType::Tanh => Node::Tanh(node),
             NodeType::Asinh => Node::Asinh(node),
             NodeType::Acosh => Node::Acosh(node),
             NodeType::Atanh => Node::Atanh(node),
-            NodeType::Round => Node::Round(node),
-            NodeType::Not => Node::Not(node),
-            NodeType::BitwiseNot => Node::BitwiseNot(node),
-            NodeType::Sigmoid => Node::Sigmoid(node),
-            NodeType::Gelu => Node::Gelu(node),
+            // Other activation functions (still using ElementwiseUnaryNode)
+            NodeType::Elu => Node::Elu(node),
+            NodeType::Selu => Node::Selu(node),
+            NodeType::Celu => Node::Celu(node),
+            NodeType::Mish => Node::Mish(node),
+            NodeType::Softplus => Node::Softplus(node),
+            NodeType::Softsign => Node::Softsign(node),
+            NodeType::ThresholdedRelu => Node::ThresholdedRelu(node),
+            NodeType::HardSwish => Node::HardSwish(node),
             _ => panic!(
                 "Unsupported node type for ElementwiseUnaryProcessor: {:?}",
                 builder.node_type
@@ -285,60 +175,13 @@ mod tests {
     use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
 
     #[test]
-    fn test_elementwise_binary_processor() {
-        let processor = ElementwiseBinaryProcessor;
-        let prefs = OutputPreferences::new();
-
-        let mut node = crate::ir::NodeBuilder {
-            node_type: NodeType::Max,
-            name: "test_max".to_string(),
-            inputs: vec![
-                Argument {
-                    name: "a".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-                Argument {
-                    name: "b".to_string(),
-                    ty: ArgType::Tensor(TensorType {
-                        dtype: DType::F32,
-                        rank: 2,
-                        static_shape: None,
-                    }),
-                    value_source: crate::ir::ValueSource::Dynamic,
-                    value_store: None,
-                },
-            ],
-            outputs: vec![Argument {
-                name: "c".to_string(),
-                ty: ArgType::default(),
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }],
-            attrs: Default::default(),
-        };
-
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        match &node.outputs[0].ty {
-            ArgType::Tensor(t) => assert_eq!(t.rank, 2),
-            _ => panic!("Expected tensor output"),
-        }
-    }
-
-    #[test]
     fn test_elementwise_unary_processor() {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::NodeBuilder {
-            node_type: NodeType::Neg,
-            name: "test_neg".to_string(),
+        let mut node = crate::ir::RawNode {
+            node_type: NodeType::Asin,
+            name: "test_asin".to_string(),
             inputs: vec![Argument {
                 name: "a".to_string(),
                 ty: ArgType::Tensor(TensorType {
@@ -375,9 +218,9 @@ mod tests {
         let processor = ElementwiseUnaryProcessor;
         let prefs = OutputPreferences::new();
 
-        let mut node = crate::ir::NodeBuilder {
-            node_type: NodeType::Round,
-            name: "test_round".to_string(),
+        let mut node = crate::ir::RawNode {
+            node_type: NodeType::ThresholdedRelu,
+            name: "test_thresholded_relu".to_string(),
             inputs: vec![Argument {
                 name: "a".to_string(),
                 ty: ArgType::Tensor(TensorType {
@@ -397,31 +240,13 @@ mod tests {
             attrs: Default::default(),
         };
 
-        let result = processor.infer_types(&mut node, 10, &prefs);
+        let result = processor.infer_types(&mut node, 9, &prefs);
         assert!(matches!(
             result,
             Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: 10
+                required: 10,
+                actual: 9
             })
         ));
     }
-
-    // TODO: Add test for Max/Min with more than 2 inputs - Spec supports variadic inputs - Missing test for variadic input support
-    // TODO: Add test for BitwiseAnd/BitwiseOr/BitwiseXor with opset < 18 - Should fail per spec - Missing opset validation test
-    // TODO: Add test for Round with mode attribute - Round supports 'mode' attribute (default="nearest_round_half_to_even") - Missing attribute test
-    // TODO: Add test for broadcasting behavior - Binary ops should support standard ONNX broadcasting - Missing broadcast test
-    // TODO: Add test for type constraints - Different ops have different allowed types (e.g., Pow supports numeric types, And/Or/Xor support bool only) - Missing type validation test
-    // TODO: Add test for zero-size tensors - Edge case where tensor has 0 elements - Missing edge case test
-    // TODO: Add test for all unary operations listed - Only testing Neg and Round, missing Abs, Ceil, Floor, Sqrt, Exp, Log, trig functions, etc. - Incomplete test coverage
-    // TODO: Add test for unexpected attributes on ops without attributes - Should reject unknown attributes per spec - Missing attribute validation test
-    // TODO: Missing test coverage for inverse trig functions - No tests for Asin, Acos, Atan in onnx-tests - Need test cases
-    // TODO: Missing test coverage for inverse hyperbolic functions - No tests for Asinh, Acosh, Atanh in onnx-tests - Need test cases
-    // TODO: Missing test coverage for Reciprocal edge cases - No tests for division by zero behavior - Need edge case tests
-    // TODO: Missing test for Reciprocal with different dtypes - Test only covers basic case, need float64, int types
-    // TODO: Missing test for Reciprocal boundary conditions - Very small values (near zero), very large values, +/-Inf
-    // TODO: Missing test coverage for Sqrt of negative values - No tests validate NaN behavior - Need edge case tests
-    // TODO: Missing test coverage for Log of negative/zero values - No tests validate NaN/-Inf behavior - Need edge case tests
-    // TODO: Missing test coverage for Pow edge cases - No tests for 0^0, negative^non-integer, Inf^0, etc. - Need edge case tests
-    // TODO: Missing test coverage for Gelu approximate mode - Gelu has 'approximate' attribute but no tests - Need tests for both modes
 }

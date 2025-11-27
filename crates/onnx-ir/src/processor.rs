@@ -3,7 +3,7 @@
 //! This module defines the `NodeProcessor` trait with support for type preferences
 //! and proper error handling.
 
-use crate::ir::{Node, NodeBuilder};
+use crate::ir::{Node, RawNode};
 use std::collections::HashMap;
 
 // Re-export registry types for backward compatibility
@@ -177,14 +177,14 @@ pub trait NodeProcessor: Send + Sync {
     /// Preferences are requests, not requirements. Producers may honor them (e.g., Constant→Shape).
     fn input_preferences(
         &self,
-        _node: &NodeBuilder,
+        _node: &RawNode,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         Ok(None)
     }
 
     /// Convert constant inputs to static values (embedded in config, unreferenced constants removed later)
-    fn lift_constants(&self, _node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, _node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         Ok(())
     }
 
@@ -193,12 +193,12 @@ pub trait NodeProcessor: Send + Sync {
     /// This method should call `extract_config()` internally if it needs the config.
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError>;
 
-    /// Extract config dynamically (not cached in NodeBuilder)
+    /// Extract config dynamically (not cached in RawNode)
     ///
     /// This is called by `infer_types()` and `build_node()` as needed.
     /// Processors with non-trivial config must implement this method.
@@ -207,11 +207,7 @@ pub trait NodeProcessor: Send + Sync {
     ///
     /// The default implementation returns an error. Only processors with `type Config = ()`
     /// should rely on never calling this method.
-    fn extract_config(
-        &self,
-        _node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError>
+    fn extract_config(&self, _node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError>
     where
         Self: Sized,
     {
@@ -221,16 +217,16 @@ pub trait NodeProcessor: Send + Sync {
         )))
     }
 
-    /// Build the final Node enum from a NodeBuilder
+    /// Build the final Node enum from a RawNode
     ///
-    /// This method converts the NodeBuilder into the final immutable Node enum.
+    /// This method converts the RawNode into the final immutable Node enum.
     /// It should call `extract_config()` internally to get the config.
     ///
     /// # Default Implementation
     ///
     /// The default implementation panics with the processor type name.
     /// Each processor should implement this method to build its specific Node variant.
-    fn build_node(&self, _builder: NodeBuilder, _opset: usize) -> Node
+    fn build_node(&self, _builder: RawNode, _opset: usize) -> Node
     where
         Self: Sized,
     {
@@ -251,7 +247,7 @@ impl NodeProcessor for DefaultProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -277,13 +273,36 @@ pub fn validate_opset(opset: usize, min_version: usize) -> Result<(), ProcessErr
     }
 }
 
+/// Validate that no rank-0 tensors exist in the node
+///
+/// Rank-0 tensors should be represented as Scalars instead.
+/// This is an invariant of the ONNX IR - there should never be Tensor(rank=0) in the graph.
+pub fn validate_no_rank_zero_tensors(node: &RawNode) -> Result<(), ProcessError> {
+    use crate::ir::ArgType;
+
+    // Check all outputs for rank-0 tensors
+    for output in &node.outputs {
+        if let ArgType::Tensor(tensor) = &output.ty
+            && tensor.rank == 0
+        {
+            return Err(ProcessError::Custom(format!(
+                "Invalid type inference: Node '{}' output '{}' has rank-0 tensor. \
+                 Rank-0 tensors should be Scalar type instead.",
+                node.name, output.name
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // NodeSpec Validation
 // ============================================================================
 
 /// Validate node against its specification
 pub fn validate_node_spec(
-    node: &NodeBuilder,
+    node: &RawNode,
     opset: usize,
     spec: &NodeSpec,
 ) -> Result<(), ProcessError> {
@@ -313,11 +332,7 @@ pub fn validate_node_spec(
 }
 
 /// Validate input count against specification
-fn validate_input_spec(
-    node: &NodeBuilder,
-    opset: usize,
-    spec: &InputSpec,
-) -> Result<(), ProcessError> {
+fn validate_input_spec(node: &RawNode, opset: usize, spec: &InputSpec) -> Result<(), ProcessError> {
     let actual = node.inputs.len();
 
     match spec {
@@ -364,7 +379,7 @@ fn validate_input_spec(
 
 /// Validate output count against specification
 fn validate_output_spec(
-    node: &NodeBuilder,
+    node: &RawNode,
     opset: usize,
     spec: &OutputSpec,
 ) -> Result<(), ProcessError> {
@@ -405,7 +420,7 @@ fn validate_output_spec(
 }
 
 /// Copy input type to output (for operations that preserve type)
-pub fn same_as_input(node: &mut NodeBuilder) {
+pub fn same_as_input(node: &mut RawNode) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
 }
 
@@ -461,7 +476,7 @@ pub fn compute_broadcast_static_shape(inputs: &[crate::ir::Argument]) -> Option<
 }
 
 /// Update output type for broadcasting operations to max input rank
-pub fn same_as_input_broadcast(node: &mut NodeBuilder) {
+pub fn same_as_input_broadcast(node: &mut RawNode) {
     use crate::ir::ArgType;
 
     let has_tensor_input = node
@@ -515,7 +530,7 @@ pub fn same_as_input_broadcast(node: &mut NodeBuilder) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, NodeBuilder, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, RawNode, TensorType};
     use crate::registry::ProcessorRegistry;
 
     struct TestProcessor;
@@ -525,7 +540,7 @@ mod tests {
 
         fn infer_types(
             &self,
-            node: &mut NodeBuilder,
+            node: &mut RawNode,
             _opset: usize,
             _output_preferences: &OutputPreferences,
         ) -> Result<(), ProcessError> {
@@ -541,7 +556,7 @@ mod tests {
     fn test_infer_outputs() {
         let processor = TestProcessor;
         let prefs = OutputPreferences::new();
-        let mut node = NodeBuilder {
+        let mut node = RawNode {
             node_type: NodeType::Add,
             name: "test_node".to_string(),
             inputs: vec![Argument {
@@ -590,7 +605,7 @@ mod tests {
     fn test_default_processor() {
         let processor = DefaultProcessor;
         let prefs = OutputPreferences::new();
-        let mut node = NodeBuilder {
+        let mut node = RawNode {
             node_type: NodeType::Relu,
             name: "test_relu".to_string(),
             inputs: vec![Argument {

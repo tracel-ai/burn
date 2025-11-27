@@ -13,14 +13,17 @@
 //!   (see FIXME at line 188 regarding ONNX spec clarification)
 //! - Padding order: See FIXME at line 163 regarding padding order verification
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{Argument, Node, RawNode};
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Node representation for ConvTranspose2d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ConvTranspose2dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -29,7 +32,8 @@ pub struct ConvTranspose2dNode {
 }
 
 /// Configuration for ConvTranspose2d operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ConvTranspose2dConfig {
     /// Input and output channels [in, out].
     pub channels: [usize; 2],
@@ -49,32 +53,6 @@ pub struct ConvTranspose2dConfig {
     pub bias: bool,
 }
 
-impl ConvTranspose2dConfig {
-    /// Create a new configuration for a ConvTranspose2d.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        dilation: [usize; 2],
-        padding: [usize; 2],
-        padding_out: [usize; 2],
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels,
-            kernel_size,
-            stride,
-            dilation,
-            padding,
-            padding_out,
-            groups,
-            bias,
-        }
-    }
-}
-
 pub(crate) struct Convtranspose2dProcessor;
 
 impl NodeProcessor for Convtranspose2dProcessor {
@@ -89,7 +67,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -103,7 +81,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -135,11 +113,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1, 1]; // Default stride to 1
         let mut pads = vec![0, 0, 0, 0]; // Default padding to 0
@@ -223,7 +197,7 @@ impl NodeProcessor for Convtranspose2dProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

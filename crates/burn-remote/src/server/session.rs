@@ -1,7 +1,7 @@
-use burn_common::id::StreamId;
 use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_ir::BackendIr;
 use burn_router::Runner;
+use burn_std::id::StreamId;
 use burn_tensor::Device;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{

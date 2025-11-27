@@ -20,9 +20,10 @@ builtin-sources = ["vision", "dep:tar", "nlp"]
 default = ["sqlite-bundled"]
 doc = ["default"]
 fake = ["dep:fake"]
+network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
-vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
+vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
 nlp = ["dep:zip", "dep:encoding_rs"]
 # internal
 __sqlite-shared = [
@@ -35,9 +36,6 @@ __sqlite-shared = [
 dataframe = ["dep:polars", "dep:planus"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", optional = true, features = [
-    "network",
-] }
 csv = { workspace = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
@@ -64,6 +62,12 @@ strum = { workspace = true }
 tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+
+# Network downloader
+indicatif = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
 
 [dev-dependencies]
 fake = { workspace = true }

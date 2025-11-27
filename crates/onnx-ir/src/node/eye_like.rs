@@ -7,7 +7,9 @@
 //! ## Opset Versions
 //! - **Opset 9+**: Initial version with dtype and k attributes
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -23,7 +25,7 @@ pub struct EyeLikeConfig {
 }
 
 /// Node representation for EyeLike operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct EyeLikeNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -47,7 +49,7 @@ impl NodeProcessor for EyeLikeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -86,11 +88,7 @@ impl NodeProcessor for EyeLikeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut dtype = None;
         let mut k = 0i64; // default to main diagonal
 
@@ -123,7 +121,7 @@ impl NodeProcessor for EyeLikeProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

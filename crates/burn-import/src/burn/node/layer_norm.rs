@@ -1,89 +1,53 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use super::prelude::*;
 use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::LayerNormRecord,
     record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
+    tensor::Tensor,
 };
-use onnx_ir::node::layer_norm::LayerNormConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
 use serde::Serialize;
 
-#[derive(Debug, Clone)]
-pub struct LayerNormNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub gamma: TensorData,        // Scale
-    pub beta: Option<TensorData>, // Bias (B)
-    pub config: LayerNormConfig,
-    pub full_precision: bool,
-}
-
-impl LayerNormNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        gamma: TensorData,
-        beta: Option<TensorData>,
-        config: LayerNormConfig,
-        full_precision: bool,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    LayerNorm<B>
-                },
-            ),
-            input,
-            output,
-            gamma,
-            beta,
-            config,
-            full_precision,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::LayerNormalizationNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
+    }
+
+    fn field(&self) -> Option<Field> {
+        let name = Ident::new(&self.name, Span::call_site());
         let num_features = self.config.d_model.to_tokens();
         let epsilon = self.config.epsilon;
 
-        let tokens = quote! {
-            let #name = LayerNormConfig::new(#num_features)
-                .with_epsilon(#epsilon)
-                .init(device);
-        };
-
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! {
+                LayerNorm<B>
+            },
+            quote! {
+                let #name = LayerNormConfig::new(#num_features)
+                    .with_epsilon(#epsilon)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
+
+        let gamma = extract_node_data(&self.inputs, 1).expect("Gamma is required");
+        let beta = extract_node_data(&self.inputs, 2);
+
         let record = LayerNormRecord::<SerializationBackend> {
             gamma: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.gamma.clone().convert::<PS::FloatElem>(), &device),
+                Tensor::from_data(gamma.clone().convert::<PS::FloatElem>(), &device),
             ),
             beta: Param::initialized(
                 ParamId::new(),
-                if let Some(beta) = self.beta.clone() {
+                if let Some(beta) = beta {
                     Tensor::from_data(beta.convert::<PS::FloatElem>(), &device)
                 } else {
                     Tensor::zeros([self.config.d_model], &device)
@@ -96,12 +60,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
         item.serialize(serializer)
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
-        if self.full_precision {
+        if self.config.full_precision {
             quote! {
                 let #output = {
                     let dtype = #input.dtype();
@@ -114,169 +78,61 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
             }
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::LayerNorm");
         imports.register("burn::nn::LayerNormConfig");
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::LayerNormalization(self)
-    }
-}
-
-impl OnnxIntoNode for LayerNormNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::LayerNormalization(n) = &node else {
-            panic!("Expected LayerNormalization node");
-        };
-        let inputs = &n.inputs;
-        let outputs = &n.outputs;
-        let config = &n.config;
-        let name = &n.name;
-        let input = TensorType::from(inputs.first().unwrap());
-        let output = TensorType::from(outputs.first().unwrap());
-
-        // Scale tensor (aka gamma)
-        let gamma = extract_node_data(inputs, 1).expect("Gamma is required");
-        // Bias (B) optional tensor
-        let beta = extract_node_data(inputs, 2);
-
-        Self::new(
-            name,
-            input,
-            output,
-            gamma,
-            beta,
-            config.clone(),
-            config.full_precision,
-        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::layer_norm::{
+        LayerNormConfig, LayerNormalizationNode, LayerNormalizationNodeBuilder,
+    };
 
-    #[test]
-    fn test_codegen() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn create_layer_norm_node(name: &str) -> LayerNormalizationNode {
+        let config = LayerNormConfig::new(512, 1e-5, true);
 
-        graph.register(LayerNormNode::new(
-            "norm",
-            TensorType::new_float("input", 4),
-            TensorType::new_float("output", 4),
-            TensorData::from([2f32]),
-            Some(TensorData::from([2f32])),
-            LayerNormConfig::new(128),
-            false,
-        ));
-
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::nn::LayerNorm;
-            use burn::nn::LayerNormConfig;
-
-            #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
-                norm: LayerNorm<B>,
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    let norm = LayerNormConfig::new(128)
-                        .with_epsilon(0.00001f64)
-                        .init(device);
-
-                    Self {
-                        norm,
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.norm.forward(input);
-
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+        LayerNormalizationNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
     }
 
     #[test]
-    fn test_codegen_full_precision() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_layer_norm_forward() {
+        let node = create_layer_norm_node("layer_norm1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = {
+                let dtype = input.dtype();
+                self.layer_norm1.forward(input.cast(burn::tensor::DType::F32)).cast(dtype)
+            };
+            output
+        }
+        ");
+    }
 
-        graph.register(LayerNormNode::new(
-            "norm",
-            TensorType::new_float("input", 4),
-            TensorType::new_float("output", 4),
-            TensorData::from([2f32]),
-            Some(TensorData::from([2f32])),
-            LayerNormConfig::new(128),
-            true,
-        ));
-
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::nn::LayerNorm;
-            use burn::nn::LayerNormConfig;
-
-            #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
-                norm: LayerNorm<B>,
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    let norm = LayerNormConfig::new(128)
-                        .with_epsilon(0.00001f64)
-                        .init(device);
-
-                    Self {
-                        norm,
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = {
-                        let dtype = input.dtype();
-                        self.norm
-                            .forward(input.cast(burn::tensor::DType::F32))
-                            .cast(dtype)
-                    };
-
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_layer_norm_forward_with_clone() {
+        let node = create_layer_norm_node("layer_norm1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = {
+                let dtype = input.clone().dtype();
+                self.layer_norm1
+                    .forward(input.clone().cast(burn::tensor::DType::F32))
+                    .cast(dtype)
+            };
+            output
+        }
+        ");
     }
 }

@@ -21,8 +21,10 @@
 //! ## Example
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Argument, Node, NodeBuilder, RuntimeInputRef};
+use crate::ir::{Argument, Node, RawNode, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -43,14 +45,14 @@ impl Default for TileInput {
 }
 
 /// Configuration for the Tile operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
     pub repeats: TileInput,
 }
 
 /// Node representation for Tile operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct TileNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -72,7 +74,7 @@ impl NodeProcessor for TileProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift repeats input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -83,7 +85,7 @@ impl NodeProcessor for TileProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -102,13 +104,9 @@ impl NodeProcessor for TileProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract repeats config
-        fn get_repeats(node: &NodeBuilder) -> TileInput {
+        fn get_repeats(node: &RawNode) -> TileInput {
             if let Some(input) = node.inputs.get(1) {
                 match input.value() {
                     None => {
@@ -132,7 +130,7 @@ impl NodeProcessor for TileProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

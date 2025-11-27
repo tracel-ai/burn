@@ -10,7 +10,7 @@ ndarray = ["burn/ndarray"]
 
 [dependencies]
 burn = { path = "../../burn", default-features = false, features = ["std"] }
-burn-common = { path = "../../burn-common", default-features = false }
+burn-std = { path = "../../burn-std", default-features = false }
 burn-collective = { path = "..", features = ["orchestrator"] }
 burn-communication = { path = "../../burn-communication" }
 

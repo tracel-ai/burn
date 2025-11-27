@@ -2,8 +2,8 @@ use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, NodeBuilder, NodeType, TensorData,
-    TensorDataExt, TensorType,
+    ArgType, Argument, AttributeValue, Attributes, NodeType, RawNode, TensorData, TensorDataExt,
+    TensorType,
 };
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
@@ -406,7 +406,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> NodeBuilder {
+pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> RawNode {
     let name = sanitize_name(&node.name);
 
     let inputs = node.input.iter().map(|x| graph_data.init_in(x)).collect();
@@ -432,7 +432,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> NodeBuil
 
     let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
-    NodeBuilder {
+    RawNode {
         node_type,
         name,
         inputs,

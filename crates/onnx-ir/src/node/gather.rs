@@ -24,21 +24,23 @@
 //! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
 
 /// Configuration for the Gather operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct GatherConfig {
     pub axis: usize,
 }
 
 /// Node representation for Gather operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct GatherNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -62,7 +64,7 @@ impl NodeProcessor for GatherProcessor {
 
     fn input_preferences(
         &self,
-        node: &NodeBuilder,
+        node: &RawNode,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -83,7 +85,7 @@ impl NodeProcessor for GatherProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -184,11 +186,7 @@ impl NodeProcessor for GatherProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
@@ -221,7 +219,7 @@ impl NodeProcessor for GatherProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
