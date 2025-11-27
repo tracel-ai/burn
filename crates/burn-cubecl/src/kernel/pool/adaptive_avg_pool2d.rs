@@ -107,7 +107,8 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
         input.as_tensor_arg(line_size),
         output.as_tensor_arg(line_size),
         output.dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     permute_nhwc_to_nchw(output)
 }

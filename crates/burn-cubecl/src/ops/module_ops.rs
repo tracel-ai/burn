@@ -95,7 +95,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_transpose3d(x, weight, bias, options)
+        kernel::conv::conv_transpose3d(x, weight, bias, options).expect("Kernel to never fail")
     }
 
     fn avg_pool2d(
@@ -194,5 +194,14 @@ where
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
         kernel::interpolate::interpolate_backward(x, grad, output_size, options)
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<BoolTensor<Self>>,
+    ) -> FloatTensor<Self> {
+        kernel::attention::attention(query, key, value, mask, F::dtype())
     }
 }

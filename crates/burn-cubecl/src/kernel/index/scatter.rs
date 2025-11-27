@@ -115,6 +115,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
             ScalarArg::new(dim as u32),
             [tensor.dtype.into(), indices.dtype.into()],
         )
+        .expect("Kernel to never fail");
     }
     tensor
 }

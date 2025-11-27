@@ -13,7 +13,8 @@ pub fn random_normal<R: CubeRuntime>(
     let output = empty_device_dtype(client.clone(), device.clone(), shape, dtype);
     let output_handle = output.as_handle_ref();
 
-    cubecl::random::random_normal(&client, mean, std, output_handle, dtype.into());
+    cubecl::random::random_normal(&client, mean, std, output_handle, dtype.into())
+        .expect("Kernel to never fail");
 
     output
 }

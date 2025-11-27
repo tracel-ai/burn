@@ -132,6 +132,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
             kernel_size[1] as i32,
             [x.dtype.into(), indices.dtype.into()],
         )
+        .expect("Kernel to never fail")
     };
 
     permute_nhwc_to_nchw(output)

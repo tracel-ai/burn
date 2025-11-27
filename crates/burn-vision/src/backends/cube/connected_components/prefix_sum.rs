@@ -252,6 +252,7 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             reduction.as_tensor_arg(1),
             ScalarArg::new(cubes),
         )
+        .expect("Kernel to never fail");
     };
 
     out

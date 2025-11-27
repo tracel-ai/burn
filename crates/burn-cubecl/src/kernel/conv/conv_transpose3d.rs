@@ -152,7 +152,7 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<3>,
-) -> CubeTensor<R> {
+) -> Result<CubeTensor<R>, LaunchError> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();
@@ -229,7 +229,7 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
             ScalarArg::new(options.groups as u32),
         ),
         input.dtype.into(),
-    );
+    )?;
 
-    output
+    Ok(output)
 }

@@ -115,6 +115,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             indices_sequence,
             tensor.dtype.into(),
         )
+        .expect("Kernel to never fail");
     };
 
     output
@@ -229,7 +230,8 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             ends,
             steps,
             tensor.dtype.into(),
-        );
+        )
+        .expect("Kernel to never fail");
     }
 
     output

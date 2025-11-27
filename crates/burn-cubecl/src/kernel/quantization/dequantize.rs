@@ -28,7 +28,8 @@ where
         &params.as_handle_ref(),
         &scheme,
         dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }

@@ -1,6 +1,8 @@
 /// Module with convolution operations.
 pub mod conv;
 
+/// Module with attention operations.
+pub(crate) mod attention;
 /// Module with cat operation
 pub(crate) mod cat;
 /// Module with repeat operation

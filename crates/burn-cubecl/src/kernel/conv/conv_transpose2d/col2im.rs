@@ -159,7 +159,7 @@ fn execute<R: CubeRuntime>(
 
     col2im(
         columns, bias, image, kernel_h, kernel_w, input_h, input_w, options,
-    );
+    )?;
 
     Ok(())
 }
@@ -174,7 +174,7 @@ fn col2im<R: CubeRuntime>(
     out_h: usize,
     out_w: usize,
     options: ConvTransposeOptions<2>,
-) {
+) -> Result<(), LaunchError> {
     let dtype = columns.dtype;
     let [_, col_size_1] = columns.shape.dims();
 
@@ -219,7 +219,7 @@ fn col2im<R: CubeRuntime>(
             has_bias,
             dtype.into(),
         )
-    };
+    }
 }
 
 #[derive(CubeLaunch, CubeType)]

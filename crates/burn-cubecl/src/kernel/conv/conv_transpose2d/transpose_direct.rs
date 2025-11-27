@@ -190,7 +190,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
             ScalarArg::new(options.groups as u32),
         ),
         input.dtype.into(),
-    );
+    )?;
 
     Ok(output)
 }

@@ -59,7 +59,8 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         linear_view(&input, line_size),
         linear_view(&output, line_size),
         [dtype_input.into(), dtype_output.into()],
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }
