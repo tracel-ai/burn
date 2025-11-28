@@ -13,7 +13,7 @@ Key features:
 - Transformer-based architecture with multi-head attention
 - Deformable attention mechanisms
 - Object queries for detection
-- End-to-end trainable without anchor boxes or NMS
+- End-to-end trainable without anchor boxes or NMS (Non-Maximum Suppression)
 
 ## Related Issue
 
