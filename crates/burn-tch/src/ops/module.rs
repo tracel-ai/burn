@@ -84,6 +84,17 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         bias: Option<TchTensor>,
         options: ConvOptions<2>,
     ) -> TchTensor {
+        // tch::Tensor::internal_slow_conv2d_backward(
+        //     &x.tensor,
+        //     grad_input,
+        //     grad_weight,
+        //     grad_bias,
+        //     grad_output,
+        //     weight,
+        //     kernel_size,
+        //     stride,
+        //     padding,
+        // );
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,
