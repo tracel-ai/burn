@@ -58,7 +58,7 @@ burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.3", default-
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.3", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
-burn-complex = { path = "../burn-complex", version = "0.20.0", default-features = false, optional = true }
+burn-complex = { path = "../burn-complex", version = "=0.20.0-pre.3", default-features = false, optional = true }
 atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true }                                   # no-std compatible
 const-random = { workspace = true }

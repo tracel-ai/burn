@@ -13,7 +13,7 @@ version.workspace = true
 #export-tests = ["burn-tensor-testgen"]
 #fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 #ndarray = ["burn-ndarray"]
-std = []
+std = ["burn-tensor/std",]
 #tch = ["burn-tch"]
 
 # Test features
@@ -31,8 +31,8 @@ bon = { workspace = true }
 # burn-ir = { path = "../burn-ir", version = "0.19.0" }
 #burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true }
 # burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "0.20.0" }
-burn-common = { path = "../burn-common", version = "0.20.0" }
+burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false }
 # burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.19.0", optional = true }
 bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
@@ -47,7 +47,7 @@ paste = { workspace = true }
 
 [dev-dependencies]
 #burn-cuda = { path = "../burn-cuda", version = "0.19.0", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.20.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.3" }
 #burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", default-features = false }
 #cubecl = { workspace = true }
 
