@@ -26,8 +26,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::expand::ExpandNode {
                 match &shape_arg.ty {
                     ArgType::Tensor(_) => {
                         let tensor_name = arg_to_ident(shape_arg);
+                        // Convert to i64 for `AsIndex`
                         quote! {
-                            TryInto::<[B::IntElem; #output_rank]>::try_into(#tensor_name.to_data().as_slice::<B::IntElem>().unwrap()).unwrap()
+                            TryInto::<[i64; #output_rank]>::try_into(#tensor_name.to_data().convert::<i64>().as_slice().unwrap()).unwrap()
                         }
                     }
                     ArgType::Shape(_) => {

@@ -29,13 +29,14 @@ impl ModuleCodegen for EnumModuleCodegen {
 
     fn gen_visit(&self) -> TokenStream {
         let enum_name = self.name.to_string();
+        let container_type = format!("Enum:{}", enum_name);
         let match_body = self.gen_variants_match_fn(|variant_name| {
             let variant_str = variant_name.to_string();
             quote! {
                 {
-                    visitor.enter_module(#variant_str, #enum_name);
+                    visitor.enter_module(#variant_str, #container_type);
                     burn::module::Module::visit(module, visitor);
-                    visitor.exit_module(#variant_str, #enum_name);
+                    visitor.exit_module(#variant_str, #container_type);
                 }
             }
         });
@@ -94,13 +95,14 @@ impl ModuleCodegen for EnumModuleCodegen {
 
     fn gen_map(&self) -> TokenStream {
         let enum_name = self.name.to_string();
+        let container_type = format!("Enum:{}", enum_name);
         let match_body = self.gen_variants_match_fn(|variant| {
             let variant_str = variant.to_string();
             quote! {
                 {
-                    mapper.enter_module(#variant_str, #enum_name);
+                    mapper.enter_module(#variant_str, #container_type);
                     let result = burn::module::Module::<B>::map(module, mapper);
-                    mapper.exit_module(#variant_str, #enum_name);
+                    mapper.exit_module(#variant_str, #container_type);
                     Self::#variant(result)
                 }
             }

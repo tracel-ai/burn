@@ -15,8 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "burn-common/rayon"]
-cubecl = ["dep:cubecl"]
+default = ["std"]
+cubecl = ["dep:cubecl", "burn-std/cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
@@ -24,32 +24,30 @@ cubecl-cpu = ["cubecl", "cubecl/cpu"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
-std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
+std = [
+    "num-traits/std",
+    "burn-std/std",
+    "burn-backend/std",
+    "colored",
+]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.3", optional = true }
+burn-std = { path = "../burn-std", version = "0.20.0-pre.3", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.3", optional = true }
+burn-backend = { path = "../burn-backend", version = "0.20.0-pre.3", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
-cubecl-quant = { workspace = true }
 
-bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
-half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
-rand = { workspace = true, default-features = false }
-rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
 hashbrown = { workspace = true } # no_std compatible
 
 # Serialization
 serde = { workspace = true }
-serde_bytes = { workspace = true }
 
 [dev-dependencies]
-bincode = { workspace = true }
-rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 paste = { workspace = true }
 
 [package.metadata.docs.rs]

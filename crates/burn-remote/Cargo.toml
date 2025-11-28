@@ -31,7 +31,7 @@ server = [
 [dependencies]
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.3", default-features = true }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = true }
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = true }
 burn-router = { path = "../burn-router", version = "=0.20.0-pre.3", default-features = true }
 burn-communication = { path = "../burn-communication", version = "=0.20.0-pre.3", features = [
     "data-service",

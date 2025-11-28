@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::atomic::AtomicU32};
 
 use crate::{NodeId, PeerId};
-use burn_common::id::IdGenerator;
 use burn_communication::{Address, CommunicationError};
+use burn_std::id::IdGenerator;
 use serde::{Deserialize, Serialize};
 
 /// A unique identifier for each request made to a global orchestrator
