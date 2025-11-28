@@ -1,7 +1,8 @@
 use crate::{ElementConversion, Shape, Slice, TensorMetadata, backend::Backend, ops::FloatTensor};
 use alloc::vec;
 
-/// Default implementation of float_grid_sample_2d with bilinear interpolation and border padding
+/// Default implementation of float_grid_sample_2d with bilinear interpolation and zeros padding.
+/// Uses align_corners=false semantics (matching ONNX default).
 ///
 /// # Arguments
 ///
@@ -23,13 +24,7 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     let h_out = grid.shape().dims[1];
     let w_out = grid.shape().dims[2];
 
-    let x_max_half = (w_in - 1) as f64 / 2.0;
-    let y_max_half = (h_in - 1) as f64 / 2.0;
-
-    // Clamp grid
-    let grid = B::float_clamp(grid, (-1_f32).elem(), (1_f32).elem());
-
-    // Separate x and y coordinates
+    // Separate x and y coordinates from grid
     // shape: (N, H_out, W_out, 1)
     let grid_x_slice = vec![
         Slice::new(0, Some(n as isize), 1),
@@ -49,91 +44,139 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     let grid_y = B::float_slice(grid.clone(), &grid_y_slice);
     let grid_y = B::float_reshape(grid_y, Shape::new([n, 1, h_out, w_out]));
 
-    // Scale grid locations from [-1, 1] and [-1, 1] to [0..W_out] and [0..H_out]
-    let grid_x = B::float_mul_scalar(grid_x, x_max_half.elem());
-    let grid_x = B::float_add_scalar(grid_x, x_max_half.elem());
-    let grid_y = B::float_mul_scalar(grid_y, x_max_half.elem());
-    let grid_y = B::float_add_scalar(grid_y, y_max_half.elem());
+    // Convert normalized grid coordinates [-1, 1] to pixel coordinates
+    // For align_corners=false: x_pixel = ((x_norm + 1) * width - 1) / 2
+    // This maps -1 to -0.5 and 1 to width - 0.5
+    let w_in_f = w_in as f64;
+    let h_in_f = h_in as f64;
 
-    // Get low and high x locations
+    // grid_x: (grid_x + 1) * w_in / 2 - 0.5
+    let grid_x = B::float_add_scalar(grid_x, 1.0f32.elem());
+    let grid_x = B::float_mul_scalar(grid_x, (w_in_f / 2.0).elem());
+    let grid_x = B::float_sub_scalar(grid_x, 0.5f32.elem());
+
+    // grid_y: (grid_y + 1) * h_in / 2 - 0.5
+    let grid_y = B::float_add_scalar(grid_y, 1.0f32.elem());
+    let grid_y = B::float_mul_scalar(grid_y, (h_in_f / 2.0).elem());
+    let grid_y = B::float_sub_scalar(grid_y, 0.5f32.elem());
+
+    // Get floor indices for the four corners
     let grid_x_floored = B::float_floor(grid_x.clone());
-    let grid_x_plus_one = B::float_floor(B::float_add_scalar(grid_x.clone(), 1.elem()));
-    let x_indices_low = B::float_into_int(grid_x_floored.clone());
-    let x_indices_high = B::float_into_int(grid_x_plus_one.clone());
-
-    // Get low and high x locations
     let grid_y_floored = B::float_floor(grid_y.clone());
-    let grid_y_plus_one = B::float_floor(B::float_add_scalar(grid_y.clone(), 1.elem()));
-    let y_indices_low = B::float_into_int(grid_y_floored.clone());
-    let y_indices_high = B::float_into_int(grid_y_plus_one.clone());
 
-    // Clamp locations: border padding
-    let x_indices_low = B::int_clamp(x_indices_low, 0.elem(), ((w_in - 1) as u32).elem());
-    let x_indices_high = B::int_clamp(x_indices_high, 0.elem(), ((w_in - 1) as u32).elem());
-    let y_indices_low = B::int_clamp(y_indices_low, 0.elem(), ((h_in - 1) as u32).elem());
-    let y_indices_high = B::int_clamp(y_indices_high, 0.elem(), ((h_in - 1) as u32).elem());
+    // Compute interpolation weights (fractional part)
+    let x_frac = B::float_sub(grid_x.clone(), grid_x_floored.clone());
+    let y_frac = B::float_sub(grid_y.clone(), grid_y_floored.clone());
 
-    // Needs shape (N, C, H_out, W_out, W_in) for the first gather operationd
-    let y_indices_low = B::int_reshape(y_indices_low, Shape::new([n, 1, h_out, w_out, 1]));
-    let y_indices_low = B::int_expand(y_indices_low, Shape::new([n, c, h_out, w_out, w_in]));
-    let y_indices_high = B::int_reshape(y_indices_high, Shape::new([n, 1, h_out, w_out, 1]));
-    let y_indices_high = B::int_expand(y_indices_high, Shape::new([n, c, h_out, w_out, w_in]));
+    // Convert to integer indices
+    let x0 = B::float_into_int(grid_x_floored.clone());
+    let y0 = B::float_into_int(grid_y_floored.clone());
+    let x1 = B::float_into_int(B::float_add_scalar(grid_x_floored, 1.0f32.elem()));
+    let y1 = B::float_into_int(B::float_add_scalar(grid_y_floored, 1.0f32.elem()));
+
+    // Create masks for out-of-bounds coordinates (zeros padding)
+    // Valid range is [0, size-1]
+    let x0_valid = B::int_greater_equal_elem(x0.clone(), 0.elem());
+    let x0_valid = B::bool_and(x0_valid, B::int_lower_elem(x0.clone(), (w_in as i32).elem()));
+    let x1_valid = B::int_greater_equal_elem(x1.clone(), 0.elem());
+    let x1_valid = B::bool_and(x1_valid, B::int_lower_elem(x1.clone(), (w_in as i32).elem()));
+    let y0_valid = B::int_greater_equal_elem(y0.clone(), 0.elem());
+    let y0_valid = B::bool_and(y0_valid, B::int_lower_elem(y0.clone(), (h_in as i32).elem()));
+    let y1_valid = B::int_greater_equal_elem(y1.clone(), 0.elem());
+    let y1_valid = B::bool_and(y1_valid, B::int_lower_elem(y1.clone(), (h_in as i32).elem()));
+
+    // Combined masks for the four corners
+    let mask_00 = B::bool_and(x0_valid.clone(), y0_valid.clone());
+    let mask_01 = B::bool_and(x0_valid.clone(), y1_valid.clone());
+    let mask_10 = B::bool_and(x1_valid.clone(), y0_valid.clone());
+    let mask_11 = B::bool_and(x1_valid, y1_valid);
+
+    // Clamp indices to valid range for gather (we'll mask out invalid samples later)
+    let x0_clamped = B::int_clamp(x0, 0.elem(), ((w_in - 1) as i32).elem());
+    let x1_clamped = B::int_clamp(x1, 0.elem(), ((w_in - 1) as i32).elem());
+    let y0_clamped = B::int_clamp(y0, 0.elem(), ((h_in - 1) as i32).elem());
+    let y1_clamped = B::int_clamp(y1, 0.elem(), ((h_in - 1) as i32).elem());
+
+    // Reshape indices for gather operation
+    // Needs shape (N, C, H_out, W_out, W_in) for the first gather operation
+    let y0_idx = B::int_reshape(y0_clamped.clone(), Shape::new([n, 1, h_out, w_out, 1]));
+    let y0_idx = B::int_expand(y0_idx, Shape::new([n, c, h_out, w_out, w_in]));
+    let y1_idx = B::int_reshape(y1_clamped.clone(), Shape::new([n, 1, h_out, w_out, 1]));
+    let y1_idx = B::int_expand(y1_idx, Shape::new([n, c, h_out, w_out, w_in]));
 
     // Needs shape (N, C, H_out, W_out, 1) for the second gather operation
-    let x_indices_low = B::int_reshape(x_indices_low, Shape::new([n, 1, h_out, w_out, 1]));
-    let x_indices_low = B::int_expand(x_indices_low, Shape::new([n, c, h_out, w_out, 1]));
-    let x_indices_high = B::int_reshape(x_indices_high, Shape::new([n, 1, h_out, w_out, 1]));
-    let x_indices_high = B::int_expand(x_indices_high, Shape::new([n, c, h_out, w_out, 1]));
+    let x0_idx = B::int_reshape(x0_clamped, Shape::new([n, 1, h_out, w_out, 1]));
+    let x0_idx = B::int_expand(x0_idx, Shape::new([n, c, h_out, w_out, 1]));
+    let x1_idx = B::int_reshape(x1_clamped, Shape::new([n, 1, h_out, w_out, 1]));
+    let x1_idx = B::int_expand(x1_idx, Shape::new([n, c, h_out, w_out, 1]));
 
     // Reshape tensor for gather operation
     let tensor = B::float_reshape(tensor, Shape::new([n, c, h_in, 1, w_in]));
     let tensor = B::float_expand(tensor, Shape::new([n, c, h_in, w_out, w_in]));
 
-    // Gather on x and y. Watch out for the shapes
-    let sample_00 = B::float_gather(2, tensor.clone(), y_indices_low.clone());
-    let sample_00 = B::float_gather(4, sample_00, x_indices_low.clone());
+    // Gather samples from the four corners
+    let sample_00 = B::float_gather(2, tensor.clone(), y0_idx.clone());
+    let sample_00 = B::float_gather(4, sample_00, x0_idx.clone());
 
-    let sample_01 = B::float_gather(2, tensor.clone(), y_indices_high.clone());
-    let sample_01 = B::float_gather(4, sample_01, x_indices_low.clone());
+    let sample_01 = B::float_gather(2, tensor.clone(), y1_idx.clone());
+    let sample_01 = B::float_gather(4, sample_01, x0_idx.clone());
 
-    let sample_10 = B::float_gather(2, tensor.clone(), y_indices_low.clone());
-    let sample_10 = B::float_gather(4, sample_10, x_indices_high.clone());
+    let sample_10 = B::float_gather(2, tensor.clone(), y0_idx);
+    let sample_10 = B::float_gather(4, sample_10, x1_idx.clone());
 
-    let sample_11 = B::float_gather(2, tensor, y_indices_high);
-    let sample_11 = B::float_gather(4, sample_11, x_indices_high);
+    let sample_11 = B::float_gather(2, tensor, y1_idx);
+    let sample_11 = B::float_gather(4, sample_11, x1_idx);
 
-    // Reshape to (N, C, H_out, W_out) for multiplying with weights
+    // Reshape samples to (N, C, H_out, W_out)
     let sample_00 = B::float_reshape(sample_00, Shape::new([n, c, h_out, w_out]));
     let sample_01 = B::float_reshape(sample_01, Shape::new([n, c, h_out, w_out]));
     let sample_10 = B::float_reshape(sample_10, Shape::new([n, c, h_out, w_out]));
     let sample_11 = B::float_reshape(sample_11, Shape::new([n, c, h_out, w_out]));
 
-    // Weights for bilinear interp
-    let weight_00 = B::float_mul(
-        B::float_sub(grid_x_plus_one.clone(), grid_x.clone()),
-        B::float_sub(grid_y_plus_one.clone(), grid_y.clone()),
-    );
-    let weight_10 = B::float_mul(
-        B::float_sub(grid_x.clone(), grid_x_floored.clone()),
-        B::float_sub(grid_y_plus_one.clone(), grid_y.clone()),
-    );
-    let weight_01 = B::float_mul(
-        B::float_sub(grid_x_plus_one.clone(), grid_x.clone()),
-        B::float_sub(grid_y.clone(), grid_y_floored.clone()),
-    );
-    let weight_11 = B::float_mul(
-        B::float_sub(grid_x.clone(), grid_x_floored),
-        B::float_sub(grid_y.clone(), grid_y_floored),
-    );
+    // Apply masks for zeros padding (set out-of-bounds samples to 0)
+    // We need to fill with 0 where mask is false, i.e., fill with 0 where !mask is true
+    // Expand masks to match sample shape
+    let mask_00_inv = B::bool_not(mask_00);
+    let mask_00_inv = B::bool_reshape(mask_00_inv, Shape::new([n, 1, h_out, w_out]));
+    let mask_00_inv = B::bool_expand(mask_00_inv, Shape::new([n, c, h_out, w_out]));
+    let mask_01_inv = B::bool_not(mask_01);
+    let mask_01_inv = B::bool_reshape(mask_01_inv, Shape::new([n, 1, h_out, w_out]));
+    let mask_01_inv = B::bool_expand(mask_01_inv, Shape::new([n, c, h_out, w_out]));
+    let mask_10_inv = B::bool_not(mask_10);
+    let mask_10_inv = B::bool_reshape(mask_10_inv, Shape::new([n, 1, h_out, w_out]));
+    let mask_10_inv = B::bool_expand(mask_10_inv, Shape::new([n, c, h_out, w_out]));
+    let mask_11_inv = B::bool_not(mask_11);
+    let mask_11_inv = B::bool_reshape(mask_11_inv, Shape::new([n, 1, h_out, w_out]));
+    let mask_11_inv = B::bool_expand(mask_11_inv, Shape::new([n, c, h_out, w_out]));
 
-    // Bilinear interp
-    let sample_0 = B::float_add(
-        B::float_mul(sample_00, weight_00),
-        B::float_mul(sample_01, weight_01),
-    );
-    let sample_1 = B::float_add(
-        B::float_mul(sample_10, weight_10),
-        B::float_mul(sample_11, weight_11),
-    );
-    B::float_add(sample_0, sample_1)
+    // Fill invalid samples with 0
+    let sample_00 = B::float_mask_fill(sample_00, mask_00_inv, 0.0f32.elem());
+    let sample_01 = B::float_mask_fill(sample_01, mask_01_inv, 0.0f32.elem());
+    let sample_10 = B::float_mask_fill(sample_10, mask_10_inv, 0.0f32.elem());
+    let sample_11 = B::float_mask_fill(sample_11, mask_11_inv, 0.0f32.elem());
+
+    // Compute bilinear interpolation weights
+    // weight_00 = (1 - x_frac) * (1 - y_frac)
+    // weight_01 = (1 - x_frac) * y_frac
+    // weight_10 = x_frac * (1 - y_frac)
+    // weight_11 = x_frac * y_frac
+    // Compute 1 - x_frac by negating and adding 1
+    let one_minus_x = B::float_neg(x_frac.clone());
+    let one_minus_x = B::float_add_scalar(one_minus_x, 1.0f32.elem());
+
+    let one_minus_y = B::float_neg(y_frac.clone());
+    let one_minus_y = B::float_add_scalar(one_minus_y, 1.0f32.elem());
+
+    let weight_00 = B::float_mul(one_minus_x.clone(), one_minus_y.clone());
+    let weight_01 = B::float_mul(one_minus_x.clone(), y_frac.clone());
+    let weight_10 = B::float_mul(x_frac.clone(), one_minus_y);
+    let weight_11 = B::float_mul(x_frac, y_frac);
+
+    // Bilinear interpolation
+    let result = B::float_mul(sample_00, weight_00);
+    let result = B::float_add(result, B::float_mul(sample_01, weight_01));
+    let result = B::float_add(result, B::float_mul(sample_10, weight_10));
+    let result = B::float_add(result, B::float_mul(sample_11, weight_11));
+
+    result
 }

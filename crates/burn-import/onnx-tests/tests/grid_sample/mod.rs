@@ -7,7 +7,7 @@ include_models!(grid_sample, grid_sample_nearest);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::Tensor;
+    use burn::tensor::{Tensor, TensorData};
 
     use crate::backend::TestBackend;
 
@@ -42,6 +42,18 @@ mod tests {
 
         // Expected output shape: (1, 1, 3, 3)
         assert_eq!(output.dims(), [1, 1, 3, 3]);
+
+        // Expected values from ONNX Runtime (verified with test_grid_sample.py)
+        let expected = TensorData::from([[[
+            [0.2296178f32, 0.5925206, -0.8675947],
+            [-0.18328896, 0.20169558, -0.12067226],
+            [0.29309627, 0.07458373, 0.51153356],
+        ]]]);
+
+        output.to_data().assert_approx_eq(
+            &expected,
+            burn::tensor::Tolerance::<f32>::rel_abs(1e-4, 1e-4),
+        );
     }
 
     #[test]
