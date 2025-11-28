@@ -83,6 +83,11 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements at the given indices.
+    ///
+    /// # Note
+    ///
+    /// Empty slices (where start >= end) are handled at the high-level tensor API and will not
+    /// be passed to this method. Backend implementations do not need to handle empty slices.
     fn int_slice(tensor: IntTensor<B>, slices: &[crate::Slice]) -> IntTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.
