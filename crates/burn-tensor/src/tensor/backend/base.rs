@@ -140,12 +140,12 @@ pub trait Backend:
 /// An error that can happened when syncing a backend.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SyncError {
-    /// A generic error happened while synching.
+    /// A generic error happened while syncing.
     Generic {
         /// The details
         context: String,
     },
-    /// Synching the device isn't supported.
+    /// Syncing the device isn't supported.
     NotSupported {
         /// The details
         context: String,
@@ -155,7 +155,7 @@ pub enum SyncError {
 /// An error that can happen when syncing a device.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ExecutionError {
-    /// A generic error happened while synching.
+    /// A generic error happened while syncing.
     Generic {
         /// The details
         context: String,
@@ -165,10 +165,9 @@ pub enum ExecutionError {
 impl core::fmt::Display for SyncError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            SyncError::Generic { context } => f.write_fmt(format_args!(
-                "An error happened while synching: {}",
-                context
-            )),
+            SyncError::Generic { context } => {
+                f.write_fmt(format_args!("An error happened while syncing: {}", context))
+            }
             SyncError::NotSupported { context } => {
                 f.write_fmt(format_args!("Can't sync the device: {}", context))
             }

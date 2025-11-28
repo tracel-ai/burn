@@ -1642,13 +1642,9 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
-        crate::try_read_sync(self.into_data_async())
-            .expect(
-                "Failed to read tensor data synchronously.
-        This can happen on platforms that don't support blocking futures like WASM.
-        If possible, try using into_data_async instead.",
-            )
-            .expect("Error while reading data: use `try_into_data` instead to catch the error at runtime")
+        self.try_into_data().expect(
+            "Error while reading data: use `try_into_data` instead to catch the error at runtime",
+        )
     }
 
     /// Converts the data of the current tensor and returns any error that might have occurred since the
