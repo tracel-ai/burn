@@ -26,8 +26,8 @@ Related issue: https://github.com/tracel-ai/burn/issues/4052
 
 import json
 import shutil
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import onnx
@@ -38,7 +38,7 @@ def get_input_shape(model):
     input_info = model.graph.input[0]
     shape = []
     for dim in input_info.type.tensor_type.shape.dim:
-        if dim.HasField('dim_value'):
+        if dim.HasField("dim_value"):
             shape.append(dim.dim_value)
         else:
             shape.append(1)  # Default to 1 for dynamic dimensions
@@ -74,28 +74,32 @@ def extract_node_info(model_path, artifacts_dir):
                 "name": node.name if node.name else f"{node.op_type}_{idx}",
                 "inputs": list(node.input),
                 "outputs": list(node.output),
-                "attributes": {}
+                "attributes": {},
             }
 
             # Extract attributes
             for attr in node.attribute:
                 attr_name = attr.name
                 # Get attribute value based on type
-                if attr.HasField('f'):
+                if attr.HasField("f"):
                     node_info["attributes"][attr_name] = float(attr.f)
-                elif attr.HasField('i'):
+                elif attr.HasField("i"):
                     node_info["attributes"][attr_name] = int(attr.i)
-                elif attr.HasField('s'):
-                    node_info["attributes"][attr_name] = attr.s.decode('utf-8') if attr.s else ""
-                elif attr.HasField('t'):
+                elif attr.HasField("s"):
+                    node_info["attributes"][attr_name] = (
+                        attr.s.decode("utf-8") if attr.s else ""
+                    )
+                elif attr.HasField("t"):
                     node_info["attributes"][attr_name] = "<tensor>"
                 elif attr.floats:
                     node_info["attributes"][attr_name] = list(attr.floats)
                 elif attr.ints:
                     node_info["attributes"][attr_name] = list(attr.ints)
                 elif attr.strings:
-                    node_info["attributes"][attr_name] = [s.decode('utf-8') for s in attr.strings]
-                elif attr.HasField('g'):
+                    node_info["attributes"][attr_name] = [
+                        s.decode("utf-8") for s in attr.strings
+                    ]
+                elif attr.HasField("g"):
                     # Subgraph - recursively process it
                     subgraph_name = f"{graph_name}.{node.op_type}_{idx}.{attr_name}"
                     node_info["attributes"][attr_name] = f"<subgraph: {subgraph_name}>"
@@ -103,10 +107,14 @@ def extract_node_info(model_path, artifacts_dir):
                 elif attr.graphs:
                     subgraph_names = []
                     for g_idx, subgraph in enumerate(attr.graphs):
-                        subgraph_name = f"{graph_name}.{node.op_type}_{idx}.{attr_name}_{g_idx}"
+                        subgraph_name = (
+                            f"{graph_name}.{node.op_type}_{idx}.{attr_name}_{g_idx}"
+                        )
                         subgraph_names.append(subgraph_name)
                         process_graph(subgraph, subgraph_name)
-                    node_info["attributes"][attr_name] = f"<subgraphs: {', '.join(subgraph_names)}>"
+                    node_info["attributes"][attr_name] = (
+                        f"<subgraphs: {', '.join(subgraph_names)}>"
+                    )
                 else:
                     node_info["attributes"][attr_name] = "<unknown>"
 
@@ -118,22 +126,26 @@ def extract_node_info(model_path, artifacts_dir):
     # Create summary
     summary = {
         "model_name": model.graph.name,
-        "opset_version": model.opset_import[0].version if model.opset_import else "unknown",
+        "opset_version": model.opset_import[0].version
+        if model.opset_import
+        else "unknown",
         "total_nodes": len(node_details),
         "node_type_counts": dict(sorted(node_types.items())),
-        "nodes": node_details
+        "nodes": node_details,
     }
 
     # Save to JSON file
     output_path = artifacts_dir / "node_info.json"
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(summary, f, indent=2)
 
     print(f"  Node information extracted to {output_path}")
     print(f"  Total nodes: {summary['total_nodes']}")
     print(f"  Unique node types: {len(node_types)}")
     print(f"  Node type distribution:")
-    for op_type, count in sorted(node_types.items(), key=lambda x: x[1], reverse=True)[:15]:
+    for op_type, count in sorted(node_types.items(), key=lambda x: x[1], reverse=True)[
+        :15
+    ]:
         print(f"    - {op_type}: {count}")
     if len(node_types) > 15:
         print(f"    ... and {len(node_types) - 15} more types")
@@ -143,8 +155,8 @@ def extract_node_info(model_path, artifacts_dir):
 
 def generate_test_data(model_path, output_path):
     """Generate test input/output data and save as PyTorch tensors."""
-    import torch
     import onnxruntime as ort
+    import torch
 
     print("Generating test data...")
 
@@ -165,9 +177,9 @@ def generate_test_data(model_path, output_path):
     # RF-DETR has two outputs: dets (boxes) and labels (class scores)
     # Save as PyTorch tensors
     test_data = {
-        'input': torch.from_numpy(test_input),
-        'output_dets': torch.from_numpy(outputs[0]),
-        'output_labels': torch.from_numpy(outputs[1])
+        "input": torch.from_numpy(test_input),
+        "output_dets": torch.from_numpy(outputs[0]),
+        "output_labels": torch.from_numpy(outputs[1]),
     }
 
     torch.save(test_data, output_path)
@@ -214,11 +226,13 @@ def download_and_export_model():
         print("Step 2: Exporting model to ONNX format...")
 
         # RF-DETR exports to output/inference_model.onnx by default
-        exported_path = model.export()
-        print(f"  Exported to: {exported_path}")
+        # Note: model.export() returns None, but exports to output/inference_model.onnx
+        model.export()
+        default_export_path = Path("output/inference_model.onnx")
+        print(f"  Exported to: {default_export_path}")
 
         # Move the exported file to artifacts directory
-        exported_file = Path(exported_path)
+        exported_file = default_export_path
         if exported_file.exists():
             shutil.move(str(exported_file), str(model_path))
             # Clean up the output directory if empty
@@ -280,5 +294,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nError: {e}")
         import traceback
+
         traceback.print_exc()
         exit(1)
