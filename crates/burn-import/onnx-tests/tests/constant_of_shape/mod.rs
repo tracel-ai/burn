@@ -95,15 +95,17 @@ mod tests {
 
     #[test]
     fn constant_of_shape_shape_optimization_test() {
-        // Test Shape(1) -> Shape(1) optimization with Int64
+        // Test ConstantOfShape with Shape(1) input that has value [3]
+        // Output should have 3 elements (the value of the shape input), each filled with 5
+        // Fix for issue #4052: output element count is determined by input VALUE, not type
         let device = Default::default();
         let model = constant_of_shape_shape_optimization::Model::<TestBackend>::new(&device);
 
         // No runtime inputs - shape [3] comes from initializer
-        let output: [i64; 1] = model.forward();
+        let output: [i64; 3] = model.forward();
 
-        // Output should be [5] (one element with value 5, optimized from Shape(1))
-        assert_eq!(output, [5i64]);
+        // Output should be [5, 5, 5] (3 elements, each with value 5)
+        assert_eq!(output, [5i64, 5, 5]);
     }
 
     #[test]

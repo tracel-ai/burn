@@ -1,9 +1,9 @@
 use super::cat::cat_with_slice_assign;
-use super::grid_sample::float_grid_sample_2d_bilinear;
+use super::grid_sample::float_grid_sample_2d_ref;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::backend::ExecutionError;
-use crate::ops::InterpolateMode;
+use crate::ops::GridSampleOptions;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use crate::{argsort, sort, sort_with_indices};
@@ -492,6 +492,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
+    ///
+    /// # Note
+    ///
+    /// Empty slices (where start >= end) are handled at the high-level tensor API and will not
+    /// be passed to this method. Backend implementations do not need to handle empty slices.
     fn float_slice(tensor: FloatTensor<B>, slices: &[crate::Slice]) -> FloatTensor<B>;
 
     /// Assign the selected elements corresponding to the given slices to the given value.
@@ -1518,13 +1523,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
     /// using the given locations in [-1, 1].
     ///
-    /// Interpolation is bilinear.
-    /// Padding is border: out of bounds locations will be clamped to the nearest border
+    /// # Arguments
     ///
     /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
     /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
-    /// * `method` - How to interpolate between samples
+    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
     ///
     /// # Returns
     ///
@@ -1532,12 +1536,9 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_grid_sample_2d(
         tensor: FloatTensor<B>,
         grid: FloatTensor<B>,
-        method: InterpolateMode,
+        options: GridSampleOptions,
     ) -> FloatTensor<B> {
-        match method {
-            InterpolateMode::Bilinear => float_grid_sample_2d_bilinear::<B>(tensor, grid),
-            _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
-        }
+        float_grid_sample_2d_ref::<B>(tensor, grid, options)
     }
 
     /// Unfold windows along a dimension.

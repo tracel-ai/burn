@@ -56,6 +56,7 @@ pub(crate) mod gemm;
 pub(crate) mod global_avg_pool;
 pub(crate) mod greater;
 pub(crate) mod greater_equal;
+pub(crate) mod grid_sample;
 pub(crate) mod group_norm;
 pub(crate) mod hard_sigmoid;
 pub(crate) mod identity;
