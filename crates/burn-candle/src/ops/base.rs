@@ -112,9 +112,9 @@ pub fn shape(tensor: &CandleTensor) -> Shape {
 pub fn slice(tensor: CandleTensor, ranges: &[std::ops::Range<usize>]) -> CandleTensor {
     let mut narrow_tensor = tensor.tensor;
     for (i, range) in ranges.iter().enumerate().take(ranges.len()) {
-        narrow_tensor = narrow_tensor
-            .narrow(i, range.start, range.end - range.start)
-            .unwrap()
+        // Handle empty slices (start >= end) - produces 0 size dimension
+        let length = range.end.saturating_sub(range.start);
+        narrow_tensor = narrow_tensor.narrow(i, range.start, length).unwrap()
     }
     CandleTensor::new(narrow_tensor)
 }
@@ -129,7 +129,8 @@ pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> 
             let dim_size = result_tensor.dim(dim).unwrap();
             let range = slice.to_range(dim_size);
             let start = range.start;
-            let length = range.end - range.start;
+            // Handle empty slices (start >= end)
+            let length = range.end.saturating_sub(range.start);
             result_tensor = result_tensor.narrow(dim, start, length).unwrap();
         } else {
             // Use index_select for step != 1

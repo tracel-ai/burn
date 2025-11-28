@@ -19,9 +19,24 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
     let mut offset_end = 0u64;
 
     for i in 0..indices.len() {
-        offset_start += (tensor.strides[i] * indices[i].start) as u64;
-        offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
-        dims[i] = indices[i].end - indices[i].start;
+        // Handle empty slices (start >= end) - produces 0 size dimension
+        if indices[i].start >= indices[i].end {
+            dims[i] = 0;
+        } else {
+            offset_start += (tensor.strides[i] * indices[i].start) as u64;
+            offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
+            dims[i] = indices[i].end - indices[i].start;
+        }
+    }
+
+    // Early return for empty output tensor
+    if dims.iter().any(|&d| d == 0) {
+        return empty_device_dtype(
+            tensor.client.clone(),
+            tensor.device.clone(),
+            dims,
+            tensor.dtype,
+        );
     }
 
     let offset_start = offset_start * tensor.dtype.size() as u64;
@@ -93,6 +108,11 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     output: CubeTensor<R>,
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
+    // Early return for empty output tensor (e.g., when start == end for a dimension)
+    if output.shape.num_elements() == 0 {
+        return output;
+    }
+
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<R, u32>::new();
 
@@ -194,6 +214,11 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
         shape_output.clone(),
         tensor.dtype,
     );
+
+    // Early return for empty output tensor (e.g., when start == end for a dimension)
+    if shape_output.num_elements() == 0 {
+        return output;
+    }
 
     // Prepare three separate sequences for kernel
     let mut starts = SequenceArg::<R, u32>::new();
