@@ -357,7 +357,9 @@ where
         execute_with_int_dtype!(lhs, I, |lhs| -> NdArrayTensor {
             execute_with_float_dtype!(rhs, E, |rhs| {
                 NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &E| {
-                    (a.elem::<i64>().pow(*b as u32)).elem()
+                    use num_traits::AsPrimitive;
+                    let b_u32: u32 = (*b).as_();
+                    (a.elem::<i64>().pow(b_u32)).elem()
                 })
             })
         })

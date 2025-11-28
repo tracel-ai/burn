@@ -18,6 +18,8 @@ pub type SharedArray<E> = ArcArray<E, IxDyn>;
 pub enum NdArrayTensor {
     F64(SharedArray<f64>),
     F32(SharedArray<f32>),
+    F16(SharedArray<half::f16>),
+    BF16(SharedArray<half::bf16>),
     I64(SharedArray<i64>),
     I32(SharedArray<i32>),
     I16(SharedArray<i16>),
@@ -54,6 +56,8 @@ where
         DType::F64 => cast::<E1, f64>(array).into(),
         DType::F32 => cast::<E1, f32>(array).into(),
         DType::Flex32 => cast::<E1, f32>(array).into(),
+        DType::F16 => cast::<E1, half::f16>(array).into(),
+        DType::BF16 => cast::<E1, half::bf16>(array).into(),
         DType::I64 => cast::<E1, i64>(array).into(),
         DType::I32 => cast::<E1, i32>(array).into(),
         DType::I16 => cast::<E1, i16>(array).into(),
@@ -78,7 +82,7 @@ macro_rules! impl_from {
 }
 
 impl_from!(
-    f64 => F64, f32 => F32,
+    f64 => F64, f32 => F32, half::f16 => F16, half::bf16 => BF16,
     i64 => I64, i32 => I32, i16 => I16, i8 => I8,
     u64 => U64, u32 => U32, u16 => U16, u8 => U8,
     bool => Bool
@@ -116,7 +120,7 @@ macro_rules! execute_with_dtype {
     // Binary op: generic type cannot be inferred for an operation
     (($lhs:expr, $rhs:expr), $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
-            F64 => f64, F32 => f32,
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool
@@ -144,7 +148,7 @@ macro_rules! execute_with_dtype {
     // Unary op: generic type cannot be inferred for an operation
     ($tensor:expr, $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, $element, $op, [
-            F64 => f64, F32 => f32,
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool
@@ -168,7 +172,7 @@ macro_rules! execute_with_float_dtype {
     // Binary op: generic type cannot be inferred for an operation
     (($lhs:expr, $rhs:expr), $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
-            F64 => f64, F32 => f32
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16
         ])
     }};
 
@@ -180,7 +184,7 @@ macro_rules! execute_with_float_dtype {
     // Unary op: generic type cannot be inferred for an operation
     ($tensor:expr, $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, $element, $op, [
-            F64 => f64, F32 => f32
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16
         ])
     }};
 }
@@ -236,7 +240,7 @@ macro_rules! execute_with_numeric_dtype {
     // Binary op: generic type cannot be inferred for an operation
     (($lhs:expr, $rhs:expr), $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
-            F64 => f64, F32 => f32,
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8
         ])
@@ -250,7 +254,7 @@ macro_rules! execute_with_numeric_dtype {
     // Unary op: generic type cannot be inferred for an operation
     ($tensor:expr, $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, $element, $op, [
-            F64 => f64, F32 => f32,
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8
         ])
@@ -289,6 +293,8 @@ impl TensorMetadata for NdArrayTensor {
         match self {
             NdArrayTensor::F64(_) => DType::F64,
             NdArrayTensor::F32(_) => DType::F32,
+            NdArrayTensor::F16(_) => DType::F16,
+            NdArrayTensor::BF16(_) => DType::BF16,
             NdArrayTensor::I64(_) => DType::I64,
             NdArrayTensor::I32(_) => DType::I32,
             NdArrayTensor::I16(_) => DType::I16,
@@ -476,7 +482,7 @@ impl NdArrayTensor {
         }
 
         execute!(data, [
-            F64 => f64, F32 => f32,
+            F64 => f64, F32 => f32, F16 => half::f16, BF16 => half::bf16,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool

@@ -71,6 +71,7 @@ openblas-src = { workspace = true, optional = true }
 paste = { workspace = true }
 rand = { workspace = true, default-features = false, features = ["small_rng"] }
 spin = { workspace = true }
+half = { workspace = true }
 
 # SIMD
 bytemuck = { workspace = true, optional = true }
