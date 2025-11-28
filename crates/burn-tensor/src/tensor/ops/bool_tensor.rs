@@ -3,7 +3,8 @@ use super::{
     repeat_dim::repeat_with_slice_assign,
 };
 use crate::{
-    Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data, backend::Backend,
+    Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data,
+    backend::{Backend, ExecutionError},
     tensor::Shape,
 };
 use alloc::vec::Vec;
@@ -57,7 +58,9 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn bool_into_data(
+        tensor: BoolTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -426,7 +429,9 @@ pub trait BoolTensorOps<B: Backend> {
             // Size of each output tensor is variable (= number of nonzero elements in the tensor).
             // Reading the data to count the number of truth values might cause sync but is required.
             let device = B::bool_device(&tensor);
-            let data = B::bool_into_data(tensor).await;
+            let data = B::bool_into_data(tensor)
+                .await
+                .expect("Can read the data without error");
             argwhere_data::<B>(data, &device)
         }
     }
