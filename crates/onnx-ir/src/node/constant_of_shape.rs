@@ -166,14 +166,40 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         // Update the input type to be a shape
         node.inputs[0].ty = ArgType::Shape(rank);
 
-        // Optimization: When input is Shape(1) and value type is Int64,
-        // output Shape(1) directly instead of a tensor. This is a common pattern
-        // in ONNX models where ConstantOfShape is used to create shape arrays.
-        // Downstream operations can cast to tensor if needed.
-        // This optimization improves performance by keeping shape operations in the Shape domain.
+        // Optimization: When input is 1D and value type is Int64,
+        // output Shape type to keep shape operations in the Shape domain.
+        // IMPORTANT: The output element count is determined by the INPUT VALUE,
+        // not the number of elements in the input. For example:
+        // - Input Shape(1) with value [3] creates output with 3 elements -> Shape(3)
+        // - Input Shape(2) with value [2, 4] creates output with 2*4=8 elements -> Tensor
         if rank == 1 && value_type == DType::I64 {
-            // Special optimization for Shape(1) with Int64 values
-            node.outputs[0].ty = ArgType::Shape(1);
+            // For 1D I64 output, get the actual output size from input value if available
+            if let Some(input_value) = node.inputs[0].value() {
+                if let Ok(shape_vec) = input_value.to_i64_vec() {
+                    if !shape_vec.is_empty() {
+                        // Output size is the value of the first (and only) input element
+                        let output_size = shape_vec[0] as usize;
+                        node.outputs[0].ty = ArgType::Shape(output_size);
+                    } else {
+                        // Empty shape means scalar output
+                        node.outputs[0].ty = ArgType::Scalar(value_type);
+                    }
+                } else {
+                    // Can't convert to i64 vec, output as Tensor to be safe
+                    node.outputs[0].ty = ArgType::Tensor(TensorType {
+                        dtype: value_type,
+                        rank,
+                        static_shape: None,
+                    });
+                }
+            } else {
+                // No static value available, output as Tensor to be safe
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    dtype: value_type,
+                    rank,
+                    static_shape: None,
+                });
+            }
         } else if rank == 0 {
             // When rank is 0, output should be a scalar
             node.outputs[0].ty = ArgType::Scalar(value_type);
@@ -389,21 +415,30 @@ mod tests {
 
     #[test]
     fn test_shape_optimization_with_int64() {
-        // Test Shape(1) -> Shape(1) optimization when value type is Int64
-        let mut node = create_test_node(ArgType::Shape(1)).build();
-        node.attrs.insert(
-            "value".to_string(),
-            AttributeValue::Tensor(TensorData::new(vec![5i64], vec![])),
-        );
+        // Test Shape(1) with value [5] -> output has 5 elements (Shape(5))
+        // This is the fix for issue #4052: the output element count is determined
+        // by the INPUT VALUE, not the number of input elements
+        let mut node = TestNodeBuilder::new(NodeType::ConstantOfShape, "test_constantofshape")
+            .input_tensor_i64_data("shape", vec![5i64], vec![1]) // Shape tensor with value [5]
+            .output_tensor_f32("output", 0, None)
+            .attr_tensor("value", TensorData::new(vec![1i64], vec![]))
+            .build_with_graph_data(16);
+
+        // Override input type to Shape(1) - the processor expects this
+        node.inputs[0].ty = ArgType::Shape(1);
+
         let processor = ConstantOfShapeProcessor;
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
-            ArgType::Shape(rank) => {
-                assert_eq!(*rank, 1);
+            ArgType::Shape(size) => {
+                // Output should have 5 elements because input value is [5]
+                assert_eq!(*size, 5);
             }
-            _ => panic!("Expected Shape(1) output for Shape(1) input with Int64 value"),
+            _ => {
+                panic!("Expected Shape(5) output for Shape(1) input with value [5] and Int64 fill")
+            }
         }
     }
 
