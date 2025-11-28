@@ -4,7 +4,7 @@ use core::future::Future;
 use super::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{
     TensorData,
-    backend::{Backend, DeferedError},
+    backend::{Backend, ExecutionError},
 };
 
 #[derive(Default)]
@@ -40,7 +40,7 @@ pub trait TransactionOps<B: Backend> {
     /// [result](TransactionPrimitiveResult).
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
-    ) -> impl Future<Output = Result<TransactionPrimitiveData, DeferedError>> + Send {
+    ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
         async move {
             let mut floats = Vec::new();
             let mut qfloats = Vec::new();

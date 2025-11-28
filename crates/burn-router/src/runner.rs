@@ -12,7 +12,7 @@ use burn_ir::{
 use burn_std::{future::DynFut, stub::Mutex};
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::{Backend, DeferedError, SyncError},
+    backend::{Backend, ExecutionError, SyncError},
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
@@ -1296,7 +1296,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         }
     }
 
-    fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, DeferedError>> {
+    fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
         let mut ctx = self.context.lock().unwrap();
 
         enum Output<B: Backend> {

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data,
-    backend::{Backend, DeferedError},
+    backend::{Backend, ExecutionError},
     tensor::Shape,
 };
 use alloc::vec::Vec;
@@ -60,7 +60,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn bool_into_data(
         tensor: BoolTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send;
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Creates a tensor from the data structure.
     ///

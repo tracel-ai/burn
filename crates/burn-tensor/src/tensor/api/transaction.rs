@@ -1,7 +1,7 @@
 use super::{BasicOps, Tensor, TensorPrimitive};
 use crate::{
     TensorData,
-    backend::{Backend, DeferedError},
+    backend::{Backend, ExecutionError},
     ops::{BoolTensor, IntTensor, TransactionPrimitive},
 };
 use alloc::vec::Vec;
@@ -53,13 +53,13 @@ impl<B: Backend> Transaction<B> {
     /// # Returns
     ///
     /// Any error that might have occurred since the last time the device was synchronized.
-    pub fn try_execute(self) -> Result<Vec<TensorData>, DeferedError> {
+    pub fn try_execute(self) -> Result<Vec<TensorData>, ExecutionError> {
         burn_std::future::block_on(self.execute_async())
     }
 
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
-    pub async fn execute_async(self) -> Result<Vec<TensorData>, DeferedError> {
+    pub async fn execute_async(self) -> Result<Vec<TensorData>, ExecutionError> {
         let result = B::tr_execute(self.op).await?;
 
         let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();

@@ -16,7 +16,7 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use burn_tensor::backend::DeferedError;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{DType, IntDType};
 use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
@@ -37,7 +37,7 @@ where
         super::empty(shape, device, dtype)
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::into_data(tensor).await
     }
 

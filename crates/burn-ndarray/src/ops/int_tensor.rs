@@ -1,7 +1,7 @@
 // Language
 use crate::rand::get_seeded_rng;
 use alloc::vec::Vec;
-use burn_tensor::backend::DeferedError;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::{Distribution, ops::IntTensor};
 use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};
@@ -34,7 +34,7 @@ where
         }
     }
 
-    async fn int_into_data(tensor: NdArrayTensor) -> Result<TensorData, DeferedError> {
+    async fn int_into_data(tensor: NdArrayTensor) -> Result<TensorData, ExecutionError> {
         Ok(tensor.into_data())
     }
 

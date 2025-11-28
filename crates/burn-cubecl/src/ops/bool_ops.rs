@@ -5,7 +5,7 @@ use crate::{
 };
 use burn_tensor::{Shape, TensorData};
 use burn_tensor::{
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor},
 };
 use cubecl::std::scalar::InputScalar;
@@ -32,7 +32,7 @@ where
         numeric::ones(device.clone(), shape, BT::dtype())
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::into_data(tensor).await
     }
 

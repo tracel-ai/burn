@@ -7,7 +7,7 @@ use burn_ir::{
 };
 use burn_tensor::{
     DType, Device, Element, Shape, Slice, TensorData, TensorPrimitive,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QTensorPrimitive, QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
@@ -164,7 +164,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.q_into_data::<B>().await
     }
 

@@ -3,7 +3,7 @@ use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::id::{IdGenerator, StreamId};
 use burn_tensor::{
     TensorData,
-    backend::{DeferedError, SyncError},
+    backend::{ExecutionError, SyncError},
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -78,6 +78,6 @@ pub struct TaskResponse {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskResponseContent {
-    ReadTensor(Result<TensorData, DeferedError>),
+    ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), SyncError>),
 }

@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_tensor::{
     Distribution,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::unfold::{calculate_unfold_shape, calculate_unfold_windows},
 };
 use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
@@ -31,18 +31,18 @@ pub fn cat(tensors: Vec<CandleTensor>, dim: usize) -> CandleTensor {
 pub fn from_data<E: CandleElement>(data: TensorData, device: &CandleDevice) -> CandleTensor {
     CandleTensor::from_data::<E>(data, device.clone())
 }
-pub fn into_data(tensor: CandleTensor) -> Result<TensorData, DeferedError> {
+pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
     fn tensor_data_from_dtype<T: WithDType + Element>(
         tensor: &CandleTensor,
-    ) -> Result<TensorData, DeferedError> {
+    ) -> Result<TensorData, ExecutionError> {
         let data = tensor
             .tensor
             .flatten_all()
-            .map_err(|err| DeferedError::Generic {
+            .map_err(|err| ExecutionError::Generic {
                 context: format!("{err}"),
             })?
             .to_vec1::<T>()
-            .map_err(|err| DeferedError::Generic {
+            .map_err(|err| ExecutionError::Generic {
                 context: format!("{err}"),
             })?;
         Ok(TensorData::new(data, tensor.shape()))

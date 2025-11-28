@@ -5,7 +5,7 @@ use crate::{
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
-use burn_tensor::{TensorData, backend::DeferedError};
+use burn_tensor::{TensorData, backend::ExecutionError};
 
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,
@@ -45,7 +45,7 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send + use<R, B>
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -61,7 +61,7 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send + use<R, B>
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -77,7 +77,7 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send + use<R, B>
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -93,7 +93,7 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = Result<TensorData, DeferedError>> + Send + use<R, B>
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {

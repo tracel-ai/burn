@@ -10,7 +10,7 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
-use burn_tensor::backend::DeferedError;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{DType, ElementConversion, FloatDType};
 use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
@@ -51,7 +51,7 @@ where
         }
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::into_data(tensor).await
     }
 

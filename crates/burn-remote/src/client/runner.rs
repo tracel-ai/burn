@@ -4,7 +4,7 @@ use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_std::future::DynFut;
 use burn_tensor::{
     Shape, TensorData,
-    backend::{DeferedError, DeviceId, DeviceOps, SyncError},
+    backend::{ExecutionError, DeviceId, DeviceOps, SyncError},
 };
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
@@ -30,7 +30,7 @@ impl RunnerClient for RemoteClient {
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
-    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<Result<TensorData, DeferedError>> {
+    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
 

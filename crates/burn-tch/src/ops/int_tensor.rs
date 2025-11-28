@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use burn_tensor::{
     Distribution, IntDType, Shape, TensorData, TensorMetadata,
-    backend::{Backend, DeferedError},
+    backend::{Backend, ExecutionError},
     ops::{FloatTensorOps, IntTensor, IntTensorOps},
 };
 
@@ -22,7 +22,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::repeat_dim(tensor, dim, times)
     }
 
-    async fn int_into_data(tensor: TchTensor) -> Result<TensorData, DeferedError> {
+    async fn int_into_data(tensor: TchTensor) -> Result<TensorData, ExecutionError> {
         let shape = tensor.shape();
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();

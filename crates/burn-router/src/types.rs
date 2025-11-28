@@ -2,7 +2,7 @@ use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::{Backend, DeferedError, DeviceId, DeviceOps, SyncError},
+    backend::{Backend, ExecutionError, DeviceId, DeviceOps, SyncError},
     try_read_sync,
 };
 
@@ -113,7 +113,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, DeferedError>> {
+                fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
                     match self {
                         Self::$DefaultBackend(runner) => runner.read_tensor(tensor),
                         $(

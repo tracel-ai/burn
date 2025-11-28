@@ -2,7 +2,7 @@ use crate::{CubeRuntime, kernel, tensor::CubeTensor};
 use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::DeferedError,
+    backend::ExecutionError,
     quantization::{QTensorPrimitive, QuantLevel, params_shape},
 };
 use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
@@ -19,7 +19,7 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
 
 pub(crate) async fn into_data<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-) -> Result<TensorData, DeferedError> {
+) -> Result<TensorData, ExecutionError> {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
@@ -29,7 +29,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
         .client
         .read_one_tensor_async(binding)
         .await
-        .map_err(|err| DeferedError::Generic {
+        .map_err(|err| ExecutionError::Generic {
             context: format!("{err}"),
         })?;
 

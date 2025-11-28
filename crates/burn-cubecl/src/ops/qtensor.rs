@@ -1,6 +1,6 @@
 use burn_tensor::{
     Bytes, DType, Device, Shape, TensorData, TensorPrimitive,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
@@ -211,7 +211,7 @@ where
         super::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         if tensor.qparams.is_none() {
             return into_data(tensor).await;
         }

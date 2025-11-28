@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 
 use burn_tensor::{
     Device, Shape, TensorData,
-    backend::{Backend, DeferedError},
+    backend::{Backend, ExecutionError},
     ops::{BoolTensor, BoolTensorOps, IntTensor},
 };
 
@@ -12,7 +12,7 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_from_data(data, device)
     }
 
-    async fn bool_into_data(tensor: BoolTensor<B>) -> Result<TensorData, DeferedError> {
+    async fn bool_into_data(tensor: BoolTensor<B>) -> Result<TensorData, ExecutionError> {
         B::bool_into_data(tensor).await
     }
 

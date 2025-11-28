@@ -1,6 +1,6 @@
 use burn_tensor::{
     DType, TensorData,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{TransactionOps, TransactionPrimitiveData},
 };
 use cubecl::server::{Binding, CopyDescriptor};
@@ -16,7 +16,7 @@ where
 {
     async fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
-    ) -> Result<burn_tensor::ops::TransactionPrimitiveData, DeferedError> {
+    ) -> Result<burn_tensor::ops::TransactionPrimitiveData, ExecutionError> {
         let mut client = None;
 
         enum Kind {
@@ -111,7 +111,7 @@ where
         let mut data: Vec<Option<_>> = client
             .read_tensor_async(bindings)
             .await
-            .map_err(|err| DeferedError::Generic {
+            .map_err(|err| ExecutionError::Generic {
                 context: format!("{err:?}"),
             })?
             .into_iter()

@@ -9,7 +9,7 @@ use burn_ir::{
 };
 use burn_tensor::{
     Device, Element, Shape, Slice, TensorData,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 use std::marker::PhantomData;
@@ -98,7 +98,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.bool_into_data::<B>().await
     }
 

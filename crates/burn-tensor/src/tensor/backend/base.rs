@@ -154,7 +154,7 @@ pub enum SyncError {
 
 /// An error that can happen when syncing a device.
 #[derive(Serialize, Deserialize, Debug)]
-pub enum DeferedError {
+pub enum ExecutionError {
     /// A generic error happened while synching.
     Generic {
         /// The details

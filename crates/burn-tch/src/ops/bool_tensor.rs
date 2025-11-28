@@ -1,6 +1,6 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use burn_tensor::backend::DeferedError;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::IntTensor;
 use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
 
@@ -16,7 +16,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::repeat_dim(tensor, dim, times)
     }
 
-    async fn bool_into_data(tensor: TchTensor) -> Result<TensorData, DeferedError> {
+    async fn bool_into_data(tensor: TchTensor) -> Result<TensorData, ExecutionError> {
         let shape = tensor.shape();
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();

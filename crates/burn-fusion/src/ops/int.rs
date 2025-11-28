@@ -8,7 +8,7 @@ use crate::{
 use burn_ir::*;
 use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, Slice, TensorData,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
 };
 use std::marker::PhantomData;
@@ -44,7 +44,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.int_into_data::<B>().await
     }
 

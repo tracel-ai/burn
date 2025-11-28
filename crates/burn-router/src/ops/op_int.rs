@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use burn_tensor::backend::{Backend, DeferedError};
+use burn_tensor::backend::{Backend, ExecutionError};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
@@ -23,7 +23,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
         Ok(tensor
             .into_data()
             .await?

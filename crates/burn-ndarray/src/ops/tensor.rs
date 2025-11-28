@@ -1,6 +1,6 @@
 // Language
 use alloc::vec::Vec;
-use burn_tensor::backend::DeferedError;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::InterpolateMode;
 use burn_tensor::{TensorMetadata, cast::ToElement};
@@ -76,7 +76,7 @@ where
         tensor
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         Ok(tensor.into_data())
     }
 

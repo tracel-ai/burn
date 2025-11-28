@@ -1,6 +1,6 @@
 use burn_tensor::{
     Device, Shape, Slice, TensorData,
-    backend::DeferedError,
+    backend::ExecutionError,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -46,7 +46,7 @@ impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
         unimplemented!()
     }
 
-    async fn q_into_data(_tensor: QuantizedTensor<Self>) -> Result<TensorData, DeferedError> {
+    async fn q_into_data(_tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         unimplemented!()
     }
 
