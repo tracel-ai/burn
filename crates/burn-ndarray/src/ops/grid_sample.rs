@@ -1,5 +1,8 @@
 use burn_tensor::ElementConversion;
 use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use ndarray::Array4;
 
