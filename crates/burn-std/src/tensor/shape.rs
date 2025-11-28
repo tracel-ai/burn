@@ -1,11 +1,14 @@
-use crate::indexing::ravel_index;
-use crate::{AsIndex, Slice, SliceArg};
+//! Tensor shape definition.
+
 use alloc::vec::Vec;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
     slice::{Iter, IterMut, SliceIndex},
 };
 use serde::{Deserialize, Serialize};
+
+use super::indexing::ravel_index;
+use super::{AsIndex, Slice, SliceArg};
 
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -128,10 +131,9 @@ impl Shape {
     /// # Examples
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape, Slice, s};
+    /// use burn_std::{Shape, Slice, s};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     // 1D slicing
     ///     let slices = Shape::new([4]).into_slices(1..4);
     ///     assert_eq!(slices[0].to_range(4), 1..3);
@@ -155,11 +157,9 @@ impl Shape {
     /// # See Also
     ///
     /// - [`s!`] - The recommended macro for creating slice specifications
-    /// - [`Tensor::slice`] - Apply slicing to a tensor
     /// - [`Shape::into_ranges`] - Convert to full covering ranges
     ///
     /// [`s!`]: crate::s!
-    /// [`Tensor::slice`]: crate::Tensor::slice
     pub fn into_slices<const D: usize, S>(self, slices: S) -> [Slice; D]
     where
         S: SliceArg<D>,

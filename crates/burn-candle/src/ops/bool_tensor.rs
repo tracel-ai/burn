@@ -1,4 +1,4 @@
-use burn_common::future::DynFut;
+use burn_std::future::DynFut;
 use burn_tensor::{
     Device, Shape, TensorData, TensorMetadata,
     backend::DeferedError,

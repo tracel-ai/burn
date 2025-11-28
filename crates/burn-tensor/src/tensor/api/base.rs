@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_common::stub::RwLock;
+use burn_std::stub::RwLock;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -15,8 +15,10 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use super::{Slice, SliceArg, TensorMetadata, Transaction};
+use super::{TensorMetadata, Transaction};
 use crate::backend::DeferedError;
 use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
+use crate::{AsIndex, Slice, SliceArg, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
@@ -2565,8 +2567,7 @@ where
             let range: [Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-            let data =
-                burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
+            let data = burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
 
             if let Some(Ok(data)) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
@@ -4121,13 +4122,8 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for Shape {
         self
     }
 }
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
-    fn into_shape(self, _shape: &Shape) -> Shape {
-        Shape::from(self)
-    }
-}
 
-impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E; D2] {
+impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E; D2] {
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
     fn into_shape(self, shape: &Shape) -> Shape {
         if self.len() < shape.num_dims() {
@@ -4139,7 +4135,7 @@ impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E;
             .iter()
             .rev()
             .map(|x| {
-                let primitive = x.to_i64();
+                let primitive = x.index();
                 if primitive < -1 || primitive == 0 {
                     panic!("Broadcast arguments must be positive or -1");
                 }

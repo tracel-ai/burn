@@ -22,7 +22,7 @@ memory-checks = ["std"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3" }
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3" }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3" }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.3" }
 
 hashbrown = { workspace = true }

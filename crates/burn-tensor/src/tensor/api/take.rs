@@ -1,11 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::{
-    BasicOps, Int, Tensor,
-    backend::Backend,
-    check,
-    check::TensorCheck,
-    indexing::{AsIndex, canonicalize_dim},
+    AsIndex, BasicOps, Int, Tensor, backend::Backend, canonicalize_dim, check, check::TensorCheck,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>

@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, kernel, tensor::CubeTensor};
-use burn_common::tensor::{ReshapeAction, contiguous_strides, reshape_action};
+use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use burn_tensor::{
     DType, Shape, TensorData,
     backend::DeferedError,
@@ -39,7 +39,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
-    burn_common::future::block_on(into_data(tensor)).unwrap()
+    burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(

@@ -5,8 +5,8 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
-use burn_common::stub::Mutex;
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
+use burn_std::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
@@ -24,7 +24,7 @@ pub enum NdArrayDevice {
 
 impl DeviceOps for NdArrayDevice {}
 
-impl burn_common::device::Device for NdArrayDevice {
+impl burn_std::device::Device for NdArrayDevice {
     fn from_id(_device_id: DeviceId) -> Self {
         Self::Cpu
     }

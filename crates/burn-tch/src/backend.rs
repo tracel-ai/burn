@@ -66,7 +66,7 @@ impl From<tch::Device> for LibTorchDevice {
     }
 }
 
-impl burn_common::device::Device for LibTorchDevice {
+impl burn_std::device::Device for LibTorchDevice {
     fn from_id(device_id: DeviceId) -> Self {
         match device_id.type_id {
             0 => Self::Cuda(device_id.index_id as usize),

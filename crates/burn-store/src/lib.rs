@@ -79,13 +79,15 @@ extern crate alloc;
 
 mod adapter;
 mod applier;
+mod apply_result;
 mod collector;
 mod filter;
 mod tensor_snapshot;
 mod traits;
 
 pub use adapter::{BurnToPyTorchAdapter, IdentityAdapter, ModuleAdapter, PyTorchToBurnAdapter};
-pub use applier::{Applier, ApplyError, ApplyResult};
+pub use applier::Applier;
+pub use apply_result::{ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
 pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};

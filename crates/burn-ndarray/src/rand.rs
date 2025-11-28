@@ -20,8 +20,8 @@ use rand::SeedableRng;
 /// For no_std builds, uses a compile-time random seed.
 #[cfg(feature = "std")]
 pub fn get_seeded_rng() -> NdArrayRng {
-    // Use the standard implementation from burn-common
-    burn_common::rand::get_seeded_rng()
+    // Use the standard implementation from burn-std
+    burn_std::rand::get_seeded_rng()
 }
 
 /// Get a seeded random number generator

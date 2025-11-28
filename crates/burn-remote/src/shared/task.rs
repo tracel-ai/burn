@@ -1,6 +1,6 @@
-use burn_common::id::{IdGenerator, StreamId};
 use burn_communication::{Address, data_service::TensorTransferId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_std::id::{IdGenerator, StreamId};
 use burn_tensor::{
     TensorData,
     backend::{DeferedError, SyncError},

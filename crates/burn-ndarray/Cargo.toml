@@ -29,14 +29,14 @@ blas-openblas-system = [
 default = ["std", "simd", "multi-threads"]
 doc = ["default"]
 multi-threads = [
+    "rayon",
     "ndarray/rayon",
-    "burn-common/rayon",
     "matrixmultiply/threading",
 ]
 simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
 std = [
     "burn-autodiff",
-    "burn-common/std",
+    "burn-std/std",
     "burn-tensor/std",
     "burn-ir/std",
     "ndarray/std",
@@ -55,7 +55,7 @@ export_tests = []
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.3", default-features = false, optional = true }
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.3", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
 
@@ -77,6 +77,9 @@ bytemuck = { workspace = true, optional = true }
 itertools = { version = "0.14", optional = true }
 macerator = { workspace = true, optional = true }
 seq-macro = { version = "0.3", optional = true }
+
+# Parallel
+rayon = { workspace = true, optional = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }

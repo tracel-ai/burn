@@ -6,7 +6,7 @@ use crate::{
     ops::{IntElem, IntTensor},
 };
 use alloc::{vec, vec::Vec};
-use burn_common::reader::try_read_sync;
+use burn_std::reader::try_read_sync;
 
 /// Sort the elements of the input `tensor` by value along a given dimension.
 ///

@@ -10,8 +10,8 @@ use std::{
     time::Duration,
 };
 
-use burn_common::id::StreamId;
 use burn_ir::{HandleContainer, TensorId, TensorStatus};
+use burn_std::id::StreamId;
 
 use crate::FusionRuntime;
 

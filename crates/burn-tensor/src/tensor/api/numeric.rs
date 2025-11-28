@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use crate::alloc::borrow::ToOwned;
 
 use crate::TensorPrimitive;
-use crate::indexing::canonicalize_dim;
+use crate::canonicalize_dim;
 use crate::{
     AsIndex, BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
