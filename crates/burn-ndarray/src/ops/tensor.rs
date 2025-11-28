@@ -2,7 +2,7 @@
 use alloc::vec::Vec;
 use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::FloatTensor;
-use burn_tensor::ops::InterpolateMode;
+use burn_tensor::ops::GridSampleOptions;
 use burn_tensor::{TensorMetadata, cast::ToElement};
 
 // Current crate
@@ -515,10 +515,10 @@ where
     fn float_grid_sample_2d(
         tensor: FloatTensor<Self>,
         grid: FloatTensor<Self>,
-        method: InterpolateMode,
+        options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_2d(
-            tensor, grid, method
+            tensor, grid, options
         ))
     }
 
