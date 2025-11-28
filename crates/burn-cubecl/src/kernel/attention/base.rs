@@ -26,7 +26,7 @@ pub fn flash_attention<R: CubeRuntime>(
     let out = empty_device_dtype::<R>(client.clone(), device.clone(), out_shape, out_dtype);
 
     cubecl::attention::launch_ref::<R>(
-        &Strategy::BlackboxAccelerated,
+        &Strategy::Unit,
         client,
         &query.as_handle_ref(),
         &key.as_handle_ref(),

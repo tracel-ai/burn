@@ -439,17 +439,20 @@ pub fn attention<B: Backend>(
     )))
 }
 
-#[cfg(test)]
+#[cfg(feature = "export_tests")]
+/// Exports naive attention to test backend's attention against
 pub fn naive_attention<B: Backend>(
     query: Tensor<B, 4>,
     key: Tensor<B, 4>,
     value: Tensor<B, 4>,
     mask: Option<Tensor<B, 4, Bool>>,
 ) -> Tensor<B, 3> {
-    Tensor::new(TensorPrimitive::Float(attention::naive_attention::<B>(
-        query.primitive.tensor(),
-        key.primitive.tensor(),
-        value.primitive.tensor(),
-        mask.map(|mask| mask.primitive),
-    )))
+    Tensor::new(TensorPrimitive::Float(
+        crate::ops::attention::naive_attention::<B>(
+            query.primitive.tensor(),
+            key.primitive.tensor(),
+            value.primitive.tensor(),
+            mask.map(|mask| mask.primitive),
+        ),
+    ))
 }
