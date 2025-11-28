@@ -2,7 +2,7 @@ use burn_tensor::{
     Tensor,
     backend::Backend,
     grid::affine_grid_2d,
-    ops::{GridSampleOptions, InterpolateMode},
+    ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
 };
 
 /// 2D point transformation
@@ -28,7 +28,10 @@ impl Transform2D {
         let transform = transform.reshape([1, 2, 3]).expand([batch_size, 2, 3]);
         let grid = affine_grid_2d(transform, [batch_size, channels, height, width]);
 
-        img.grid_sample_2d(grid, GridSampleOptions::new(InterpolateMode::Bilinear))
+        let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+            .with_padding_mode(GridSamplePaddingMode::Border)
+            .with_align_corners(true);
+        img.grid_sample_2d(grid, options)
     }
 
     /// Makes a 2d transformation composed of other transformations
