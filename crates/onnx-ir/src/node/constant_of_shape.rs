@@ -421,10 +421,7 @@ mod tests {
         let mut node = TestNodeBuilder::new(NodeType::ConstantOfShape, "test_constantofshape")
             .input_tensor_i64_data("shape", vec![5i64], vec![1]) // Shape tensor with value [5]
             .output_tensor_f32("output", 0, None)
-            .attr_tensor(
-                "value",
-                TensorData::new(vec![1i64], vec![]),
-            )
+            .attr_tensor("value", TensorData::new(vec![1i64], vec![]))
             .build_with_graph_data(16);
 
         // Override input type to Shape(1) - the processor expects this
@@ -439,7 +436,9 @@ mod tests {
                 // Output should have 5 elements because input value is [5]
                 assert_eq!(*size, 5);
             }
-            _ => panic!("Expected Shape(5) output for Shape(1) input with value [5] and Int64 fill"),
+            _ => {
+                panic!("Expected Shape(5) output for Shape(1) input with value [5] and Int64 fill")
+            }
         }
     }
 
