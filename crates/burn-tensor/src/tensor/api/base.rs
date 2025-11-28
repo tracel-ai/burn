@@ -1330,6 +1330,17 @@ where
         // Validate slices
         check!(TensorCheck::slice::<D, D2>(&shape, &slices));
 
+        // Calculate output shape and check for empty slices
+        let mut output_dims = shape.dims.clone();
+        for (dim, slice) in slices.iter().enumerate() {
+            output_dims[dim] = slice.output_size(shape.dims[dim]);
+        }
+
+        // Return empty tensor if any dimension is 0 (empty slice)
+        if output_dims.contains(&0) {
+            return Self::empty(output_dims, &self.device());
+        }
+
         // Use the slice method that supports steps
         Self::new(K::slice(self.primitive, &slices))
     }

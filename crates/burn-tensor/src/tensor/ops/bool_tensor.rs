@@ -132,6 +132,11 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values for the given slices.
+    ///
+    /// # Note
+    ///
+    /// Empty slices (where start >= end) are handled at the high-level tensor API and will not
+    /// be passed to this method. Backend implementations do not need to handle empty slices.
     fn bool_slice(tensor: BoolTensor<B>, slices: &[crate::Slice]) -> BoolTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.

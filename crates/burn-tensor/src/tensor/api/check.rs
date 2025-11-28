@@ -818,22 +818,9 @@ impl TensorCheck {
                     );
             }
 
-            let range = slice.to_range(d_tensor);
-
-            if range.start >= range.end {
-                check = check.register(
-                    "Slice",
-                    TensorError::new(
-                        "The provided slice has a range where the start index is bigger or \
-                         equal to its end.",
-                    )
-                    .details(format!(
-                        "The range at dimension '{}' starts at '{}' and is greater or equal to \
-                         its end '{}'. Tensor shape {:?}.",
-                        i, range.start, range.end, shape.dims,
-                    )),
-                );
-            }
+            // Empty slices (start >= end) are allowed and produce a tensor with size 0
+            // in that dimension. This matches PyTorch behavior and is required for ONNX
+            // compatibility where dynamic slice ranges may become empty at runtime.
 
             if slice.step() == 0 {
                 check = check.register(
