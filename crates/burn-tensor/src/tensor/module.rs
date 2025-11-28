@@ -3,7 +3,7 @@ use crate::{
     backend::Backend,
     check,
     check::TensorCheck,
-    ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, UnfoldOptions, attention},
+    ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, UnfoldOptions},
 };
 
 use super::ops::DeformConvOptions;
@@ -439,7 +439,7 @@ pub fn attention<B: Backend>(
     )))
 }
 
-// TODO move / test only
+#[cfg(test)]
 pub fn naive_attention<B: Backend>(
     query: Tensor<B, 4>,
     key: Tensor<B, 4>,
