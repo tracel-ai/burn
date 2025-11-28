@@ -1,5 +1,6 @@
 use burn_tensor::{
     Shape, TensorData,
+    backend::ExecutionError,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -45,7 +46,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         unimplemented!()
     }
 
-    async fn q_into_data(_tensor: QuantizedTensor<Self>) -> TensorData {
+    async fn q_into_data(_tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         unimplemented!()
     }
     fn q_swap_dims(

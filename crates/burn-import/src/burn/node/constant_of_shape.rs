@@ -105,11 +105,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
                     }
                 }
             }
-            ArgType::Shape(_) => {
-                // Optimization: When ConstantOfShape outputs Shape(1) with Int64,
-                // we directly create a shape array instead of a tensor
+            ArgType::Shape(size) => {
+                // Output is Shape(n) - create an array with n elements, each filled with the value
+                // The size is determined by the input shape value, not its type
+                let size_val = *size;
+                let values = std::iter::repeat_n(value.clone(), size_val);
                 quote! {
-                    let #output: [i64; 1] = [#value];
+                    let #output: [i64; #size_val] = [#(#values),*];
                 }
             }
         }
@@ -511,39 +513,41 @@ mod tests {
 
     #[test]
     fn test_constant_of_shape_shape_output_i64() {
+        // Test Shape(3) output - creates array with 3 elements
         let config = ConstantOfShapeConfig {
-            shape: ConstantOfShapeShape::Static(vec![]),
+            shape: ConstantOfShapeShape::Static(vec![3]), // Output will have 3 elements
             value: Some(TensorData::new(vec![10i64], vec![])),
         };
         let node = ConstantOfShapeNodeBuilder::new("const1")
             .input_shape("in_shape")
-            .output_shape("out_shape")
+            .output_shape_with_size("out_shape", 3) // Shape(3) - 3 elements
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
-        pub fn forward(&self, in_shape: [i64; 1]) -> [i64; 1] {
-            let out_shape: [i64; 1] = [10i64];
+        pub fn forward(&self, in_shape: [i64; 1]) -> [i64; 3] {
+            let out_shape: [i64; 3usize] = [10i64, 10i64, 10i64];
             out_shape
         }
         ");
     }
 
     #[test]
-    fn test_constant_of_shape_shape_output_with_default() {
+    fn test_constant_of_shape_shape_output_single_element() {
+        // Test Shape(1) output - creates array with 1 element
         let config = ConstantOfShapeConfig {
-            shape: ConstantOfShapeShape::Static(vec![]),
-            value: None, // Defaults to 0.0f32, but for shape output context this might be handled differently
+            shape: ConstantOfShapeShape::Static(vec![1]), // Output will have 1 element
+            value: Some(TensorData::new(vec![5i64], vec![])),
         };
         let node = ConstantOfShapeNodeBuilder::new("const1")
             .input_shape("dims")
-            .output_shape("result")
+            .output_shape_with_size("result", 1) // Shape(1) - 1 element
             .config(config)
             .build();
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, dims: [i64; 1]) -> [i64; 1] {
-            let result: [i64; 1] = [0.0f32];
+            let result: [i64; 1usize] = [5i64];
             result
         }
         ");

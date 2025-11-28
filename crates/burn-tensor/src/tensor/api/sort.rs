@@ -37,7 +37,10 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.");
+    let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+    let data = try_read_sync(K::into_data_async(tensor))
+        .expect(msg)
+        .expect(msg);
     sort_data::<B, K>(data, dim, &device, descending)
 }
 
@@ -92,7 +95,10 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.");
+    let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+    let data = try_read_sync(K::into_data_async(tensor))
+        .expect(msg)
+        .expect(msg);
     sort_data_with_indices::<B, K>(data, dim, &device, descending)
 }
 
@@ -188,7 +194,10 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.");
+    let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+    let data = try_read_sync(K::into_data_async(tensor))
+        .expect(msg)
+        .expect(msg);
 
     argsort_data::<B, K>(data, dim, &device, descending)
 }

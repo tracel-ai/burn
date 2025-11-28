@@ -1,6 +1,7 @@
 use burn_std::future::DynFut;
 use burn_tensor::{
     Device, Shape, TensorData, TensorMetadata,
+    backend::ExecutionError,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 
@@ -24,10 +25,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::ones(shape, device, candle_core::DType::U8)
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
-        let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
+    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
+        let x: Vec<u8> = tensor
+            .tensor
+            .flatten_all()
+            .map_err(|err| ExecutionError::Generic {
+                context: format!("{err}"),
+            })?
+            .to_vec1()
+            .map_err(|err| ExecutionError::Generic {
+                context: format!("{err}"),
+            })?;
+
         let y = x.iter().map(|b| !matches!(b, 0)).collect();
-        TensorData::new(y, tensor.shape())
+
+        Ok(TensorData::new(y, tensor.shape()))
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {

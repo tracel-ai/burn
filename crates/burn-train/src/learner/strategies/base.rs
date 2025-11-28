@@ -180,7 +180,7 @@ pub struct LearnerComponents<LC: LearnerComponentTypes> {
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
-    /// [Cloneable reference to an early stopping strategy](EarlyStoppingStrategyRef).
+    /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     /// An [EventProcessor](LearnerComponentTypes::EventProcessor) that processes events happening during training and validation.
     pub event_processor: LC::EventProcessor,

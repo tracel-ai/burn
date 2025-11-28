@@ -58,7 +58,7 @@ futures = "0.3"
 futures-util = "0.3"
 gix-tempfile = { version = "19.0.1", features = ["signals"] }
 globwalk = "0.9.1"
-hashbrown = "0.15.5"
+hashbrown = "0.16"
 hound = "3.5.1"
 image = "0.25.9"
 indicatif = "0.18.0"
@@ -174,9 +174,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bf6126cb67eb802a92d1dee05bf2a1c556d68151" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bf6126cb67eb802a92d1dee05bf2a1c556d68151" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bf6126cb67eb802a92d1dee05bf2a1c556d68151" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a15c1d2735490b65d26dc3374c9810d090d9c4de" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a15c1d2735490b65d26dc3374c9810d090d9c4de" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a15c1d2735490b65d26dc3374c9810d090d9c4de" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

@@ -25,9 +25,6 @@ interoperability, and advanced tensor management.
 - **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM
   environments
 
-Note: no-std support for SafeTensors format is temporarily disabled due to
-https://github.com/huggingface/safetensors/issues/650 not released yet.
-
 ### Advanced Features
 
 - **Framework Adapters** - Automatic weight transposition and parameter renaming for PyTorch

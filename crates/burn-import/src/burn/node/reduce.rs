@@ -61,8 +61,11 @@ impl ReductionType {
                 reduced_input
             } else {
                 // Squeezing dimensions for non-scalar outputs
-                let dims = dims.to_tokens();
-                quote! { #reduced_input.squeeze_dims(&#dims) }
+                // Use turbofish syntax to specify the output rank explicitly
+                // This helps Rust's type inference when the result is used in a context
+                // that requires knowing the tensor rank
+                let dims_tokens = dims.to_tokens();
+                quote! { #reduced_input.squeeze_dims::<#output_rank>(&#dims_tokens) }
             }
         }
     }
@@ -159,9 +162,9 @@ macro_rules! impl_reduce_node {
                     } else if output_rank == 0 {
                         reduced_input
                     } else {
-                        // Need to squeeze dimensions
+                        // Need to squeeze dimensions with explicit rank for type inference
                         let dims_to_squeeze = dims.to_tokens();
-                        quote! { #reduced_input.squeeze_dims(&#dims_to_squeeze) }
+                        quote! { #reduced_input.squeeze_dims::<#output_rank>(&#dims_to_squeeze) }
                     };
 
                     return if output_rank == 0 {
@@ -469,7 +472,9 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 1> {
-            let output = { input.sum_dim(1usize).sum_dim(2usize).squeeze_dims(&[1, 2]) };
+            let output = {
+                input.sum_dim(1usize).sum_dim(2usize).squeeze_dims::<1usize>(&[1, 2])
+            };
             output
         }
         ");
