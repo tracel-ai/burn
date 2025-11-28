@@ -2,7 +2,6 @@ extern crate alloc;
 
 use burn::module::Param;
 use burn::prelude::*;
-use burn::record::*;
 
 use burn_import::pytorch::PyTorchFileRecorder;
 use std::path::Path;
@@ -122,49 +121,107 @@ fn main() {
     println!("  Dets shape: {:?}", output_dets.shape().dims);
     println!("  Labels shape: {:?}", output_labels.shape().dims);
 
-    // Compare dets output
-    println!("\nComparing dets output with reference data...");
+    // Compare outputs
+    println!("\nComparing model outputs with reference data...");
+
+    let mut dets_passed = false;
+    let mut labels_passed = false;
+
+    // Check if dets are close
+    println!("\n  Checking dets (bounding boxes):");
     if output_dets
         .clone()
         .all_close(reference_dets.clone(), Some(1e-4), Some(1e-4))
     {
-        println!("  Dets output matches reference data within tolerance (1e-4)!");
+        println!("    ✓ dets matches reference data within tolerance (1e-4)!");
+        dets_passed = true;
     } else {
-        println!("  Dets output differs from reference data!");
+        println!("    ⚠ dets differs from reference data!");
+
+        // Calculate and display the difference statistics
         let diff = output_dets.clone() - reference_dets.clone();
         let abs_diff = diff.abs();
         let max_diff = abs_diff.clone().max().into_scalar();
         let mean_diff = abs_diff.mean().into_scalar();
-        println!("  Maximum absolute difference: {:.6}", max_diff);
-        println!("  Mean absolute difference: {:.6}", mean_diff);
+
+        println!("    Maximum absolute difference: {:.6}", max_diff);
+        println!("    Mean absolute difference: {:.6}", mean_diff);
+
+        // Show some sample values for debugging
+        println!("\n    Sample values comparison (first 5 elements):");
+        let output_flat = output_dets.clone().flatten::<1>(0, 2);
+        let reference_flat = reference_dets.clone().flatten::<1>(0, 2);
+
+        for i in 0..5.min(output_flat.dims()[0]) {
+            let model_val: f32 = output_flat.clone().slice(s![i..i + 1]).into_scalar();
+            let ref_val: f32 = reference_flat.clone().slice(s![i..i + 1]).into_scalar();
+            println!(
+                "      [{}] Model: {:.6}, Reference: {:.6}, Diff: {:.6}",
+                i,
+                model_val,
+                ref_val,
+                (model_val - ref_val).abs()
+            );
+        }
     }
 
-    // Compare labels output
-    println!("\nComparing labels output with reference data...");
+    // Check if labels are close
+    println!("\n  Checking labels (class scores):");
     if output_labels
         .clone()
         .all_close(reference_labels.clone(), Some(1e-4), Some(1e-4))
     {
-        println!("  Labels output matches reference data within tolerance (1e-4)!");
+        println!("    ✓ labels matches reference data within tolerance (1e-4)!");
+        labels_passed = true;
     } else {
-        println!("  Labels output differs from reference data!");
+        println!("    ⚠ labels differs from reference data!");
+
+        // Calculate and display the difference statistics
         let diff = output_labels.clone() - reference_labels.clone();
         let abs_diff = diff.abs();
         let max_diff = abs_diff.clone().max().into_scalar();
         let mean_diff = abs_diff.mean().into_scalar();
-        println!("  Maximum absolute difference: {:.6}", max_diff);
-        println!("  Mean absolute difference: {:.6}", mean_diff);
+
+        println!("    Maximum absolute difference: {:.6}", max_diff);
+        println!("    Mean absolute difference: {:.6}", mean_diff);
+
+        // Show some sample values for debugging
+        println!("\n    Sample values comparison (first 5 elements):");
+        let output_flat = output_labels.clone().flatten::<1>(0, 2);
+        let reference_flat = reference_labels.clone().flatten::<1>(0, 2);
+
+        for i in 0..5.min(output_flat.dims()[0]) {
+            let model_val: f32 = output_flat.clone().slice(s![i..i + 1]).into_scalar();
+            let ref_val: f32 = reference_flat.clone().slice(s![i..i + 1]).into_scalar();
+            println!(
+                "      [{}] Model: {:.6}, Reference: {:.6}, Diff: {:.6}",
+                i,
+                model_val,
+                ref_val,
+                (model_val - ref_val).abs()
+            );
+        }
     }
 
     println!("\n========================================");
-    println!("Model test completed!");
+    println!("Summary:");
+    println!("  - Model initialization: {:.2?}", init_time);
+    println!("  - Data loading: {:.2?}", load_time);
+    println!("  - Inference time: {:.2?}", inference_time);
+    if dets_passed && labels_passed {
+        println!("  - Output validation: ✓ All outputs match!");
+    } else {
+        println!(
+            "  - Output validation: {} dets, {} labels",
+            if dets_passed { "✓" } else { "✗" },
+            if labels_passed { "✓" } else { "✗" }
+        );
+    }
     println!("========================================");
-    println!();
-    println!("RF-DETR is a transformer-based object detection model.");
-    println!("This test verifies that burn-import can handle:");
-    println!("  - Multi-head attention layers");
-    println!("  - Complex transformer architectures");
-    println!("  - Deformable attention mechanisms");
-    println!();
-    println!("Related issue: https://github.com/tracel-ai/burn/issues/4052");
+    if dets_passed && labels_passed {
+        println!("Model test completed successfully!");
+    } else {
+        println!("Model test completed with differences.");
+    }
+    println!("========================================");
 }
