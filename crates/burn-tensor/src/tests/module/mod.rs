@@ -1,5 +1,6 @@
 mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
+mod attention;
 mod avgpool1d;
 mod avgpool2d;
 mod bicubic_interpolate;
