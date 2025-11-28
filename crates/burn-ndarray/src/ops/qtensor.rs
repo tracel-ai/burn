@@ -2,6 +2,7 @@ use alloc::{vec, vec::Vec};
 
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
+    backend::ExecutionError,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
@@ -207,13 +208,17 @@ where
         }
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         let shape = tensor.qtensor.shape();
         let scales = tensor.qparams.iter().map(|q| q.scales).collect::<Vec<_>>();
-        execute_with_numeric_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
-            let values = qtensor.into_iter().collect();
-            TensorData::quantized(values, shape, tensor.scheme, &scales)
-        })
+        Ok(execute_with_numeric_dtype!(
+            tensor.qtensor,
+            E,
+            |qtensor: SharedArray<E>| {
+                let values = qtensor.into_iter().collect();
+                TensorData::quantized(values, shape, tensor.scheme, &scales)
+            }
+        ))
     }
 
     fn q_swap_dims(

@@ -91,7 +91,7 @@ mod tests {
         let tensor2 = tensor2.reshape([4, 2]);
         let tensor2 = tensor2.swap_dims(0, 1);
 
-        TestBackend::sync(&tensor2.device());
+        TestBackend::sync(&tensor2.device()).unwrap();
 
         let output = tensor1 + tensor2;
 
@@ -109,7 +109,7 @@ mod tests {
         let tensor2 = tensor2.reshape([1, 2]);
         let tensor2 = tensor2.swap_dims(0, 1);
 
-        TestBackend::sync(&tensor2.device());
+        TestBackend::sync(&tensor2.device()).unwrap();
 
         let output = tensor2 + tensor1;
 
