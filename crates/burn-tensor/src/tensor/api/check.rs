@@ -902,19 +902,8 @@ impl TensorCheck {
                 );
             }
 
-            if range.start >= range.end && slice.step > 0 {
-                check = check.register(
-                    "Slice Assign",
-                    TensorError::new(
-                        "The provided slice has a range where the start index is bigger or \
-                         equal to its end with positive step.",
-                    )
-                    .details(format!(
-                        "The range start ({}) must be smaller than its end ({}) for positive step ({}) at dimension {}",
-                        range.start, range.end, slice.step, i
-                    )),
-                );
-            }
+            // Note: Empty slices (start >= end with positive step) are handled at the API level
+            // by returning the original tensor unchanged, so we don't check for them here.
         }
 
         check
