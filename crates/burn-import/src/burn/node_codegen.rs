@@ -196,6 +196,7 @@ impl_node_codegen_dispatch! {
     DepthToSpace,
     SpaceToDepth,
     Resize,
+    GridSample,
 
     // Test ops
     IsInf,

@@ -198,10 +198,17 @@ pub fn node_builder_derive(input: TokenStream) -> TokenStream {
                 self
             }
 
-            /// Add a shape output (rank 1 by default, since shapes are 1D arrays)
+            /// Add a shape output (size 1 by default, since shapes are 1D arrays of length 1)
             pub fn output_shape(mut self, name: &str) -> Self {
                 use crate::ir::{Argument, ArgType};
                 self.outputs.push(Argument::new(name, ArgType::Shape(1)));
+                self
+            }
+
+            /// Add a shape output with a specific size (number of elements in the shape array)
+            pub fn output_shape_with_size(mut self, name: &str, size: usize) -> Self {
+                use crate::ir::{Argument, ArgType};
+                self.outputs.push(Argument::new(name, ArgType::Shape(size)));
                 self
             }
 

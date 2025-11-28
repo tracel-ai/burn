@@ -5,7 +5,7 @@ use crate::canonicalize_dim;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
-use crate::ops::InterpolateMode;
+use crate::ops::GridSampleOptions;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
@@ -655,24 +655,35 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
     /// using the given locations in [-1, 1].
     ///
-    /// Interpolation is bilinear.
-    /// Padding is border: out of bounds locations will be clamped to the nearest border
-    ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
     /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
-    /// * `method` - How to interpolate between samples
+    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
     ///
     /// # Returns
     ///
     /// A tensor with shape (N, C, H_out, W_out)
-    pub fn grid_sample_2d(self, grid: Tensor<B, D>, method: InterpolateMode) -> Tensor<B, D> {
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    ///
+    /// // Default options (bilinear, zeros padding, align_corners=false)
+    /// let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+    ///
+    /// // Custom options
+    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    ///     .with_padding_mode(GridSamplePaddingMode::Border)
+    ///     .with_align_corners(true);
+    /// let output = tensor.grid_sample_2d(grid, options);
+    /// ```
+    pub fn grid_sample_2d(self, grid: Tensor<B, D>, options: GridSampleOptions) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
             self.primitive.tensor(),
             grid.primitive.tensor(),
-            method,
+            options,
         )))
     }
 

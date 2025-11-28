@@ -171,6 +171,8 @@ fn main() {
         .input("tests/greater_or_equal/greater_or_equal.onnx")
         .input("tests/greater_or_equal/greater_or_equal_scalar.onnx")
         .input("tests/greater_or_equal/greater_or_equal_broadcast.onnx")
+        .input("tests/grid_sample/grid_sample.onnx")
+        .input("tests/grid_sample/grid_sample_nearest.onnx")
         .input("tests/group_norm/group_norm.onnx")
         .input("tests/hard_sigmoid/hard_sigmoid.onnx")
         .input("tests/identity/identity_constant.onnx")

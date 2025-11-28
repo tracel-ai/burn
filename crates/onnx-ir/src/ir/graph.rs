@@ -76,6 +76,13 @@ fn convert_builders_to_nodes(builders: Vec<RawNode>, opset: usize) -> Vec<Node> 
             // For control flow nodes with subgraphs, we need to convert those subgraphs first
             let builder = convert_subgraphs_in_attributes(builder, opset);
 
+            // Debug: log which node is being converted
+            log::debug!(
+                "Converting node '{}' of type {:?}",
+                builder.name,
+                builder.node_type
+            );
+
             // Now build the node
             processor.build_node(builder, opset)
         })
