@@ -5,7 +5,7 @@ use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use burn_tensor::{
     TensorData,
-    backend::{ExecutionError, DeviceId, DeviceOps, SyncError},
+    backend::{DeviceId, DeviceOps, ExecutionError, SyncError},
 };
 use core::ops::DerefMut;
 use hashbrown::HashMap;

@@ -4,7 +4,7 @@ use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_std::future::DynFut;
 use burn_tensor::{
     Shape, TensorData,
-    backend::{ExecutionError, DeviceId, DeviceOps, SyncError},
+    backend::{DeviceId, DeviceOps, ExecutionError, SyncError},
 };
 use std::{
     hash::{DefaultHasher, Hash, Hasher},

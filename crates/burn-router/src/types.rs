@@ -2,7 +2,7 @@ use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::{Backend, ExecutionError, DeviceId, DeviceOps, SyncError},
+    backend::{Backend, DeviceId, DeviceOps, ExecutionError, SyncError},
     try_read_sync,
 };
 
