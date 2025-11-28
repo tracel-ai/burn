@@ -28,20 +28,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GridSampleNode {
             }
         };
 
-        // Panic for unsupported options that would produce incorrect results
-        if self.config.padding_mode != GridSamplePaddingMode::Zeros {
-            panic!(
-                "GridSample: padding_mode {:?} is not supported by Burn",
-                self.config.padding_mode
-            );
-        }
+        // Map ONNX padding mode to Burn's GridSamplePaddingMode
+        let padding_mode = match self.config.padding_mode {
+            GridSamplePaddingMode::Zeros => {
+                quote! { burn::tensor::ops::GridSamplePaddingMode::Zeros }
+            }
+            GridSamplePaddingMode::Border => {
+                quote! { burn::tensor::ops::GridSamplePaddingMode::Border }
+            }
+            GridSamplePaddingMode::Reflection => {
+                quote! { burn::tensor::ops::GridSamplePaddingMode::Reflection }
+            }
+        };
 
-        if self.config.align_corners {
-            panic!("GridSample: align_corners=true is not supported by Burn");
-        }
+        let align_corners = self.config.align_corners;
 
         quote! {
-            let #output = #input.grid_sample_2d(#grid, #mode);
+            let #output = #input.grid_sample_2d(
+                #grid,
+                burn::tensor::ops::GridSampleOptions::new(#mode)
+                    .with_padding_mode(#padding_mode)
+                    .with_align_corners(#align_corners)
+            );
         }
     }
 }
@@ -71,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn test_grid_sample_bilinear() {
+    fn test_grid_sample_bilinear_zeros() {
         let node = create_grid_sample_node(
             GridSampleMode::Bilinear,
             GridSamplePaddingMode::Zeros,
@@ -81,7 +89,38 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
             let output = input
-                .grid_sample_2d(grid, burn::tensor::ops::InterpolateMode::Bilinear);
+                .grid_sample_2d(
+                    grid,
+                    burn::tensor::ops::GridSampleOptions::new(
+                            burn::tensor::ops::InterpolateMode::Bilinear,
+                        )
+                        .with_padding_mode(burn::tensor::ops::GridSamplePaddingMode::Zeros)
+                        .with_align_corners(false),
+                );
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_grid_sample_bilinear_border_align_corners() {
+        let node = create_grid_sample_node(
+            GridSampleMode::Bilinear,
+            GridSamplePaddingMode::Border,
+            true,
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = input
+                .grid_sample_2d(
+                    grid,
+                    burn::tensor::ops::GridSampleOptions::new(
+                            burn::tensor::ops::InterpolateMode::Bilinear,
+                        )
+                        .with_padding_mode(burn::tensor::ops::GridSamplePaddingMode::Border)
+                        .with_align_corners(true),
+                );
             output
         }
         ");
@@ -94,7 +133,15 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
-            let output = input.grid_sample_2d(grid, burn::tensor::ops::InterpolateMode::Nearest);
+            let output = input
+                .grid_sample_2d(
+                    grid,
+                    burn::tensor::ops::GridSampleOptions::new(
+                            burn::tensor::ops::InterpolateMode::Nearest,
+                        )
+                        .with_padding_mode(burn::tensor::ops::GridSamplePaddingMode::Zeros)
+                        .with_align_corners(false),
+                );
             output
         }
         ");
@@ -107,7 +154,39 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
-            let output = input.grid_sample_2d(grid, burn::tensor::ops::InterpolateMode::Bicubic);
+            let output = input
+                .grid_sample_2d(
+                    grid,
+                    burn::tensor::ops::GridSampleOptions::new(
+                            burn::tensor::ops::InterpolateMode::Bicubic,
+                        )
+                        .with_padding_mode(burn::tensor::ops::GridSamplePaddingMode::Zeros)
+                        .with_align_corners(false),
+                );
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_grid_sample_reflection() {
+        let node = create_grid_sample_node(
+            GridSampleMode::Bilinear,
+            GridSamplePaddingMode::Reflection,
+            false,
+        );
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = input
+                .grid_sample_2d(
+                    grid,
+                    burn::tensor::ops::GridSampleOptions::new(
+                            burn::tensor::ops::InterpolateMode::Bilinear,
+                        )
+                        .with_padding_mode(burn::tensor::ops::GridSamplePaddingMode::Reflection)
+                        .with_align_corners(false),
+                );
             output
         }
         ");
