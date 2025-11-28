@@ -408,6 +408,10 @@ impl Slice {
     /// Calculates the output size for this slice operation
     pub fn output_size(&self, dim_size: usize) -> usize {
         let range = self.to_range(dim_size);
+        // Handle empty slices (start >= end)
+        if range.start >= range.end {
+            return 0;
+        }
         let len = range.end - range.start;
         if self.step.unsigned_abs() == 1 {
             len

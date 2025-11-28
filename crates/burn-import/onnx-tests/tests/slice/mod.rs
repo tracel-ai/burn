@@ -15,7 +15,8 @@ include_models!(
     slice_tensor_start_shape_end,
     slice_axes,
     slice_with_steps,
-    slice_shape_with_steps
+    slice_shape_with_steps,
+    slice_empty
 );
 
 #[cfg(test)]
@@ -399,5 +400,28 @@ mod tests {
         );
 
         output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn slice_empty() {
+        // Tests ONNX Slice with empty range (start == end).
+        // This produces a tensor with size 0 in the sliced dimension.
+        let model: slice_empty::Model<TestBackend> = slice_empty::Model::default();
+        let device = Default::default();
+
+        let input = Tensor::<TestBackend, 2>::from_floats(
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0],
+                [10.0, 11.0, 12.0],
+            ],
+            &device,
+        );
+
+        let output = model.forward(input);
+
+        // Empty slice [2:2] on dimension 0 should produce shape [0, 3]
+        assert_eq!(output.shape().dims, [0, 3]);
     }
 }
