@@ -405,19 +405,19 @@ impl Slice {
     ///
     /// ```rust,ignore
     /// assert_eq!(
-    ///     Slice::new(0, None, 1).clip_size(10),
+    ///     Slice::new(0, None, 1).bound_to(10),
     ///     Slice::new(0, Some(10), 1));
     /// assert_eq!(
-    ///     Slice::new(0, Some(5), 1).clip_size(10),
+    ///     Slice::new(0, Some(5), 1).bound_to(10),
     ///     Slice::new(0, Some(5), 1));
     /// assert_eq!(
-    ///     Slice::new(0, None, -1).clip_size(10),
+    ///     Slice::new(0, None, -1).bound_to(10),
     ///     Slice::new(0, Some(-11), -1));
     /// assert_eq!(
-    ///     Slice::new(0, Some(-5), -1).clip_size(10),
+    ///     Slice::new(0, Some(-5), -1).bound_to(10),
     ///     Slice::new(0, Some(-5), -1));
     /// ```
-    pub fn clip_size(self, size: usize) -> Self {
+    pub fn bound_to(self, size: usize) -> Self {
         let mut bounds = size as isize;
 
         if let Some(end) = self.end {
@@ -832,22 +832,22 @@ mod tests {
     }
 
     #[test]
-    fn test_clip_size() {
+    fn test_bound_to() {
         assert_eq!(
-            Slice::new(0, None, 1).clip_size(10),
+            Slice::new(0, None, 1).bound_to(10),
             Slice::new(0, Some(10), 1)
         );
         assert_eq!(
-            Slice::new(0, Some(5), 1).clip_size(10),
+            Slice::new(0, Some(5), 1).bound_to(10),
             Slice::new(0, Some(5), 1)
         );
 
         assert_eq!(
-            Slice::new(0, None, -1).clip_size(10),
+            Slice::new(0, None, -1).bound_to(10),
             Slice::new(0, Some(-11), -1)
         );
         assert_eq!(
-            Slice::new(0, Some(-5), -1).clip_size(10),
+            Slice::new(0, Some(-5), -1).bound_to(10),
             Slice::new(0, Some(-5), -1)
         );
     }
@@ -874,7 +874,7 @@ mod tests {
         );
         assert_eq!(
             Slice::new(3, None, 2)
-                .clip_size(8)
+                .bound_to(8)
                 .into_iter()
                 .collect::<Vec<_>>(),
             vec![3, 5, 7]
