@@ -111,7 +111,8 @@ pub mod prelude {
         module::Module,
         tensor::{
             Bool, Device, ElementConversion, Float, Int, Shape, SliceArg, Tensor, TensorData,
-            backend::Backend, cast::ToElement,
+            backend::Backend,
+            cast::ToElement,
             ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
             s,
         },
