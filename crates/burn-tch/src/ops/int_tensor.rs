@@ -377,7 +377,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     }
 
     fn int_into_float(tensor: TchTensor) -> TchTensor {
-        let tensor = tensor.tensor.to_kind(E::KIND);
+        let tensor = tensor.tensor.to_kind(E::kind());
         TchTensor::new(tensor)
     }
 
