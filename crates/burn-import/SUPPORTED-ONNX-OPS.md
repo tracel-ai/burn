@@ -81,7 +81,7 @@ functionality.
 | [GlobalMaxPool][65]              | ❌             | ❌           |
 | [Greater][66]                    | ✅             | ✅           |
 | [GreaterOrEqual][67]             | ✅             | ✅           |
-| [GridSample][68]                 | ❌             | ❌           |
+| [GridSample][68]                 | ✅             | ✅           |
 | [GroupNormalization][69]         | ✅             | ✅           |
 | [GRU][70]                        | ❌             | ✅           |
 | [HammingWindow][71]              | ❌             | ❌           |
