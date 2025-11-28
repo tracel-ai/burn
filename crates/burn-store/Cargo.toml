@@ -31,8 +31,7 @@ cuda = ["burn-cuda"]
 candle = ["burn-candle"]
 tch = ["burn-tch"]
 
-# no-std safetensors is disabled for now because https://github.com/huggingface/safetensors/issues/650 is not published
-safetensors = ["safetensors/std"]
+safetensors = ["dep:safetensors"]
 
 pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
 

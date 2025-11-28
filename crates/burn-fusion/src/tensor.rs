@@ -5,6 +5,7 @@ use crate::{
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
+    backend::ExecutionError,
     quantization::{QTensorPrimitive, QuantScheme},
 };
 use std::sync::{
@@ -130,7 +131,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) async fn into_data<B>(self) -> TensorData
+    pub(crate) async fn into_data<B>(self) -> Result<TensorData, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -140,7 +141,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         client.read_tensor_float::<B>(desc, id).await
     }
 
-    pub(crate) async fn q_into_data<B>(self) -> TensorData
+    pub(crate) async fn q_into_data<B>(self) -> Result<TensorData, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -154,7 +155,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) async fn int_into_data<B>(self) -> TensorData
+    pub(crate) async fn int_into_data<B>(self) -> Result<TensorData, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -164,7 +165,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         client.read_tensor_int::<B>(desc, id).await
     }
 
-    pub(crate) async fn bool_into_data<B>(self) -> TensorData
+    pub(crate) async fn bool_into_data<B>(self) -> Result<TensorData, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {

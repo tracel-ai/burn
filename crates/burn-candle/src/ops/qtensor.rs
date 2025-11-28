@@ -1,6 +1,6 @@
 use burn_tensor::{
     DType, Device, Shape, TensorData,
-    backend::Backend,
+    backend::{Backend, ExecutionError},
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -42,7 +42,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         unimplemented!()
     }
 
