@@ -41,21 +41,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::expand::ExpandNode {
 
         // ONNX Expand uses max-semantics: output_dim = max(input_dim, shape_dim)
         // When shape_dim == 1 but input_dim > 1, ONNX keeps the input_dim.
-        // Burn's expand uses -1 to mean "keep input dim".
-        // We transform the shape by replacing 1 with -1 when input_dim > 1.
+        // We compute the max directly to match ONNX semantics before calling expand.
         quote! {
             let #output = {
                 let onnx_shape: [i64; #output_rank] = #shape;
                 let input_dims = #input.dims();
-                let mut burn_shape = onnx_shape;
+                let mut shape = onnx_shape;
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..#input_rank {
                     let dim_offset = #output_rank - #input_rank + i;
-                    if burn_shape[dim_offset] == 1 && input_dims[i] > 1 {
-                        burn_shape[dim_offset] = -1;
+                    if shape[dim_offset] == 1 && input_dims[i] > 1 {
+                        shape[dim_offset] = input_dims[i] as i64;
                     }
                 }
-                #input.expand(burn_shape)
+                #input.expand(shape)
             };
         }
     }
@@ -88,15 +87,15 @@ mod tests {
             let output = {
                 let onnx_shape: [i64; 3usize] = [2, 3, 4];
                 let input_dims = input.dims();
-                let mut burn_shape = onnx_shape;
+                let mut shape = onnx_shape;
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..2usize {
                     let dim_offset = 3usize - 2usize + i;
-                    if burn_shape[dim_offset] == 1 && input_dims[i] > 1 {
-                        burn_shape[dim_offset] = -1;
+                    if shape[dim_offset] == 1 && input_dims[i] > 1 {
+                        shape[dim_offset] = input_dims[i] as i64;
                     }
                 }
-                input.expand(burn_shape)
+                input.expand(shape)
             };
             output
         }
@@ -112,15 +111,15 @@ mod tests {
             let output = {
                 let onnx_shape: [i64; 3usize] = [1, 5, 10];
                 let input_dims = input.dims();
-                let mut burn_shape = onnx_shape;
+                let mut shape = onnx_shape;
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..2usize {
                     let dim_offset = 3usize - 2usize + i;
-                    if burn_shape[dim_offset] == 1 && input_dims[i] > 1 {
-                        burn_shape[dim_offset] = -1;
+                    if shape[dim_offset] == 1 && input_dims[i] > 1 {
+                        shape[dim_offset] = input_dims[i] as i64;
                     }
                 }
-                input.expand(burn_shape)
+                input.expand(shape)
             };
             output
         }
