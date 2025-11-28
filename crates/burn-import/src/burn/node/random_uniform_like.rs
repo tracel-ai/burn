@@ -1,117 +1,57 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct RandomUniformLikeNode {
-    pub low: f64,
-    pub high: f64,
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl RandomUniformLikeNode {
-    // Set distribution parameters based on low and high
-    fn get_distribution(&self) -> TokenStream {
-        let low = self.low;
-        let high = self.high;
-        quote! { Distribution::Uniform(#low, #high) }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random_like::RandomUniformLikeNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let dist = self.get_distribution();
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        // Build distribution with low and high bounds
+        let low = self.config.low;
+        let high = self.config.high;
+        let dist = quote! { Distribution::Uniform(#low, #high) };
+
         quote! {
             let #output = #input.random_like(#dist);
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::RandomUniformLike(self)
-    }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+    fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::tensor::Distribution");
-    }
-}
-
-impl OnnxIntoNode for RandomUniformLikeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let low = node
-            .attrs
-            .get("low")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(0.0f64);
-        let high = node
-            .attrs
-            .get("high")
-            .map(|val| val.clone().into_f32() as f64)
-            .unwrap_or(1.0f64);
-        Self::new(low, high, input, output)
     }
 }
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
-    use crate::burn::{TensorKind, TensorType, graph::BurnGraph, node::test::assert_tokens};
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::random_like::{RandomUniformLikeConfig, RandomUniformLikeNodeBuilder};
 
     #[test]
-    fn test_random_normal_like_codegen() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(RandomUniformLikeNode::new(
-            0.0f64,
-            1.0f64,
-            TensorType::new("input", 2, TensorKind::Float),
-            TensorType::new("output", 2, TensorKind::Float),
-        ));
-
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::tensor::Distribution;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.random_like(Distribution::Uniform(0f64, 1f64));
-                    output
-                }
-            }
+    fn test_random_uniform_like() {
+        let config = RandomUniformLikeConfig {
+            low: 0.0,
+            high: 1.0,
         };
-
-        assert_tokens(graph.codegen(), expected);
+        let node = RandomUniformLikeNodeBuilder::new("randl1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.random_like(Distribution::Uniform(0f64, 1f64));
+            output
+        }
+        ");
     }
 }

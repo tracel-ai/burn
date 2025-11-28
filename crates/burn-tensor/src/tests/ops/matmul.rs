@@ -299,7 +299,7 @@ mod tests {
             .reshape([batch1, batch2, seq_length, d_model])
             .float();
 
-        TestBackend::sync(&device);
+        TestBackend::sync(&device).unwrap();
         let weight = weight.transpose();
         let out = signal.matmul(weight) + 5;
         let expected = TensorData::from([[

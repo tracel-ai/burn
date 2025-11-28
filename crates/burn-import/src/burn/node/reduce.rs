@@ -1,9 +1,4 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::reduce::ReduceConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ReductionType {
@@ -43,19 +38,9 @@ impl ReductionType {
             _ => panic!("Unsupported reduction type {:?}", self),
         }
     }
-}
 
-#[derive(Debug, Clone, new)]
-pub struct ReduceNode {
-    pub input: Type,
-    pub output: Type,
-    pub reduction_type: ReductionType,
-    pub config: ReduceConfig,
-}
-
-impl ReduceNode {
     fn reduce_by_dims(
-        reduction_type: ReductionType,
+        &self,
         input: TokenStream,
         dims: Vec<usize>,
         keepdims: bool,
@@ -63,7 +48,7 @@ impl ReduceNode {
     ) -> TokenStream {
         // Reducing along specified dimensions
         let reduced_input = dims.iter().fold(input, |tokens, dim| {
-            reduction_type.forward_reduce_by_dim(tokens, *dim)
+            self.forward_reduce_by_dim(tokens, *dim)
         });
 
         if keepdims {
@@ -76,14 +61,17 @@ impl ReduceNode {
                 reduced_input
             } else {
                 // Squeezing dimensions for non-scalar outputs
-                let dims = dims.to_tokens();
-                quote! { #reduced_input.squeeze_dims(&#dims) }
+                // Use turbofish syntax to specify the output rank explicitly
+                // This helps Rust's type inference when the result is used in a context
+                // that requires knowing the tensor rank
+                let dims_tokens = dims.to_tokens();
+                quote! { #reduced_input.squeeze_dims::<#output_rank>(&#dims_tokens) }
             }
         }
     }
 
     fn forward_reduce(
-        reduction_type: ReductionType,
+        &self,
         input: TokenStream,
         mut dims: Vec<usize>,
         keepdims: bool,
@@ -91,7 +79,7 @@ impl ReduceNode {
         output_rank: usize,
     ) -> TokenStream {
         if dims.is_empty() {
-            if let Some(reduced_input) = reduction_type.try_forward_reduce(input.clone()) {
+            if let Some(reduced_input) = self.try_forward_reduce(input.clone()) {
                 // Reducing along all dimensions
                 if keepdims {
                     quote! { #reduced_input.expand([1; #output_rank]) }
@@ -101,692 +89,394 @@ impl ReduceNode {
             } else {
                 // Reducing along all specific dimensions
                 dims = (0..input_rank).collect();
-                Self::reduce_by_dims(reduction_type, input, dims, keepdims, output_rank)
+                self.reduce_by_dims(input, dims, keepdims, output_rank)
             }
         } else {
             // Reducing along specific dimensions
-            Self::reduce_by_dims(reduction_type, input, dims, keepdims, output_rank)
+            self.reduce_by_dims(input, dims, keepdims, output_rank)
         }
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
-    }
-
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
-    }
-
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
-
-        // Handle input based on type
-        let (input, input_rank) = match &self.input {
-            Type::Tensor(tensor) => (scope.tensor_use_owned(tensor, node_position), tensor.rank),
-            _ => panic!("ReduceNode input must be a tensor"),
-        };
-
-        // Handle output based on type
-        let output_rank = match &self.output {
-            Type::Tensor(tensor) => tensor.rank,
-            Type::Scalar(_) => 0,
-            _ => panic!("ReduceNode output must be tensor or scalar"),
-        };
-        let dims = self.config.dims.clone();
-        let keepdims = self.config.keepdims;
-
-        let raw_output_expr = match self.reduction_type {
-            ReductionType::SumSquare => {
-                let input_square = quote! { #input.square() };
-                Self::forward_reduce(
-                    ReductionType::Sum,
-                    input_square,
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                )
+// Helper macro to implement NodeCodegen for reduce nodes
+macro_rules! impl_reduce_node {
+    ($node_type:ty, $reduction_type:expr) => {
+        impl<PS: PrecisionSettings> NodeCodegen<PS> for $node_type {
+            fn inputs(&self) -> &[Argument] {
+                &self.inputs
             }
-            ReductionType::L1 => {
-                let input_abs = quote! { #input.abs() };
-                Self::forward_reduce(
-                    ReductionType::Sum,
-                    input_abs,
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                )
-            }
-            ReductionType::L2 => {
-                let input_square = quote! { #input.square() };
-                let input_square_reduced = Self::forward_reduce(
-                    ReductionType::Sum,
-                    input_square,
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
 
-                match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            // Cast to F32 before sqrt to avoid overflow/underflow in lower precision types,
-                            // as per ONNX ReduceL2 specification: https://onnx.ai/onnx/operators/onnx__ReduceL2.html#function-body
-                            quote! { #input_square_reduced.float().cast(burn::tensor::DType::F32).sqrt().int() }
-                        }
-                        TensorKind::Float => {
-                            // Cast to F32 before sqrt to avoid overflow/underflow in lower precision types,
-                            // then cast back to original dtype to maintain input precision
-                            quote! {
-                                let input_dtype = #input.dtype();
-                                #input_square_reduced.cast(burn::tensor::DType::F32).sqrt().cast(input_dtype)
-                            }
-                        }
-                        _ => panic!("Unsupported input type for L2 reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
-                }
+            fn outputs(&self) -> &[Argument] {
+                &self.outputs
             }
-            ReductionType::LogSum => {
-                let input_reduced = Self::forward_reduce(
-                    ReductionType::Sum,
-                    input.clone(),
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
 
-                match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            quote! { #input_reduced.float().cast(burn::tensor::DType::F32).log().int() }
-                        }
-                        TensorKind::Float => {
-                            quote! {
-                                let input_dtype = #input.dtype();
-                                #input_reduced.cast(burn::tensor::DType::F32).log().cast(input_dtype)
-                            }
-                        }
-                        _ => panic!("Unsupported input type for LogSum reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
-                }
-            }
-            ReductionType::LogSumExp => {
-                let input_double = match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            quote! { #input.float().cast(burn::tensor::DType::F32) }
-                        }
-                        TensorKind::Float => {
-                            quote! { #input.cast(burn::tensor::DType::F32) }
-                        }
-                        _ => panic!("Unsupported input type for LogSumExp reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
+            fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+                let input_arg = self.inputs.first().unwrap();
+                let output_arg = self.outputs.first().unwrap();
+
+                // Get input rank and check if it's boolean
+                let (input_rank, is_bool) = match &input_arg.ty {
+                    onnx_ir::ir::ArgType::Tensor(tensor) => {
+                        (tensor.rank, tensor.dtype == onnx_ir::ir::DType::Bool)
+                    }
+                    _ => panic!("Reduce node input must be a tensor"),
                 };
 
-                let input_max_reduced = Self::forward_reduce(
-                    ReductionType::Max,
-                    quote! { input_double.clone() },
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
-
-                let exp_reduced = Self::forward_reduce(
-                    ReductionType::Sum,
-                    quote! { input_exp_reduced },
-                    dims.clone(),
-                    keepdims,
-                    input_rank,
-                    output_rank,
-                );
-
-                let input_reduced = quote! {
-                    let input_dtype = #input.dtype();
-                    let input_shape = #input.shape();
-                    let input_double = #input_double;
-                    let input_max_reduced = #input_max_reduced;
-                    let input_exp_reduced = (input_double - input_max_reduced.clone().expand(input_shape)).exp();
-                    let exp_sum_reduced = #exp_reduced;
-                    (input_max_reduced + exp_sum_reduced.log())
+                // Get output rank
+                let output_rank = match &output_arg.ty {
+                    onnx_ir::ir::ArgType::Tensor(tensor) => tensor.rank,
+                    onnx_ir::ir::ArgType::Scalar(_) => 0,
+                    _ => panic!("Reduce node output must be tensor or scalar"),
                 };
 
-                match &self.input {
-                    Type::Tensor(tensor) => match tensor.kind {
-                        TensorKind::Int => {
-                            quote! { #input_reduced.int() }
+                let input = scope.arg(input_arg);
+                let output = arg_to_ident(output_arg);
+
+                let dims = self.config.dims.clone();
+                let keepdims = self.config.keepdims;
+
+                // For boolean tensors with Min/Max reduction, use all()/any()
+                if is_bool && matches!($reduction_type, ReductionType::Min | ReductionType::Max) {
+                    let (bool_reduction_all, bool_reduction_dim) = match $reduction_type {
+                        ReductionType::Min => (quote! { all }, quote! { all_dim }),
+                        ReductionType::Max => (quote! { any }, quote! { any_dim }),
+                        _ => unreachable!(),
+                    };
+
+                    let reduced_input = if dims.is_empty() {
+                        // Reduce all dimensions
+                        quote! { #input.#bool_reduction_all() }
+                    } else {
+                        // Reduce along specific dimensions
+                        dims.iter().fold(input.clone(), |tokens, dim| {
+                            quote! { #tokens.#bool_reduction_dim(#dim) }
+                        })
+                    };
+
+                    let final_output = if keepdims {
+                        if dims.is_empty() {
+                            quote! { #reduced_input.expand([1; #output_rank]) }
+                        } else {
+                            reduced_input
                         }
-                        TensorKind::Float => {
-                            quote! { #input_reduced.cast(input_dtype) }
+                    } else if output_rank == 0 {
+                        reduced_input
+                    } else {
+                        // Need to squeeze dimensions with explicit rank for type inference
+                        let dims_to_squeeze = dims.to_tokens();
+                        quote! { #reduced_input.squeeze_dims::<#output_rank>(&#dims_to_squeeze) }
+                    };
+
+                    return if output_rank == 0 {
+                        quote! {
+                            let #output = {
+                                #final_output.into_scalar().elem::<bool>()
+                            };
                         }
-                        _ => panic!("Unsupported input type for LogSumExp reduction"),
-                    },
-                    _ => panic!("ReduceNode input must be a tensor"),
+                    } else {
+                        quote! {
+                            let #output = #final_output;
+                        }
+                    };
                 }
+
+                let raw_output_expr = match $reduction_type {
+                    ReductionType::SumSquare => {
+                        let input_square = quote! { #input.square() };
+                        ReductionType::Sum.forward_reduce(
+                            input_square,
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        )
+                    }
+                    ReductionType::L1 => {
+                        let input_abs = quote! { #input.abs() };
+                        ReductionType::Sum.forward_reduce(
+                            input_abs,
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        )
+                    }
+                    ReductionType::L2 => {
+                        let input_square = quote! { #input.square() };
+                        let input_square_reduced = ReductionType::Sum.forward_reduce(
+                            input_square,
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        // Cast to F32 before sqrt to avoid overflow/underflow
+                                        quote! { #input_square_reduced.float().cast(burn::tensor::DType::F32).sqrt().int() }
+                                    }
+                                    _ => {
+                                        // Float types - cast to F32 before sqrt, then back
+                                        quote! {
+                                            let input_dtype = #input.dtype();
+                                            #input_square_reduced.cast(burn::tensor::DType::F32).sqrt().cast(input_dtype)
+                                        }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        }
+                    }
+                    ReductionType::LogSum => {
+                        let input_reduced = ReductionType::Sum.forward_reduce(
+                            input.clone(),
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        quote! { #input_reduced.float().cast(burn::tensor::DType::F32).log().int() }
+                                    }
+                                    _ => {
+                                        quote! {
+                                            let input_dtype = #input.dtype();
+                                            #input_reduced.cast(burn::tensor::DType::F32).log().cast(input_dtype)
+                                        }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        }
+                    }
+                    ReductionType::LogSumExp => {
+                        let input_double = match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        quote! { #input.float().cast(burn::tensor::DType::F32) }
+                                    }
+                                    _ => {
+                                        quote! { #input.cast(burn::tensor::DType::F32) }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        };
+
+                        let input_max_reduced = ReductionType::Max.forward_reduce(
+                            quote! { input_double.clone() },
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        let exp_reduced = ReductionType::Sum.forward_reduce(
+                            quote! { input_exp_reduced },
+                            dims.clone(),
+                            keepdims,
+                            input_rank,
+                            output_rank,
+                        );
+
+                        let input_reduced = quote! {
+                            let input_dtype = #input.dtype();
+                            let input_shape = #input.shape();
+                            let input_double = #input_double;
+                            let input_max_reduced = #input_max_reduced;
+                            let input_exp_reduced = (input_double - input_max_reduced.clone().expand(input_shape)).exp();
+                            let exp_sum_reduced = #exp_reduced;
+                            (input_max_reduced + exp_sum_reduced.log())
+                        };
+
+                        match &input_arg.ty {
+                            onnx_ir::ir::ArgType::Tensor(tensor) => {
+                                match tensor.dtype {
+                                    onnx_ir::ir::DType::I8
+                                    | onnx_ir::ir::DType::I16
+                                    | onnx_ir::ir::DType::I32
+                                    | onnx_ir::ir::DType::I64 => {
+                                        quote! { #input_reduced.int() }
+                                    }
+                                    _ => {
+                                        quote! { #input_reduced.cast(input_dtype) }
+                                    }
+                                }
+                            }
+                            _ => panic!("Reduce node input must be a tensor"),
+                        }
+                    }
+                    _ => $reduction_type.forward_reduce(
+                        input,
+                        dims.clone(),
+                        keepdims,
+                        input_rank,
+                        output_rank,
+                    ),
+                };
+
+                // Handle scalar outputs by extracting the scalar value from the tensor result
+                let output_expr = match &output_arg.ty {
+                    onnx_ir::ir::ArgType::Scalar(dtype) => {
+                        // For scalar outputs, extract the scalar value using .into_scalar()
+                        match dtype {
+                            onnx_ir::ir::DType::I8 => quote! { #raw_output_expr.into_scalar().elem::<i8>() },
+                            onnx_ir::ir::DType::I16 => quote! { #raw_output_expr.into_scalar().elem::<i16>() },
+                            onnx_ir::ir::DType::I32 => quote! { #raw_output_expr.into_scalar().elem::<i32>() },
+                            onnx_ir::ir::DType::I64 => quote! { #raw_output_expr.into_scalar().elem::<i64>() },
+                            onnx_ir::ir::DType::F16 => quote! { #raw_output_expr.into_scalar().elem::<half::f16>() },
+                            onnx_ir::ir::DType::F32 => quote! { #raw_output_expr.into_scalar().elem::<f32>() },
+                            onnx_ir::ir::DType::F64 => quote! { #raw_output_expr.into_scalar().elem::<f64>() },
+                            onnx_ir::ir::DType::Bool => quote! { #raw_output_expr.into_scalar().elem::<bool>() },
+                            _ => panic!("Unsupported scalar type for reduce output"),
+                        }
+                    }
+                    onnx_ir::ir::ArgType::Tensor(_) => raw_output_expr,
+                    _ => panic!("Reduce node output must be tensor or scalar"),
+                };
+
+                quote! { let #output = { #output_expr }; }
             }
-            _ => Self::forward_reduce(
-                self.reduction_type,
-                input,
-                dims.clone(),
-                keepdims,
-                input_rank,
-                output_rank,
-            ),
-        };
 
-        // Handle scalar outputs by extracting the scalar value from the tensor result
-        let output_expr = match &self.output {
-            Type::Scalar(scalar_type) => {
-                // For scalar outputs, extract the scalar value using .into_scalar() and convert to the proper type
-                let elem_type = &scalar_type.ty();
-                quote! { #raw_output_expr.into_scalar().elem::<#elem_type>() }
+            fn register_imports(&self, _imports: &mut BurnImports) {
+                // No special imports needed for reduce operations
             }
-            Type::Tensor(_) => raw_output_expr,
-            _ => panic!("ReduceNode output must be tensor or scalar"),
-        };
-
-        quote! { let #output = { #output_expr }; }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::ReduceMax(self)
-    }
+        }
+    };
 }
 
-impl OnnxIntoNode for ReduceNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::NodeType;
-
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::reduce::reduce_config(&node);
-
-        // Determine reduction type from node type
-        let reduction_type = match node.node_type {
-            NodeType::ReduceMax => ReductionType::Max,
-            NodeType::ReduceMin => ReductionType::Min,
-            NodeType::ReduceSum => ReductionType::Sum,
-            NodeType::ReduceProd => ReductionType::Prod,
-            NodeType::ReduceMean => ReductionType::Mean,
-            NodeType::ReduceL1 => ReductionType::L1,
-            NodeType::ReduceL2 => ReductionType::L2,
-            NodeType::ReduceLogSum => ReductionType::LogSum,
-            NodeType::ReduceLogSumExp => ReductionType::LogSumExp,
-            NodeType::ReduceSumSquare => ReductionType::SumSquare,
-            _ => panic!("Unsupported reduction type: {:?}", node.node_type),
-        };
-
-        ReduceNode::new(input, output, reduction_type, config)
-    }
-}
+// Implement NodeCodegen for all reduce node types
+impl_reduce_node!(onnx_ir::node::reduce::ReduceMaxNode, ReductionType::Max);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceMinNode, ReductionType::Min);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceSumNode, ReductionType::Sum);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceProdNode, ReductionType::Prod);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceMeanNode, ReductionType::Mean);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceL1Node, ReductionType::L1);
+impl_reduce_node!(onnx_ir::node::reduce::ReduceL2Node, ReductionType::L2);
+impl_reduce_node!(
+    onnx_ir::node::reduce::ReduceLogSumNode,
+    ReductionType::LogSum
+);
+impl_reduce_node!(
+    onnx_ir::node::reduce::ReduceLogSumExpNode,
+    ReductionType::LogSumExp
+);
+impl_reduce_node!(
+    onnx_ir::node::reduce::ReduceSumSquareNode,
+    ReductionType::SumSquare
+);
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType, Type,
-        graph::BurnGraph,
-        node::{reduce::ReduceNode, test::assert_tokens},
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::reduce::{
+        ReduceConfig, ReduceMaxNode, ReduceMaxNodeBuilder, ReduceMeanNodeBuilder,
+        ReduceSumNodeBuilder,
     };
 
-    #[test]
-    fn test_codegen_reduce_max() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 2)),
-            ReductionType::Max,
-            ReduceConfig::new(vec![0, 2], false),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
-                    let tensor2 = {
-                        tensor1
-                            .max_dim(0usize)
-                            .max_dim(2usize)
-                            .squeeze_dims(&[0, 2])
-                    };
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn create_reduce_max_node(name: &str, config: ReduceConfig) -> ReduceMaxNode {
+        ReduceMaxNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
     }
 
     #[test]
-    fn test_codegen_reduce_min() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ReductionType::Min,
-            ReduceConfig::new(vec![1, 3], true),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = { tensor1.min_dim(1usize).min_dim(3usize) };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_reduce_max_keepdims() {
+        let config = ReduceConfig::new(vec![1], true);
+        let node = create_reduce_max_node("reduce_max1", config);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.max_dim(1usize) };
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_reduce_sum() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 1)),
-            ReductionType::Sum,
-            ReduceConfig::new(vec![], false),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = { tensor1.sum() };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_reduce_mean_keepdims() {
+        let config = ReduceConfig::new(vec![1], true);
+        let node = ReduceMeanNodeBuilder::new("reduce_mean1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.mean_dim(1usize) };
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_reduce_sum_square() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ReductionType::SumSquare,
-            ReduceConfig::new(vec![], true),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = { tensor1.square().sum().expand([1; 4usize]) };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_reduce_sum_keepdims() {
+        let config = ReduceConfig::new(vec![1], true);
+        let node = ReduceSumNodeBuilder::new("reduce_sum1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.sum_dim(1usize) };
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_reduce_l1() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 3)),
-            ReductionType::L1,
-            ReduceConfig::new(vec![0], false),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 3> {
-                    let tensor2 = { tensor1.abs().sum_dim(0usize).squeeze_dims(&[0]) };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_reduce_max_multiple_dims() {
+        let config = ReduceConfig::new(vec![1, 2], true);
+        let node = create_reduce_max_node("reduce_max1", config);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = { input.max_dim(1usize).max_dim(2usize) };
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_reduce_l2() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 2)),
-            ReductionType::L2,
-            ReduceConfig::new(vec![0, 3], false),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
-                    let tensor2 = {
-                        let input_dtype = tensor1.dtype();
-                        tensor1
-                            .square()
-                            .sum_dim(0usize)
-                            .sum_dim(3usize)
-                            .squeeze_dims(&[0, 3])
-                            .cast(burn::tensor::DType::F32)
-                            .sqrt()
-                            .cast(input_dtype)
-                    };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
-    }
-
-    #[test]
-    fn test_codegen_reduce_log_sum() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 3)),
-            ReductionType::LogSum,
-            ReduceConfig::new(vec![0], false),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 3> {
-                    let tensor2 = {
-                        let input_dtype = tensor1.dtype();
-                        tensor1
-                            .sum_dim(0usize)
-                            .squeeze_dims(&[0])
-                            .cast(burn::tensor::DType::F32)
-                            .log()
-                            .cast(input_dtype)
-                    };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
-    }
-
-    #[test]
-    fn test_codegen_reduce_prod() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ReductionType::Prod,
-            ReduceConfig::new(vec![3], true),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = { tensor1.prod_dim(3usize) };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
-    }
-
-    #[test]
-    fn test_codegen_reduce_mean() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 1)),
-            ReductionType::Mean,
-            ReduceConfig::new(vec![], false),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = { tensor1.mean() };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
-    }
-
-    #[test]
-    fn test_codegen_reduce_log_sum_exp() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ReduceNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ReductionType::LogSumExp,
-            ReduceConfig::new(vec![2], true),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = {
-                        let input_dtype = tensor1.dtype();
-                        let input_shape = tensor1.shape();
-                        let input_double = tensor1.cast(burn::tensor::DType::F32);
-                        let input_max_reduced = input_double.clone().max_dim(2usize);
-                        let input_exp_reduced =
-                            (input_double - input_max_reduced.clone().expand(input_shape)).exp();
-                        let exp_sum_reduced = input_exp_reduced.sum_dim(2usize);
-                        (input_max_reduced + exp_sum_reduced.log()).cast(input_dtype)
-                    };
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_reduce_sum_multiple_dims_no_keepdims() {
+        let config = ReduceConfig::new(vec![1, 2], false);
+        let node = ReduceSumNodeBuilder::new("reduce_sum1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 1> {
+            let output = {
+                input.sum_dim(1usize).sum_dim(2usize).squeeze_dims::<1usize>(&[1, 2])
+            };
+            output
+        }
+        ");
     }
 }

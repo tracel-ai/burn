@@ -1,100 +1,43 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct BitwiseNotNode {
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseNotNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwisenot::BitwiseNotNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![{
-            if self.input.kind != TensorKind::Int {
-                panic!("BitwiseNotNode only supports Int TensorType inputs");
-            }
-            Type::Tensor(self.input.clone())
-        }]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = #input.bitwise_not();
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        if self.output.kind != TensorKind::Int {
-            panic!("BitwiseNotNode only supports Int TensorType outputs");
-        }
-        Node::BitwiseNot(self)
-    }
-}
-
-impl OnnxIntoNode for BitwiseNotNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
-        Self::new(input, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{bitwisenot::BitwiseNotNode, test::assert_tokens},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::bitwisenot::BitwiseNotNodeBuilder;
 
     #[test]
-    fn test_codegen_bitwise_not() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(BitwiseNotNode {
-            input: TensorType::new_int("input", 2),
-            output: TensorType::new_int("output", 2),
-        });
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
-                    let output = input.bitwise_not();
-                    output
-                }
-            }
-        };
-        assert_tokens(graph.codegen(), expected);
+    fn test_bitwisenot() {
+        let node = BitwiseNotNodeBuilder::new("not1")
+            .input_tensor("input", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = input.bitwise_not();
+            output
+        }
+        ");
     }
 }

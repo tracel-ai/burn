@@ -39,6 +39,7 @@ pub mod cosh;
 pub mod depth_to_space;
 pub mod div;
 pub mod dropout;
+pub mod empty_graph;
 pub mod equal;
 pub mod erf;
 pub mod exp;
@@ -57,6 +58,7 @@ pub mod greater_or_equal;
 pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod identity;
+pub mod if_op;
 pub mod initializer_to_const;
 pub mod instance_norm;
 pub mod is_inf;
@@ -68,6 +70,7 @@ pub mod less_or_equal;
 pub mod linear;
 pub mod log;
 pub mod log_softmax;
+pub mod r#loop;
 pub mod matmul;
 pub mod matmulinteger;
 pub mod max;
@@ -95,6 +98,7 @@ pub mod relu;
 pub mod reshape;
 pub mod resize;
 pub mod round;
+pub mod scan;
 pub mod shape;
 pub mod sigmoid;
 pub mod sign;
@@ -107,6 +111,7 @@ pub mod split;
 pub mod sqrt;
 pub mod squeeze;
 pub mod sub;
+pub mod subgraph;
 pub mod sum;
 pub mod tan;
 pub mod tanh;
@@ -117,13 +122,14 @@ pub mod trilu;
 pub mod unsqueeze;
 pub mod where_op;
 pub mod xor;
+
 /// Include specified models in the `model` directory in the target directory.
 #[macro_export]
 macro_rules! include_models {
     ($($model:ident),*) => {
         $(
             // Allow type complexity for generated code
-            #[allow(clippy::type_complexity,unused_variables)]
+            #[allow(clippy::type_complexity)]
             pub mod $model {
                 include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
             }

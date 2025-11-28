@@ -6,6 +6,8 @@ pub use base::*;
 
 pub(crate) mod cli;
 
+pub use cli::*;
+
 /// The tui renderer
 #[cfg(feature = "tui")]
 pub mod tui;
@@ -28,5 +30,5 @@ pub(crate) fn default_renderer(
         return Box::new(tui::TuiMetricsRenderer::new(interuptor, checkpoint));
     }
 
-    Box::new(cli::CliMetricsRenderer::new())
+    Box::new(CliMetricsRenderer::new())
 }

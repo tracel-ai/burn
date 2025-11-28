@@ -1,8 +1,7 @@
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::utils::{broadcast_shape, linear_view, linear_view_ref},
-    ops::numeric::empty_device,
+    ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use cubecl::std::tensor::layout::linear::LinearView;
@@ -13,6 +12,7 @@ fn cross_kernel<E: Float>(
     lhs: &LinearView<Line<E>>,
     rhs: &LinearView<Line<E>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
+    #[define(E)] _dtype: StorageType,
 ) {
     // Each thread processes one 3-element vector
     let vector_idx = ABSOLUTE_POS;
@@ -41,7 +41,7 @@ fn cross_kernel<E: Float>(
     output[base_pos + 2] = z;
 }
 
-pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
+pub(crate) fn cross<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     dim: usize,
@@ -68,7 +68,12 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
     // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
     let line_size = 1;
 
-    let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), output_shape.clone());
+    let output = empty_device_dtype(
+        lhs.client.clone(),
+        lhs.device.clone(),
+        output_shape.clone(),
+        lhs.dtype,
+    );
 
     // Number of vectors to process
     let num_vectors = output_shape.num_elements() / 3;
@@ -77,15 +82,17 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
     let cube_count = calculate_cube_count_elemwise(num_vectors, cube_dim);
 
     unsafe {
-        cross_kernel::launch_unchecked::<E, R>(
+        cross_kernel::launch_unchecked(
             &lhs.client,
             cube_count,
             cube_dim,
             linear_view_ref(&lhs, &output, line_size),
             linear_view_ref(&rhs, &output, line_size),
             linear_view(&output, line_size),
-        );
-    }
+            lhs.dtype.into(),
+        )
+        .expect("Kernel to never fail");
+    };
 
     output
 }

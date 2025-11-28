@@ -1,6 +1,6 @@
 use super::cer::edit_distance;
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
+use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
@@ -57,7 +57,7 @@ impl<B: Backend> WordErrorRate<B> {
 impl<B: Backend> Metric for WordErrorRate<B> {
     type Input = WerInput<B>;
 
-    fn update(&mut self, input: &WerInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &WerInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
         let outputs = input.outputs.clone();
         let targets = input.targets.clone();
         let [batch_size, seq_len] = targets.dims();
@@ -141,7 +141,7 @@ impl<B: Backend> Metric for WordErrorRate<B> {
 
 impl<B: Backend> Numeric for WordErrorRate<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

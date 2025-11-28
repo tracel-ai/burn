@@ -1,12 +1,54 @@
-use proc_macro2::TokenStream;
-use serde::Serialize;
-
-// Import the generated Node enum and match_all! macro from registry
-use super::node_registry::{Node, match_all};
+use proc_macro2::{Ident, Span, TokenStream};
 
 use burn::record::PrecisionSettings;
+use onnx_ir::Argument;
 
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::BurnImports;
+
+/// A field in the generated model struct
+#[derive(Debug, Clone)]
+pub struct Field {
+    pub name: Ident,
+    pub ty: TokenStream,
+    pub init: TokenStream,
+}
+
+impl Field {
+    pub fn new<S: AsRef<str>>(name: S, ty: TokenStream, init: TokenStream) -> Self {
+        if name.as_ref().is_empty() {
+            panic!("Field with type {ty:?} was passed with empty name");
+        }
+        Self {
+            name: Ident::new(name.as_ref(), Span::call_site()),
+            ty,
+            init,
+        }
+    }
+}
+
+/// Tensor kind (Int, Float, Bool)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TensorKind {
+    Int,
+    Float,
+    Bool,
+}
+
+impl From<onnx_ir::ir::DType> for TensorKind {
+    fn from(dtype: onnx_ir::ir::DType) -> Self {
+        use onnx_ir::ir::DType;
+
+        match dtype {
+            DType::F32 => TensorKind::Float,
+            DType::F64 => TensorKind::Float,
+            DType::I32 => TensorKind::Int,
+            DType::I64 => TensorKind::Int,
+            DType::I8 | DType::U8 => TensorKind::Int,
+            DType::Bool => TensorKind::Bool,
+            _ => panic!("Unsupported tensor type"),
+        }
+    }
+}
 
 pub type SerializationBackend = burn_ndarray::NdArray<f32>;
 
@@ -18,32 +60,33 @@ pub trait OnnxIntoNode: Sized {
 }
 
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
-    /// All types that are used as inputs during the forward pass.
+    /// Returns all input arguments for this node.
     ///
     /// # Notes
-    /// The vec should not include types that are accessible with `self`.
-    /// See [field type](NodeCodegen::field_type).
-    fn input_types(&self) -> Vec<Type>;
+    ///
+    /// This should return ALL inputs, including static initializers.
+    /// Filtering (e.g., for dynamic/constant inputs only) is done at the call site.
+    fn inputs(&self) -> &[Argument];
 
-    /// All types that are produced during the forward pass.
-    fn output_types(&self) -> Vec<Type>;
+    /// Returns all output arguments for this node.
+    ///
+    /// # Notes
+    ///
+    /// This should return ALL outputs.
+    fn outputs(&self) -> &[Argument];
 
     /// The forward pass implementation of the node.
     ///
     /// # Notes
     ///
-    /// The [Scope](Scope) struct should be used for [input tensor type](Type::Tensor) access.
-    /// The method [use_owned_tensor](Scope::use_owned_tensor) keeps track of tensor reference
-    /// count and insert `clone` with necessary.
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
-
-    /// Convert the node implementation into a [node entry](Node).
-    fn into_node(self) -> Node<PS>;
+    /// The [ScopeAtPosition](super::scope::ScopeAtPosition) encapsulates both the scope and node position.
+    /// Use `scope.arg()` to automatically handle Tensor/Scalar/Shape arguments with proper clone tracking.
+    fn forward(&self, scope: &mut super::scope::ScopeAtPosition<'_>) -> TokenStream;
 
     /// Register the necessary imports.
     fn register_imports(&self, _imports: &mut BurnImports) {}
 
-    /// (Optional) Declare the type of the field
+    /// (Optional) Declare the type and initialization of the field
     ///
     /// # Notes
     ///
@@ -51,76 +94,22 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// Just one field per type is possible, if the node has multiple types for its parameters, a
     /// tuple can be used.
     ///
-    /// Other field functions should be implemented when this one returns something other than None.
-    ///   * [field_init](NodeCodegen::field_init) to initialize parameters.
-    ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
-    fn field_type(&self) -> Option<Type> {
-        None
-    }
-
-    /// (Optional) Declare how the parameters are initialized.
+    /// The returned Field struct contains both the type and initialization code.
     ///
-    /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    fn field_init(&self) -> Option<TokenStream> {
+    /// Other field functions should be implemented when this one returns something other than None.
+    ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
+    fn field(&self) -> Option<Field> {
         None
     }
 
     /// (Optional) Declare how the parameters are serialized in a record.
     ///
     /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    fn field_serialize<S: serde::Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
-        panic!("Serialization should be implemented when field_type is not None.");
-    }
-}
-
-impl<PS: PrecisionSettings> Serialize for Node<PS> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.field_serialize(serializer)
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
-    fn output_types(&self) -> Vec<Type> {
-        match_all!(self, NodeCodegen::<PS>::output_types)
-    }
-
-    fn input_types(&self) -> Vec<Type> {
-        match_all!(self, NodeCodegen::<PS>::input_types)
-    }
-
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        match_all!(self, |node| NodeCodegen::<PS>::forward(
-            node,
-            scope,
-            node_position
-        ))
-    }
-
-    fn field_type(&self) -> Option<Type> {
-        match_all!(self, NodeCodegen::<PS>::field_type)
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        match_all!(self, |node| NodeCodegen::<PS>::field_init(node,))
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        match_all!(self, |node| NodeCodegen::<PS>::register_imports(
-            node, imports
-        ))
-    }
-
-    fn into_node(self) -> Node<PS> {
-        self
-    }
-
+    /// For nodes with fields but no learned parameters (e.g., pooling, dropout),
+    /// the default implementation serializes unit.
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match_all!(self, |node| NodeCodegen::<PS>::field_serialize(
-            node, serializer
-        ))
+        use serde::Serialize;
+        ().serialize(serializer)
     }
 }
 
@@ -135,30 +124,32 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 ///
 /// # Arguments
 ///
-/// * `node` - The ONNX IR node
+/// * `inputs` - The node's input arguments
 /// * `input_index` - Index of the input to extract data from
 ///
 /// # Returns
 ///
 /// `Some(TensorData)` if the input has a constant value, `None` otherwise
-pub fn extract_node_data<E: burn::tensor::Element>(
-    node: &onnx_ir::Node,
+pub fn extract_node_data(
+    inputs: &[onnx_ir::Argument],
     input_index: usize,
 ) -> Option<burn::tensor::TensorData> {
-    use burn::tensor::TensorData;
+    let input = inputs.get(input_index)?;
+    input.value()
+}
 
-    let input = node.inputs.get(input_index)?;
-    let value = input.value.as_ref()?;
-
-    use onnx_ir::ir::Data;
-    let data = match &value.data {
-        Data::Float16s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Float32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Float64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Int32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Int64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        _ => panic!("Unsupported tensor element type"),
-    };
-
-    Some(data)
+/// Helper function to convert an Argument's name to a proc_macro2::Ident.
+///
+/// This is commonly used in the forward() method to generate variable names
+/// for inputs and outputs.
+///
+/// # Arguments
+///
+/// * `arg` - The argument to convert
+///
+/// # Returns
+///
+/// A proc_macro2::Ident with the argument's name
+pub fn arg_to_ident(arg: &Argument) -> proc_macro2::Ident {
+    proc_macro2::Ident::new(&arg.name, proc_macro2::Span::call_site())
 }

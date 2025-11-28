@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use burn_common::{
+use burn_std::{
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
 use burn_tensor::{
     Device,
-    backend::{Backend, DeviceId, DeviceOps},
+    backend::{Backend, DeviceId, DeviceOps, SyncError},
     quantization::QTensorPrimitive,
 };
 use candle_core::{DeviceLocation, backend::BackendDevice};
@@ -37,7 +37,7 @@ pub(crate) fn get_seeded_rng() -> StdRng {
     let mut seed = SEED.lock().unwrap();
     match seed.as_ref() {
         Some(rng_seeded) => rng_seeded.clone(),
-        None => burn_common::rand::get_seeded_rng(),
+        None => burn_std::rand::get_seeded_rng(),
     }
 }
 
@@ -177,7 +177,7 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
-impl burn_common::device::Device for CandleDevice {
+impl burn_std::device::Device for CandleDevice {
     fn to_id(&self) -> burn_tensor::backend::DeviceId {
         match self {
             CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),
@@ -232,20 +232,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         device.set_seed(seed);
     }
 
-    fn sync(device: &Device<Self>) {
+    fn sync(device: &Device<Self>) -> Result<(), SyncError> {
         let device: candle_core::Device = (device.clone()).into();
 
         match device {
             candle_core::Device::Cpu => (),
             candle_core::Device::Cuda(device) => {
                 #[cfg(feature = "cuda")]
-                device.synchronize().unwrap();
+                device.synchronize().map_err(|err| SyncError::Generic {
+                    context: format!("Can't sync the cuda device: {err}"),
+                })?;
             }
             candle_core::Device::Metal(device) => {
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                panic!("Device synchronization unavailable with Metal device on Candle backend")
+                return Err(SyncError::NotSupported {
+                    context:
+                        "Device synchronization unavailable with Metal device on Candle backend"
+                            .into(),
+                });
             }
         }
+
+        Ok(())
     }
 }

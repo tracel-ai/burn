@@ -1,62 +1,25 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone)]
-pub struct AddNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-}
-
-impl AddNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type) -> Self {
-        Self { lhs, rhs, output }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::arithmetic::AddNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("lhs must be a tensor, scalar, or shape"),
-        };
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("rhs must be a tensor, scalar, or shape"),
-        };
+        let lhs = scope.arg(lhs_arg);
 
-        let output = &self.output.name();
+        let rhs = scope.arg(rhs_arg);
 
-        let function = match (&self.lhs, &self.rhs) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+        let function = match (&lhs_arg.ty, &rhs_arg.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
 
@@ -72,10 +35,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
                     quote! { #lhs.unsqueeze_dims(&[#(#dims),*]).add(#rhs) }
                 }
             }
-            (Type::Tensor(_), Type::Scalar(_)) => quote! { #lhs.add_scalar(#rhs) },
-            (Type::Scalar(_), Type::Tensor(_)) => quote! { #rhs.add_scalar(#lhs) },
-            (Type::Scalar(_), Type::Scalar(_)) => quote! { #lhs + #rhs },
-            (Type::Shape(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Scalar(_)) => quote! { #lhs.add_scalar(#rhs) },
+            (ArgType::Scalar(_), ArgType::Tensor(_)) => quote! { #rhs.add_scalar(#lhs) },
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => quote! { #lhs + #rhs },
+            (ArgType::Shape(_), ArgType::Shape(_)) => quote! {
                 {
                     let mut result = #lhs;
                     for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
@@ -84,7 +47,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
                     result
                 }
             },
-            (Type::Shape(_), Type::Scalar(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Scalar(_)) => quote! {
                 {
                     let mut result = #lhs;
                     for result_item in result.iter_mut() {
@@ -93,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
                     result
                 }
             },
-            (Type::Scalar(_), Type::Shape(_)) => quote! {
+            (ArgType::Scalar(_), ArgType::Shape(_)) => quote! {
                 {
                     let mut result = #rhs;
                     for result_item in result.iter_mut() {
@@ -102,83 +65,76 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
                     result
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
                 Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).add(#rhs)
             },
-            (Type::Tensor(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
                 #lhs.add(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
             },
-            _ => panic!("Addition is supported for tensor, scalar, and shape types only"),
         };
 
         quote! {
             let #output = #function;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Add(self)
-    }
-}
-
-impl OnnxIntoNode for AddNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-
-        Self::new(lhs, rhs, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::arithmetic::{AddNode, AddNodeBuilder};
 
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    fn create_add_node_tensor_tensor(name: &str, lhs_rank: usize, rhs_rank: usize) -> AddNode {
+        AddNodeBuilder::new(name)
+            .input_tensor("lhs", lhs_rank, DType::F32)
+            .input_tensor("rhs", rhs_rank, DType::F32)
+            .output_tensor("output", lhs_rank.max(rhs_rank), DType::F32)
+            .build()
+    }
+
+    fn create_add_node_tensor_scalar(name: &str) -> AddNode {
+        AddNodeBuilder::new(name)
+            .input_tensor("lhs", 2, DType::F32)
+            .input_scalar("rhs", DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build()
+    }
 
     #[test]
-    fn test_codegen_add() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_add_forward_tensor_tensor() {
+        let node = create_add_node_tensor_tensor("add1", 2, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = lhs.add(rhs);
+            output
+        }
+        ");
+    }
 
-        graph.register(AddNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            Type::Tensor(TensorType::new_float("tensor3", 4)),
-        ));
+    #[test]
+    fn test_add_forward_tensor_scalar() {
+        let node = create_add_node_tensor_scalar("add1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: f32) -> Tensor<B, 2> {
+            let output = lhs.add_scalar(rhs);
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.add(tensor2);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_add_forward_broadcast() {
+        let node = create_add_node_tensor_tensor("add1", 3, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 3>, rhs: Tensor<B, 2>) -> Tensor<B, 3> {
+            let output = lhs.add(rhs.unsqueeze_dims(&[0isize]));
+            output
+        }
+        ");
     }
 }

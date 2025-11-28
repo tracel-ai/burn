@@ -12,7 +12,7 @@ use crate::{
 #[cfg(feature = "ddp")]
 use burn::collective::{AllReduceStrategy, CollectiveConfig};
 #[cfg(not(feature = "ddp"))]
-use burn::train::LearningStrategy;
+use burn::train::{LearningStrategy, MultiDeviceOptim};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -104,7 +104,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
             model,
             optim,
             lr_scheduler,
-            LearningStrategy::MultiDeviceNaive(devices),
+            LearningStrategy::MultiDevice(devices, MultiDeviceOptim::OptimSharded),
         );
 
     #[cfg(feature = "ddp")]

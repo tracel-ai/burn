@@ -1,19 +1,20 @@
+use burn_tensor::DType;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 use crate::{
-    BoolElement, CubeRuntime,
-    element::CubeElement,
+    CubeRuntime,
     kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
-    ops::{max_line_size_many, numeric::empty_device},
+    ops::{max_line_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 
 #[cube(launch)]
-fn mask_where_kernel<T: CubePrimitive, B: Int>(
+fn mask_where_kernel<T: Numeric, B: Int>(
     input: &LinearView<Line<T>>,
     value: &LinearView<Line<T>>,
     mask: &LinearView<Line<B>>,
     output: &mut LinearView<Line<T>, ReadWrite>,
+    #[define(T, B)] _dtypes: [StorageType; 2],
 ) {
     let pos = ABSOLUTE_POS;
     if !output.is_in_bounds(pos) {
@@ -39,11 +40,12 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+pub fn mask_where<R: CubeRuntime>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
     strategy: MaskWhereStrategy,
+    dtype_bool: DType,
 ) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
     let line_size = max_line_size_many(&[&input, &mask, &value], input.shape.num_dims() - 1);
@@ -53,9 +55,12 @@ pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     let out_shape = broadcast_shape(&[&input, &mask, &value]);
 
     let output = match strategy {
-        MaskWhereStrategy::Readonly => {
-            empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape)
-        }
+        MaskWhereStrategy::Readonly => empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            out_shape,
+            input.dtype,
+        ),
         MaskWhereStrategy::InplaceLhs => input.clone(),
         MaskWhereStrategy::InplaceRhs => value.clone(),
     };
@@ -66,7 +71,7 @@ pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
         MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, line_size, 1),
     };
 
-    mask_where_kernel::launch::<E, BT, R>(
+    mask_where_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,
@@ -74,7 +79,9 @@ pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
         linear_view_ref(&value, &output, line_size),
         linear_view_ref(&mask, &output, line_size),
         out,
-    );
+        [output.dtype.into(), dtype_bool.into()],
+    )
+    .expect("Kernel to never fail");
 
     output
 }

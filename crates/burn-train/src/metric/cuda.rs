@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::MetricMetadata;
-use crate::metric::{Metric, MetricEntry, MetricName};
+use crate::metric::{Metric, MetricName, SerializedEntry};
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.
@@ -33,14 +33,9 @@ impl Default for CudaMetric {
 impl Metric for CudaMetric {
     type Input = ();
 
-    fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> MetricEntry {
-        let not_available = || {
-            MetricEntry::new(
-                self.name(),
-                "Unavailable".to_string(),
-                "Unavailable".to_string(),
-            )
-        };
+    fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> SerializedEntry {
+        let not_available =
+            || SerializedEntry::new("Unavailable".to_string(), "Unavailable".to_string());
 
         let available = |nvml: &Nvml| {
             let mut formatted = String::new();
@@ -90,7 +85,7 @@ impl Metric for CudaMetric {
                 formatted = format!("{formatted} - Usage {utilization_rate_formatted}");
             }
 
-            MetricEntry::new(self.name(), formatted, raw_running)
+            SerializedEntry::new(formatted, raw_running)
         };
 
         match self.nvml.as_ref() {

@@ -555,9 +555,22 @@ where
     }
 
     pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
-        let array =
-            lhs.clone() - (lhs / rhs.clone()).mapv_into(|a| (a.to_f64()).floor().elem()) * rhs;
-        array.into_shared()
+        if E::dtype().is_float() {
+            let array =
+                lhs.clone() - (lhs / rhs.clone()).mapv_into(|a| (a.to_f64()).floor().elem()) * rhs;
+            array.into_shared()
+        } else {
+            let mut out = lhs.clone();
+            Zip::from(&mut out)
+                .and(&lhs)
+                .and(&rhs)
+                .for_each(|out_elem, &a, &b| {
+                    let (a_f, b_f) = (a.to_f64(), b.to_f64());
+                    let r = a_f - b_f * (a_f / b_f).floor();
+                    *out_elem = r.elem();
+                });
+            out.into_shared()
+        }
     }
 
     pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>

@@ -7,42 +7,96 @@ tensor operations.
 
 ## Architecture
 
-The ONNX-IR crate is designed with the following components:
+ONNX-IR converts ONNX protobuf models into a clean intermediate representation through a 5-phase
+pipeline:
 
-- **IR Core** (`ir.rs`): Defines the core data structures such as `Node`, `NodeType`, `Argument`,
-  etc.
-- **Protocol Conversion** (`proto_conversion.rs`): Converts ONNX protobuf structures to IR
-- **ONNX Parsing** (`from_onnx.rs`): Handles the parsing of ONNX models into the IR
-- **Rank Inference** (`rank_inference.rs`): Computes output tensor ranks for each operation
-- **Node Implementations** (`node/`): Contains operation-specific configurations and rank inference
-  functions
-- **Node Remapping** (`node_remap.rs`): Maps generic ONNX operations to dimension-specific
-  alternatives
+1. **Initialization**: Process initializers and create graph state
+2. **Node Conversion**: Convert ONNX nodes to IR with node remapping
+3. **Type Inference**: Infer output types with preference propagation
+4. **Post-processing**: Optimize graph (eliminate Identity nodes, lift constants)
+5. **Finalization**: Remove unused nodes and build final `OnnxGraph`
+
+The resulting IR provides:
+
+- **Enum-based node representation**: Each node is a variant of the `Node` enum with
+  operation-specific configuration
+- **Typed inputs/outputs**: All node arguments are validated with type information
+- **Pre-extracted configuration**: Attributes are parsed into strongly-typed config structs
+- **Static tensor data**: Constant values are available for constant folding
+- **Support for 100+ ONNX operators**: Including control flow (`If`, `Loop`, `Scan`)
+
+### Node Representation
+
+Nodes are represented using an enum where each variant wraps an operation-specific node struct:
+
+```rust
+pub enum Node {
+    Add(arithmetic::AddNode),
+    Softmax(softmax::SoftmaxNode),
+    Conv2d(conv2d::Conv2dNode),
+    // ... 200+ more variants
+}
+
+// Each node struct contains name, inputs, outputs, and optional config
+pub struct SoftmaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SoftmaxConfig,
+}
+```
+
+This design provides type safety, enables trait implementations on specific node types, and uses a
+unified macro (`define_node_enum!`) to generate both `NodeType` and `Node` enums from a single
+source of truth.
+
+For detailed module documentation, see the inline docs in each module.
+
+## Public API
+
+ONNX-IR exposes a clean public API with three main components:
+
+- **`ir`** module - Core IR types (`OnnxGraph`, `Node`, `Argument`, `TensorType`, `DType`, etc.)
+- **`node`** module - Node configurations for all supported operations (e.g., `SoftmaxConfig`,
+  `Conv2dConfig`)
+- **`parse_onnx`** - Main parsing function and error types
 
 ## Usage
 
 ONNX-IR is typically used through the `burn-import` crate, but can also be used standalone:
 
 ```rust
-use onnx_ir::{parse_onnx, OnnxGraph};
+use onnx_ir::{parse_onnx, OnnxGraph, Node};
 use std::path::Path;
 
 // Parse an ONNX model into the IR
 let graph: OnnxGraph = parse_onnx(Path::new("path/to/model.onnx"));
 
-// Work with the IR
+// Work with the IR - nodes are represented as an enum
 for node in &graph.nodes {
-    println!("Node: {}, Type: {:?}", node.name, node.node_type);
+    println!("Node: {}", node.name());
 
-    // Access inputs and outputs
-    for input in &node.inputs {
-        println!("  Input: {}", input.name);
-    }
-
-    for output in &node.outputs {
-        println!("  Output: {}", output.name);
+    // Pattern match on node type to access operation-specific configuration
+    match node {
+        Node::Softmax(softmax_node) => {
+            println!("  Softmax on axis {}", softmax_node.config.axis);
+            println!("  Inputs: {:?}", softmax_node.inputs.iter().map(|i| &i.name).collect::<Vec<_>>());
+        }
+        Node::Conv2d(conv_node) => {
+            println!("  Conv2d with {} input channels", conv_node.config.channels[0]);
+            println!("  Kernel size: {:?}", conv_node.config.kernel_size);
+        }
+        Node::Add(add_node) => {
+            println!("  Add operation with {} inputs", add_node.inputs.len());
+        }
+        _ => {
+            println!("  Other operation");
+        }
     }
 }
+
+// Access node configurations
+use onnx_ir::node::{SoftmaxConfig, Conv2dConfig};
 
 // Convert to another framework's representation
 // (This is typically done by burn-import or another conversion layer)
@@ -73,6 +127,10 @@ inferred_model = shape_inference.infer_shapes(upgraded_model)
 # Save the converted model
 onnx.save(inferred_model, 'upgraded_model.onnx')
 ```
+
+## Adding New Node Types
+
+To add support for a new ONNX operator:
 
 ## Resources
 

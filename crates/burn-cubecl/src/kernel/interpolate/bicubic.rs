@@ -5,7 +5,7 @@ use cubecl::std::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    CubeRuntime, FloatElement,
+    CubeRuntime,
     kernel::utils::{linear_layout, shape_divmod},
     ops::max_line_size,
     tensor::CubeTensor,
@@ -17,6 +17,7 @@ fn interpolate_bicubic_kernel<F: Float>(
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod>,
     out_layout: LinearLayout,
+    #[define(F)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -148,7 +149,7 @@ fn lined<F: Float>(x: &Line<F>, #[comptime] v: f32) -> Line<F> {
     Line::empty(x.size()).fill(F::new(v))
 }
 
-pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime, E: FloatElement>(
+pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
     input: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -160,15 +161,17 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime, E: FloatElement>(
     let cube_count =
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
-    interpolate_bicubic_kernel::launch::<E, R>(
+    interpolate_bicubic_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
+        input.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
         out_shape,
         out_layout,
-    );
+        output.dtype.into(),
+    )
+    .expect("Kernel to never fail");
 
     output
 }

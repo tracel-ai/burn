@@ -1,8 +1,4 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{ScalarKind, Scope, TensorKind, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
 /// Type of power operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,57 +9,44 @@ pub enum PowerType {
     Float,
 }
 
-/// Power node that handles both integer and float exponents
-#[derive(Debug, Clone)]
-pub struct PowNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-    pub power_type: PowerType,
-}
-
-impl PowNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type, power_type: PowerType) -> Self {
-        Self {
-            lhs,
-            rhs,
-            output,
-            power_type,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for PowNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pow::PowNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            _ => panic!("lhs must be a tensor"),
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
+
+        let lhs = scope.arg(lhs_arg);
+
+        let rhs = scope.arg(rhs_arg);
+
+        // Determine power type based on RHS type
+        let power_type = match &rhs_arg.ty {
+            ArgType::Tensor(t) => match &t.dtype {
+                dtype if dtype.is_int() => PowerType::Int,
+                dtype if dtype.is_float() => PowerType::Float,
+                _ => panic!("pow function requires RHS to be int or float type"),
+            },
+            ArgType::Scalar(dtype) => match dtype {
+                dtype if dtype.is_int() => PowerType::Int,
+                dtype if dtype.is_float() => PowerType::Float,
+                _ => panic!("pow function requires RHS to be int or float type"),
+            },
+            _ => panic!("pow function only supports RHS scalar or tensor types"),
         };
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("rhs must be a tensor or scalar"),
-        };
-
-        let output = &self.output.name();
-
-        let function = match (self.power_type, &self.rhs) {
-            (PowerType::Int, Type::Tensor(_)) => quote! { #lhs.powi(#rhs) },
-            (PowerType::Int, Type::Scalar(_)) => quote! { #lhs.powi_scalar(#rhs) },
-            (PowerType::Float, Type::Tensor(_)) => quote! { #lhs.powf(#rhs) },
-            (PowerType::Float, Type::Scalar(_)) => quote! { #lhs.powf_scalar(#rhs) },
+        let function = match (power_type, &rhs_arg.ty) {
+            (PowerType::Int, ArgType::Tensor(_)) => quote! { #lhs.powi(#rhs) },
+            (PowerType::Int, ArgType::Scalar(_)) => quote! { #lhs.powi_scalar(#rhs) },
+            (PowerType::Float, ArgType::Tensor(_)) => quote! { #lhs.powf(#rhs) },
+            (PowerType::Float, ArgType::Scalar(_)) => quote! { #lhs.powf_scalar(#rhs) },
             _ => panic!("Invalid power type combination"),
         };
 
@@ -71,131 +54,88 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PowNode {
             let #output = #function;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Pow(self)
-    }
-}
-
-impl OnnxIntoNode for PowNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-
-        // Determine power type based on RHS type
-        let power_type = match &rhs {
-            Type::Tensor(x) => match x.kind {
-                TensorKind::Int => PowerType::Int,
-                TensorKind::Float => PowerType::Float,
-                _ => panic!("pow function requires RHS to be int or float type"),
-            },
-            Type::Scalar(x) => match x.kind {
-                ScalarKind::Int32 | ScalarKind::Int64 => PowerType::Int,
-                ScalarKind::Float32 | ScalarKind::Float64 => PowerType::Float,
-                _ => panic!("pow function requires RHS to be int or float type"),
-            },
-            _ => panic!("pow function only supports RHS scalar or tensor types"),
-        };
-
-        Self::new(lhs, rhs, output, power_type)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::pow::{PowNode, PowNodeBuilder};
 
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    fn create_pow_node_tensor_tensor(name: &str, base_dtype: DType, exp_dtype: DType) -> PowNode {
+        PowNodeBuilder::new(name)
+            .input_tensor("base", 2, base_dtype)
+            .input_tensor("exponent", 2, exp_dtype)
+            .output_tensor("output", 2, base_dtype)
+            .build()
+    }
 
-    #[test]
-    fn test_codegen_powi() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(PowNode::new(
-            Type::Tensor(TensorType::new_int("tensor1", 4)),
-            Type::Tensor(TensorType::new_int("tensor2", 4)),
-            Type::Tensor(TensorType::new_int("tensor3", 4)),
-            PowerType::Int,
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4, Int>, tensor2: Tensor<B, 4, Int>) -> Tensor<B, 4, Int> {
-                    let tensor3 = tensor1.powi(tensor2);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn create_pow_node_tensor_scalar(name: &str, base_dtype: DType, exp_dtype: DType) -> PowNode {
+        PowNodeBuilder::new(name)
+            .input_tensor("base", 2, base_dtype)
+            .input_scalar("exponent", exp_dtype)
+            .output_tensor("output", 2, base_dtype)
+            .build()
     }
 
     #[test]
-    fn test_codegen_powf() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_pow_float_tensor_float_tensor() {
+        let node = create_pow_node_tensor_tensor("pow1", DType::F32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, base: Tensor<B, 2>, exponent: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = base.powf(exponent);
+            output
+        }
+        ");
+    }
 
-        graph.register(PowNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            Type::Tensor(TensorType::new_float("tensor3", 4)),
-            PowerType::Float,
-        ));
+    #[test]
+    fn test_pow_float_tensor_int_tensor() {
+        let node = create_pow_node_tensor_tensor("pow1", DType::F32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, base: Tensor<B, 2>, exponent: Tensor<B, 2, Int>) -> Tensor<B, 2> {
+            let output = base.powi(exponent);
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-        );
+    #[test]
+    fn test_pow_float_tensor_int_scalar() {
+        let node = create_pow_node_tensor_scalar("pow1", DType::F32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, base: Tensor<B, 2>, exponent: i32) -> Tensor<B, 2> {
+            let output = base.powi_scalar(exponent);
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
+    #[test]
+    fn test_pow_float_tensor_float_scalar() {
+        let node = create_pow_node_tensor_scalar("pow1", DType::F32, DType::F32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, base: Tensor<B, 2>, exponent: f32) -> Tensor<B, 2> {
+            let output = base.powf_scalar(exponent);
+            output
+        }
+        ");
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.powf(tensor2);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_pow_int_tensor_int_scalar() {
+        let node = create_pow_node_tensor_scalar("pow1", DType::I32, DType::I32);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, base: Tensor<B, 2, Int>, exponent: i32) -> Tensor<B, 2, Int> {
+            let output = base.powi_scalar(exponent);
+            output
+        }
+        ");
     }
 }

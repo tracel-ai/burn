@@ -1,7 +1,7 @@
 use crate::metric::{MetricName, Numeric};
 
 use super::{
-    Metric, MetricAttributes, MetricEntry, MetricMetadata, NumericAttributes, NumericEntry,
+    Metric, MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry, SerializedEntry,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
@@ -114,7 +114,7 @@ impl<B: Backend> RecallMetric<B> {
 impl<B: Backend> Metric for RecallMetric<B> {
     type Input = ConfusionStatsInput<B>;
 
-    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [sample_size, _] = input.predictions.dims();
 
         let cf_stats = ConfusionStats::new(input, &self.config);
@@ -146,7 +146,7 @@ impl<B: Backend> Metric for RecallMetric<B> {
 
 impl<B: Backend> Numeric for RecallMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

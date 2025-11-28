@@ -1,36 +1,31 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::eye_like::EyeLikeConfig;
-use proc_macro2::TokenStream;
+use super::prelude::*;
+use onnx_ir::ir::ArgType;
 use quote::{ToTokens, quote};
 
-#[derive(Debug, Clone, new)]
-pub struct EyeLikeNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub config: EyeLikeConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLikeNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
         let k_offset = self.config.k.to_token_stream();
 
         // Convert mask to appropriate type based on output tensor kind
-        let conversion = match self.output.kind {
-            crate::burn::TensorKind::Int => quote! { .int() },
-            crate::burn::TensorKind::Float => quote! { .float() },
-            crate::burn::TensorKind::Bool => quote! {},
+        let output_ty = &self.outputs.first().unwrap().ty;
+        let conversion = match output_ty {
+            ArgType::Tensor(t) => match &t.dtype {
+                dtype if dtype.is_int() || dtype.is_uint() => quote! { .int() },
+                dtype if dtype.is_float() => quote! { .float() },
+                dtype if dtype.is_bool() => quote! {},
+                _ => quote! { .float() }, // Default to float
+            },
+            _ => quote! { .float() },
         };
 
         // Use diag_mask to create the diagonal matrix, then invert it
@@ -40,74 +35,65 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
             let #output = Tensor::diag_mask(#input.shape(), #k_offset, &*self.device).bool_not()#conversion;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::EyeLike(self)
-    }
-}
-
-impl OnnxIntoNode for EyeLikeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::eye_like::eye_like_config(&node);
-        Self::new(input, output, config)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{eye_like::EyeLikeNode, test::assert_tokens},
-    };
-    use onnx_ir::node::eye_like::EyeLikeConfig;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::eye_like::{EyeLikeConfig, EyeLikeNodeBuilder};
 
     #[test]
-    fn test_codegen_nodes() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_eye_like_float() {
+        let config = EyeLikeConfig::new(None, 0);
+        let node = EyeLikeNodeBuilder::new("eye1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = Tensor::diag_mask(input.shape(), 0i64, &*self.device)
+                .bool_not()
+                .float();
+            output
+        }
+        ");
+    }
 
-        let config = EyeLikeConfig { dtype: None, k: 0 };
+    #[test]
+    fn test_eye_like_int() {
+        let config = EyeLikeConfig::new(None, 1);
+        let node = EyeLikeNodeBuilder::new("eye2")
+            .input_tensor("input", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = Tensor::diag_mask(input.shape(), 1i64, &*self.device).bool_not().int();
+            output
+        }
+        ");
+    }
 
-        graph.register(EyeLikeNode::new(
-            TensorType::new_float("tensor1", 2),
-            TensorType::new_float("tensor2", 2),
-            config,
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let tensor2 = Tensor::diag_mask(tensor1.shape(), 0i64, &*self.device)
-                        .bool_not()
-                        .float();
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_eye_like_bool() {
+        let config = EyeLikeConfig::new(None, 0);
+        let node = EyeLikeNodeBuilder::new("eye3")
+            .input_tensor("input", 2, DType::Bool)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
+            let output = Tensor::diag_mask(input.shape(), 0i64, &*self.device).bool_not();
+            output
+        }
+        ");
     }
 }

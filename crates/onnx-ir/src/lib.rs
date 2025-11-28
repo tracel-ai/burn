@@ -1,17 +1,19 @@
 #[macro_use]
 extern crate derive_new;
 
-mod coalesce;
-mod from_onnx;
+mod graph_state;
 pub mod ir;
 pub mod node;
-mod node_remap;
+mod phases;
+mod pipeline;
+mod processor;
 mod proto_conversion;
 mod protos;
-mod rank_inference;
-pub mod util;
+mod registry;
+mod tensor_store;
+mod util;
 
-pub use from_onnx::convert_constant_value;
-pub use from_onnx::element_type_from_proto;
-pub use from_onnx::parse_onnx;
+// Public API - only expose essentials
 pub use ir::*;
+pub use node::*;
+pub use pipeline::{OnnxIrError, parse_onnx};

@@ -5,7 +5,7 @@ use cubecl::std::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    CubeRuntime, FloatElement,
+    CubeRuntime,
     kernel::utils::{linear_layout, shape_divmod},
     ops::max_line_size,
     tensor::CubeTensor,
@@ -17,6 +17,7 @@ fn interpolate_nearest_kernel<F: Float>(
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod>,
     out_layout: LinearLayout,
+    #[define(F)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -45,7 +46,7 @@ fn interpolate_nearest_kernel<F: Float>(
     output[out_idx] = input[in_idx / line_size];
 }
 
-pub(crate) fn interpolate_nearest_launch<R: CubeRuntime, E: FloatElement>(
+pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
     input: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -61,15 +62,17 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime, E: FloatElement>(
     let out_layout = linear_layout(&output, line_size);
 
     unsafe {
-        interpolate_nearest_kernel::launch_unchecked::<E, R>(
+        interpolate_nearest_kernel::launch_unchecked(
             &client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(line_size),
-            output.as_tensor_arg::<E>(line_size),
+            input.as_tensor_arg(line_size),
+            output.as_tensor_arg(line_size),
             shape_out,
             out_layout,
+            output.dtype.into(),
         )
+        .expect("Kernel to never fail");
     };
 
     output

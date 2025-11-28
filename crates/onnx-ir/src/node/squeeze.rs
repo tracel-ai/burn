@@ -1,102 +1,214 @@
-use crate::ir::{ArgType, Data, Node, TensorType};
+//! # Squeeze
+//!
+//! Removes single-dimensional entries from the shape of a tensor.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Squeeze.html>
+//!
+//! ## Opset Versions
+//! - **Opset 1**: Initial version with optional 'axes' attribute.
+//! - **Opset 11**: Clarified semantics and behavior for negative axis values.
+//! - **Opset 13**: Changed 'axes' from attribute to optional input, enabling dynamic axes specification at runtime.
+//!
+//! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
 
-pub fn squeeze_config(curr: &Node) -> Option<Vec<i64>> {
-    // In ONNX opset 13+, axes are provided as a second input
-    // When no axes input is provided, return None (meaning squeeze all dims with size 1)
-    if curr.inputs.len() == 2 {
-        // Get axes from the second input (ONNX opset 13+ standard)
-        match &curr.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(axes) => Some(axes.clone()),
-                _ => None,
-            },
-            None => None,
-        }
-    } else {
-        // No axes input means squeeze all dimensions with size 1
-        // Return None to indicate empty dims should be passed to squeeze_dims
-        None
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
+
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
+
+/// Represents either a static value or a runtime argument for squeeze axes.
+#[derive(Debug, Clone)]
+pub enum SqueezeInput {
+    /// Static axes known at compile time.
+    Static(Vec<i64>),
+    /// Runtime axes determined during execution.
+    Runtime(RuntimeInputRef),
+}
+
+impl Default for SqueezeInput {
+    fn default() -> Self {
+        SqueezeInput::Static(vec![])
     }
 }
 
-/// Update output rank for Squeeze based on axes.
-pub fn squeeze_update_output(node: &mut Node) {
-    log::debug!("Squeeze rank inference for node {}", node.name);
+/// Configuration for Squeeze operation
+#[derive(Debug, Clone, new)]
+pub struct SqueezeConfig {
+    pub axes: Option<SqueezeInput>,
+}
 
-    let axes = if node.inputs.len() == 2 {
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(axes) => Some(axes.clone()),
-                _ => panic!("Squeeze: invalid input types"),
-            },
+/// Node representation for Squeeze operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct SqueezeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SqueezeConfig,
+}
+
+pub(crate) struct SqueezeProcessor;
+
+impl NodeProcessor for SqueezeProcessor {
+    type Config = SqueezeConfig;
+
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 13,
+            max_opset: None,
+            inputs: InputSpec::AtLeast(1),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
+        // Lift axes input (input[1]) if present
+        // FIXME: This should check if the input is constant before attempting to lift,
+        // similar to other processors. Currently it lifts unconditionally if present.
+        // Should use: if node.inputs[1].is_constant() { node.inputs[1].to_static()?; }
+        if node.inputs.len() > 1 {
+            node.inputs[1].to_static()?;
+        }
+
+        Ok(())
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut RawNode,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Get reference to config for type inference
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
+        let axes = config.axes.clone();
+
+        // Extract axes for type inference
+        let axes_vec = match &axes {
+            Some(SqueezeInput::Static(axes_vec)) => Some(axes_vec.clone()),
+            Some(SqueezeInput::Runtime(_)) => None,
             None => None,
-        }
-    } else {
-        None
-    };
+        };
 
-    log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
+        // TODO: Missing validation that axes values are in valid range [-rank, rank-1].
+        // Out-of-bounds axes should be rejected but aren't validated here.
 
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
-            let output_rank = match axes {
-                None => {
-                    // When axes is None, ONNX spec squeezes all dimensions of size 1
-                    // Without static shape info, we can't know which dims are size 1
-                    // The output type will be corrected later if ONNX provides it
-                    // TODO: Infer rank from output tensor shape based on static shape inference
-                    if let Some(ref static_shape) = tensor.static_shape {
-                        // Count the number of dimensions not equal to 1
-                        static_shape.iter().filter(|&&dim| dim != 1).count()
-                    } else {
-                        panic!(
-                            "Squeeze: Cannot infer output rank when axes is None and input tensor static shape is unknown. Please provide static shape information for accurate inference."
-                        );
+        // TODO: Missing validation that axes doesn't contain duplicates.
+        // Duplicate axes should be rejected per ONNX spec but not validated.
+
+        match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                let output_rank = match axes_vec {
+                    None => {
+                        // When axes is None, ONNX spec squeezes all dimensions of size 1
+                        if let Some(ref static_shape) = tensor.static_shape {
+                            static_shape.iter().filter(|&&dim| dim != 1).count()
+                        } else {
+                            return Err(ProcessError::Custom(
+                                "Squeeze: Cannot infer output rank when axes is None and input tensor static shape is unknown".to_string()
+                            ));
+                        }
                     }
+                    Some(ref axes_vec) => {
+                        // Validate that we're not trying to squeeze more axes than the tensor has
+                        if axes_vec.len() > tensor.rank {
+                            return Err(ProcessError::Custom(format!(
+                                "Squeeze: Cannot squeeze {} axes from a rank {} tensor",
+                                axes_vec.len(),
+                                tensor.rank
+                            )));
+                        }
+
+                        // TODO: Missing validation that squeezed dimensions actually have size 1.
+                        // ONNX spec requires dimensions to be size 1 to be squeezed, but implementation
+                        // doesn't validate this when static_shape is available. Should check:
+                        // for &axis in axes_vec { assert static_shape[axis] == 1 }
+
+                        tensor.rank - axes_vec.len()
+                    }
+                };
+
+                // When all dimensions are squeezed (rank=0), represent as Scalar not Tensor
+                // This maintains consistency with proto conversion which converts 0-dim tensors to Scalar
+                node.outputs[0].ty = if output_rank == 0 {
+                    ArgType::Scalar(tensor.dtype)
+                } else {
+                    ArgType::Tensor(TensorType {
+                        dtype: tensor.dtype,
+                        rank: output_rank,
+                        static_shape: None,
+                    })
+                };
+            }
+            ArgType::Shape(shape_rank) => {
+                if let Some(ref axes_vec) = axes_vec
+                    && !axes_vec.is_empty()
+                    && (axes_vec.len() != 1 || axes_vec[0] != 0)
+                {
+                    return Err(ProcessError::Custom(format!(
+                        "Squeeze on Shape input only supports squeezing axis 0, got axes: {:?}",
+                        axes_vec
+                    )));
                 }
-                Some(ref axes_vec) => tensor.rank - axes_vec.len(),
-            };
-            log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
 
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: tensor.elem_type.clone(),
-                rank: output_rank,
-                static_shape: None,
-            });
-        }
-        ArgType::Shape(shape_rank) => {
-            log::debug!("Squeeze input is Shape({}) for {}", shape_rank, node.name);
-
-            // Shape is always a 1D array. We can only squeeze axis 0.
-            // - If Shape has 1 element (Shape(1)), squeezing axis 0 produces a scalar
-            // - If Shape has >1 elements (Shape(n) where n>1), squeezing axis 0 is a no-op
-            //   because the dimension has size > 1
-
-            if let Some(ref axes_vec) = axes
-                && !axes_vec.is_empty()
-                && (axes_vec.len() != 1 || axes_vec[0] != 0)
-            {
-                panic!(
-                    "Squeeze on Shape input only supports squeezing axis 0, got axes: {axes_vec:?}"
-                );
+                if *shape_rank == 1 {
+                    node.outputs[0].ty = ArgType::Scalar(crate::ir::DType::I64);
+                } else {
+                    node.outputs[0].ty = ArgType::Shape(*shape_rank);
+                }
             }
-
-            if *shape_rank == 1 {
-                // Shape(1) squeezed on axis 0 produces a scalar
-                node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
-                log::debug!("Squeeze Shape(1) to Scalar for {}", node.name);
-            } else {
-                // Shape(n) where n > 1 remains unchanged
-                node.outputs[0].ty = ArgType::Shape(*shape_rank);
-                log::debug!("Squeeze Shape({}) unchanged for {}", shape_rank, node.name);
+            ArgType::Scalar(scalar_type) => {
+                node.outputs[0].ty = ArgType::Scalar(*scalar_type);
             }
         }
-        ArgType::Scalar(scalar_type) => {
-            // Scalar squeeze is a no-op
-            node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
-            log::debug!("Squeeze Scalar unchanged for {}", node.name);
+
+        Ok(())
+    }
+
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
+        fn get_squeeze_axes(node: &RawNode) -> Option<SqueezeInput> {
+            // In ONNX opset 13+, axes are provided as a second input
+            if node.inputs.len() < 2 {
+                return None; // No axes input means squeeze all dims with size 1
+            }
+
+            let input = &node.inputs[1];
+            match input.value() {
+                None => {
+                    // Runtime input - no static value available
+                    Some(SqueezeInput::Runtime(RuntimeInputRef::new(
+                        input.name.clone(),
+                        1,
+                    )))
+                }
+                Some(value) => match value.to_i64_vec() {
+                    Ok(axes) => Some(SqueezeInput::Static(axes)),
+                    Err(_) => None, // Invalid type
+                },
+            }
         }
+
+        let axes = get_squeeze_axes(node);
+        let config = SqueezeConfig { axes };
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Squeeze(SqueezeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -104,9 +216,9 @@ pub fn squeeze_update_output(node: &mut Node) {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> Node {
+    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> TestNodeBuilder {
         let output_rank = if let Some(ref axes_vec) = axes {
             rank - axes_vec.len()
         } else {
@@ -115,7 +227,7 @@ mod tests {
             rank
         };
 
-        let mut builder = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+        let mut builder = TestNodeBuilder::new(NodeType::Squeeze, "test_squeeze")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("squeezed", output_rank, None);
 
@@ -124,20 +236,90 @@ mod tests {
             builder = builder.input_tensor_i64_data("axes", axes_val.clone(), vec![axes_val.len()]);
         }
 
-        builder.build()
+        builder
+    }
+
+    fn create_runtime_squeeze_node() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
+            .input_tensor_f32("data", 4, Some(vec![2, 3, 4, 5])) // Need some shape
+            .input_tensor_i64("axes", 0, None) // Runtime input - no static value
+            .output_tensor_f32("squeezed", 2, None)
     }
 
     #[test]
     fn test_squeeze_config_with_axes_input() {
-        let node = create_test_node(Some(vec![0, 2]), 4);
-        let axes = squeeze_config(&node);
-        assert_eq!(axes, Some(vec![0, 2]));
+        let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(16);
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        assert!(matches!(config.axes, Some(SqueezeInput::Static(ref axes)) if axes == &vec![0, 2]));
     }
 
     #[test]
     fn test_squeeze_config_no_axes_input() {
-        let node = create_test_node(None, 4);
-        let axes = squeeze_config(&node);
-        assert_eq!(axes, None);
+        // Test with no axes input - need static shape with dims of size 1
+        let node = TestNodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+            .input_tensor_f32("data", 4, Some(vec![2, 1, 3, 1])) // Has two dims of size 1
+            .output_tensor_f32("squeezed", 2, None) // Will squeeze to rank 2
+            .build();
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        assert!(config.axes.is_none());
+    }
+
+    #[test]
+    fn test_squeeze_config_runtime_axes() {
+        let node = create_runtime_squeeze_node().build();
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));
+    }
+
+    // TODO: Missing test for squeezing dimension that is not size 1 - should fail.
+    // E.g., input shape [2, 1, 3], axes=[0] should fail because dim 0 has size 2, not 1.
+
+    // TODO: Missing test for negative axes normalization and validation.
+    // E.g., axes=[-1] for rank-3 should squeeze last dimension.
+
+    // TODO: Missing test for duplicate axes - axes=[0, 0] should be rejected.
+
+    // TODO: Missing test for out-of-bounds axes - axes=[5] for rank-3 should be rejected.
+
+    // TODO: Missing test for opset < 13 behavior - axes as attribute vs input.
+    // Implementation requires opset 13+ but this transition isn't tested.
+
+    #[test]
+    fn test_squeeze_all_dims_to_scalar() {
+        // Test squeezing all dimensions produces Scalar, not Tensor(rank=0)
+        // This maintains consistency with proto conversion
+        let node = create_test_node(Some(vec![0]), 1).build_with_graph_data(16);
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let prefs = OutputPreferences::new();
+
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Verify output is Scalar, not Tensor(rank=0)
+        match &node.outputs[0].ty {
+            ArgType::Scalar(dtype) => {
+                assert_eq!(*dtype, crate::ir::DType::F32);
+            }
+            ArgType::Tensor(tensor) => {
+                panic!(
+                    "Expected Scalar output, but got Tensor with rank {}. \
+                     Squeezing all dimensions should produce Scalar, not Tensor(rank=0).",
+                    tensor.rank
+                );
+            }
+            other => panic!("Unexpected output type: {:?}", other),
+        }
     }
 }

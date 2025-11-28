@@ -99,7 +99,7 @@ mod tests {
         let device = Default::default();
 
         let model = MixedDtypeModel::<TestBackend>::new(&device);
-        let snapshots = model.collect(None, None);
+        let snapshots = model.collect(None, None, false);
 
         for snapshot in snapshots {
             let path = snapshot.full_path();
@@ -388,7 +388,7 @@ mod tests {
         };
 
         // Collect all tensors
-        let snapshots = model.collect(None, None);
+        let snapshots = model.collect(None, None, false);
 
         // Verify we have all expected tensors
         let paths: Vec<String> = snapshots.iter().map(|s| s.full_path()).collect();

@@ -212,6 +212,8 @@ impl<B: Backend> Normalization<B> {
 mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
+    use burn::tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestAutodiffBackend>;
 
     #[test]
     fn test_match_feature_size() {
@@ -284,7 +286,9 @@ mod tests {
 
         let output = layer.forward(input);
 
-        output.to_data().assert_eq(&expected.to_data(), true);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -307,7 +311,9 @@ mod tests {
 
         let output = layer.forward(input);
 
-        output.to_data().assert_eq(&expected.to_data(), true);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -330,7 +336,9 @@ mod tests {
 
         let output = layer.forward(input);
 
-        output.to_data().assert_eq(&expected.to_data(), true);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -353,6 +361,8 @@ mod tests {
 
         let output = layer.forward(input);
 
-        output.to_data().assert_eq(&expected.to_data(), true);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 }

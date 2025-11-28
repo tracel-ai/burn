@@ -1,21 +1,19 @@
-use burn_tensor::{
-    Shape,
-    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
-};
-use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
-
 use crate::{
-    CubeElement, CubeRuntime,
-    element::MatmulElement,
+    CubeRuntime,
     kernel::{
         conv::batches_per_run,
         into_contiguous,
         matmul::{MatmulStrategy, matmul},
         slice,
     },
-    ops::{numeric::empty_device, reshape, swap_dims},
+    ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,
 };
+use burn_tensor::{
+    Shape,
+    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
+};
+use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 /// Perform a 2D convolution transposition using the GEMM (col2im) algorithm.
 ///
@@ -23,8 +21,7 @@ use crate::{
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-///
-pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
+pub fn conv_transpose2d_col2im<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -73,19 +70,24 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
         let runs = batch_size / batches_per_run;
 
         let im_shape = Shape::new([runs, batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
+        let image = empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            im_shape,
+            input.dtype,
+        );
 
         let input_shape = Shape::new([runs, batches_per_run, input_channels, input_h, input_w]);
         let input = reshape(input, input_shape);
         let input_shape_run = Shape::new([batches_per_run, input_channels, input_h, input_w]);
 
         for run in 0..runs {
-            let input = index::<R, E>(input.clone(), run);
+            let input = index(input.clone(), run);
             let input = reshape(input, input_shape_run.clone());
             let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-            let image_slice = index::<R, E>(image.clone(), run);
+            let image_slice = index(image.clone(), run);
             let image_slice = reshape(image_slice, im_shape);
-            execute::<R, E>(
+            execute(
                 input,
                 weight.clone(),
                 bias.clone(),
@@ -101,8 +103,13 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
         ))
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
-        execute::<R, E>(
+        let image = empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            im_shape,
+            input.dtype,
+        );
+        execute(
             input,
             weight,
             bias,
@@ -115,23 +122,20 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
     }
 }
 
-pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
-    tensor: CubeTensor<R>,
-    i: usize,
-) -> CubeTensor<R> {
+pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
     for dim in tensor.shape[1..].iter() {
         indices.push(0..*dim);
     }
-    let mut tensor = slice::<R, E>(tensor, &indices);
+    let mut tensor = slice(tensor, &indices);
     tensor.shape.remove(0);
     tensor.strides.remove(0);
     tensor
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute<R: CubeRuntime, E: MatmulElement>(
+fn execute<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -149,18 +153,19 @@ fn execute<R: CubeRuntime, E: MatmulElement>(
     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
     let input = reshape(input, input_shape);
 
-    let columns = matmul::<R, E>(weight, input, None, MatmulStrategy::default())?;
+    let dtype = input.dtype;
+    let columns = matmul(weight, input, None, MatmulStrategy::default(), dtype)?;
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
-    col2im::<R, E>(
+    col2im(
         columns, bias, image, kernel_h, kernel_w, input_h, input_w, options,
-    );
+    )?;
 
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
-fn col2im<R: CubeRuntime, E: MatmulElement>(
+fn col2im<R: CubeRuntime>(
     columns: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     out: CubeTensor<R>,
@@ -169,16 +174,18 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
     out_h: usize,
     out_w: usize,
     options: ConvTransposeOptions<2>,
-) {
+) -> Result<(), LaunchError> {
+    let dtype = columns.dtype;
     let [_, col_size_1] = columns.shape.dims();
 
     let columns = into_contiguous(columns);
     let has_bias = bias.is_some();
     let bias = bias.map(into_contiguous).unwrap_or_else(|| {
-        empty_device::<R, E>(
+        empty_device_dtype(
             columns.client.clone(),
             columns.device.clone(),
             Shape::new([1]),
+            dtype,
         )
     });
 
@@ -189,13 +196,13 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        col2im_kernel::launch_unchecked::<E, R>(
+        col2im_kernel::launch_unchecked(
             &columns.client,
             cube_count,
             cube_dim,
-            columns.as_tensor_arg::<E>(vectorization),
-            bias.as_tensor_arg::<E>(vectorization),
-            out.as_tensor_arg::<E>(vectorization),
+            columns.as_tensor_arg(vectorization),
+            bias.as_tensor_arg(vectorization),
+            out.as_tensor_arg(vectorization),
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),
@@ -210,8 +217,9 @@ fn col2im<R: CubeRuntime, E: MatmulElement>(
                 ScalarArg::new(col_size_1 as u32),
             ),
             has_bias,
+            dtype.into(),
         )
-    };
+    }
 }
 
 #[derive(CubeLaunch, CubeType)]
@@ -239,6 +247,7 @@ fn col2im_kernel<E: Numeric>(
     image: &mut Tensor<E>,
     args: &Col2ImArgs,
     #[comptime] has_bias: bool,
+    #[define(E)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= image.len() {
         terminate!();

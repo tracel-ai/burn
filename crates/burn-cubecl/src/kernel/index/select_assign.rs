@@ -1,5 +1,5 @@
 use crate::kernel::{AddOp, BinaryOp, BinaryOpFamily, OrOp, into_contiguous};
-use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
+use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
@@ -9,6 +9,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     indices: &Tensor<I>,
     value: &Tensor<F>,
     dim: &u32,
+    #[define(F, I)] _dtypes: [StorageType; 2],
 ) {
     let dim = *dim;
     let mut offset_tensor = 0u32;
@@ -49,7 +50,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
+pub(crate) fn select_assign<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     dim: usize,
     indices: CubeTensor<R>,
@@ -83,8 +84,8 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     let launch = match is_bool {
-        true => select_assign_kernel::launch_unchecked::<E, I, OrOp, R>,
-        false => select_assign_kernel::launch_unchecked::<E, I, AddOp, R>,
+        true => select_assign_kernel::launch_unchecked::<OrOp, R>,
+        false => select_assign_kernel::launch_unchecked::<AddOp, R>,
     };
 
     unsafe {
@@ -92,12 +93,20 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             // Ignored shape + custom strides.
-            TensorArg::from_raw_parts::<I>(&indices.handle, &strides, &strides, 1),
-            value.as_tensor_arg::<E>(1),
+            TensorArg::from_raw_parts_and_size(
+                &indices.handle,
+                &strides,
+                &strides,
+                1,
+                indices.dtype.size(),
+            ),
+            value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
-        );
+            [tensor.dtype.into(), indices.dtype.into()],
+        )
+        .expect("Kernel to never fail");
     };
 
     tensor

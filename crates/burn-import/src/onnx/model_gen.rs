@@ -8,11 +8,7 @@ use burn::record::{
     DoublePrecisionSettings, FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings,
 };
 
-use crate::{
-    burn::{graph::BurnGraph, node::try_convert_onnx_node},
-    format_tokens,
-    logger::init_log,
-};
+use crate::{burn::graph::BurnGraph, format_tokens, logger::init_log};
 
 use onnx_ir::{ir::OnnxGraph, parse_onnx};
 
@@ -418,17 +414,14 @@ impl ModelGen {
         log::debug!("Development mode: {:?}", self.development);
         log::debug!("Output file: {out_file:?}");
 
-        let graph = parse_onnx(input.as_ref());
+        let graph = parse_onnx(input.as_ref())
+            .unwrap_or_else(|e| panic!("Failed to parse ONNX file '{}': {}", input.display(), e));
 
         if self.development {
             self.write_debug_file(&out_file, "onnx.txt", &graph);
         }
 
         let graph = ParsedOnnxGraph(graph);
-
-        if self.development {
-            self.write_debug_file(&out_file, "graph.txt", &graph);
-        }
 
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
@@ -513,20 +506,9 @@ impl ParsedOnnxGraph {
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 
-        let mut unsupported_ops = vec![];
-
         for node in self.0.nodes {
-            // Try registry-based conversion
-            if let Some(burn_node) = try_convert_onnx_node::<PS>(node.clone()) {
-                graph.register(burn_node);
-            } else {
-                // Unsupported node type
-                unsupported_ops.push(node.node_type);
-            }
-        }
-
-        if !unsupported_ops.is_empty() {
-            panic!("Unsupported ops: {unsupported_ops:?}");
+            // Register node directly (control flow nodes will fail at codegen time)
+            graph.register(node);
         }
 
         // Extract input and output names
@@ -543,8 +525,8 @@ impl ParsedOnnxGraph {
             .map(|output| output.name.clone())
             .collect();
 
-        // Register inputs and outputs with the graph
-        graph.register_input_output(input_names, output_names);
+        // Register inputs and outputs with the graph (pass Arguments directly)
+        graph.register_input_output(input_names, output_names, &self.0.inputs, &self.0.outputs);
 
         graph
     }

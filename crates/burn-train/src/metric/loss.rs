@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use super::MetricEntry;
 use super::MetricMetadata;
+use super::SerializedEntry;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use crate::metric::MetricName;
@@ -43,7 +43,7 @@ impl<B: Backend> LossMetric<B> {
 impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 
-    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [batch_size] = loss.tensor.dims();
         let loss = loss
             .tensor
@@ -80,6 +80,6 @@ impl<B: Backend> Metric for LossMetric<B> {
 
 impl<B: Backend> Numeric for LossMetric<B> {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }

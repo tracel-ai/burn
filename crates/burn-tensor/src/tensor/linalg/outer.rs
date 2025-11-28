@@ -1,5 +1,5 @@
 use crate::backend::Backend;
-use crate::indexing::canonicalize_dim;
+use crate::canonicalize_dim;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{AsIndex, Numeric};
 

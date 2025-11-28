@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, ExecutionError};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
@@ -78,12 +78,12 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
-        tensor
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
+        Ok(tensor
             .into_data()
-            .await
+            .await?
             // Since underlying backends can have different data types, we convert to the current elem
-            .convert::<<Self as Backend>::FloatElem>()
+            .convert::<<Self as Backend>::FloatElem>())
     }
 
     fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {

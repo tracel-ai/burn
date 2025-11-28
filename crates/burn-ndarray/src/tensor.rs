@@ -2,12 +2,10 @@ use core::mem;
 
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{
-        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue,
-        QuantizationStrategy, SymmetricQuantization,
-    },
+    quantization::{QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 
+use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
@@ -359,7 +357,7 @@ impl ShapeOps for &[usize] {
 }
 
 mod utils {
-    use burn_common::tensor::is_contiguous;
+    use burn_std::tensor::is_contiguous;
 
     use super::*;
 
@@ -603,7 +601,7 @@ mod tests {
     use crate::NdArray;
 
     use super::*;
-    use burn_common::rand::get_seeded_rng;
+    use burn_std::rand::get_seeded_rng;
     use burn_tensor::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},

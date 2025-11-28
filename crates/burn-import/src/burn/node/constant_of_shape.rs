@@ -1,429 +1,555 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::ir::ArgType;
 
-/// Node for ConstantOfShape operation.
-#[derive(Debug, Clone)]
-pub struct ConstantOfShapeNode {
-    pub shape: ConstantOfShapeShape,
-    pub output: Type,
-    pub value: ConstantValue,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConstantValue {
-    /// Float constant.
-    Float32(f32),
-    Float64(f64),
-
-    /// Integer constant.
-    Int32(i32),
-    Int64(i64),
-
-    // Boolean constant.
-    Bool(bool),
-}
-
-impl ConstantOfShapeNode {
-    pub fn new(shape: ConstantOfShapeShape, output: Type, value: ConstantValue) -> Self {
-        // Verify output type
-        assert!(
-            matches!(output, Type::Tensor(_) | Type::Scalar(_) | Type::Shape(_)),
-            "ConstantOfShape output needs to be a Tensor, Scalar, or Shape!"
-        );
-
-        // Note: Runtime shape validation is done in onnx-ir's constant_of_shape_config
-
-        Self {
-            shape,
-            output,
-            value,
-        }
-    }
-}
-
-impl ConstantValue {
-    pub fn val_tokens(&self) -> TokenStream {
-        match self {
-            Self::Float32(val) => quote! { #val },
-            Self::Float64(val) => quote! { #val },
-            Self::Int32(val) => quote! { #val },
-            Self::Int64(val) => quote! { #val },
-            Self::Bool(val) => quote! { #val },
-        }
+impl<PS: PrecisionSettings> NodeCodegen<PS>
+    for onnx_ir::node::constant_of_shape::ConstantOfShapeNode
+{
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    pub fn from_vec<T: Into<Self> + Copy>(mut source: Vec<T>) -> Self {
-        assert_eq!(
-            source.len(),
-            1,
-            "ConstantOfShape value from a vec needs to have exactly 1 element!"
-        );
-        source.drain(..).next().unwrap().into()
-    }
-}
-
-impl From<f32> for ConstantValue {
-    fn from(value: f32) -> Self {
-        Self::Float32(value)
-    }
-}
-impl From<f64> for ConstantValue {
-    fn from(value: f64) -> Self {
-        Self::Float64(value)
-    }
-}
-impl From<i32> for ConstantValue {
-    fn from(value: i32) -> Self {
-        Self::Int32(value)
-    }
-}
-impl From<i64> for ConstantValue {
-    fn from(value: i64) -> Self {
-        Self::Int64(value)
-    }
-}
-impl From<bool> for ConstantValue {
-    fn from(value: bool) -> Self {
-        Self::Bool(value)
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
-    fn input_types(&self) -> Vec<Type> {
-        match &self.shape {
-            ConstantOfShapeShape::Static(_) => vec![],
-            ConstantOfShapeShape::Runtime(arg) => vec![Type::from(arg)],
-        }
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
-    }
+    fn forward(&self, _scope: &mut super::super::scope::ScopeAtPosition<'_>) -> TokenStream {
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
-        let output = self.output.name();
-        let value = self.value.val_tokens();
+        // Extract fill value from config
+        let value = if let Some(tensor_data) = &self.config.value {
+            // Extract the scalar value from the tensor data
+            match tensor_data.dtype {
+                onnx_ir::ir::DType::F32 => {
+                    let val = tensor_data.as_slice::<f32>().unwrap()[0];
+                    quote! { #val }
+                }
+                onnx_ir::ir::DType::F64 => {
+                    let val = tensor_data.as_slice::<f64>().unwrap()[0];
+                    quote! { #val }
+                }
+                onnx_ir::ir::DType::I32 => {
+                    let val = tensor_data.as_slice::<i32>().unwrap()[0];
+                    quote! { #val }
+                }
+                onnx_ir::ir::DType::I64 => {
+                    let val = tensor_data.as_slice::<i64>().unwrap()[0];
+                    quote! { #val }
+                }
+                onnx_ir::ir::DType::Bool => {
+                    let val = tensor_data.as_slice::<bool>().unwrap()[0];
+                    quote! { #val }
+                }
+                _ => quote! { 0.0f32 }, // Default fallback
+            }
+        } else {
+            quote! { 0.0f32 } // Default value per ONNX spec
+        };
 
         // Generate shape expression based on Static or Runtime
-        let shape_expr = match &self.shape {
-            ConstantOfShapeShape::Static(static_shape) => {
-                // We have static shape values - embed them directly in the code
+        let shape_expr = match &self.config.shape {
+            onnx_ir::node::constant_of_shape::ConstantOfShapeShape::Static(static_shape) => {
+                // Static shape values - embed them directly in the code
                 let shape_values = static_shape.iter().map(|v| {
                     let val = *v as usize;
                     quote! { #val }
                 });
                 quote! { [#(#shape_values),*] }
             }
-            ConstantOfShapeShape::Runtime(arg) => {
+            onnx_ir::node::constant_of_shape::ConstantOfShapeShape::Runtime(runtime_ref) => {
                 // Runtime shape input
-                let input = Type::from(arg);
-                let input_name = input.name();
+                let arg = &self.inputs[runtime_ref.input_index];
+                let input_name = arg_to_ident(arg);
                 quote! { #input_name }
             }
         };
 
-        match &self.output {
-            Type::Scalar(scalar) => {
+        // Generate code based on output type
+        match &self.outputs[0].ty {
+            ArgType::Scalar(_) => {
                 // For scalar output, the input shape should be empty (rank 0)
                 // Just return the constant value directly
-                let ty = scalar.ty();
                 quote! {
-                    let #output: #ty = #value;
+                    let #output = #value;
                 }
             }
-            Type::Tensor(tensor) => {
+            ArgType::Tensor(tensor) => {
                 let output_rank = tensor.rank.to_tokens();
 
-                // Note: in the generated code, self.device is a &module::Ignored<Device>,
-                // so to get a &Device, &* is needed
+                // Check if value is boolean - special handling needed
+                let is_bool_value = if let Some(tensor_data) = &self.config.value {
+                    tensor_data.dtype.is_bool()
+                } else {
+                    false
+                };
 
-                match &self.value {
-                    ConstantValue::Bool(bool) => {
-                        // Currently there is no full bool tensor support in the backend
-                        // So we use 0 or 1 with bool type casting
-                        // See: https://github.com/tracel-ai/burn/issues/1535
-                        if *bool {
-                            quote! {
-                                let #output = Tensor::<B, #output_rank, Int>::ones(#shape_expr, &*self.device).bool();
-                            }
-                        } else {
-                            quote! {
-                                let #output = Tensor::<B, #output_rank, Int>::zeros(#shape_expr, &*self.device).bool();
-                            }
+                if is_bool_value {
+                    // Boolean tensors need special handling
+                    let bool_val = if let Some(tensor_data) = &self.config.value {
+                        tensor_data.as_slice::<bool>().unwrap()[0]
+                    } else {
+                        false
+                    };
+
+                    if bool_val {
+                        quote! {
+                            let #output = Tensor::<B, #output_rank, Int>::ones(#shape_expr, &*self.device).bool();
+                        }
+                    } else {
+                        quote! {
+                            let #output = Tensor::<B, #output_rank, Int>::zeros(#shape_expr, &*self.device).bool();
                         }
                     }
-                    _ => quote! {
+                } else {
+                    quote! {
                         let #output = Tensor::full(#shape_expr, #value, &*self.device);
-                    },
+                    }
                 }
             }
-            Type::Shape(shape) => {
-                // Optimization: When ConstantOfShape outputs Shape(1) with Int64,
-                // we directly create a shape array instead of a tensor.
-                // This is a common pattern for shape manipulation operations.
-                assert_eq!(shape.rank, 1, "Shape optimization only supports Shape(1)");
-
-                // The input is Shape(1) which means [N] where N is the dimension
-                // We need to create a shape array with that single value
+            ArgType::Shape(size) => {
+                // Output is Shape(n) - create an array with n elements, each filled with the value
+                // The size is determined by the input shape value, not its type
+                let size_val = *size;
+                let values = std::iter::repeat_n(value.clone(), size_val);
                 quote! {
-                    // Input shape tells us the size, value tells us what to fill
-                    let #output: [i64; 1] = [#value];
+                    let #output: [i64; #size_val] = [#(#values),*];
                 }
             }
-            _ => unreachable!("ConstantOfShape output must be Tensor, Scalar, or Shape"),
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::ConstantOfShape(self)
-    }
-}
-
-impl OnnxIntoNode for ConstantOfShapeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::Data;
-        // Get the shape configuration from onnx-ir
-        let shape = onnx_ir::node::constant_of_shape::constant_of_shape_config(&node);
-
-        let output = Type::from(node.outputs.first().unwrap());
-
-        // The value of the output elements. Should be a one-element tensor.
-        // If not specified, it defaults to a tensor of value 0 and datatype float32
-        let value = node
-            .attrs
-            .get("value")
-            .map(|val| val.clone().into_tensor().data)
-            .map(|val_data| match val_data {
-                Data::Float32s(vals) => ConstantValue::from_vec(vals),
-                Data::Float64s(vals) => ConstantValue::from_vec(vals),
-                Data::Int32s(vals) => ConstantValue::from_vec(vals),
-                Data::Int64s(vals) => ConstantValue::from_vec(vals),
-                Data::Bools(vals) => ConstantValue::from_vec(vals),
-                ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
-            })
-            .unwrap_or(ConstantValue::Float32(0.0f32));
-
-        ConstantOfShapeNode::new(shape, output, value)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{constant_of_shape::ConstantOfShapeNode, test::assert_tokens},
+    use super::super::test_helpers::*;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{DType, RuntimeInputRef, TensorData};
+    use onnx_ir::node::constant_of_shape::{
+        ConstantOfShapeConfig, ConstantOfShapeNodeBuilder, ConstantOfShapeShape,
     };
 
+    // ==================== Scalar Output Tests ====================
+
     #[test]
-    fn test_constant_val() {
-        assert_eq!(ConstantValue::from(1i32), ConstantValue::Int32(1i32));
-        assert_eq!(ConstantValue::from(-1i64), ConstantValue::Int64(-1i64));
-        assert_eq!(ConstantValue::from(0f32), ConstantValue::Float32(0f32));
-        assert_eq!(ConstantValue::from(0f64), ConstantValue::Float64(0f64));
-        assert_eq!(ConstantValue::from(true), ConstantValue::Bool(true));
-        assert_eq!(
-            ConstantValue::from_vec(vec![2i32]),
-            ConstantValue::Int32(2i32)
-        );
+    fn test_constant_of_shape_scalar_f32() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![]),
+            value: Some(TensorData::new(vec![3.14f32], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("dims")
+            .output_scalar("result", DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> f32 {
+            let result = 3.14f32;
+            result
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_nodes() {
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
+    fn test_constant_of_shape_scalar_f64() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![]),
+            value: Some(TensorData::new(vec![2.718f64], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("shape_in")
+            .output_scalar("value", DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_in: [i64; 1]) -> f64 {
+            let value = 2.718f64;
+            value
+        }
+        ");
+    }
 
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    #[test]
+    fn test_constant_of_shape_scalar_i32() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![]),
+            value: Some(TensorData::new(vec![42i32], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("s")
+            .output_scalar("num", DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, s: [i64; 1]) -> i32 {
+            let num = 42i32;
+            num
+        }
+        ");
+    }
 
-        graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(4),
-                value: None,
-                passed: false,
+    #[test]
+    fn test_constant_of_shape_scalar_i64() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![]),
+            value: Some(TensorData::new(vec![999i64], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("shape_data")
+            .output_scalar("output", DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_data: [i64; 1]) -> i64 {
+            let output = 999i64;
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_scalar_bool() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![]),
+            value: Some(TensorData::new(vec![true], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("shape_vec")
+            .output_scalar("flag", DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_vec: [i64; 1]) -> bool {
+            let flag = true;
+            flag
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_scalar_default() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![]),
+            value: None, // Should default to 0.0f32
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("s")
+            .output_scalar("zero", DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, s: [i64; 1]) -> f32 {
+            let zero = 0.0f32;
+            zero
+        }
+        ");
+    }
+
+    // ==================== Tensor with Static Shape Tests ====================
+
+    #[test]
+    fn test_constant_of_shape_tensor_f32_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![2, 3, 4]),
+            value: Some(TensorData::new(vec![1.5f32], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("target_shape")
+            .output_tensor("filled", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, target_shape: [i64; 1]) -> Tensor<B, 3> {
+            let filled = Tensor::full([2usize, 3usize, 4usize], 1.5f32, &*self.device);
+            filled
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_tensor_f64_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![10, 20]),
+            value: Some(TensorData::new(vec![0.5f64], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("dims")
+            .output_tensor("matrix", 2, DType::F64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> Tensor<B, 2> {
+            let matrix = Tensor::full([10usize, 20usize], 0.5f64, &*self.device);
+            matrix
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_tensor_i32_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![5, 5]),
+            value: Some(TensorData::new(vec![7i32], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("size")
+            .output_tensor("grid", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, size: [i64; 1]) -> Tensor<B, 2, Int> {
+            let grid = Tensor::full([5usize, 5usize], 7i32, &*self.device);
+            grid
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_tensor_i64_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![8]),
+            value: Some(TensorData::new(vec![100i64], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("length")
+            .output_tensor("vector", 1, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, length: [i64; 1]) -> Tensor<B, 1, Int> {
+            let vector = Tensor::full([8usize], 100i64, &*self.device);
+            vector
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_tensor_bool_true_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![3, 4]),
+            value: Some(TensorData::new(vec![true], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("shape_dims")
+            .output_tensor("mask", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_dims: [i64; 1]) -> Tensor<B, 2, Bool> {
+            let mask = Tensor::<B, 2, Int>::ones([3usize, 4usize], &*self.device).bool();
+            mask
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_tensor_bool_false_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![6, 7, 8]),
+            value: Some(TensorData::new(vec![false], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("dimensions")
+            .output_tensor("flags", 3, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dimensions: [i64; 1]) -> Tensor<B, 3, Bool> {
+            let flags = Tensor::<B, 3, Int>::zeros([6usize, 7usize, 8usize], &*self.device)
+                .bool();
+            flags
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_tensor_default_static() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![2, 2]),
+            value: None, // Defaults to 0.0f32
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("size")
+            .output_tensor("zeros", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, size: [i64; 1]) -> Tensor<B, 2> {
+            let zeros = Tensor::full([2usize, 2usize], 0.0f32, &*self.device);
+            zeros
+        }
+        ");
+    }
+
+    // ==================== Tensor with Runtime Shape Tests ====================
+
+    #[test]
+    fn test_constant_of_shape_tensor_runtime_f32() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Runtime(RuntimeInputRef {
+                name: "dynamic_shape".to_string(),
+                input_index: 0,
             }),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ConstantValue::Float32(1.25f32),
-        ));
-
-        graph.register_input_output(vec!["shape1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [i64;4]) -> Tensor<B, 4> {
-                    let tensor2 = Tensor::full(shape1, 1.25f32, &*self.device);
-                    tensor2
-                }
-            }
+            value: Some(TensorData::new(vec![2.5f32], vec![])),
         };
-
-        assert_tokens(graph.codegen(), expected);
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("dynamic_shape")
+            .output_tensor("tensor", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dynamic_shape: [i64; 1]) -> Tensor<B, 3> {
+            let tensor = Tensor::full(dynamic_shape, 2.5f32, &*self.device);
+            tensor
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_scalar_output() {
-        use crate::burn::ScalarType;
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
-
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(0),
-                value: None,
-                passed: false,
+    fn test_constant_of_shape_tensor_runtime_i64() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Runtime(RuntimeInputRef {
+                name: "shape_param".to_string(),
+                input_index: 0,
             }),
-            Type::Scalar(ScalarType::new("scalar1", crate::burn::ScalarKind::Float32)),
-            ConstantValue::Float32(42.0f32),
-        ));
-
-        graph.register_input_output(vec!["shape1".to_string()], vec!["scalar1".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [i64;0]) -> f32 {
-                    let scalar1: f32 = 42f32;
-                    scalar1
-                }
-            }
+            value: Some(TensorData::new(vec![255i64], vec![])),
         };
-
-        assert_tokens(graph.codegen(), expected);
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("shape_param")
+            .output_tensor("data", 2, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, shape_param: [i64; 1]) -> Tensor<B, 2, Int> {
+            let data = Tensor::full(shape_param, 255i64, &*self.device);
+            data
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_shape_output() {
-        use crate::burn::ShapeType;
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
-
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape_input".to_string(),
-                ty: ArgType::Shape(1),
-                value: None,
-                passed: false,
+    fn test_constant_of_shape_tensor_runtime_bool_true() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Runtime(RuntimeInputRef {
+                name: "sz".to_string(),
+                input_index: 0,
             }),
-            Type::Shape(ShapeType::new("shape_output", 1)),
-            ConstantValue::Int64(10i64),
-        ));
-
-        graph.register_input_output(
-            vec!["shape_input".to_string()],
-            vec!["shape_output".to_string()],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape_input: [i64;1]) -> [i64;1] {
-                    // Input shape tells us the size, value tells us what to fill
-                    let shape_output: [i64; 1] = [10i64];
-                    shape_output
-                }
-            }
+            value: Some(TensorData::new(vec![true], vec![])),
         };
-
-        assert_tokens(graph.codegen(), expected);
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("sz")
+            .output_tensor("bitmask", 4, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, sz: [i64; 1]) -> Tensor<B, 4, Bool> {
+            let bitmask = Tensor::<B, 4, Int>::ones(sz, &*self.device).bool();
+            bitmask
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_static_shape() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        // Test with static shape values
-        graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Static(vec![2, 3, 4]),
-            Type::Tensor(TensorType::new_float("tensor1", 3)),
-            ConstantValue::Float32(0.5f32),
-        ));
-
-        graph.register_input_output(vec![], vec!["tensor1".to_string()]);
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self) -> Tensor<B, 3> {
-                    let tensor1 = Tensor::full([2usize, 3usize, 4usize], 0.5f32, &*self.device);
-                    tensor1
-                }
-            }
+    fn test_constant_of_shape_tensor_runtime_bool_false() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Runtime(RuntimeInputRef {
+                name: "target_dims".to_string(),
+                input_index: 0,
+            }),
+            value: Some(TensorData::new(vec![false], vec![])),
         };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("target_dims")
+            .output_tensor("empty_mask", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, target_dims: [i64; 1]) -> Tensor<B, 2, Bool> {
+            let empty_mask = Tensor::<B, 2, Int>::zeros(target_dims, &*self.device).bool();
+            empty_mask
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_constant_of_shape_tensor_runtime_default() {
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Runtime(RuntimeInputRef {
+                name: "runtime_shape".to_string(),
+                input_index: 0,
+            }),
+            value: None, // Defaults to 0.0f32
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("runtime_shape")
+            .output_tensor("zeros", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, runtime_shape: [i64; 1]) -> Tensor<B, 3> {
+            let zeros = Tensor::full(runtime_shape, 0.0f32, &*self.device);
+            zeros
+        }
+        ");
+    }
+
+    // ==================== Shape Output Tests ====================
+
+    #[test]
+    fn test_constant_of_shape_shape_output_i64() {
+        // Test Shape(3) output - creates array with 3 elements
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![3]), // Output will have 3 elements
+            value: Some(TensorData::new(vec![10i64], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("in_shape")
+            .output_shape_with_size("out_shape", 3) // Shape(3) - 3 elements
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, in_shape: [i64; 1]) -> [i64; 3] {
+            let out_shape: [i64; 3usize] = [10i64, 10i64, 10i64];
+            out_shape
+        }
+        ");
+    }
+
+    #[test]
+    fn test_constant_of_shape_shape_output_single_element() {
+        // Test Shape(1) output - creates array with 1 element
+        let config = ConstantOfShapeConfig {
+            shape: ConstantOfShapeShape::Static(vec![1]), // Output will have 1 element
+            value: Some(TensorData::new(vec![5i64], vec![])),
+        };
+        let node = ConstantOfShapeNodeBuilder::new("const1")
+            .input_shape("dims")
+            .output_shape_with_size("result", 1) // Shape(1) - 1 element
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, dims: [i64; 1]) -> [i64; 1] {
+            let result: [i64; 1usize] = [5i64];
+            result
+        }
+        ");
     }
 }

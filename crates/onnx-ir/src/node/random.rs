@@ -1,51 +1,243 @@
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+//! # Random Tensor Generation (RandomNormal, RandomUniform)
+//!
+//! This module implements processors for ONNX random tensor generation operations that create
+//! tensors with random values sampled from specified distributions.
+//!
+//! **ONNX Specs**:
+//! - RandomNormal: <https://onnx.ai/onnx/operators/onnx__RandomNormal.html>
+//! - RandomUniform: <https://onnx.ai/onnx/operators/onnx__RandomUniform.html>
+//!
+//! ## Supported Operations
+//!
+//! - **RandomNormal**: Generates a tensor with values drawn from a normal distribution
+//! - **RandomUniform**: Generates a tensor with values drawn from a uniform distribution
+//!
+//! Both operations require a `shape` attribute and support an optional `dtype` attribute
+//! (defaults to FLOAT if not specified).
+//!
+//! ## Opset Versions
+//!
+//! ### RandomNormal
+//! - **Opset 1**: Initial version with shape, dtype, mean, scale, and seed attributes.
+//!
+//! ### RandomUniform
+//! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
-/// Update output rank for Random operations with explicit shape attribute.
-pub fn random_update_output(node: &mut Node) {
-    log::debug!("Random rank inference for node {}", node.name);
+/// Configuration for RandomNormal operation.
+#[derive(Debug, Clone)]
+pub struct RandomNormalConfig {
+    pub mean: f64,
+    pub scale: f64,
+    pub shape: Vec<usize>,
+}
 
-    let dtype = node
-        .attrs
-        .get("dtype")
-        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
-        .unwrap_or(DataType::FLOAT);
-    log::debug!("Random dtype for {}: {:?}", node.name, dtype);
+/// Configuration for RandomUniform operation.
+#[derive(Debug, Clone)]
+pub struct RandomUniformConfig {
+    pub low: f64,
+    pub high: f64,
+    pub shape: Vec<usize>,
+}
 
-    let shape = node
-        .attrs
-        .get("shape")
-        .expect("required shape attribute missing")
-        .clone()
-        .into_i64s();
-    log::debug!("Random shape for {}: {:?}", node.name, shape);
+/// Enum config that can hold either RandomNormal or RandomUniform config
+#[derive(Debug, Clone)]
+pub enum RandomConfig {
+    Normal(RandomNormalConfig),
+    Uniform(RandomUniformConfig),
+}
 
-    let elem_type = match dtype {
-        DataType::FLOAT => ElementType::Float32,
-        DataType::DOUBLE => ElementType::Float64,
-        _ => panic!("tensor with type {dtype:?} not supported for random output"),
-    };
+/// Node representation for RandomNormal operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct RandomNormalNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RandomNormalConfig,
+}
 
-    let rank = shape.len();
-    log::debug!("Random output rank for {}: {}", node.name, rank);
+/// Node representation for RandomUniform operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct RandomUniformNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RandomUniformConfig,
+}
 
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        rank,
-        static_shape: None,
-    });
+pub(crate) struct RandomProcessor;
+
+impl NodeProcessor for RandomProcessor {
+    type Config = RandomConfig;
+
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 1,
+            max_opset: None,
+            inputs: InputSpec::Exact(0),
+            outputs: OutputSpec::Exact(1),
+        }
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut RawNode,
+        _opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // TODO: Validate that this node has zero inputs (Random operations don't take inputs)
+        // Random operators should have no inputs, but this isn't validated.
+        // Should add: validate_input_count(node, 0) or validate_max_inputs(node, 0)
+        // Location: After validate_output_count
+
+        // TODO: RandomNormal mean and scale attributes not validated or extracted
+        // ONNX spec defines:
+        // - mean (float, default=0.0): Mean of the normal distribution
+        // - scale (float, default=1.0): Standard deviation of the normal distribution
+        // - seed (float, optional): Random seed for reproducibility
+        // These attributes exist in spec but are completely ignored by implementation.
+        // Should extract into config and validate ranges (scale > 0).
+        // Location: extract_config method
+
+        // TODO: RandomUniform high/low attributes not validated or extracted
+        // ONNX spec defines:
+        // - high (float, default=1.0): Upper boundary of uniform distribution (exclusive)
+        // - low (float, default=0.0): Lower boundary of uniform distribution (inclusive)
+        // - seed (float, optional): Random seed for reproducibility
+        // These attributes are ignored. Should extract into config and validate low < high.
+        // Location: extract_config method
+
+        // TODO: Missing test coverage for non-default distribution parameters
+        // Tests only validate basic shape output, not distribution parameters (mean, scale, high, low).
+        // Add tests: random_normal_custom_mean_scale, random_uniform_custom_range
+        // Note: Testing actual distribution properties is hard, but should at least extract attrs.
+
+        // TODO: Missing validation for seed attribute
+        // Spec mentions seed attribute for reproducibility but it's not extracted or validated.
+        // Add tests: random_normal_with_seed, random_uniform_with_seed
+
+        let dtype = node
+            .attrs
+            .get("dtype")
+            .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+            .unwrap_or(DataType::FLOAT);
+
+        let shape = node
+            .attrs
+            .get("shape")
+            .ok_or_else(|| ProcessError::Custom("required shape attribute missing".to_string()))?
+            .clone()
+            .into_i64s();
+
+        let elem_type = match dtype {
+            DataType::FLOAT => DType::F32,
+            DataType::DOUBLE => DType::F64,
+            _ => {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "dtype".to_string(),
+                    reason: format!("tensor with type {dtype:?} not supported for random output"),
+                });
+            }
+        };
+
+        let rank = shape.len();
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dtype: elem_type,
+            rank,
+            static_shape: None,
+        });
+
+        Ok(())
+    }
+
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
+        let shape = node
+            .attrs
+            .get("shape")
+            .ok_or_else(|| ProcessError::Custom("required shape attribute missing".to_string()))?
+            .clone()
+            .into_i64s();
+        let shape: Vec<usize> = shape.into_iter().map(|i| i as usize).collect();
+
+        let config = match node.node_type {
+            crate::ir::NodeType::RandomNormal => {
+                let mean = node
+                    .attrs
+                    .get("mean")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(0.0);
+                let scale = node
+                    .attrs
+                    .get("scale")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(1.0);
+                RandomConfig::Normal(RandomNormalConfig { mean, scale, shape })
+            }
+            crate::ir::NodeType::RandomUniform => {
+                let low = node
+                    .attrs
+                    .get("low")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(0.0);
+                let high = node
+                    .attrs
+                    .get("high")
+                    .map(|v| v.clone().into_f32() as f64)
+                    .unwrap_or(1.0);
+                RandomConfig::Uniform(RandomUniformConfig { low, high, shape })
+            }
+            _ => {
+                return Err(ProcessError::Custom(format!(
+                    "RandomProcessor does not support node type {:?}",
+                    node.node_type
+                )));
+            }
+        };
+
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        match config {
+            RandomConfig::Normal(normal_config) => Node::RandomNormal(RandomNormalNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: normal_config,
+            }),
+            RandomConfig::Uniform(uniform_config) => Node::RandomUniform(RandomUniformNode {
+                name: builder.name,
+                inputs: builder.inputs,
+                outputs: builder.outputs,
+                config: uniform_config,
+            }),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: i32, shape: Vec<i64>) -> Node {
-        NodeBuilder::new(NodeType::RandomNormal, "test_random")
+    fn create_test_node(dtype: i32, shape: Vec<i64>) -> RawNode {
+        TestNodeBuilder::new(NodeType::RandomNormal, "test_random")
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
             .attr_int("dtype", dtype as i64)
             .attr_ints("shape", shape)
@@ -55,11 +247,13 @@ mod tests {
     #[test]
     fn test_random_normal_float() {
         let mut node = create_test_node(DataType::FLOAT.value(), vec![2, 3, 4]);
-        random_update_output(&mut node);
+        let processor = RandomProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.dtype, DType::F32);
                 assert_eq!(tensor.rank, 3);
             }
             _ => panic!("Expected tensor output"),
@@ -69,11 +263,13 @@ mod tests {
     #[test]
     fn test_random_normal_double() {
         let mut node = create_test_node(DataType::DOUBLE.value(), vec![5]);
-        random_update_output(&mut node);
+        let processor = RandomProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Float64);
+                assert_eq!(tensor.dtype, DType::F64);
                 assert_eq!(tensor.rank, 1);
             }
             _ => panic!("Expected tensor output"),
@@ -81,18 +277,22 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "required shape attribute missing")]
     fn test_random_normal_missing_shape() {
         // Create node and then manually remove the shape attribute
         let mut node = create_test_node(DataType::FLOAT.value(), vec![2, 3]);
         node.attrs.remove("shape");
-        random_update_output(&mut node);
+        let processor = RandomProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "tensor with type INT32 not supported for random output")]
     fn test_random_normal_unsupported_type() {
         let mut node = create_test_node(DataType::INT32.value(), vec![2, 3]);
-        random_update_output(&mut node);
+        let processor = RandomProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 }

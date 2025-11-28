@@ -1,5 +1,5 @@
 use burn_tensor::{
-    Shape,
+    DType, Shape,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
 use core::iter;
@@ -15,7 +15,7 @@ use cubecl::{
 };
 
 use crate::{
-    CubeElement, CubeRuntime, FloatElement,
+    CubeRuntime,
     kernel::{
         AddOp,
         conv::index,
@@ -25,7 +25,7 @@ use crate::{
     },
     ops::{
         max_line_size,
-        numeric::{empty_device, empty_device_optimized},
+        numeric::{empty_device_dtype, empty_device_optimized_dtype},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -49,6 +49,7 @@ fn im2col_kernel<E: Numeric>(
     shape_kernel: Sequence<FastDivmod>,
     #[comptime] elems_per_thread: u32,
     #[comptime] has_padding: bool,
+    #[define(E)] _dtype: StorageType,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -136,12 +137,12 @@ pub(crate) fn batches_per_run(
     Ok(1)
 }
 
-fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
+fn im2col<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     options: ConvOptions<N>,
     kernel_shape: &[usize],
     out_shape: &[usize],
-) -> CubeTensor<R> {
+) -> Result<CubeTensor<R>, LaunchError> {
     let client = input.client.clone();
     let input = into_contiguous_aligned(input);
 
@@ -156,8 +157,12 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let k = in_channels * kernel_shape.iter().product::<usize>();
     let m = batch_size * out_shape.iter().product::<usize>();
     let shape_col = Shape::new([m, k]);
-    let columns =
-        empty_device_optimized::<R, E>(input.client.clone(), input.device.clone(), shape_col);
+    let columns = empty_device_optimized_dtype(
+        input.client.clone(),
+        input.device.clone(),
+        shape_col,
+        input.dtype,
+    );
 
     let num_elems = columns.shape.num_elements() / line_size as usize;
     while !num_elems.is_multiple_of(elems_per_thread) && elems_per_thread > 1 {
@@ -192,7 +197,7 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     }
 
     unsafe {
-        im2col_kernel::launch_unchecked::<E, R>(
+        im2col_kernel::launch_unchecked(
             &input.client,
             cube_count,
             cube_dim,
@@ -205,10 +210,11 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
             shape_kernel,
             elems_per_thread as u32,
             options.padding.iter().any(|it| *it != 0),
+            input.dtype.into(),
         )
-    };
+    }?;
 
-    columns
+    Ok(columns)
 }
 
 /// Perform a 2D convolution using the GEMM (im2col) algorithm.
@@ -218,7 +224,7 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
+pub fn conv_im2col<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -229,7 +235,7 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     }
 
     if let Ok(out) =
-        conv_im2col_1x1::<R, E, N>(input.clone(), weight.clone(), bias.clone(), options.clone())
+        conv_im2col_1x1::<R, N>(input.clone(), weight.clone(), bias.clone(), options.clone())
     {
         return Ok(out);
     }
@@ -262,15 +268,20 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let mut out = if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
         let shape_out = Shape::new([runs, batches_per_run, out_shape_prod, out_channels]);
-        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape_out);
+        let out = empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            shape_out,
+            input.dtype,
+        );
         let input = split_dim(input, 0, &[runs, batches_per_run]);
 
         for run in 0..runs {
-            let input = index::<R, E>(input.clone(), run);
-            let mut out_slice = index::<R, E>(out.clone(), run);
+            let input = index(input.clone(), run);
+            let mut out_slice = index(out.clone(), run);
             out_slice.shape.dims = vec![shape_m, shape_n];
             out_slice.strides = vec![out_slice.strides[1], out_slice.strides[2]];
-            execute::<R, E, N>(
+            execute::<R, N>(
                 input,
                 weight.clone(),
                 &mut out_slice,
@@ -281,9 +292,13 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
         let merged = merge_dims(out, 0, 1);
         split_dim(merged, 1, &out_shape)
     } else {
-        let mut out =
-            empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
-        execute::<R, E, N>(input, weight, &mut out, options, &out_shape)?;
+        let mut out = empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            matmul_shape,
+            input.dtype,
+        );
+        execute::<R, N>(input, weight, &mut out, options, &out_shape)?;
         split_dim(out, 0, &m_split) // [N, H, W, C]
     };
 
@@ -291,13 +306,13 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
         let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
         bias_shape.push(out_channels);
         let bias = reshape(bias, bias_shape.into());
-        out = launch_binop::<R, E, AddOp>(out, bias)
+        out = launch_binop::<R, AddOp>(out, bias);
     }
 
     Ok(out)
 }
 
-pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
+pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     mut weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -331,7 +346,8 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
         return Err(ConvSetupError::Unknown);
     }
 
-    let input = reshape_input::<R, E>(input); // [(NHW), C] : [M, K]
+    let input = reshape_input(input); // [(NHW), C] : [M, K]
+    let dtype = input.dtype;
 
     // Efficient permutation that takes the stride required for TMA into account
     let weight = if weight.strides[dim_c] != 1 {
@@ -351,7 +367,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     // efficient for matmul, and allows skipping a contiguous kernel
     let weight = swap_dims(weight, 0, 1); // [K, N]
 
-    let out = matmul::<R, E>(input, weight, None, MatmulStrategy::default())?; // [M, N]
+    let out = matmul(input, weight, None, MatmulStrategy::default(), dtype)?; // [M, N]
 
     // Skip reshape to avoid potential `into_contiguous`. We're only splitting dims so it's safe.
     let mut out = split_dim(out, 0, &split_m); // [N, H, W, C]
@@ -360,24 +376,27 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
         let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
         bias_shape.push(out_channels);
         let bias = reshape(bias, bias_shape.into());
-        out = launch_binop::<R, E, AddOp>(out, bias)
+        out = launch_binop::<R, AddOp>(out, bias);
     }
 
     Ok(out)
 }
 
 /// Reshapes NHWC input to [(N, H, W), C]
-fn reshape_input<R: CubeRuntime, E: CubeElement>(mut input: CubeTensor<R>) -> CubeTensor<R> {
+fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
+    let dtype = input.dtype;
 
     let batch_size = input.shape[0];
     let in_c: usize = input.shape[dim_c];
     let in_shape = input.shape[1..dim_c].to_vec();
 
     if !is_spatial_contiguous(&input.shape, &input.strides) {
-        let contiguous = into_contiguous_pitched::<R, E>(&input.client, &input.as_handle_ref());
-        input = from_handle(&input.client, &input.device, contiguous);
+        let contiguous =
+            into_contiguous_pitched(&input.client, &input.as_handle_ref(), dtype.into())
+                .expect("Kernel to never fail");
+        input = from_handle(&input.client, &input.device, contiguous, dtype);
     }
     input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
     input.strides = vec![input.strides[dim_c - 1], input.strides[dim_c]];
@@ -401,10 +420,11 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     true
 }
 
-fn from_handle<R: CubeRuntime, E: CubeElement>(
-    client: &ComputeClient<R::Server>,
+fn from_handle<R: CubeRuntime>(
+    client: &ComputeClient<R>,
     device: &R::Device,
-    handle: TensorHandle<R, E>,
+    handle: TensorHandle<R>,
+    dtype: DType,
 ) -> CubeTensor<R> {
     CubeTensor::new(
         client.clone(),
@@ -412,11 +432,11 @@ fn from_handle<R: CubeRuntime, E: CubeElement>(
         handle.shape.into(),
         device.clone(),
         handle.strides,
-        E::dtype(),
+        dtype,
     )
 }
 
-fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
+fn execute<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     out: &mut CubeTensor<R>,
@@ -429,7 +449,7 @@ fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape[0];
     let kernel_shape = &weight.shape[1..dim_c];
 
-    let columns = im2col::<R, E, N>(input, options.clone(), kernel_shape, out_shape);
+    let columns = im2col::<R, N>(input, options.clone(), kernel_shape, out_shape)?;
 
     let [_, shape_k] = columns.shape.dims();
     let shape_n = out_channels;
@@ -437,7 +457,14 @@ fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
     let weight = reshape(weight, Shape::new([shape_n, shape_k]));
     let weight = swap_dims(weight, 0, 1); // Col-major [K, N]
 
-    matmul::<R, E>(columns, weight, Some(out.clone()), Default::default())?;
+    let dtype = columns.dtype;
+    matmul(
+        columns,
+        weight,
+        Some(out.clone()),
+        Default::default(),
+        dtype,
+    )?;
 
     Ok(())
 }

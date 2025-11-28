@@ -120,6 +120,7 @@ impl SafetensorsStore {
             validate: true,
             allow_partial: false,
             overwrite: false,
+            skip_enum_variants: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
         })
@@ -135,6 +136,7 @@ impl SafetensorsStore {
             metadata: Self::default_metadata(),
             validate: true,
             allow_partial: false,
+            skip_enum_variants: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
         })
@@ -358,6 +360,35 @@ impl SafetensorsStore {
         self
     }
 
+    /// Skip enum variant names when loading or saving tensor paths.
+    ///
+    /// When enabled during **loading**, tensor paths from the source that don't include enum variants
+    /// can be matched against Burn module paths that do include them.
+    /// For example, source path "feature.weight" can match Burn path "feature.BaseConv.weight".
+    ///
+    /// When enabled during **saving**, enum variant names are omitted from the exported tensor paths,
+    /// making them compatible with PyTorch naming conventions.
+    /// For example, "feature.BaseConv.weight" becomes "feature.weight" in the exported file.
+    ///
+    /// This is useful when working with models from/to formats that don't include enum variant
+    /// names in their parameter paths (like PyTorch models).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// // For PyTorch compatibility
+    /// let store = SafetensorsStore::from_file("model.safetensors")
+    ///     .skip_enum_variants(true);
+    /// ```
+    pub fn skip_enum_variants(mut self, skip: bool) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.skip_enum_variants = skip,
+            Self::Memory(p) => p.skip_enum_variants = skip,
+        }
+        self
+    }
+
     /// Set whether to overwrite existing files when saving (default: false).
     ///
     /// When set to `false`, attempting to save to an existing file will result in an error.
@@ -439,6 +470,7 @@ pub struct FileStore {
     validate: bool,
     allow_partial: bool,
     overwrite: bool,
+    skip_enum_variants: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
 }
@@ -452,6 +484,7 @@ pub struct MemoryStore {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
+    skip_enum_variants: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
 }
@@ -466,6 +499,7 @@ impl Default for MemoryStore {
             metadata: HashMap::new(),
             validate: true,
             allow_partial: false,
+            skip_enum_variants: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
         }
@@ -531,7 +565,7 @@ impl ModuleStore for SafetensorsStore {
             Self::File(p) => p.to_adapter.clone(),
             Self::Memory(p) => p.to_adapter.clone(),
         };
-        let mut snapshots = module.collect(None, Some(to_adapter));
+        let mut snapshots = module.collect(None, Some(to_adapter), self.get_skip_enum_variants());
 
         // Apply filtering
         snapshots = apply_filter(snapshots, self.get_filter());
@@ -625,7 +659,12 @@ impl ModuleStore for SafetensorsStore {
 
         // Apply to module with adapter
         // The adapter will be applied during module traversal with proper container info
-        let result = module.apply(snapshots, None, Some(adapter));
+        let result = module.apply(
+            snapshots,
+            None,
+            Some(adapter),
+            self.get_skip_enum_variants(),
+        );
 
         // Validate if needed
         if self.get_validate() && !result.errors.is_empty() {
@@ -637,8 +676,8 @@ impl ModuleStore for SafetensorsStore {
 
         if !self.get_allow_partial() && !result.missing.is_empty() {
             return Err(SafetensorsStoreError::TensorNotFound(format!(
-                "Missing tensors: {:?}",
-                result.missing
+                "\n{}",
+                result
             )));
         }
 
@@ -684,6 +723,14 @@ impl SafetensorsStore {
             #[cfg(feature = "std")]
             Self::File(p) => p.allow_partial,
             Self::Memory(p) => p.allow_partial,
+        }
+    }
+
+    fn get_skip_enum_variants(&self) -> bool {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.skip_enum_variants,
+            Self::Memory(p) => p.skip_enum_variants,
         }
     }
 }

@@ -1,18 +1,20 @@
 use crate::ir::{
-    ArgType, Argument, AttributeValue, Data, ElementType, Node, NodeType, TensorData, TensorType,
+    ArgType, Argument, AttributeValue, DType, NodeType, RawNode, TensorData, TensorType,
 };
 use std::collections::HashMap;
 
 /// Builder for creating test node instances with convenient defaults and simple API.
-pub struct NodeBuilder {
-    node_type: NodeType,
-    name: String,
-    inputs: Vec<Argument>,
-    outputs: Vec<Argument>,
-    attrs: HashMap<String, AttributeValue>,
+pub struct TestNodeBuilder {
+    pub(crate) node_type: NodeType,
+    pub(crate) name: String,
+    pub(crate) inputs: Vec<Argument>,
+    pub(crate) outputs: Vec<Argument>,
+    pub(crate) attrs: HashMap<String, AttributeValue>,
+    /// Stores constant data for inputs that should be constants (input_name -> (data, shape))
+    pub(crate) constant_data: HashMap<String, TensorData>,
 }
 
-impl NodeBuilder {
+impl TestNodeBuilder {
     /// Create a new builder with the specified node type and name
     pub fn new(node_type: NodeType, name: &str) -> Self {
         Self {
@@ -21,6 +23,7 @@ impl NodeBuilder {
             inputs: Vec::new(),
             outputs: Vec::new(),
             attrs: HashMap::new(),
+            constant_data: HashMap::new(),
         }
     }
 
@@ -30,11 +33,18 @@ impl NodeBuilder {
     /// `input_scalar_f32`, etc. for better readability and type safety.
     #[doc(hidden)]
     pub fn add_input(mut self, name: &str, ty: ArgType) -> Self {
+        // In ONNX protobuf, optional inputs are represented by empty names
+        let value_source = if name.is_empty() {
+            crate::ir::ValueSource::Optional
+        } else {
+            crate::ir::ValueSource::Dynamic
+        };
+
         self.inputs.push(Argument {
             name: name.to_string(),
             ty,
-            value: None,
-            passed: true,
+            value_source,
+            value_store: None,
         });
         self
     }
@@ -49,7 +59,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank,
                 static_shape,
             }),
@@ -66,7 +76,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float64,
+                dtype: DType::F64,
                 rank,
                 static_shape,
             }),
@@ -83,7 +93,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int32,
+                dtype: DType::I32,
                 rank,
                 static_shape,
             }),
@@ -100,7 +110,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank,
                 static_shape,
             }),
@@ -117,7 +127,7 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
+                dtype: DType::Bool,
                 rank,
                 static_shape,
             }),
@@ -134,43 +144,26 @@ impl NodeBuilder {
         self.add_input(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float16,
+                dtype: DType::F16,
                 rank,
                 static_shape,
             }),
         )
     }
 
-    /// Add a string tensor input with the given name and rank
-    pub fn input_tensor_string(
-        self,
-        name: &str,
-        rank: usize,
-        static_shape: Option<Vec<usize>>,
-    ) -> Self {
-        self.add_input(
-            name,
-            ArgType::Tensor(TensorType {
-                elem_type: ElementType::String,
-                rank,
-                static_shape,
-            }),
-        )
-    }
-
-    /// Add a scalar input with the given name and element type
-    pub fn input_scalar(self, name: &str, elem_type: ElementType) -> Self {
-        self.add_input(name, ArgType::Scalar(elem_type))
+    /// Add a scalar input with the given name and data type
+    pub fn input_scalar(self, name: &str, dtype: DType) -> Self {
+        self.add_input(name, ArgType::Scalar(dtype))
     }
 
     /// Add a float32 scalar input with the given name
     pub fn input_scalar_f32(self, name: &str) -> Self {
-        self.input_scalar(name, ElementType::Float32)
+        self.input_scalar(name, DType::F32)
     }
 
     /// Add an int64 scalar input with the given name
     pub fn input_scalar_i64(self, name: &str) -> Self {
-        self.input_scalar(name, ElementType::Int64)
+        self.input_scalar(name, DType::I64)
     }
 
     /// Add a shape input with the given name and rank
@@ -179,85 +172,100 @@ impl NodeBuilder {
     }
 
     /// Add a tensor input with data value
+    ///
+    /// Note: In the new design, constant values are stored in GraphState, not in Arguments.
+    /// This method creates the argument without the value field. If you need the value
+    /// in GraphState for testing, you'll need to add it separately.
     pub fn input_tensor_with_data(
         mut self,
         name: &str,
-        elem_type: ElementType,
+        dtype: DType,
         rank: usize,
-        data: Data,
-        shape: Vec<usize>,
+        tensor_data: TensorData,
     ) -> Self {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type,
+                dtype,
                 rank,
                 static_shape: None,
             }),
-            value: Some(TensorData { data, shape }),
-            passed: true,
+            value_source: crate::ir::ValueSource::Constant,
+            value_store: None,
         };
         self.inputs.push(arg);
+        // Store the constant data for later registration in GraphState
+        self.constant_data.insert(name.to_string(), tensor_data);
         self
     }
 
     /// Add a float32 tensor input with data values
     pub fn input_tensor_f32_data(self, name: &str, data: Vec<f32>, shape: Vec<usize>) -> Self {
-        self.input_tensor_with_data(
-            name,
-            ElementType::Float32,
-            shape.len(),
-            Data::Float32s(data),
-            shape,
-        )
+        let tensor_data = TensorData::new(data, shape.clone());
+        self.input_tensor_with_data(name, DType::F32, shape.len(), tensor_data)
     }
 
     /// Add an int64 tensor input with data values
     pub fn input_tensor_i64_data(self, name: &str, data: Vec<i64>, shape: Vec<usize>) -> Self {
-        self.input_tensor_with_data(
-            name,
-            ElementType::Int64,
-            shape.len(),
-            Data::Int64s(data),
-            shape,
-        )
+        let tensor_data = TensorData::new(data, shape.clone());
+        self.input_tensor_with_data(name, DType::I64, shape.len(), tensor_data)
     }
 
     /// Add a float32 scalar tensor input (rank 0)
+    ///
+    /// Note: In the new design, constant values are stored in GraphState, not in Arguments.
+    /// This method creates the argument without the value field.
     pub fn input_scalar_tensor_f32(mut self, name: &str, value: Option<f32>) -> Self {
+        let value_source = if value.is_some() {
+            crate::ir::ValueSource::Constant
+        } else {
+            crate::ir::ValueSource::Dynamic
+        };
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank: 0,
                 static_shape: None,
             }),
-            value: value.map(|val| TensorData {
-                data: Data::Float32(val),
-                shape: vec![],
-            }),
-            passed: true,
+            value_source,
+            value_store: None,
         };
         self.inputs.push(arg);
+        // If value is provided, store it as constant data
+        if let Some(v) = value {
+            self.constant_data
+                .insert(name.to_string(), TensorData::new(vec![v], vec![]));
+        }
         self
     }
 
     /// Add an int64 scalar tensor input (rank 0)
-    pub fn input_scalar_tensor_i64(mut self, name: &str, value: i64) -> Self {
+    ///
+    /// Note: In the new design, constant values are stored in GraphState, not in Arguments.
+    /// This method creates the argument without the value field.
+    pub fn input_scalar_tensor_i64(mut self, name: &str, value: Option<i64>) -> Self {
+        let value_source = if value.is_some() {
+            crate::ir::ValueSource::Constant
+        } else {
+            crate::ir::ValueSource::Dynamic
+        };
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank: 0,
                 static_shape: None,
             }),
-            value: Some(TensorData {
-                data: Data::Int64(value),
-                shape: vec![],
-            }),
-            passed: true,
+            value_source,
+            value_store: None,
         };
         self.inputs.push(arg);
+        // If value is provided, store it as constant data
+        if let Some(v) = value {
+            self.constant_data
+                .insert(name.to_string(), TensorData::new(vec![v], vec![]));
+        }
         self
     }
 
@@ -284,8 +292,8 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty,
-            value: None,
-            passed: true,
+            value_source: crate::ir::ValueSource::Dynamic,
+            value_store: None,
         });
         self
     }
@@ -300,7 +308,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+                dtype: DType::F32,
                 rank,
                 static_shape,
             }),
@@ -317,7 +325,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float64,
+                dtype: DType::F64,
                 rank,
                 static_shape,
             }),
@@ -334,7 +342,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int32,
+                dtype: DType::I32,
                 rank,
                 static_shape,
             }),
@@ -351,7 +359,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
+                dtype: DType::I64,
                 rank,
                 static_shape,
             }),
@@ -368,7 +376,7 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
+                dtype: DType::Bool,
                 rank,
                 static_shape,
             }),
@@ -385,43 +393,26 @@ impl NodeBuilder {
         self.add_output(
             name,
             ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float16,
+                dtype: DType::F16,
                 rank,
                 static_shape,
             }),
         )
     }
 
-    /// Add a string tensor output with the given name and rank
-    pub fn output_tensor_string(
-        self,
-        name: &str,
-        rank: usize,
-        static_shape: Option<Vec<usize>>,
-    ) -> Self {
-        self.add_output(
-            name,
-            ArgType::Tensor(TensorType {
-                elem_type: ElementType::String,
-                rank,
-                static_shape,
-            }),
-        )
-    }
-
-    /// Add a scalar output with the given name and element type
-    pub fn output_scalar(self, name: &str, elem_type: ElementType) -> Self {
-        self.add_output(name, ArgType::Scalar(elem_type))
+    /// Add a scalar output with the given name and data type
+    pub fn output_scalar(self, name: &str, dtype: DType) -> Self {
+        self.add_output(name, ArgType::Scalar(dtype))
     }
 
     /// Add a float32 scalar output with the given name
     pub fn output_scalar_f32(self, name: &str) -> Self {
-        self.output_scalar(name, ElementType::Float32)
+        self.output_scalar(name, DType::F32)
     }
 
     /// Add an int64 scalar output with the given name
     pub fn output_scalar_i64(self, name: &str) -> Self {
-        self.output_scalar(name, ElementType::Int64)
+        self.output_scalar(name, DType::I64)
     }
 
     /// Add a shape output with the given name and rank
@@ -483,20 +474,71 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty: ArgType::default(),
-            value: None,
-            passed: true,
+            value_source: crate::ir::ValueSource::Dynamic,
+            value_store: None,
         });
         self
     }
 
+    /// Build the node and process it with the given processor.
+    pub(crate) fn process<P: crate::processor::NodeProcessor>(
+        self,
+        processor: P,
+        opset: usize,
+    ) -> RawNode {
+        use crate::processor::OutputPreferences;
+
+        let mut node = self.build_with_graph_data(opset);
+        let prefs = OutputPreferences::new();
+
+        // Run type inference
+        let _ = processor.infer_types(&mut node, opset, &prefs);
+
+        node
+    }
+
     /// Build the node
-    pub fn build(self) -> Node {
-        Node {
+    pub(crate) fn build(self) -> RawNode {
+        RawNode {
             node_type: self.node_type,
             name: self.name,
             inputs: self.inputs,
             outputs: self.outputs,
             attrs: self.attrs,
         }
+    }
+
+    /// Build the node and register any constant inputs in GraphState.
+    /// This is useful for tests that need constant values accessible via GraphState.
+    ///
+    /// Note: After calling this method, the GraphState will be wrapped in Rc<RefCell<>>
+    /// and attached to the node's arguments.
+    pub(crate) fn build_with_graph_data(self, _opset: usize) -> RawNode {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        // Create a new GraphState for this test
+        let mut graph_data = crate::graph_state::GraphState::new(&[], &[], &[], &[]);
+
+        // Register constants in GraphState before building the node
+        for (input_name, tensor_data) in &self.constant_data {
+            graph_data.register_test_constant(input_name.clone(), tensor_data.clone());
+        }
+
+        // Build the node first
+        let node = self.build();
+
+        // Wrap GraphState in Rc<RefCell<>> and attach to all arguments
+        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+
+        let mut node = node;
+        for arg in &mut node.inputs {
+            arg.value_store = Some(graph_data_rc.clone());
+        }
+        for arg in &mut node.outputs {
+            arg.value_store = Some(graph_data_rc.clone());
+        }
+
+        node
     }
 }

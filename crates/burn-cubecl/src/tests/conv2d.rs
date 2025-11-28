@@ -96,7 +96,8 @@ mod tests {
 
         type Float = <TestBackend as Backend>::FloatElem;
 
-        let output = nchw_to_nhwc::<TestRuntime, Float>(input.clone().into_primitive().tensor());
+        let output =
+            nchw_to_nhwc::<TestRuntime, Float>(input.clone().into_primitive().tensor()).unwrap();
         let output_ref = into_contiguous(
             input
                 .clone()
@@ -105,8 +106,8 @@ mod tests {
                 .tensor(),
         );
 
-        into_data_sync::<TestRuntime, Float>(output).assert_approx_eq::<FT>(
-            &into_data_sync::<TestRuntime, Float>(output_ref),
+        into_data_sync::<TestRuntime>(output).assert_approx_eq::<FT>(
+            &into_data_sync::<TestRuntime>(output_ref),
             Tolerance::default(),
         );
     }

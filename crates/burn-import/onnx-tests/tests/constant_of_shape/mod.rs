@@ -57,9 +57,8 @@ mod tests {
         let device = Default::default();
         let model = constant_of_shape_scalar::Model::<TestBackend>::new(&device);
 
-        // Input is an empty shape (rank 0)
-        let shape_input = [];
-        let output: f32 = model.forward(shape_input);
+        // No runtime inputs - shape comes from initializer
+        let output: f32 = model.forward();
 
         // Output should be a scalar with value 0.0 (default)
         assert_eq!(output, 0.0f32);
@@ -71,9 +70,8 @@ mod tests {
         let device = Default::default();
         let model = constant_of_shape_scalar_custom_value::Model::<TestBackend>::new(&device);
 
-        // Input is an empty shape (rank 0)
-        let shape_input = [];
-        let output: i64 = model.forward(shape_input);
+        // No runtime inputs - shape comes from initializer
+        let output: i64 = model.forward();
 
         // Output should be a scalar with value 42
         assert_eq!(output, 42i64);
@@ -97,16 +95,17 @@ mod tests {
 
     #[test]
     fn constant_of_shape_shape_optimization_test() {
-        // Test Shape(1) -> Shape(1) optimization with Int64
+        // Test ConstantOfShape with Shape(1) input that has value [3]
+        // Output should have 3 elements (the value of the shape input), each filled with 5
+        // Fix for issue #4052: output element count is determined by input VALUE, not type
         let device = Default::default();
         let model = constant_of_shape_shape_optimization::Model::<TestBackend>::new(&device);
 
-        // Input is Shape(1) with some dimension
-        let shape_input = [3i64]; // Requesting a shape with 3 elements
-        let output: [i64; 1] = model.forward(shape_input);
+        // No runtime inputs - shape [3] comes from initializer
+        let output: [i64; 3] = model.forward();
 
-        // Output should be Shape(1) with value 5 (as specified in the model)
-        assert_eq!(output, [5i64]);
+        // Output should be [5, 5, 5] (3 elements, each with value 5)
+        assert_eq!(output, [5i64, 5, 5]);
     }
 
     #[test]
