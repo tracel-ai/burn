@@ -62,11 +62,15 @@ fn main() {
         std::process::exit(1);
     }
 
-    // Initialize the model
+    // Initialize the model with weights
     println!("Initializing RF-DETR Small model...");
     let start = Instant::now();
     let device = Default::default();
-    let model: Model<MyBackend> = Model::default();
+
+    // The model weights are generated at build time and stored in the OUT_DIR
+    // We need to load them from the embedded record file
+    let weights_path = concat!(env!("OUT_DIR"), "/model/rf_detr_small.mpk");
+    let model: Model<MyBackend> = Model::from_file(weights_path, &device);
     let init_time = start.elapsed();
     println!("  Model initialized in {:.2?}", init_time);
 
