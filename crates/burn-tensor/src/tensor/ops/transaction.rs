@@ -37,7 +37,7 @@ pub struct TransactionPrimitiveData {
 /// compute utilization with efficient laziness.
 pub trait TransactionOps<B: Backend> {
     /// Executes a [transaction](TransactionPrimitive) and return its
-    /// [result](TransactionPrimitiveResult).
+    /// [data](TransactionPrimitiveData).
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
     ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
