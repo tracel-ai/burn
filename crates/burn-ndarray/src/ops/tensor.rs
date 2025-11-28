@@ -518,9 +518,7 @@ where
         options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_2d(
-            tensor,
-            grid,
-            options.clone()
+            tensor, grid, options
         ))
     }
 
