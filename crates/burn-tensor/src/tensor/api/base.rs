@@ -1,30 +1,16 @@
 #![allow(clippy::single_range_in_vec_init)]
-
-use alloc::vec::Vec;
-
-use alloc::format;
-use alloc::string::String;
-use alloc::vec;
-
-use burn_std::stub::RwLock;
-use core::future::Future;
-use core::iter::repeat;
-use core::{fmt::Debug, ops::Range};
-use serde::{Deserialize, Deserializer};
-
-use serde::{Serialize, Serializer};
-
-use super::{Slice, SliceArg, TensorMetadata, Transaction};
-use super::{TensorMetadata, Transaction};
 use crate::backend::DeferedError;
-use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
-use crate::{AsIndex, Slice, SliceArg, canonicalize_dim, wrap_index};
+use crate::{AsIndex, Slice, SliceArg, TensorMetadata, Transaction, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
+use alloc::{format, string::String, vec, vec::Vec};
+use burn_std::stub::RwLock;
+use core::{fmt::Debug, future::Future, iter::repeat, ops::Range};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -1665,7 +1651,8 @@ where
             .expect("Error while reading data: use `try_into_data` instead to catch the error at runtime")
     }
 
-    /// Converts the data of the current tensor.
+    /// Converts the data of the current tensor and returns any error that might have occurred since the
+    /// last time the device was synchronized.
     ///
     /// # Note
     ///
@@ -2354,7 +2341,8 @@ where
             .expect("Error while reading data: use `try_into_scalar` instead to catch the error at runtime")
     }
 
-    /// Convert the tensor into a scalar.
+    /// Convert the tensor into a scalar and returns any error that might have occurred since the
+    /// last time the device was synchronized.
     ///
     /// # Panics
     ///

@@ -1,20 +1,18 @@
+use super::{RouterTensor, RunnerClient};
+use crate::{
+    binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
+    reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
+    scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
+};
 use alloc::sync::Arc;
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{future::DynFut, stub::Mutex};
-use burn_tensor::{DType, Shape, TensorData, backend::Backend};
 use burn_tensor::{
     DType, Shape, TensorData,
     backend::{Backend, DeferedError, SyncError},
-};
-
-use super::{RouterTensor, RunnerClient};
-use crate::{
-    binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
-    reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
-    scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage

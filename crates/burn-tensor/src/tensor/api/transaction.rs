@@ -47,8 +47,12 @@ impl<B: Backend> Transaction<B> {
             .expect("Error while reading data: use `try_execute` to handle error at runtime")
     }
 
-    /// Executes the transaction synchronously and returns the [data](TensorData) in the same order
-    /// in which they were [registered](Self::register).
+    /// Executes the transaction synchronously and returns the [data](TensorData) in the same
+    /// order in which they were [registered](Self::register).
+    ///
+    /// # Returns
+    ///
+    /// Any error that might have occurred since the last time the device was synchronized.
     pub fn try_execute(self) -> Result<Vec<TensorData>, DeferedError> {
         burn_std::future::block_on(self.execute_async())
     }

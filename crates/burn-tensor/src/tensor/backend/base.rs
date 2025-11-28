@@ -152,7 +152,7 @@ pub enum SyncError {
     },
 }
 
-/// An error that can happened when syncing a backend.
+/// An error that can happen when syncing a device.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DeferedError {
     /// A generic error happened while synching.
