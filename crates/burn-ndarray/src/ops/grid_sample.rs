@@ -94,6 +94,7 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
 }
 
 /// Bilinear interpolation at a point with configurable padding mode.
+#[allow(clippy::too_many_arguments)]
 fn bilinear_interpolate<E, S>(
     source: &ndarray::ArrayBase<S, ndarray::Dim<[usize; 4]>>,
     b: usize,
