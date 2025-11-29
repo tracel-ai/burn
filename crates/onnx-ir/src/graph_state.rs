@@ -305,6 +305,11 @@ impl GraphState {
         Rc::make_mut(&mut self.tensor_store).store(data)
     }
 
+    /// Get tensor data by ID from central store
+    pub(crate) fn get_tensor_data(&self, id: DataId) -> Option<&TensorData> {
+        self.tensor_store.get(id)
+    }
+
     /// Get data_id for a constant by output name (O(1) lookup via constant_map)
     pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<DataId> {
         // First try the constant_map (O(1) lookup)
