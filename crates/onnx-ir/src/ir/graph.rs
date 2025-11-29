@@ -97,12 +97,12 @@ fn finalize_arguments_in_nodes(nodes: &mut [Node], value_store: &ValueStore) {
         }
 
         // Recursively process subgraphs
-        finalize_subgraphs_in_node(node, value_store);
+        finalize_subgraphs_in_node(node);
     }
 }
 
 /// Recursively finalize subgraphs within a node
-fn finalize_subgraphs_in_node(node: &mut Node, _parent_value_store: &ValueStore) {
+fn finalize_subgraphs_in_node(node: &mut Node) {
     match node {
         Node::If(n) => {
             finalize_subgraph(&mut n.config.then_branch);
