@@ -81,16 +81,4 @@ impl ValueStore {
     pub fn get_constant_data_id(&self, output_name: &str) -> Option<DataId> {
         self.constant_map.get(output_name).copied()
     }
-
-    /// Get reference to the underlying tensor store
-    #[allow(dead_code)] // May be useful for downstream consumers
-    pub fn tensor_store(&self) -> &Rc<TensorStore> {
-        &self.tensor_store
-    }
-
-    /// Get reference to the constant map
-    #[allow(dead_code)] // May be useful for downstream consumers
-    pub fn constant_map(&self) -> &Rc<HashMap<String, DataId>> {
-        &self.constant_map
-    }
 }

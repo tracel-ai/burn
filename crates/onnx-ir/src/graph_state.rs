@@ -74,7 +74,7 @@ impl NameRegistry {
 
 /// Mutable state container for ONNX graph conversion
 #[derive(Debug)]
-pub struct GraphState {
+pub(crate) struct GraphState {
     /// The nodes that have been processed, used to copy the outputs to a child node
     pub(super) processed_nodes: Vec<RawNode>,
     /// The inputs of the graph
@@ -288,7 +288,7 @@ impl GraphState {
     /// Register a test constant in GraphState
     #[doc(hidden)]
     #[allow(dead_code)] // Used by tests in node/ modules
-    pub fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
+    pub(crate) fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
         let (constant_node, data_id) = create_test_constant(
             name.clone(),
             tensor_data,
@@ -299,23 +299,10 @@ impl GraphState {
         self.processed_nodes.push(constant_node);
     }
 
-    /// Register a constant output name to its data_id
-    /// Called when a Constant node is created during node conversion
-    #[allow(dead_code)] // Available for future use or external consumers
-    pub(crate) fn register_constant(&mut self, output_name: String, data_id: DataId) {
-        Rc::make_mut(&mut self.constant_map).insert(output_name, data_id);
-    }
-
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
     pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
         Rc::make_mut(&mut self.tensor_store).store(data)
-    }
-
-    /// Get tensor data by ID from central store
-    #[allow(dead_code)] // May be useful for downstream consumers
-    pub(crate) fn get_tensor_data(&self, id: DataId) -> Option<&TensorData> {
-        self.tensor_store.get(id)
     }
 
     /// Get data_id for a constant by output name (O(1) lookup via constant_map)
@@ -344,12 +331,6 @@ impl GraphState {
     #[allow(dead_code)] // Used by tests in node/ modules
     pub fn get_constant_data_id(&self, name: &str) -> Option<DataId> {
         self.get_constant_data_id_by_output(name)
-    }
-
-    /// Get reference to the constant_map
-    #[allow(dead_code)] // May be useful for downstream consumers
-    pub(crate) fn constant_map(&self) -> &HashMap<String, DataId> {
-        &self.constant_map
     }
 
     /// Get Rc reference to the constant_map (for cheap preservation across state reset)
