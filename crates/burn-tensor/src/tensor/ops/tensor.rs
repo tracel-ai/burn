@@ -510,6 +510,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
+    ///
+    /// # Note
+    ///
+    /// Empty slice assignments (where any slice range produces 0 elements) are handled at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty slice assignments.
     fn float_slice_assign(
         tensor: FloatTensor<B>,
         slices: &[crate::Slice],
@@ -1197,6 +1203,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the concatenated tensors along `dim`.
+    ///
+    /// # Note
+    ///
+    /// Empty tensors (where the concatenation dimension has size 0) are filtered out at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty tensors.
     fn float_cat(tensors: Vec<FloatTensor<B>>, dim: usize) -> FloatTensor<B> {
         cat_with_slice_assign::<B, Float>(
             tensors.into_iter().map(TensorPrimitive::Float).collect(),

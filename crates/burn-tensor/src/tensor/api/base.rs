@@ -1417,6 +1417,17 @@ where
         let shape = self.shape();
         let slices = slices.into_slices(shape.clone());
 
+        // Check if any slice produces 0 elements (empty assignment).
+        // Empty assignments are no-ops and would cause issues in backend implementations.
+        let is_empty_assignment = slices
+            .iter()
+            .enumerate()
+            .any(|(i, slice)| slice.output_size(shape.dims[i]) == 0);
+
+        if is_empty_assignment {
+            return self;
+        }
+
         check!(TensorCheck::slice_assign::<D, D2>(
             &shape,
             &values.shape(),
@@ -1884,8 +1895,29 @@ where
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
         check!(TensorCheck::cat(&tensors, dim));
 
+        // Filter out tensors with size 0 along the concatenation dimension.
+        // Empty tensors don't contribute to the output and would cause issues
+        // in backend implementations (e.g., division by zero in slice_assign).
+        let first_tensor = tensors.first().expect("Tensors should not be empty");
+        let device = first_tensor.device();
+        let mut shape = first_tensor.shape();
+
+        let non_empty_tensors: Vec<_> = tensors
+            .into_iter()
+            .filter(|t| t.shape().dims[dim] > 0)
+            .collect();
+
+        // If all tensors were empty, return an empty tensor with size 0 on concat dim
+        if non_empty_tensors.is_empty() {
+            shape.dims[dim] = 0;
+            return Self::empty(shape, &device);
+        }
+
         Self::new(K::cat(
-            tensors.into_iter().map(|vector| vector.primitive).collect(),
+            non_empty_tensors
+                .into_iter()
+                .map(|vector| vector.primitive)
+                .collect(),
             dim,
         ))
     }

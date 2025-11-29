@@ -103,6 +103,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values set for the given ranges.
+    ///
+    /// # Note
+    ///
+    /// Empty slice assignments (where any slice range produces 0 elements) are handled at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty slice assignments.
     fn int_slice_assign(
         tensor: IntTensor<B>,
         slices: &[crate::Slice],
@@ -237,6 +243,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The concatenated tensor.
+    ///
+    /// # Note
+    ///
+    /// Empty tensors (where the concatenation dimension has size 0) are filtered out at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty tensors.
     fn int_cat(tensors: Vec<IntTensor<B>>, dim: usize) -> IntTensor<B> {
         cat_with_slice_assign::<B, Int>(tensors, dim)
     }
