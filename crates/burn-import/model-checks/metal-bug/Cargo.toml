@@ -1,0 +1,22 @@
+[package]
+name = "burn-metal-bug"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+burn = { path = "../../../../crates/burn", features = [
+    "ndarray",
+    "tch",
+    "metal",
+] }
+
+[[bin]]
+name = "single-layer"
+path = "src/single_layer.rs"
+
+[[bin]]
+name = "deep-network"
+path = "src/deep_network.rs"
