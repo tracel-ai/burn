@@ -248,4 +248,11 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for RunningState<Tens
 
         RunningState::with_id(self.id, value.inner())
     }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        module.sync();
+        let value = module.value();
+
+        RunningState::with_id(module.id, Tensor::from_inner(value))
+    }
 }
