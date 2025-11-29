@@ -79,6 +79,8 @@ impl ScalarIr {
             DType::U8 => ScalarIr::U8(elem.elem()),
             DType::Bool => ScalarIr::Bool(elem.elem()),
             DType::QFloat(_) => unimplemented!(),
+            DType::Complex64 => todo!(),
+            DType::Complex32 => todo!(),
         }
     }
 }
