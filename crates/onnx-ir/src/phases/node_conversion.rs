@@ -201,12 +201,15 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
             };
 
             // Create input with Static value
-            node.inputs.push(crate::ir::Argument {
+            let mut input_arg = crate::ir::Argument {
                 name: String::new(),
                 ty: ty.clone(),
                 value_source: crate::ir::ValueSource::Static(data_id),
-                value_store: Some(state_rc.clone()),
-            });
+                value_store: None,
+            };
+            let value_store = state_rc.borrow().build_value_store();
+            input_arg.set_value_store(value_store);
+            node.inputs.push(input_arg);
 
             // Set output type and value_source
             if !node.outputs.is_empty() {
@@ -222,11 +225,12 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
 
 /// Attach value_store references to all node arguments
 fn attach_value_stores(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
+    let value_store = state_rc.borrow().build_value_store();
     for arg in &mut node.inputs {
-        arg.value_store = Some(state_rc.clone());
+        arg.set_value_store(value_store.clone());
     }
     for arg in &mut node.outputs {
-        arg.value_store = Some(state_rc.clone());
+        arg.set_value_store(value_store.clone());
     }
 }
 

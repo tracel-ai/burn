@@ -139,18 +139,16 @@ mod tests {
     fn create_test_node_with_data(tensor_data: crate::ir::TensorData) -> RawNode {
         use crate::graph_state::GraphState;
         use crate::ir::Argument;
-        use std::cell::RefCell;
-        use std::rc::Rc;
 
         let elem_type = tensor_data.elem_type();
         let shape = tensor_data.shape.to_vec();
 
         // Create GraphState and register the constant
-        let mut graph_data = GraphState::new(&[], &[], &[], &[]);
-        graph_data.register_test_constant("test_value".to_string(), tensor_data);
+        let mut graph_state = GraphState::new(&[], &[], &[], &[]);
+        graph_state.register_test_constant("test_value".to_string(), tensor_data);
 
         // Get the data_id from the registered constant
-        let data_id = graph_data
+        let data_id = graph_state
             .get_constant_data_id("test_value")
             .expect("Test constant should have data_id");
 
@@ -165,8 +163,8 @@ mod tests {
             })
         };
 
-        // Attach GraphState
-        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+        // Build ValueStore from GraphState
+        let value_store = graph_state.build_value_store();
 
         // Create constant node with input containing the data_id
         let mut node = TestNodeBuilder::new(NodeType::Constant, "test_constant")
@@ -174,15 +172,17 @@ mod tests {
             .build();
 
         // Create input with Static value
-        node.inputs.push(Argument {
+        let mut input_arg = Argument {
             name: String::new(),
             ty: ty.clone(),
             value_source: crate::ir::ValueSource::Static(data_id),
-            value_store: Some(graph_data_rc.clone()),
-        });
+            value_store: None,
+        };
+        input_arg.set_value_store(value_store.clone());
+        node.inputs.push(input_arg);
 
         // Attach value_store to output
-        node.outputs[0].value_store = Some(graph_data_rc);
+        node.outputs[0].set_value_store(value_store);
         node.outputs[0].value_source = crate::ir::ValueSource::Constant;
         node.outputs[0].ty = ty;
 
