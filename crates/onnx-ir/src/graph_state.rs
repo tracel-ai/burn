@@ -272,11 +272,6 @@ impl GraphState {
         self.tensor_store.get(id)
     }
 
-    /// Get mutable tensor data by ID from central store
-    pub(crate) fn get_tensor_data_mut(&mut self, id: DataId) -> Option<&mut TensorData> {
-        self.tensor_store.get_mut(id)
-    }
-
     /// Get data_id for a constant by output name
     pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<DataId> {
         self.processed_nodes

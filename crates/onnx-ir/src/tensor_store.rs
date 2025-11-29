@@ -35,11 +35,6 @@ impl TensorStore {
         self.data.get(&id)
     }
 
-    /// Get mutable tensor data by ID
-    pub(super) fn get_mut(&mut self, id: DataId) -> Option<&mut TensorData> {
-        self.data.get_mut(&id)
-    }
-
     /// Get next available tensor ID
     #[allow(dead_code)]
     pub(super) fn next_id(&self) -> DataId {
