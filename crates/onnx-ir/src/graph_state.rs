@@ -299,23 +299,10 @@ impl GraphState {
         self.processed_nodes.push(constant_node);
     }
 
-    /// Register a constant output name to its data_id
-    /// Called when a Constant node is created during node conversion
-    #[allow(dead_code)] // Available for future use or external consumers
-    pub(crate) fn register_constant(&mut self, output_name: String, data_id: DataId) {
-        Rc::make_mut(&mut self.constant_map).insert(output_name, data_id);
-    }
-
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
     pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
         Rc::make_mut(&mut self.tensor_store).store(data)
-    }
-
-    /// Get tensor data by ID from central store
-    #[allow(dead_code)] // May be useful for downstream consumers
-    pub(crate) fn get_tensor_data(&self, id: DataId) -> Option<&TensorData> {
-        self.tensor_store.get(id)
     }
 
     /// Get data_id for a constant by output name (O(1) lookup via constant_map)
