@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 /// CPU Temperature metric
 use super::MetricMetadata;
-use crate::metric::{Metric, MetricAttributes, MetricEntry, MetricName, Numeric, NumericEntry};
+use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry, SerializedEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
@@ -35,7 +35,7 @@ impl Default for CpuTemperature {
 impl Metric for CpuTemperature {
     type Input = ();
 
-    fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         match self.sys.cpu_temp() {
             Ok(temp) => self.temp_celsius = temp,
             Err(_) => self.temp_celsius = f32::NAN,
@@ -47,7 +47,7 @@ impl Metric for CpuTemperature {
         };
         let raw = format!("{:.2}", self.temp_celsius);
 
-        MetricEntry::new(self.name(), formatted, raw)
+        SerializedEntry::new(formatted, raw)
     }
 
     fn clear(&mut self) {}

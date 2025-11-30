@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0"
+version = "0.20.0-pre.3"
 
 [workspace.lints.clippy]
 
@@ -50,6 +50,7 @@ data-encoding = { version = "2.9.0", default-features = false, features = [
 ] }
 dirs = "6.0.0"
 encoding_rs = "0.8.33"
+textdistance = { version = "1.1.1", default-features = false }
 fake = "4.4.0"
 flate2 = "1.1.4"
 float-cmp = "0.10.0"
@@ -57,13 +58,15 @@ futures = "0.3"
 futures-util = "0.3"
 gix-tempfile = { version = "19.0.1", features = ["signals"] }
 globwalk = "0.9.1"
-hashbrown = "0.15.5"
+hashbrown = "0.16"
 hound = "3.5.1"
-image = "0.25.8"
+image = "0.25.9"
 indicatif = "0.18.0"
+insta = "1.43.2"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.28" }
+parking_lot = { version = "0.12.5", default-features = false }
 paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.51.0", features = ["lazy"] }
@@ -98,7 +101,7 @@ spin = { version = "0.10.0", features = [
     "portable-atomic",
 ] }
 strum = { version = "0.27.2", features = ["derive"] }
-syn = { version = "2.0.106", features = ["full", "extra-traits"] }
+syn = { version = "2.0.111", features = ["full", "extra-traits"] }
 tar = "0.4.44"
 tempfile = "3.20.0"
 thiserror = "2.0.17"
@@ -112,7 +115,7 @@ zip = "6.0.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
-safetensors = { version = "0.6.2", default-features = false }
+safetensors = { version = "0.7.0", default-features = false }
 
 # Async handling
 async-channel = "2.5"
@@ -171,20 +174,20 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29f4afa2124b7ea8197576754a9e524168eb0d34" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a15c1d2735490b65d26dc3374c9810d090d9c4de" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a15c1d2735490b65d26dc3374c9810d090d9c4de" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a15c1d2735490b65d26dc3374c9810d090d9c4de" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubecl-quant = { path = "../cubecl/crates/cubecl-quant", default-features = false }
 ### For the release. ###
-# cubecl = { version = "0.8.0", default-features = false }
-# cubecl-common = { version = "0.8.0", default-features = false }
-# cubecl-quant = { version = "0.8.0", default-features = false }
+# cubecl = { version = "=0.9.0-pre.3", default-features = false }
+# cubecl-common = { version = "=0.9.0-pre.3", default-features = false }
+# cubecl-quant = { version = "=0.9.0-pre.3", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.1.11" }
+tracel-xtask = { version = "=2.2.1" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

@@ -10,15 +10,18 @@
 //! - **Opset 9-13**: Removed consumed_inputs attribute
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for BatchNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct BatchNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -28,30 +31,20 @@ pub struct BatchNormConfig {
     pub momentum: f64,
 }
 
-impl BatchNormConfig {
-    /// Create a new BatchNormConfig
-    pub fn new(num_features: usize, epsilon: f64, momentum: f64) -> Self {
-        Self {
-            num_features,
-            epsilon,
-            momentum,
-        }
-    }
+/// Node representation for BatchNormalization operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct BatchNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: BatchNormConfig,
 }
 
-impl NodeConfig for BatchNormConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct BatchNormProcessor;
+pub(crate) struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
+    type Config = BatchNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -61,7 +54,7 @@ impl NodeProcessor for BatchNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input[1]), bias (input[2]), mean (input[3]), and variance (input[4])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -81,7 +74,7 @@ impl NodeProcessor for BatchNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -115,11 +108,7 @@ impl NodeProcessor for BatchNormProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_tensor = node.inputs[1].value().ok_or_else(|| {
             ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
         })?;
@@ -139,7 +128,20 @@ impl NodeProcessor for BatchNormProcessor {
         }
 
         let config = BatchNormConfig::new(num_features, epsilon as f64, momentum as f64);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::BatchNormalization(BatchNormalizationNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -147,13 +149,13 @@ impl NodeProcessor for BatchNormProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> NodeBuilder {
+    fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> TestNodeBuilder {
         let ones = vec![1.0; num_features];
         let zeros = vec![0.0; num_features];
 
-        NodeBuilder::new(NodeType::BatchNormalization, "test_batchnorm")
+        TestNodeBuilder::new(NodeType::BatchNormalization, "test_batchnorm")
             .input_tensor_f32("X", 4, None) // NCHW format
             .input_tensor_f32_data("scale", ones.clone(), vec![num_features])
             .input_tensor_f32_data("bias", zeros.clone(), vec![num_features])
@@ -171,9 +173,7 @@ mod tests {
         let processor = BatchNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<BatchNormConfig>();
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -187,9 +187,7 @@ mod tests {
         let processor = BatchNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<BatchNormConfig>();
 
         assert_eq!(config.num_features, 32);
         assert!(f64::abs(config.epsilon - 0.0) < 1e-6);

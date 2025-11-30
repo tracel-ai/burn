@@ -10,12 +10,14 @@
 //! - **Opset 12**: Added `select_last_index` attribute
 //! - **Opset 11**: Changed `axis` range to support negative indices [-r, r-1]
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
 
 /// Configuration for ArgMax operations
 #[derive(Debug, Clone, new)]
@@ -26,19 +28,20 @@ pub struct ArgMaxConfig {
     pub keepdims: bool,
 }
 
-impl NodeConfig for ArgMaxConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for ArgMax operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct ArgMaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ArgMaxConfig,
 }
 
-pub struct ArgMaxProcessor;
+pub(crate) struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
+    type Config = ArgMaxConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -50,37 +53,10 @@ impl NodeProcessor for ArgMaxProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // TODO: Add validation for unexpected attributes (similar to attention.rs)
-        // Currently only validates select_last_index and keepdims values but doesn't check for unknown attributes
-
-        // Validate select_last_index before config extraction
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "select_last_index" && value.clone().into_i64() != 0 {
-                return Err(ProcessError::InvalidAttribute {
-                    name: "select_last_index".to_string(),
-                    reason: "select_last_index=1 is not supported for argmax in burn".to_string(),
-                });
-            }
-        }
-
-        // Validate keepdims value
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "keepdims" {
-                let keepdims_val = value.clone().into_i64();
-                if keepdims_val != 0 && keepdims_val != 1 {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: "keepdims".to_string(),
-                        reason: "Only keepdims=0 or keepdims=1 is supported for argmax in burn"
-                            .to_string(),
-                    });
-                }
-            }
-        }
-
         // Extract the input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
@@ -93,7 +69,10 @@ impl NodeProcessor for ArgMaxProcessor {
         };
 
         // Get config values before mutating node
-        let keepdims = node.config::<ArgMaxConfig>().keepdims;
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
+        let keepdims = config.keepdims;
 
         // For burn compatibility, argmax always outputs a tensor
         // When keepdims=false, we still output a tensor but with adjusted rank
@@ -119,11 +98,7 @@ impl NodeProcessor for ArgMaxProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
             _ => {
@@ -137,14 +112,37 @@ impl NodeProcessor for ArgMaxProcessor {
         let mut axis: i64 = 0;
         let mut keepdims = true;
 
+        // Extract and validate attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "axis" => axis = value.clone().into_i64(),
                 "keepdims" => {
                     let keepdims_val = value.clone().into_i64();
+
+                    // Validate keepdims value
+                    if keepdims_val != 0 && keepdims_val != 1 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "keepdims".to_string(),
+                            reason: "Only keepdims=0 or keepdims=1 is supported for argmax in burn"
+                                .to_string(),
+                        });
+                    }
+
                     keepdims = keepdims_val != 0;
                 }
-                _ => {}
+                "select_last_index" => {
+                    // Validate select_last_index
+                    if value.clone().into_i64() != 0 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "select_last_index".to_string(),
+                            reason: "select_last_index=1 is not supported for argmax in burn"
+                                .to_string(),
+                        });
+                    }
+                }
+                _ => {
+                    // Unknown attributes are ignored (could add warning here)
+                }
             }
         }
 
@@ -153,7 +151,20 @@ impl NodeProcessor for ArgMaxProcessor {
         }
 
         let config = ArgMaxConfig::new(axis as usize, keepdims);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::ArgMax(ArgMaxNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -163,10 +174,10 @@ mod tests {
 
     use super::*;
     use crate::ir::{Argument, DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> Node {
-        NodeBuilder::new(NodeType::ArgMax, "test_argmax")
+    fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> RawNode {
+        TestNodeBuilder::new(NodeType::ArgMax, "test_argmax")
             .input_tensor_f32("data", 3, None)
             .output_tensor_i64("output", 3, None)
             .attr_int("axis", axis)
@@ -183,12 +194,10 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ArgMaxConfig>();
         assert_eq!(config.axis, 0);
         assert_eq!(config.keepdims, true);
     }
@@ -201,12 +210,10 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ArgMaxConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
     }
@@ -241,62 +248,58 @@ mod tests {
         let processor = ArgMaxProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node_keepdims_0, 16).unwrap();
-        node_keepdims_0.config = config;
+        let extracted_config_0 = processor.extract_config(&node_keepdims_0, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor
             .infer_types(&mut node_keepdims_0, 16, &prefs)
             .unwrap();
 
-        let config_0 = node_keepdims_0.config::<ArgMaxConfig>();
-        assert_eq!(config_0.axis, 0);
-        assert_eq!(config_0.keepdims, false);
+        assert_eq!(extracted_config_0.axis, 0);
+        assert_eq!(extracted_config_0.keepdims, false);
 
         let mut node_keepdims_1 = create_test_node(0, 0, 1);
 
         let processor = ArgMaxProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node_keepdims_1, 16).unwrap();
-        node_keepdims_1.config = config;
+        let extracted_config_1 = processor.extract_config(&node_keepdims_1, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor
             .infer_types(&mut node_keepdims_1, 16, &prefs)
             .unwrap();
 
-        let config_1 = node_keepdims_1.config::<ArgMaxConfig>();
-        assert_eq!(config_1.axis, 0);
-        assert_eq!(config_1.keepdims, true);
+        assert_eq!(extracted_config_1.axis, 0);
+        assert_eq!(extracted_config_1.keepdims, true);
     }
 
     #[test]
     fn test_argmax_config_keepdims_invalid() {
-        let mut node = create_test_node(0, 0, 2); // Invalid keepdims value
+        let node = create_test_node(0, 0, 2); // Invalid keepdims value
 
         let processor = ArgMaxProcessor;
 
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        // Validation should fail during config extraction
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
     fn test_argmax_config_select_last_index_invalid() {
-        let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
+        let node = create_test_node(0, 1, 1); // Invalid select_last_index value
 
         let processor = ArgMaxProcessor;
 
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        // Validation should fail during config extraction
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
     fn test_argmax_update_outputs_keepdims_0() {
         // Test argmax with keepdims=0 - output rank should be reduced but minimum 1 for burn
-        let mut node = NodeBuilder::new(NodeType::ArgMax, "test_argmax_keepdims_0")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMax, "test_argmax_keepdims_0")
             .attr_int("axis", 1)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 2, None) // 2D input
@@ -306,8 +309,7 @@ mod tests {
         let processor = ArgMaxProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -325,7 +327,7 @@ mod tests {
     #[test]
     fn test_argmax_update_outputs_keepdims_1() {
         // Test argmax with keepdims=1 - output rank should be same as input
-        let mut node = NodeBuilder::new(NodeType::ArgMax, "test_argmax_keepdims_1")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMax, "test_argmax_keepdims_1")
             .attr_int("axis", 0)
             .attr_int("keepdims", 1)
             .input_tensor_f32("data", 3, None) // 3D input
@@ -335,8 +337,7 @@ mod tests {
         let processor = ArgMaxProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -354,7 +355,7 @@ mod tests {
     #[test]
     fn test_argmax_update_outputs_keepdims_0_scalar() {
         // Test argmax with keepdims=0 on 1D tensor - should output scalar
-        let mut node = NodeBuilder::new(NodeType::ArgMax, "test_argmax_1d_keepdims_0")
+        let mut node = TestNodeBuilder::new(NodeType::ArgMax, "test_argmax_1d_keepdims_0")
             .attr_int("axis", 0)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 1, None) // 1D input
@@ -364,8 +365,7 @@ mod tests {
         let processor = ArgMaxProcessor;
 
         // Extract config first, then infer types
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();

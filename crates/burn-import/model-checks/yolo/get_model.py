@@ -27,6 +27,7 @@ SUPPORTED_MODELS = {
     'yolov8s': {'download_name': 'yolov8s.pt', 'display_name': 'YOLOv8s'},
     'yolov10n': {'download_name': 'yolov10n.pt', 'display_name': 'YOLOv10n'},
     'yolo11x': {'download_name': 'yolo11x.pt', 'display_name': 'YOLO11x'},
+    'yolo12x': {'download_name': 'yolo12x.pt', 'display_name': 'YOLO12x'},
 }
 
 

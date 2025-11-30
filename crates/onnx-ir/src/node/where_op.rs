@@ -15,11 +15,21 @@
 //!
 //! TODO: Missing test coverage for condition with non-bool scalar - Test validates non-bool tensor rejected but not non-bool scalar condition (e.g., int scalar) - Need negative test case
 
-use crate::ir::{ArgType, DType, Node, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
     compute_broadcast_rank, compute_broadcast_static_shape,
 };
+
+/// Node representation for Where operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct WhereNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
 
 /// Get element type from ArgType, handling Shape types specially
 fn get_elem_type(arg_type: &ArgType) -> DType {
@@ -49,9 +59,11 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 
 /// Update output type for Where operation.
 ///
-pub struct WhereProcessor;
+pub(crate) struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -63,7 +75,7 @@ impl NodeProcessor for WhereProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -77,7 +89,7 @@ impl NodeProcessor for WhereProcessor {
         let condition_elem_type = get_elem_type(condition);
 
         // FIXME: Condition type validation allows Shape types incorrectly - ONNX spec requires condition to be boolean (type B), but implementation allows Shape type (always I64) which violates spec - Shape should not be allowed as condition type
-        if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != DType::Bool {
+        if !matches!(condition, ArgType::Shape(_)) && !condition_elem_type.is_bool() {
             return Err(ProcessError::TypeMismatch {
                 expected: "Bool".to_string(),
                 actual: format!("{:?}", condition_elem_type),
@@ -119,16 +131,24 @@ impl NodeProcessor for WhereProcessor {
 
         Ok(())
     }
+
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
+        Node::Where(WhereNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(condition_rank: usize, x_rank: usize, y_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::Where, "test_where")
+    fn create_test_node(condition_rank: usize, x_rank: usize, y_rank: usize) -> RawNode {
+        TestNodeBuilder::new(NodeType::Where, "test_where")
             .input_tensor_bool("condition", condition_rank, None)
             .input_tensor_f32("X", x_rank, None)
             .input_tensor_f32("Y", y_rank, None)
@@ -174,7 +194,7 @@ mod tests {
         let mut node = create_test_node(2, 2, 2);
 
         // Replace condition with non-boolean tensor
-        let non_bool_input = NodeBuilder::new(NodeType::Identity, "temp")
+        let non_bool_input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("x", 2, None)
             .build()
             .inputs
@@ -194,7 +214,7 @@ mod tests {
         let mut node = create_test_node(2, 2, 2);
 
         // Replace Y with int64 tensor (different from X's float32)
-        let int64_input = NodeBuilder::new(NodeType::Identity, "temp")
+        let int64_input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_i64("y", 2, None)
             .build()
             .inputs
@@ -233,7 +253,7 @@ mod tests {
     #[test]
     fn test_where_static_shape_propagation() {
         // Test that static shapes propagate correctly through Where
-        let mut node = NodeBuilder::new(NodeType::Where, "test_where")
+        let mut node = TestNodeBuilder::new(NodeType::Where, "test_where")
             .input_tensor_bool("condition", 2, Some(vec![2, 2]))
             .input_tensor_f32("X", 2, Some(vec![2, 2]))
             .input_tensor_f32("Y", 2, Some(vec![2, 2]))
@@ -258,7 +278,7 @@ mod tests {
     #[test]
     fn test_where_static_shape_propagation_partial() {
         // Test that static shape propagates even when only some inputs have it
-        let mut node = NodeBuilder::new(NodeType::Where, "test_where")
+        let mut node = TestNodeBuilder::new(NodeType::Where, "test_where")
             .input_tensor_bool("condition", 2, None) // No static shape
             .input_tensor_f32("X", 2, Some(vec![3, 4])) // Has static shape
             .input_tensor_f32("Y", 2, Some(vec![3, 4])) // Has static shape

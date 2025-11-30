@@ -4,7 +4,7 @@ mod tests {
     use alloc::{vec, vec::Vec};
     use burn_tensor::quantization::{
         QParams, QTensorPrimitive, QuantLevel, QuantStore, QuantValue, QuantizationParameters,
-        QuantizationStrategy, QuantizedBytes, SymmetricQuantization,
+        QuantizedBytes,
     };
     use burn_tensor::{DType, Tensor, TensorData};
     use burn_tensor::{
@@ -43,11 +43,8 @@ mod tests {
         let expected = TensorData::quantized(
             vec![-127i8, -71, 0, 35],
             [4],
-            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                0.014_173_228,
-                QuantValue::Q8S,
-            )),
-            scheme,
+            scheme.with_store(QuantStore::Native),
+            &[0.014_173_228], // scale
         );
 
         // Values equality
@@ -82,11 +79,8 @@ mod tests {
         let expected = TensorData::quantized(
             vec![50i8, 0, 40, -127],
             [4],
-            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                0.1,
-                QuantValue::Q8S,
-            )),
-            scheme,
+            scheme.with_store(QuantStore::Native),
+            &[0.1], // scale
         );
 
         x_q.into_data().assert_eq(&expected, false);

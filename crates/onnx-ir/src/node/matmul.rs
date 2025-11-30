@@ -25,15 +25,27 @@
 //! - TODO: No test for bfloat16 type - Opset 13+ type support not validated
 //! - TODO: No test for zero-size dimensions - Empty matrix multiplication
 
-use crate::ir::{ArgType, Node, TensorType};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use core::cmp::max;
 
-pub struct MatMulProcessor;
+/// Node representation for MatMul operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct MatMulNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+}
+
+pub(crate) struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
+    type Config = ();
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -45,7 +57,7 @@ impl NodeProcessor for MatMulProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -113,16 +125,24 @@ impl NodeProcessor for MatMulProcessor {
 
         Ok(())
     }
+
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
+        Node::MatMul(MatMulNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{DType, NodeType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(a_rank: usize, b_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::MatMul, "test_matmul")
+    fn create_test_node(a_rank: usize, b_rank: usize) -> RawNode {
+        TestNodeBuilder::new(NodeType::MatMul, "test_matmul")
             .input_tensor_f32("A", a_rank, None)
             .input_tensor_f32("B", b_rank, None)
             .output_tensor_f32("C", 0, None) // Rank will be updated

@@ -1,105 +1,65 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct LeakyReluNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub alpha: f64,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LeakyReluNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::leaky_relu::LeakyReluNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let alpha = self.alpha.to_tokens();
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let alpha = self.config.alpha.to_tokens();
 
         quote! {
             let #output = burn::tensor::activation::leaky_relu(#input, #alpha);
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::LeakyRelu(self)
-    }
-}
-
-impl OnnxIntoNode for LeakyReluNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("LeakyRelu expects tensor input"),
-        };
-        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
-            crate::burn::Type::Tensor(t) => t,
-            _ => panic!("LeakyRelu expects tensor output"),
-        };
-        let config = node.config::<onnx_ir::node::leaky_relu::LeakyReluConfig>();
-        let alpha = config.alpha;
-        Self::new(input, output, alpha)
-    }
+    // No need to register imports since we use the fully qualified path
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::leaky_relu::{LeakyReluConfig, LeakyReluNode, LeakyReluNodeBuilder};
 
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    fn create_leaky_relu_node(name: &str, alpha: f64) -> LeakyReluNode {
+        let config = LeakyReluConfig::new(alpha);
+
+        LeakyReluNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
 
     #[test]
-    fn test_codegen_leaky_relu() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_leaky_relu_forward_default_alpha() {
+        let node = create_leaky_relu_node("leaky_relu1", 0.01);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = burn::tensor::activation::leaky_relu(input, 0.01);
+            output
+        }
+        ");
+    }
 
-        graph.register(LeakyReluNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-            0.1,
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::leaky_relu(tensor1, 0.1);
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_leaky_relu_forward_custom_alpha() {
+        let node = create_leaky_relu_node("leaky_relu1", 0.2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = burn::tensor::activation::leaky_relu(input, 0.2);
+            output
+        }
+        ");
     }
 }

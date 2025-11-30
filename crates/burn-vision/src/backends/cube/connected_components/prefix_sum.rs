@@ -4,7 +4,7 @@ use cubecl::prelude::*;
 use burn_cubecl::{
     CubeRuntime, IntElement,
     ops::{
-        numeric::{empty_device, zeros_device},
+        numeric::{empty_device, zeros_client},
         reshape,
     },
     tensor::CubeTensor,
@@ -228,15 +228,17 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
     let cube_dim = CubeDim::new_1d(CUBE_SIZE);
     let cube_count = CubeCount::new_3d(cubes, 1, batches);
 
-    let bump = zeros_device::<R, I>(
+    let bump = zeros_client::<R>(
         client.clone(),
         device.clone(),
         Shape::new([batches as usize]),
+        I::dtype(),
     );
-    let reduction = zeros_device::<R, I>(
+    let reduction = zeros_client::<R>(
         client.clone(),
         device.clone(),
         Shape::new([batches as usize, cubes as usize]),
+        I::dtype(),
     );
 
     unsafe {
@@ -250,6 +252,7 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             reduction.as_tensor_arg(1),
             ScalarArg::new(cubes),
         )
+        .expect("Kernel to never fail");
     };
 
     out

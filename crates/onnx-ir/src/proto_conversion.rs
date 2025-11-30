@@ -2,7 +2,7 @@ use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Node, NodeType, TensorData, TensorDataExt,
+    ArgType, Argument, AttributeValue, Attributes, NodeType, RawNode, TensorData, TensorDataExt,
     TensorType,
 };
 use super::protos::{
@@ -359,15 +359,26 @@ impl TryFrom<AttributeProto> for AttributeValue {
             // warning: tensor can be empty TODO: check if it is empty
             AttributeType::TENSOR => AttributeValue::Tensor(TensorData::try_from(attr.t.unwrap())?),
 
-            // Graph is not supported for now
-            // AttributeType::GRAPH => AttributeValue::Graph(attr.g),
+            // Graph attributes (used by If, Loop, Scan)
+            AttributeType::GRAPH => {
+                // Note: We can't convert the graph here without the opset version
+                // This conversion will be handled during node processing where we have access to opset
+                // For now, we'll store a placeholder and do the actual conversion in the If processor
+                panic!(
+                    "Graph attributes should be converted during node processing, not during proto conversion"
+                )
+            }
             AttributeType::FLOATS => AttributeValue::Float32s(attr.floats),
             AttributeType::INTS => AttributeValue::Int64s(attr.ints),
             AttributeType::STRINGS => AttributeValue::Strings(to_string_vec(attr.strings)),
             AttributeType::TENSORS => {
                 AttributeValue::Tensors(convert_vec_tensor_proto(attr.tensors)?)
             }
-            // AttributeType::GRAPHS => AttributeValue::Graphs(attr.graphs),
+            AttributeType::GRAPHS => {
+                panic!(
+                    "Graphs attributes should be converted during node processing, not during proto conversion"
+                )
+            }
             // AttributeType::SPARSE_TENSORS => AttributeValue::SparseTensors(attr.sparse_tensors),
             // AttributeType::SPARSE_TENSOR => AttributeValue::SparseTensor(attr.sparse_tensor),
             attribute_type => {
@@ -380,15 +391,22 @@ impl TryFrom<AttributeProto> for AttributeValue {
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
+/// Skips GRAPH and GRAPHS attributes as they need special handling with opset version
 pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     let mut result = Attributes::new();
     for attr in attrs {
+        // Skip GRAPH/GRAPHS attributes - they'll be handled separately with opset version
+        if let Ok(attr_type) = attr.type_.enum_value()
+            && (attr_type == AttributeType::GRAPH || attr_type == AttributeType::GRAPHS)
+        {
+            continue;
+        }
         result.insert(attr.name.clone(), AttributeValue::try_from(attr).unwrap());
     }
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> RawNode {
     let name = sanitize_name(&node.name);
 
     let inputs = node.input.iter().map(|x| graph_data.init_in(x)).collect();
@@ -398,7 +416,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
         .iter()
         .map(|output_name| {
             // Sanitize the output name for Rust compatibility
-            let mut arg = Argument::new(sanitize_name(output_name));
+            let mut arg = Argument::from_name(sanitize_name(output_name));
             // Try to get type from: 1) graph outputs, 2) value_info (intermediate values)
             // Note: lookups use original ONNX names (unsanitized)
             if let Some(graph_output_type) = graph_data.get_output_type(output_name) {
@@ -414,13 +432,12 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
 
     let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
-    Node {
+    RawNode {
         node_type,
         name,
         inputs,
         outputs,
         attrs,
-        config: None,
     }
 }
 
@@ -434,6 +451,66 @@ fn to_string_vec(bytes: Vec<Vec<u8>>) -> Vec<String> {
 
 fn convert_shape(shape: Vec<i64>) -> Vec<usize> {
     shape.iter().map(|s| *s as usize).collect()
+}
+
+/// Convert graph attributes from NodeProto for control flow nodes (If, Loop, Scan)
+/// This must be called with opset_version during node processing
+///
+/// If parent_registry is provided, it will be used to ensure unique names across nested subgraphs.
+/// Otherwise, a new registry is created for sibling subgraphs.
+pub fn convert_graph_attributes(
+    node_proto: &NodeProto,
+    opset_version: usize,
+    parent_registry: Option<crate::graph_state::NameRegistry>,
+) -> Attributes {
+    use crate::pipeline::build_graph_builder_from_proto;
+
+    let mut result = Attributes::new();
+
+    // Use parent registry if provided, otherwise create a new one for sibling subgraphs
+    // This ensures node names are unique across nested levels and sibling branches
+    let name_registry = parent_registry.unwrap_or_default();
+
+    for attr in &node_proto.attribute {
+        if let Ok(attr_type) = attr.type_.enum_value() {
+            match attr_type {
+                AttributeType::GRAPH => {
+                    if let Some(graph_proto) = attr.g.as_ref() {
+                        let graph_builder = build_graph_builder_from_proto(
+                            graph_proto,
+                            opset_version,
+                            Some(name_registry.clone()),
+                        )
+                        .expect("Failed to build subgraph from ONNX GraphProto");
+                        result.insert(
+                            attr.name.clone(),
+                            AttributeValue::GraphBuilder(graph_builder),
+                        );
+                    }
+                }
+                AttributeType::GRAPHS => {
+                    let graph_builders: Vec<_> = attr
+                        .graphs
+                        .iter()
+                        .map(|graph_proto| {
+                            build_graph_builder_from_proto(
+                                graph_proto,
+                                opset_version,
+                                Some(name_registry.clone()),
+                            )
+                            .expect("Failed to build subgraph from ONNX GraphProto")
+                        })
+                        .collect();
+                    result.insert(
+                        attr.name.clone(),
+                        AttributeValue::GraphBuilders(graph_builders),
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    result
 }
 
 impl TryFrom<ValueInfoProto> for Argument {

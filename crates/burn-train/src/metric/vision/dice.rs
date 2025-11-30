@@ -1,7 +1,7 @@
-use crate::metric::{MetricAttributes, MetricName};
+use crate::metric::{MetricAttributes, MetricName, SerializedEntry};
 
 use super::super::{
-    Metric, MetricEntry, MetricMetadata,
+    Metric, MetricMetadata,
     state::{FormatOptions, NumericMetricState},
 };
 use burn_core::{
@@ -120,7 +120,7 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
         self.name.clone()
     }
 
-    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         // Dice coefficient: 2 * (|X ∩ Y|) / (|X| + |Y|)
         if item.outputs.dims() != item.targets.dims() {
             panic!(
@@ -183,7 +183,7 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
 
 impl<B: Backend, const D: usize> crate::metric::Numeric for DiceMetric<B, D> {
     fn value(&self) -> crate::metric::NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }
 

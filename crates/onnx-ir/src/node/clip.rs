@@ -17,11 +17,15 @@
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::Argument;
+
+use crate::ir::{Node, RawNode, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for clip parameters.
 #[derive(Debug, Clone)]
@@ -33,25 +37,26 @@ pub enum ClipInput {
 }
 
 /// Configuration for Clip operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ClipConfig {
     pub min: Option<ClipInput>,
     pub max: Option<ClipInput>,
 }
 
-impl NodeConfig for ClipConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Clip operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct ClipNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ClipConfig,
 }
 
-pub struct ClipProcessor;
+pub(crate) struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
+    type Config = ClipConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -61,7 +66,7 @@ impl NodeProcessor for ClipProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values
@@ -77,7 +82,7 @@ impl NodeProcessor for ClipProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -93,12 +98,8 @@ impl NodeProcessor for ClipProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        fn get_clip_input(node: &Node, index: usize, _param_name: &str) -> Option<ClipInput> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
+        fn get_clip_input(node: &RawNode, index: usize, _param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
 
             // In ONNX, optional inputs are represented by empty strings
@@ -164,7 +165,20 @@ impl NodeProcessor for ClipProcessor {
             min: min_result,
             max: max_result,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Clip(ClipNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -172,10 +186,10 @@ impl NodeProcessor for ClipProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+    fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> RawNode {
+        let mut builder = TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None);
 
@@ -190,19 +204,17 @@ mod tests {
         builder.build()
     }
 
-    fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> NodeBuilder {
+    fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> TestNodeBuilder {
         // In ONNX Clip Opset 11+, inputs are positional:
         // Input 0: input
         // Input 1: min (optional)
         // Input 2: max (optional)
         // We need to maintain the correct positions even if values are None
-        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", min)
             .input_scalar_tensor_f32("max", max)
-            .output_tensor_f32("Y", 4, None);
-
-        builder
+            .output_tensor_f32("Y", 4, None)
     }
 
     #[test]
@@ -213,11 +225,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
@@ -230,11 +240,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(config.max.is_none());
     }
@@ -247,11 +255,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(config.min.is_none());
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
@@ -264,11 +270,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
@@ -283,11 +287,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         // max is a runtime input (no static value provided)
         assert!(matches!(config.max, Some(ClipInput::Runtime(_))));
@@ -303,18 +305,16 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
         // min is a runtime input (no static value provided)
         assert!(matches!(config.min, Some(ClipInput::Runtime(_))));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
     }
 
-    fn create_test_node_with_runtime_inputs() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Clip, "test_clip")
+    fn create_test_node_with_runtime_inputs() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_tensor_f32("min", 0, None) // Runtime input - no static value
             .input_tensor_f32("max", 0, None) // Runtime input - no static value
@@ -329,11 +329,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
 
         // Check that we have runtime inputs
         assert!(matches!(config.min, Some(ClipInput::Runtime(ref arg)) if arg.name == "min"));
@@ -343,7 +341,7 @@ mod tests {
     #[test]
     fn test_clip_config_mixed_static_runtime() {
         // Static min, runtime max
-        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        let builder = TestNodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", Some(-1.0)) // Static
             .input_tensor_f32("max", 0, None) // Runtime
@@ -355,11 +353,9 @@ mod tests {
 
         // Extract config first, then infer types
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ClipConfig>();
 
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Runtime(ref arg)) if arg.name == "max"));

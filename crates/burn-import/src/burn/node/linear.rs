@@ -1,88 +1,49 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use super::prelude::*;
 use burn::{
     module::{Param, ParamId},
     nn::LinearRecord,
     record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
+    tensor::Tensor,
 };
-use onnx_ir::node::linear::LinearConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
 use serde::Serialize;
 
-#[derive(Debug, Clone)]
-pub struct LinearNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-    pub data_weights: TensorData,
-    pub data_bias: Option<TensorData>,
-    pub config: LinearConfig,
-}
-
-impl LinearNode {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        input: TensorType,
-        output: TensorType,
-        data_weights: TensorData,
-        data_bias: Option<TensorData>,
-        config: LinearConfig,
-    ) -> Self {
-        Self {
-            field: OtherType::new(
-                name,
-                quote! {
-                    Linear<B>
-                },
-            ),
-            input,
-            output,
-            data_weights,
-            data_bias,
-            config,
-        }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+    fn field(&self) -> Option<Field> {
+        let name = Ident::new(&self.name, Span::call_site());
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
-        let tokens = quote! {
-            let #name = LinearConfig::new(#d_input, #d_output)
-                .with_bias(#bias)
-                .init(device);
-        };
 
-        Some(tokens)
+        Some(Field::new(
+            self.name.clone(),
+            quote! { Linear<B> },
+            quote! {
+                let #name = LinearConfig::new(#d_input, #d_output)
+                    .with_bias(#bias)
+                    .init(device);
+            },
+        ))
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
+        let data_weights = extract_node_data(&self.inputs, 1).unwrap();
+        let data_bias = extract_node_data(&self.inputs, 2);
+
         let record = LinearRecord::<SerializationBackend> {
             weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(
-                    self.data_weights.clone().convert::<PS::FloatElem>(),
-                    &device,
-                ),
+                Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device),
             ),
-            bias: self.data_bias.as_ref().map(|bias| {
+            bias: data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
                     Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
@@ -94,10 +55,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
         item.serialize(serializer)
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
@@ -108,138 +69,82 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
         imports.register("burn::nn::Linear");
         imports.register("burn::nn::LinearConfig");
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Linear(self)
-    }
-}
-
-impl OnnxIntoNode for LinearNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        use burn::tensor::TensorData;
-        use onnx_ir::ir::ArgType;
-
-        let name = &node.name;
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::linear::LinearConfig>();
-
-        // Helper function to extract and serialize data - converts to the appropriate dtype
-        fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
-            use onnx_ir::ir::DType;
-
-            if node.inputs.is_empty() {
-                return None;
-            }
-
-            let input = node.inputs.get(input_index)?;
-            let value = input.value()?;
-            let ty = input.ty.clone();
-
-            match ty {
-                ArgType::Tensor(tensor) => {
-                    // Convert to the tensor's actual dtype
-                    match tensor.dtype {
-                        DType::F64 => Some(value.clone().convert::<f64>()),
-                        DType::F32 => Some(value.clone().convert::<f32>()),
-                        DType::F16 => Some(value.clone().convert::<half::f16>()),
-                        DType::BF16 => Some(value.clone().convert::<half::bf16>()),
-                        DType::I64 => Some(value.clone().convert::<i64>()),
-                        DType::I32 => Some(value.clone().convert::<i32>()),
-                        DType::I16 => Some(value.clone().convert::<i16>()),
-                        DType::I8 => Some(value.clone().convert::<i8>()),
-                        DType::U64 => Some(value.clone().convert::<u64>()),
-                        DType::U32 => Some(value.clone().convert::<u32>()),
-                        DType::U16 => Some(value.clone().convert::<u16>()),
-                        DType::U8 => Some(value.clone().convert::<u8>()),
-                        DType::Bool => Some(value.clone().convert::<bool>()),
-                        _ => None, // Unsupported types (QFloat, Flex32)
-                    }
-                }
-                ArgType::Scalar(dtype) => {
-                    // For scalars, convert based on the scalar's dtype
-                    match dtype {
-                        DType::F64 => Some(value.clone().convert::<f64>()),
-                        DType::F32 => Some(value.clone().convert::<f32>()),
-                        DType::I64 => Some(value.clone().convert::<i64>()),
-                        DType::I32 => Some(value.clone().convert::<i32>()),
-                        _ => None,
-                    }
-                }
-                ArgType::Shape(_) => {
-                    // Shapes are typically i64
-                    Some(value.clone().convert::<i64>())
-                }
-            }
-        }
-
-        let weight = extract_data_serialize(1, &node).expect("Weight is required");
-        let bias = extract_data_serialize(2, &node);
-
-        LinearNode::new(name, input, output, weight, bias, config.clone())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{ArgType, Argument, TensorType};
+    use onnx_ir::linear::{LinearConfig, LinearNode};
 
     #[test]
-    fn test_codegen() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(LinearNode::new(
-            "linear",
-            TensorType::new_float("input", 4),
-            TensorType::new_float("output", 4),
-            TensorData::from([2f32]),
-            None,
-            LinearConfig::new(128, 128),
-        ));
-
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
+    fn test_linear_forward() {
+        let config = LinearConfig::new(128, 64, true);
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+        let weight = Argument::new(
+            "weight",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+        let bias = Argument::new(
+            "bias",
+            ArgType::Tensor(TensorType::new(DType::F32, 1, None)),
         );
 
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::nn::Linear;
-            use burn::nn::LinearConfig;
-
-            #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
-                linear: Linear<B>,
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    let linear = LinearConfig::new(128, 128)
-                        .with_bias(true)
-                        .init(device);
-
-                    Self {
-                        linear,
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.linear.forward(input);
-
-                    output
-                }
-            }
+        let node = LinearNode {
+            name: "linear1".to_string(),
+            inputs: vec![input, weight, bias],
+            outputs: vec![Argument::new(
+                "output",
+                ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+            )],
+            config,
         };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input: Tensor<B, 2>,
+            weight: Tensor<B, 2>,
+            bias: Tensor<B, 1>,
+        ) -> Tensor<B, 2> {
+            let output = self.linear1.forward(input);
+            output
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_linear_forward_no_bias() {
+        let config = LinearConfig::new(128, 64, false);
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+        let weight = Argument::new(
+            "weight",
+            ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+        );
+
+        let node = LinearNode {
+            name: "linear2".to_string(),
+            inputs: vec![input, weight],
+            outputs: vec![Argument::new(
+                "output",
+                ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
+            )],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>, weight: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = self.linear2.forward(input);
+            output
+        }
+        ");
     }
 }

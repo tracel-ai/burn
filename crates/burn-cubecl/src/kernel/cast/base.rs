@@ -1,17 +1,18 @@
 use crate::{
-    CubeElement, CubeRuntime,
+    CubeRuntime,
     kernel::utils::linear_view,
-    ops::{max_line_size, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_tensor::DType;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use std::any::TypeId;
 
 #[cube(launch)]
-pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
+pub(crate) fn cast_element<I: Numeric, O: Numeric>(
     input: &LinearView<Line<I>>,
     output: &mut LinearView<Line<O>, ReadWrite>,
+    #[define(I, O)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -23,18 +24,18 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
 /// Cast a tensor to the given element type.
 ///
 /// Note: When input element is semantically a boolean, prefer bool_cast function.
-pub fn cast<R: CubeRuntime, EI: CubeElement, EO: CubeElement>(
-    input: CubeTensor<R>,
-) -> CubeTensor<R> {
-    if TypeId::of::<EI>() == TypeId::of::<EO>() {
-        return CubeTensor::new(
-            input.client,
-            input.handle,
-            input.shape,
-            input.device,
-            input.strides,
-            input.dtype,
-        );
+pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R> {
+    let dtype_output = match dtype {
+        DType::Flex32 => DType::F32,
+        _ => dtype,
+    };
+    let dtype_input = match input.dtype {
+        DType::Flex32 => DType::F32,
+        _ => input.dtype,
+    };
+
+    if dtype_input == dtype_output {
+        return input;
     }
 
     let line_size = max_line_size(&input);
@@ -44,15 +45,22 @@ pub fn cast<R: CubeRuntime, EI: CubeElement, EO: CubeElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
     let client = input.client.clone();
-    let output = empty_device::<R, EO>(client.clone(), input.device.clone(), input.shape.clone());
+    let output = empty_device_dtype(
+        client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+        dtype, // We take the same dtype as passed as input (Flex32 not F32)
+    );
 
-    cast_element::launch::<EI, EO, R>(
+    cast_element::launch(
         &client,
         cube_count,
         cube_dim,
         linear_view(&input, line_size),
         linear_view(&output, line_size),
-    );
+        [dtype_input.into(), dtype_output.into()],
+    )
+    .expect("Kernel to never fail");
 
     output
 }

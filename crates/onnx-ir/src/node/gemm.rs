@@ -31,15 +31,17 @@
 //!
 //! This optimization allows the use of optimized Linear layer implementations in Burn.
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use core::cmp::max;
-use std::any::Any;
 
 /// Configuration for Gemm operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct GemmConfig {
     pub alpha: f32,
     pub beta: f32,
@@ -47,18 +49,20 @@ pub struct GemmConfig {
     pub trans_b: i64,
 }
 
-impl NodeConfig for GemmConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Gemm operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct GemmNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: GemmConfig,
 }
 
-pub struct GemmProcessor;
+pub(crate) struct GemmProcessor;
 
 impl NodeProcessor for GemmProcessor {
+    type Config = GemmConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -70,7 +74,7 @@ impl NodeProcessor for GemmProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -121,11 +125,7 @@ impl NodeProcessor for GemmProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut alpha: f32 = 1.0;
         let mut beta: f32 = 1.0;
         let mut trans_a: i64 = 0;
@@ -146,13 +146,21 @@ impl NodeProcessor for GemmProcessor {
             }
         }
 
-        let config = GemmConfig {
-            alpha,
-            beta,
-            trans_a,
-            trans_b,
-        };
-        Ok(Some(Box::new(config)))
+        let config = GemmConfig::new(alpha, beta, trans_a, trans_b);
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Gemm(GemmNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -160,15 +168,15 @@ impl NodeProcessor for GemmProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         alpha: Option<f32>,
         beta: Option<f32>,
         trans_a: Option<i64>,
         trans_b: Option<i64>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Gemm, "test_gemm")
+    ) -> RawNode {
+        let mut builder = TestNodeBuilder::new(NodeType::Gemm, "test_gemm")
             .input_tensor_f32("A", 2, None)
             .input_tensor_f32("B", 2, None)
             .input_tensor_f32("C", 2, None)
@@ -197,9 +205,7 @@ mod tests {
         let processor = GemmProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 1.0);
         assert_eq!(config.beta, 1.0);
         assert_eq!(config.trans_a, 0);
@@ -213,9 +219,7 @@ mod tests {
         let processor = GemmProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 2.0);
         assert_eq!(config.beta, 3.0);
         assert_eq!(config.trans_a, 1);
@@ -229,9 +233,7 @@ mod tests {
         let processor = GemmProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 0.5);
         assert_eq!(config.beta, 1.0); // default
         assert_eq!(config.trans_a, 1);

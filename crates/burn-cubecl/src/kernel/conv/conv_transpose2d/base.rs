@@ -1,7 +1,6 @@
+use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_tensor::ops::ConvTransposeOptions;
 use cubecl::convolution::components::ConvSetupError;
-
-use crate::{CubeRuntime, FloatElement, IntElement, tensor::CubeTensor};
 
 #[cfg(feature = "autotune")]
 use super::conv_transpose2d_autotune;
@@ -30,15 +29,14 @@ impl Default for ConvTranspose2dStrategy {
     }
 }
 
-/// Perform a 2D convolution with the given strategy
+/// Performs a 2D convolution with the given strategy
 ///
 /// * `input` - The input feature map
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
-///
-pub fn conv_transpose2d<R: CubeRuntime, E: FloatElement, I: IntElement>(
+pub fn conv_transpose2d<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -46,15 +44,11 @@ pub fn conv_transpose2d<R: CubeRuntime, E: FloatElement, I: IntElement>(
     strategy: ConvTranspose2dStrategy,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
     match strategy {
-        ConvTranspose2dStrategy::Direct => {
-            conv_transpose2d_direct::<R, E>(input, weight, bias, options)
-        }
+        ConvTranspose2dStrategy::Direct => conv_transpose2d_direct(input, weight, bias, options),
         #[cfg(feature = "autotune")]
-        ConvTranspose2dStrategy::Autotune => Ok(conv_transpose2d_autotune::<R, E>(
-            input, weight, bias, options,
-        )),
-        ConvTranspose2dStrategy::Gemm => {
-            conv_transpose2d_col2im::<R, E>(input, weight, bias, options)
+        ConvTranspose2dStrategy::Autotune => {
+            Ok(conv_transpose2d_autotune(input, weight, bias, options))
         }
+        ConvTranspose2dStrategy::Gemm => conv_transpose2d_col2im(input, weight, bias, options),
     }
 }

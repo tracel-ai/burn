@@ -182,9 +182,11 @@ impl core::fmt::Display for DatasetIdent {
         match self {
             DatasetIdent::Plain => f.write_str("Plain")?,
             DatasetIdent::Transformed(items) => {
-                for i in items {
-                    f.write_fmt(format_args!("{i}"))?;
-                    f.write_str(" ")?;
+                for i in 0..items.len() {
+                    f.write_fmt(format_args!("{}", items[i]))?;
+                    if i < items.len() - 1 {
+                        f.write_str(" ")?;
+                    }
                 }
             }
             DatasetIdent::All => f.write_str("All")?,

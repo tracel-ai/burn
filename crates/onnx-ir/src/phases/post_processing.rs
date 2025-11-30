@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{Argument, Node, NodeType},
+    ir::{Argument, NodeType, RawNode},
     processor::get_processor_registry,
     proto_conversion::MIN_OPSET_VERSION,
 };
@@ -41,8 +41,83 @@ fn rewire_argument(
     }
 }
 
+/// Recursively rewire subgraph inputs and outputs for control flow nodes
+///
+/// This handles If/Loop/Scan nodes which contain subgraphs that may reference
+/// Identity node outputs. We need to rewire these references before removing
+/// the Identity nodes.
+fn rewire_subgraph(
+    graph: &mut crate::ir::OnnxGraphBuilder,
+    rewire_map: &HashMap<String, String>,
+    output_arg_map: &HashMap<String, Argument>,
+) {
+    // Rewire subgraph inputs (these are references to parent scope values)
+    for input in &mut graph.inputs {
+        rewire_argument(input, rewire_map, output_arg_map);
+    }
+
+    // Rewire subgraph outputs
+    for output in &mut graph.outputs {
+        rewire_argument(output, rewire_map, output_arg_map);
+    }
+
+    // Rewire node inputs within the subgraph
+    for node in &mut graph.nodes {
+        for input in &mut node.inputs {
+            rewire_argument(input, rewire_map, output_arg_map);
+        }
+    }
+
+    // Recursively handle nested subgraphs in If/Loop/Scan nodes
+    for node in &mut graph.nodes {
+        rewire_node_subgraphs(node, rewire_map, output_arg_map);
+    }
+}
+
+/// Rewire subgraphs within a single node (recursive helper)
+fn rewire_node_subgraphs(
+    node: &mut RawNode,
+    rewire_map: &HashMap<String, String>,
+    output_arg_map: &HashMap<String, Argument>,
+) {
+    use crate::ir::AttributeValue;
+
+    match node.node_type {
+        NodeType::If => {
+            // If node has then_branch and else_branch - update both attrs and config
+            if let Some(then_attr) = node.attrs.get_mut("then_branch")
+                && let AttributeValue::GraphBuilder(subgraph) = then_attr
+            {
+                rewire_subgraph(subgraph, rewire_map, output_arg_map);
+            }
+            if let Some(else_attr) = node.attrs.get_mut("else_branch")
+                && let AttributeValue::GraphBuilder(subgraph) = else_attr
+            {
+                rewire_subgraph(subgraph, rewire_map, output_arg_map);
+            }
+
+            // Note: Configs are extracted on-demand from attributes by processors.
+            // Rewiring the branch attributes above is sufficient; no separate config update needed.
+        }
+        NodeType::Loop | NodeType::Scan => {
+            // Loop and Scan nodes have a body graph
+            if let Some(body_attr) = node.attrs.get_mut("body")
+                && let AttributeValue::GraphBuilder(subgraph) = body_attr
+            {
+                rewire_subgraph(subgraph, rewire_map, output_arg_map);
+            }
+        }
+        _ => {
+            // Other node types don't have subgraphs
+        }
+    }
+}
+
 /// Analyze which Identity nodes can be removed and create rewiring map
-fn plan_identity_elimination(nodes: &[Node]) -> IdentityEliminationPlan {
+fn plan_identity_elimination(
+    nodes: &[RawNode],
+    node_output_map: &HashMap<String, (usize, usize)>,
+) -> IdentityEliminationPlan {
     let mut rewire_map = HashMap::new();
     let mut nodes_to_remove = HashSet::new();
 
@@ -66,6 +141,23 @@ fn plan_identity_elimination(nodes: &[Node]) -> IdentityEliminationPlan {
         let output_name = &node.outputs[0].name;
 
         rewire_map.insert(output_name.clone(), input_name.clone());
+
+        // IMPORTANT: Also map from the original ONNX output name to the input
+        // onnx-ir renames node outputs to {node_name}_out{n}, but subgraphs may reference
+        // the original ONNX names. We need to find the original name by reverse-looking up
+        // the node_output_map (which maps original names to node indices).
+        //
+        // For this Identity node at index `idx` with output index 0, find the original name.
+        for (original_name, &(node_idx, output_idx)) in node_output_map.iter() {
+            if node_idx == idx && output_idx == 0 {
+                // Found the original ONNX output name for this Identity node
+                if original_name != output_name {
+                    rewire_map.insert(original_name.clone(), input_name.clone());
+                }
+                break;
+            }
+        }
+
         nodes_to_remove.insert(idx);
     }
 
@@ -82,7 +174,7 @@ fn plan_identity_elimination(nodes: &[Node]) -> IdentityEliminationPlan {
 /// 2. Updates graph outputs to bypass removed Identity nodes
 /// 3. Filters out removed nodes
 fn apply_identity_elimination(
-    nodes: &mut Vec<Node>,
+    nodes: &mut Vec<RawNode>,
     outputs: &mut [Argument],
     plan: IdentityEliminationPlan,
 ) {
@@ -126,19 +218,26 @@ fn apply_identity_elimination(
         resolved_rewire_map.insert(output.clone(), current);
     }
 
-    // Step 3: Rewire node inputs
+    // Step 3: Rewire subgraphs in control flow nodes (If/Loop/Scan)
+    // This must happen BEFORE rewiring regular node inputs to ensure subgraph
+    // inputs/outputs that reference Identity node outputs are properly updated
+    for node in nodes.iter_mut() {
+        rewire_node_subgraphs(node, &resolved_rewire_map, &output_arg_map);
+    }
+
+    // Step 4: Rewire node inputs
     for node in nodes.iter_mut() {
         for input in &mut node.inputs {
             rewire_argument(input, &resolved_rewire_map, &output_arg_map);
         }
     }
 
-    // Step 4: Rewire graph outputs
+    // Step 5: Rewire graph outputs
     for output in outputs.iter_mut() {
         rewire_argument(output, &resolved_rewire_map, &output_arg_map);
     }
 
-    // Step 5: Remove Identity nodes
+    // Step 6: Remove Identity nodes
     *nodes = nodes
         .drain(..)
         .enumerate()
@@ -151,12 +250,15 @@ fn apply_identity_elimination(
 /// Returns (nodes, inputs, outputs) tuple ready for finalization
 pub(crate) fn post_process(
     state_rc: &Rc<RefCell<GraphState>>,
-) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
-    // Extract graph data while preserving tensor_store
-    let (mut nodes, inputs, mut outputs) = {
+) -> (Vec<RawNode>, Vec<Argument>, Vec<Argument>) {
+    // Extract graph data while preserving tensor_store and node_output_map
+    let (mut nodes, inputs, mut outputs, node_output_map) = {
         let mut state = state_rc.borrow_mut();
         let tensor_data_clone = state.tensor_store.clone_data();
         let next_tensor_id = state.tensor_store.next_id();
+
+        // Clone node_output_map BEFORE consuming the state
+        let node_output_map = state.node_output_map().clone();
 
         let result = std::mem::replace(&mut *state, GraphState::new(&[], &[], &[], &[])).consume();
 
@@ -164,13 +266,13 @@ pub(crate) fn post_process(
         state
             .tensor_store
             .restore_data(tensor_data_clone, next_tensor_id);
-        result
+        (result.0, result.1, result.2, node_output_map)
     };
 
     // Identity elimination
     log::debug!("Starting Identity elimination");
     {
-        let elimination_plan = plan_identity_elimination(&nodes);
+        let elimination_plan = plan_identity_elimination(&nodes, &node_output_map);
         apply_identity_elimination(&mut nodes, &mut outputs, elimination_plan);
     }
 
@@ -209,10 +311,10 @@ pub(crate) fn post_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, Node, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, RawNode, TensorType};
 
-    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> Node {
-        Node {
+    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> RawNode {
+        RawNode {
             node_type: NodeType::Identity,
             name: name.to_string(),
             inputs: vec![Argument {
@@ -236,12 +338,11 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         }
     }
 
-    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> Node {
-        Node {
+    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> RawNode {
+        RawNode {
             node_type: NodeType::Add,
             name: name.to_string(),
             inputs: vec![
@@ -277,7 +378,6 @@ mod tests {
                 value_store: None,
             }],
             attrs: Default::default(),
-            config: None,
         }
     }
 
@@ -288,7 +388,8 @@ mod tests {
             create_add_node("add1", "identity1_out", "input2", "output1"),
         ];
 
-        let plan = plan_identity_elimination(&nodes);
+        let node_output_map = HashMap::new();
+        let plan = plan_identity_elimination(&nodes, &node_output_map);
 
         assert_eq!(plan.nodes_to_remove.len(), 1);
         assert!(plan.nodes_to_remove.contains(&0));
@@ -305,7 +406,8 @@ mod tests {
             create_identity_node("identity2", "input2", "output2"),
         ];
 
-        let plan = plan_identity_elimination(&nodes);
+        let node_output_map = HashMap::new();
+        let plan = plan_identity_elimination(&nodes, &node_output_map);
 
         // Should remove all Identity nodes (empty graph is allowed)
         assert_eq!(plan.nodes_to_remove.len(), 2);
@@ -331,7 +433,8 @@ mod tests {
             value_store: None,
         }];
 
-        let plan = plan_identity_elimination(&nodes);
+        let node_output_map = HashMap::new();
+        let plan = plan_identity_elimination(&nodes, &node_output_map);
         apply_identity_elimination(&mut nodes, &mut outputs, plan);
 
         // Identity should be removed

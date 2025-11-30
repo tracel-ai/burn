@@ -18,11 +18,13 @@
 //! Should reject non-integer types like float for indices/depth inputs.
 //! Location: infer_types method after validate_input_count
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Represents either a static value or a runtime argument for OneHot depth.
 #[derive(Debug, Clone)]
@@ -43,24 +45,24 @@ pub enum OneHotValuesInput {
 }
 
 /// Configuration for OneHot operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct OneHotConfig {
     pub depth: OneHotDepthInput,
     pub values: OneHotValuesInput,
     pub axis: i64,
 }
 
-impl NodeConfig for OneHotConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for OneHot operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct OneHotNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: OneHotConfig,
 }
 
 /// Update output rank for OneHot (input rank + 1).
-pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
+pub(crate) fn one_hot_output_shape(node: &mut RawNode) -> Result<(), ProcessError> {
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => {
@@ -82,9 +84,11 @@ pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
     Ok(())
 }
 
-pub struct OneHotProcessor;
+pub(crate) struct OneHotProcessor;
 
 impl NodeProcessor for OneHotProcessor {
+    type Config = OneHotConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 9,
@@ -94,7 +98,7 @@ impl NodeProcessor for OneHotProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift depth (input 1) and values (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -108,7 +112,7 @@ impl NodeProcessor for OneHotProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -143,11 +147,7 @@ impl NodeProcessor for OneHotProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let depth = match node.inputs[1].value() {
             None => {
                 // Runtime input - no static value available
@@ -192,7 +192,20 @@ impl NodeProcessor for OneHotProcessor {
             values,
             axis,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::OneHot(OneHotNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -200,10 +213,10 @@ impl NodeProcessor for OneHotProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(depth: i64, values: Vec<f32>, axis: Option<i64>) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+    fn create_test_node(depth: i64, values: Vec<f32>, axis: Option<i64>) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", Some(depth))
             .input_tensor_f32_data("values", values.clone(), vec![2]) // always [off_value, on_value]
@@ -223,9 +236,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 5));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[0.0, 1.0]));
         assert_eq!(config.axis, -1); // default axis
@@ -238,9 +249,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 5));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[0.0, 1.0]));
         assert_eq!(config.axis, 1);
@@ -253,9 +262,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 10));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[-1.0, 2.0])); // custom off/on values
         assert_eq!(config.axis, -1);
@@ -264,7 +271,7 @@ mod tests {
     #[test]
     fn test_one_hot_config_runtime_depth() {
         // Create node without registering depth constant in GraphData (runtime)
-        let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+        let node = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", None) // No depth value (runtime)
             .input_tensor_f32_data("values", vec![0.0, 1.0], vec![2])
@@ -274,9 +281,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Runtime(arg) if arg.name == "depth"));
         assert!(matches!(&config.values, OneHotValuesInput::Static(v) if v == &[0.0, 1.0]));
     }
@@ -284,7 +289,7 @@ mod tests {
     #[test]
     fn test_one_hot_config_runtime_values() {
         // Create node without registering values constant in GraphData (runtime)
-        let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+        let node = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", Some(5))
             .input_tensor_f32("values", 1, None) // No values data (runtime)
@@ -294,9 +299,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Static(d) if *d == 5));
         assert!(matches!(&config.values, OneHotValuesInput::Runtime(arg) if arg.name == "values"));
     }
@@ -304,7 +307,7 @@ mod tests {
     #[test]
     fn test_one_hot_config_both_runtime() {
         // Both depth and values are runtime
-        let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+        let node = TestNodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", None) // Runtime
             .input_tensor_f32("values", 1, None) // Runtime
@@ -314,9 +317,7 @@ mod tests {
         let processor = OneHotProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<OneHotConfig>();
         assert!(matches!(&config.depth, OneHotDepthInput::Runtime(arg) if arg.name == "depth"));
         assert!(matches!(&config.values, OneHotValuesInput::Runtime(arg) if arg.name == "values"));
     }

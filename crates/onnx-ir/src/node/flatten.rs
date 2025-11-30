@@ -12,32 +12,35 @@
 //!
 //! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Flatten operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct FlattenConfig {
     /// Axis along which to flatten
     pub axis: usize,
 }
 
-impl NodeConfig for FlattenConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Flatten operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct FlattenNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: FlattenConfig,
 }
 
-pub struct FlattenProcessor;
+pub(crate) struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
+    type Config = FlattenConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -49,8 +52,8 @@ impl NodeProcessor for FlattenProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Extract the shape of the input tensor
@@ -73,7 +76,9 @@ impl NodeProcessor for FlattenProcessor {
         }
 
         // Get reference to config for type inference
-        let _config = node.config::<FlattenConfig>();
+        let _config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Infer output type - Flatten to a 2D tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 2, ..tensor });
@@ -81,11 +86,7 @@ impl NodeProcessor for FlattenProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -123,7 +124,20 @@ impl NodeProcessor for FlattenProcessor {
         let config = FlattenConfig {
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Flatten(FlattenNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -131,10 +145,10 @@ impl NodeProcessor for FlattenProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Flatten, "test_flatten")
+    fn create_test_node(axis: i64) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Flatten, "test_flatten")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 2, None)
             .attr_int("axis", axis)
@@ -143,14 +157,16 @@ mod tests {
     #[test]
     fn test_flatten_config_basic() {
         let node = create_test_node(1).process(FlattenProcessor, 16);
-        let config = node.config::<FlattenConfig>();
+        let processor = FlattenProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
     fn test_flatten_config_with_negative_axis() {
         let node = create_test_node(-2).process(FlattenProcessor, 16);
-        let config = node.config::<FlattenConfig>();
+        let processor = FlattenProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 
@@ -158,7 +174,7 @@ mod tests {
     fn test_flatten_config_with_low_rank() {
         let mut node = create_test_node(1).build();
         // Replace the input with one that has lower rank
-        let input = NodeBuilder::new(NodeType::Identity, "temp")
+        let input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("x", 1, None)
             .build()
             .inputs
@@ -168,8 +184,7 @@ mod tests {
 
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -178,7 +193,7 @@ mod tests {
     fn test_flatten_config_with_multiple_inputs() {
         let mut node = create_test_node(1).build();
         // Add an extra input
-        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+        let extra_input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("extra", 1, None)
             .build()
             .inputs

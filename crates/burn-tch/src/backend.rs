@@ -1,6 +1,6 @@
 use super::TchTensor;
 use super::element::TchElement;
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps, SyncError};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
 
@@ -66,7 +66,7 @@ impl From<tch::Device> for LibTorchDevice {
     }
 }
 
-impl burn_common::device::Device for LibTorchDevice {
+impl burn_std::device::Device for LibTorchDevice {
     fn from_id(device_id: DeviceId) -> Self {
         match device_id.type_id {
             0 => Self::Cuda(device_id.index_id as usize),
@@ -140,7 +140,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
         .to_string()
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device) -> Result<(), SyncError> {
         match device {
             LibTorchDevice::Cpu => (),
             LibTorchDevice::Cuda(index) => {
@@ -155,6 +155,8 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 ))
                 .into_data();
             }
-        }
+        };
+
+        Ok(())
     }
 }

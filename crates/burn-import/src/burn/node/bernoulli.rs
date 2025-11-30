@@ -1,156 +1,111 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use onnx_ir::ir::ArgType;
 
-#[derive(Debug, Clone, new)]
-pub struct BernoulliNode {
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BernoulliNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bernoulli::BernoulliNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        imports.register("burn::tensor::Distribution");
-    }
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
-        let input = scope.tensor_use_owned(&self.input, node_position);
+        // Use Default distribution for Bernoulli
         let dist = quote! { Distribution::Default };
 
+        // Generate random values and compare with input to get binary output
         let input_random = quote! { #input.random_like(#dist).lower(#input) };
-        let output_random = match self.output.kind {
-            TensorKind::Bool => input_random,
-            TensorKind::Int => quote! { #input_random.int() },
-            TensorKind::Float => quote! { #input_random.float() },
+
+        // Convert to the output type based on the output tensor kind
+        let output_ty = &self.outputs.first().unwrap().ty;
+        let output_random = match output_ty {
+            ArgType::Tensor(t) => match &t.dtype {
+                dtype if dtype.is_bool() => input_random,
+                dtype if dtype.is_int() || dtype.is_uint() => quote! { #input_random.int() },
+                dtype if dtype.is_float() => quote! { #input_random.float() },
+                _ => input_random, // Fallback
+            },
+            _ => input_random,
         };
 
-        quote! { let #output = #output_random; }
+        quote! {
+            let #output = #output_random;
+        }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Bernoulli(self)
-    }
-}
-
-impl OnnxIntoNode for BernoulliNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
-        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
-        Self::new(input, output)
+    fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::tensor::Distribution");
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{TensorKind, TensorType, graph::BurnGraph, node::test::assert_tokens};
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::bernoulli::BernoulliNodeBuilder;
 
     #[test]
-    fn test_codegen_node() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(BernoulliNode::new(
-            TensorType::new("input1", 2, TensorKind::Float),
-            TensorType::new("output1", 2, TensorKind::Float),
-        ));
-
-        graph.register_input_output(
-            vec!["input1".to_string()],
-            vec!["output1".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::tensor::Distribution;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input1: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output1 = input1
-                        .random_like(Distribution::Default)
-                        .lower(input1)
-                        .float();
-                    output1
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_bernoulli_bool() {
+        let node = BernoulliNodeBuilder::new("bernoulli1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.random_like(Distribution::Default).lower(input);
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_node_with_cast() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_bernoulli_int() {
+        let node = BernoulliNodeBuilder::new("bernoulli2")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Int> {
+            let output = input.random_like(Distribution::Default).lower(input).int();
+            output
+        }
+        ");
+    }
 
-        graph.register(BernoulliNode::new(
-            TensorType::new("input1", 2, TensorKind::Float),
-            TensorType::new("output1", 2, TensorKind::Int),
-        ));
+    #[test]
+    fn test_bernoulli_float() {
+        let node = BernoulliNodeBuilder::new("bernoulli3")
+            .input_tensor("input", 2, DType::F64)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.random_like(Distribution::Default).lower(input).float();
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["input1".to_string()],
-            vec!["output1".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::tensor::Distribution;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input1: Tensor<B, 2>) -> Tensor<B, 2, Int> {
-                    let output1 = input1
-                        .random_like(Distribution::Default)
-                        .lower(input1)
-                        .int();
-                    output1
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_bernoulli_int64() {
+        let node = BernoulliNodeBuilder::new("bernoulli4")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Int> {
+            let output = input.random_like(Distribution::Default).lower(input).int();
+            output
+        }
+        ");
     }
 }

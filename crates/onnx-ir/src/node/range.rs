@@ -23,29 +23,22 @@
 //! ## Opset Versions
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Range operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct RangeConfig {
     pub start: RangeInput,
     pub limit: RangeInput,
     pub delta: RangeInput,
-}
-
-impl NodeConfig for RangeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Represents either a static value or a runtime argument for range parameters.
@@ -57,9 +50,26 @@ pub enum RangeInput {
     Runtime(RuntimeInputRef),
 }
 
-pub struct RangeProcessor;
+impl Default for RangeInput {
+    fn default() -> Self {
+        Self::Static(0)
+    }
+}
+
+/// Node representation for Range operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct RangeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RangeConfig,
+}
+
+pub(crate) struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
+    type Config = RangeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -69,7 +79,7 @@ impl NodeProcessor for RangeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Only lift inputs that have static values
         // Runtime inputs (no value) should remain in the graph
         if !node.inputs.is_empty() && node.inputs[0].is_constant() {
@@ -89,7 +99,7 @@ impl NodeProcessor for RangeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -136,14 +146,10 @@ impl NodeProcessor for RangeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Helper function to extract range input
         fn get_range_input(
-            node: &Node,
+            node: &RawNode,
             index: usize,
             param_name: &str,
         ) -> Result<RangeInput, ProcessError> {
@@ -175,19 +181,32 @@ impl NodeProcessor for RangeProcessor {
             limit,
             delta,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Range(RangeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node() -> Node {
-        NodeBuilder::new(NodeType::Range, "test_range")
+    fn create_test_node() -> RawNode {
+        TestNodeBuilder::new(NodeType::Range, "test_range")
             .input_scalar_i64("start")
             .input_scalar_i64("limit")
             .input_scalar_i64("delta")

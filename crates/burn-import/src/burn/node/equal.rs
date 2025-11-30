@@ -1,97 +1,60 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone)]
-pub struct EqualNode {
-    pub lhs: Type,
-    pub rhs: Type,
-    pub output: Type,
-}
-
-impl EqualNode {
-    pub fn new(lhs: Type, rhs: Type, output: Type) -> Self {
-        Self { lhs, rhs, output }
-    }
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for EqualNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.lhs.clone(), self.rhs.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::comparison::EqualNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.lhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("lhs must be a tensor, scalar, or shape"),
-        };
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs = self.inputs.first().unwrap();
+        let rhs = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let rhs = match &self.rhs {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = scalar.name.clone();
-                quote! { #name }
-            }
-            Type::Shape(shape) => {
-                let name = shape.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("rhs must be a tensor, scalar, or shape"),
-        };
+        let lhs_value = scope.arg(lhs);
 
-        let output = &self.output.name();
+        let rhs_value = scope.arg(rhs);
 
-        let function = match (&self.lhs, &self.rhs) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+        let function = match (&lhs.ty, &rhs.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
                 let lhs_rank = lhs_tensor.rank;
                 let rhs_rank = rhs_tensor.rank;
 
                 if lhs_rank == rhs_rank {
-                    quote! { #lhs.equal(#rhs) }
+                    quote! { #lhs_value.equal(#rhs_value) }
                 } else if lhs_rank > rhs_rank {
                     let num_dims = lhs_rank - rhs_rank;
                     let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
-                    quote! { #lhs.equal(#rhs.unsqueeze_dims(&[#(#dims),*])) }
+                    quote! { #lhs_value.equal(#rhs_value.unsqueeze_dims(&[#(#dims),*])) }
                 } else {
                     let num_dims = rhs_rank - lhs_rank;
                     let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
-                    quote! { #lhs.unsqueeze_dims(&[#(#dims),*]).equal(#rhs) }
+                    quote! { #lhs_value.unsqueeze_dims(&[#(#dims),*]).equal(#rhs_value) }
                 }
             }
-            (Type::Scalar(_), Type::Scalar(_)) => quote! { #lhs == #rhs },
-            (Type::Shape(_), Type::Shape(_)) => quote! {
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => quote! { #lhs_value == #rhs_value },
+            (ArgType::Shape(_), ArgType::Shape(_)) => quote! {
                 {
-                    let mut result = #lhs;
-                    for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                    let mut result = #lhs_value;
+                    for (result_item, rhs_item) in result.iter_mut().zip(#rhs_value.iter()) {
                         *result_item = if result_item == rhs_item { 1i64 } else { 0i64 };
                     }
                     result
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) => quote! {
+            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
                 {
-                    let shape_tensor = Tensor::<B, 1, Int>::from_data(#lhs.as_slice(), &*self.device);
-                    shape_tensor.equal(#rhs)
+                    let shape_tensor = Tensor::<B, 1, Int>::from_data(#lhs_value.as_slice(), &*self.device);
+                    shape_tensor.equal(#rhs_value)
                 }
             },
-            (Type::Tensor(_), Type::Shape(_)) => quote! {
+            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
                 {
-                    let shape_tensor = Tensor::<B, 1, Int>::from_data(#rhs.as_slice(), &*self.device);
-                    #lhs.equal(shape_tensor)
+                    let shape_tensor = Tensor::<B, 1, Int>::from_data(#rhs_value.as_slice(), &*self.device);
+                    #lhs_value.equal(shape_tensor)
                 }
             },
             _ => panic!(
@@ -103,71 +66,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EqualNode {
             let #output = #function;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Equal(self)
-    }
-}
-
-impl OnnxIntoNode for EqualNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        Self::new(lhs, rhs, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::comparison::EqualNodeBuilder;
 
     #[test]
-    fn test_codegen_equal() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(EqualNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)),
-            Type::Tensor(TensorType::new_bool("tensor3", 4)),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
-                    let tensor3 = tensor1.equal(tensor2);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_equal_forward() {
+        let node = EqualNodeBuilder::new("equal1")
+            .input_tensor("lhs", 2, DType::F32)
+            .input_tensor("rhs", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2>, rhs: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = lhs.equal(rhs);
+            output
+        }
+        ");
     }
 }

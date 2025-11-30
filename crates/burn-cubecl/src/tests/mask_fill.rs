@@ -2,23 +2,23 @@
 mod tests {
     use super::*;
     use burn_cubecl::kernel::{MaskFillStrategy, mask_fill};
-    use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive, backend::Backend};
+    use burn_tensor::{Bool, Distribution, Element, Tensor, TensorPrimitive, backend::Backend};
     use burn_tensor::{Tolerance, ops::FloatElem};
+    use cubecl::std::scalar::InputScalar;
     type FT = FloatElem<TestBackend>;
 
     #[test]
     fn mask_fill_should_match_reference_backend() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
+        let dtype_bool = <<TestBackend as Backend>::BoolElem as Element>::dtype();
+        let dtype_ft = <FT as Element>::dtype();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<
-            _,
-            <TestBackend as Backend>::FloatElem,
-            <TestBackend as Backend>::BoolElem,
-        >(
+        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(
             tensor.into_primitive().tensor(),
             mask.into_primitive(),
-            4.0,
+            InputScalar::new(4.0, dtype_ft),
             MaskFillStrategy::Readonly,
+            dtype_bool,
         )));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
@@ -30,17 +30,17 @@ mod tests {
     #[test]
     fn mask_fill_inplace_should_match_reference_backend() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
+        let dtype_bool = <<TestBackend as Backend>::BoolElem as Element>::dtype();
+        let dtype_ft = <FT as Element>::dtype();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<
-            _,
-            <TestBackend as Backend>::FloatElem,
-            <TestBackend as Backend>::BoolElem,
-        >(
-            tensor.into_primitive().tensor(),
-            mask.into_primitive(),
-            4.0,
-            MaskFillStrategy::Inplace,
-        )));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<_>(
+                tensor.into_primitive().tensor(),
+                mask.into_primitive(),
+                InputScalar::new(4.0, dtype_ft),
+                MaskFillStrategy::Inplace,
+                dtype_bool,
+            )));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected

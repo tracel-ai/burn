@@ -1,45 +1,42 @@
-use cubecl::prelude::*;
+use cubecl::{prelude::*, std::scalar::InputScalar};
 
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric},
     tensor::CubeTensor,
 };
 
 #[derive(CubeLaunch, CubeType)]
-struct Options<C: Numeric> {
-    min_value: C,
-    max_value: C,
+struct Options {
+    min_value: InputScalar,
+    max_value: InputScalar,
 }
 
-pub(crate) fn clamp<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn clamp<R: CubeRuntime>(
     input: CubeTensor<R>,
-    min_value: E,
-    max_value: E,
+    min_value: InputScalar,
+    max_value: InputScalar,
 ) -> CubeTensor<R> {
     struct ClampOp;
 
     #[cube]
     impl<N: Numeric> NumericUnaryOp<N> for ClampOp {
-        type Options = Options<N>;
+        type Options = Options;
 
         fn execute(input: Line<N>, options: &Self::Options) -> Line<N> {
             let line_size = input.size();
             Line::clamp(
                 input,
-                Line::empty(line_size).fill(options.min_value),
-                Line::empty(line_size).fill(options.max_value),
+                Line::empty(line_size).fill(options.min_value.get::<N>()),
+                Line::empty(line_size).fill(options.max_value.get::<N>()),
             )
         }
     }
 
     impl NumericUnaryOpFamily for ClampOp {
-        type Options<N: Numeric> = Options<N>;
+        type Options = Options;
         type Unary<N: Numeric> = Self;
     }
 
-    launch_unary_numeric::<R, E, ClampOp, _>(input, |_| {
-        OptionsLaunch::new(ScalarArg::new(min_value), ScalarArg::new(max_value))
-    })
+    launch_unary_numeric::<R, ClampOp, _>(input, |_| OptionsLaunch::new(min_value, max_value))
 }

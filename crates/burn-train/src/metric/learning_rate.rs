@@ -4,7 +4,7 @@ use super::{
     MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry,
     state::{FormatOptions, NumericMetricState},
 };
-use crate::metric::{Metric, MetricEntry, MetricName, Numeric};
+use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
 
 /// Track the learning rate across iterations.
 #[derive(Clone)]
@@ -32,7 +32,7 @@ impl Default for LearningRateMetric {
 impl Metric for LearningRateMetric {
     type Input = ();
 
-    fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> SerializedEntry {
         let lr = metadata.lr.unwrap_or(0.0);
 
         self.state
@@ -58,6 +58,6 @@ impl Metric for LearningRateMetric {
 
 impl Numeric for LearningRateMetric {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }

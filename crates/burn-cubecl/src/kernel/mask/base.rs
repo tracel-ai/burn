@@ -1,11 +1,15 @@
+use burn_tensor::DType;
+use cubecl::std::scalar::InputScalar;
+
 use super::{MaskFillStrategy, mask_where::MaskWhereStrategy};
-use crate::{BoolElement, CubeRuntime, element::CubeElement, tensor::CubeTensor};
+use crate::{CubeRuntime, tensor::CubeTensor};
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+pub(crate) fn mask_fill_auto<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     mask: CubeTensor<R>,
-    value: E,
+    value: InputScalar,
+    dtype_bool: DType,
 ) -> CubeTensor<R> {
     let strategy = if tensor.can_mut() {
         MaskFillStrategy::Inplace
@@ -13,14 +17,15 @@ pub(crate) fn mask_fill_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
         MaskFillStrategy::Readonly
     };
 
-    super::mask_fill::<R, E, BT>(tensor, mask, value, strategy)
+    super::mask_fill(tensor, mask, value, strategy, dtype_bool)
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+pub(crate) fn mask_where_auto<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
+    dtype_bool: DType,
 ) -> CubeTensor<R> {
     let strategy = if tensor.can_mut_broadcast(&value) {
         MaskWhereStrategy::InplaceLhs
@@ -30,5 +35,5 @@ pub(crate) fn mask_where_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
         MaskWhereStrategy::Readonly
     };
 
-    super::mask_where::<R, E, BT>(tensor, mask, value, strategy)
+    super::mask_where(tensor, mask, value, strategy, dtype_bool)
 }

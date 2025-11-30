@@ -1,125 +1,61 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::topk::TopKConfig;
-use proc_macro2::TokenStream;
-use quote::{ToTokens, quote};
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct TopKNode {
-    pub input: TensorType,
-    pub outputs: Vec<TensorType>,
-    pub config: TopKConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
-    fn output_types(&self) -> Vec<Type> {
-        self.outputs
-            .iter()
-            .map(|t| Type::Tensor(t.clone()))
-            .collect()
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::topk::TopKNode {
+    fn inputs(&self) -> &[Argument] {
+        // Filter inputs only dynamic and constant
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> &[Argument] {
+        // TopK has 2 outputs: values and indices
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let axis = self.config.axis.to_token_stream();
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+
+        // TopK has 2 outputs
+        let values_output = arg_to_ident(&self.outputs[0]);
+        let indices_output = arg_to_ident(&self.outputs[1]);
+
+        let axis = self.config.axis.to_tokens();
 
         // Extract static k from the enum wrapper
-        let k_value = match &self.config.k {
-            onnx_ir::node::topk::TopKInput::Static(k) => k,
-            onnx_ir::node::topk::TopKInput::Runtime(_) => {
+        let k = match &self.config.k {
+            onnx_ir::topk::TopKInput::Static(k_value) => k_value.to_tokens(),
+            onnx_ir::topk::TopKInput::Runtime(_) => {
                 panic!("Runtime k value is not supported in burn-import")
             }
         };
-        let k = k_value.to_token_stream();
-
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let values_output = &self.outputs[0].name;
-        let indices_output = &self.outputs[1].name;
 
         quote! {
             let (#values_output, #indices_output) = #input.topk_with_indices(#k, #axis);
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::TopK(self)
-    }
-}
-
-impl OnnxIntoNode for TopKNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let outputs = node.outputs.iter().map(TensorType::from).collect();
-        let config = node.config::<onnx_ir::node::topk::TopKConfig>().clone();
-        Self::new(input, outputs, config)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{test::assert_tokens, top_k::TopKNode},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::topk::{TopKConfig, TopKInput, TopKNodeBuilder};
 
     #[test]
-    fn test_codegen_nodes() {
-        use onnx_ir::node::topk::TopKInput;
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TopKConfig {
-            axis: 1,
-            k: TopKInput::Static(3),
-        };
-
-        graph.register(TopKNode::new(
-            TensorType::new_float("input_tensor", 4),
-            vec![
-                TensorType::new_float("values_tensor", 4),
-                TensorType::new_int("indices_tensor", 4),
-            ],
-            config,
-        ));
-
-        graph.register_input_output(
-            vec!["input_tensor".to_string()],
-            vec!["values_tensor".to_string(), "indices_tensor".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input_tensor: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4, Int>) {
-                    let (values_tensor, indices_tensor) = input_tensor.topk_with_indices(3usize, 1usize);
-                    (values_tensor, indices_tensor)
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_top_k() {
+        let config = TopKConfig::new(1, TopKInput::Static(5));
+        let node = TopKNodeBuilder::new("topk1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("values", 2, DType::F32)
+            .output_tensor("indices", 2, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 2, Int>) {
+            let (values, indices) = input.topk_with_indices(5, 1);
+            (values, indices)
+        }
+        ");
     }
 }

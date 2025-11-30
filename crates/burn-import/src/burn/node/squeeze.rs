@@ -1,321 +1,162 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct SqueezeNode {
-    pub input: Type,
-    pub output: Type,
-    pub axes: Option<Vec<i64>>,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::squeeze::SqueezeNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        match (&self.input, &self.output) {
-            (Type::Tensor(input), Type::Tensor(output)) => {
-                let input_tensor = scope.tensor_use_owned(input, node_position);
-                let output_name = &output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        use onnx_ir::ir::ArgType;
 
-                match &self.axes {
-                    Some(axes_vec) => {
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+        let output = arg_to_ident(output_arg);
+
+        match (&input_arg.ty, &output_arg.ty) {
+            (ArgType::Tensor(_), ArgType::Tensor(output_tensor)) => {
+                let input = scope.arg(input_arg);
+
+                match &self.config.axes {
+                    Some(onnx_ir::squeeze::SqueezeInput::Static(axes_vec)) => {
                         // Use squeeze_dims with specific axes
                         let axes_arg = axes_vec.to_tokens();
+                        let output_rank = output_tensor.rank.to_tokens();
                         quote! {
-                            let #output_name = #input_tensor.squeeze_dims(&#axes_arg);
+                            let #output = #input.squeeze_dims::<#output_rank>(&#axes_arg);
                         }
+                    }
+                    Some(onnx_ir::squeeze::SqueezeInput::Runtime(_)) => {
+                        panic!("Runtime squeeze axes not yet supported in burn-import")
                     }
                     None => {
                         // When axes is None, squeeze all dimensions with size 1
-                        let output_rank = output.rank;
+                        let output_rank = output_tensor.rank.to_tokens();
                         quote! {
-                            let #output_name = #input_tensor.squeeze::<#output_rank>();
+                            let #output = #input.squeeze::<#output_rank>();
                         }
                     }
                 }
             }
-            (Type::Shape(input), Type::Scalar(output)) => {
+            (ArgType::Shape(_), ArgType::Scalar(elem_type)) => {
                 // Shape(1) squeezed on axis 0 produces a scalar
-                let input_name = &input.name;
-                let output_name = &output.name;
+                let input_name = arg_to_ident(input_arg);
 
-                // Cast to the appropriate scalar type
-                let cast_expr = match &output.kind {
-                    crate::burn::ScalarKind::Int64 => quote! { #input_name[0] as i64 },
-                    crate::burn::ScalarKind::Int32 => quote! { #input_name[0] as i32 },
+                use onnx_ir::ir::DType;
+                let cast_expr = match elem_type {
+                    DType::I64 => quote! { #input_name[0] as i64 },
+                    DType::I32 => quote! { #input_name[0] as i32 },
                     _ => panic!(
                         "Squeeze from Shape to Scalar only supports Int32/Int64 output types"
                     ),
                 };
 
                 quote! {
-                    let #output_name = #cast_expr;
+                    let #output = #cast_expr;
                 }
             }
-            (Type::Shape(input), Type::Shape(output)) => {
+            (ArgType::Shape(_), ArgType::Shape(_)) => {
                 // Shape(n) where n > 1 remains unchanged (squeeze is a no-op)
-                let input_name = &input.name;
-                let output_name = &output.name;
+                let input_name = arg_to_ident(input_arg);
 
                 quote! {
-                    let #output_name = #input_name;
+                    let #output = #input_name;
                 }
             }
-            (Type::Scalar(input), Type::Scalar(output)) => {
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => {
                 // Scalar squeeze is a no-op
-                let input_name = &input.name;
-                let output_name = &output.name;
+                let input_name = arg_to_ident(input_arg);
 
                 quote! {
-                    let #output_name = #input_name;
+                    let #output = #input_name;
                 }
             }
-            (Type::Tensor(input), Type::Scalar(output)) => {
-                // This handles ONNX models where single-element tensors need to be converted to scalars
-                // Works for all tensor types (Float, Int, Bool) using the .into_scalar() method
-                let input = scope.tensor_use_owned(input, node_position);
-                let output_name = &output.name;
+            (ArgType::Tensor(_), ArgType::Scalar(elem_type)) => {
+                // Single-element tensor to scalar conversion
+                let input = scope.arg(input_arg);
 
-                // Use .into_scalar() and cast to the appropriate concrete type using .elem::<T>()
-                let elem_cast = match &output.kind {
-                    crate::burn::ScalarKind::Float32 => quote! { .elem::<f32>() },
-                    crate::burn::ScalarKind::Float64 => quote! { .elem::<f64>() },
-                    crate::burn::ScalarKind::Int32 => quote! { .elem::<i32>() },
-                    crate::burn::ScalarKind::Int64 => quote! { .elem::<i64>() },
-                    crate::burn::ScalarKind::Bool => quote! { .elem::<bool>() },
+                use onnx_ir::ir::DType;
+                let elem_cast = match elem_type {
+                    DType::F32 => quote! { .elem::<f32>() },
+                    DType::F64 => quote! { .elem::<f64>() },
+                    DType::I32 => quote! { .elem::<i32>() },
+                    DType::I64 => quote! { .elem::<i64>() },
+                    DType::Bool => quote! { .elem::<bool>() },
+                    _ => panic!("Unsupported scalar type: {:?}", elem_type),
                 };
 
                 quote! {
-                    let #output_name = #input.into_scalar()#elem_cast;
+                    let #output = #input.into_scalar()#elem_cast;
                 }
             }
             _ => panic!(
                 "Squeeze: unsupported input/output combination: {:?} -> {:?}",
-                self.input, self.output
+                input_arg.ty, output_arg.ty
             ),
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Squeeze(self)
-    }
-}
-
-impl OnnxIntoNode for SqueezeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::squeeze::SqueezeConfig>();
-        let axes = config.axes.as_ref().map(|a| match a {
-            onnx_ir::node::squeeze::SqueezeInput::Static(axes) => axes.clone(),
-            onnx_ir::node::squeeze::SqueezeInput::Runtime(_) => {
-                panic!("Runtime squeeze axes not yet supported in burn-import")
-            }
-        });
-        Self::new(input, output, axes)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::squeeze::{SqueezeConfig, SqueezeInput, SqueezeNode, SqueezeNodeBuilder};
 
-    use super::*;
-    use crate::burn::{
-        ScalarKind, ScalarType, ShapeType, TensorType, Type,
-        graph::BurnGraph,
-        node::{squeeze::SqueezeNode, test::assert_tokens},
-    };
-
-    #[test]
-    fn test_codegen_nodes() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SqueezeNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 3)),
-            Type::Tensor(TensorType::new_float("tensor2", 2)),
-            Some(vec![1]),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 3>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.squeeze_dims(&[1]);
-                    tensor2
-                }
-            }
+    fn create_squeeze_node_static(name: &str, axes: Vec<i64>) -> SqueezeNode {
+        let config = SqueezeConfig {
+            axes: Some(SqueezeInput::Static(axes)),
         };
 
-        assert_tokens(graph.codegen(), expected);
+        SqueezeNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
     }
 
     #[test]
-    fn test_squeeze_shape_to_scalar() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SqueezeNode::new(
-            Type::Shape(ShapeType::new("shape1", 1)),
-            Type::Scalar(ScalarType::new(
-                "scalar1",
-                crate::burn::ty::ScalarKind::Int64,
-            )),
-            Some(vec![0]),
-        ));
-
-        graph.register_input_output(
-            vec!["shape1".to_string()],
-            vec!["scalar1".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [i64; 1]) -> i64 {
-                    let scalar1 = shape1[0] as i64;
-                    scalar1
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_squeeze_forward_static_axes() {
+        let node = create_squeeze_node_static("squeeze1", vec![1]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = input.squeeze_dims::<2>(&[1]);
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_squeeze_shape_no_op() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SqueezeNode::new(
-            Type::Shape(ShapeType::new("shape1", 2)),
-            Type::Shape(ShapeType::new("shape2", 2)),
-            Some(vec![0]),
-        ));
-
-        graph.register_input_output(
-            vec!["shape1".to_string()],
-            vec!["shape2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [i64; 2]) -> [i64; 2] {
-                    let shape2 = shape1;
-                    shape2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_squeeze_forward_multiple_axes() {
+        let node = create_squeeze_node_static("squeeze1", vec![0, 2]);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+            let output = input.squeeze_dims::<2>(&[0, 2]);
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_squeeze_scalar_no_op() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SqueezeNode::new(
-            Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
-            Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
-            None,
-        ));
-
-        graph.register_input_output(
-            vec!["scalar1".to_string()],
-            vec!["scalar2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, scalar1: f32) -> f32 {
-                    let scalar2 = scalar1;
-                    scalar2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_squeeze_forward_all_axes() {
+        let config = SqueezeConfig { axes: None };
+        let node = SqueezeNodeBuilder::new("squeeze1")
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 1> {
+            let output = input.squeeze::<1>();
+            output
+        }
+        ");
     }
 }

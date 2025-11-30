@@ -166,14 +166,58 @@ pub fn parse_onnx(onnx_path: &Path) -> Result<OnnxGraph, OnnxIrError> {
 /// - Missing opset version for default domain
 /// - Type inference fails
 pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, OnnxIrError> {
-    log::debug!(" PHASE 1: Initialization ");
-    let state_rc = initialization::initialize(model);
+    let opset_version = extract_opset_version(model)?;
+    build_graph_from_proto(&model.graph, opset_version)
+}
 
-    log::debug!(" PHASE 2: Node Conversion ");
-    node_conversion::convert_nodes(model, &state_rc);
+/// Build IR graph from ONNX GraphProto (for subgraphs)
+///
+/// # Errors
+///
+/// Returns an error if node conversion or type inference fails
+pub fn build_graph_from_proto(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+) -> Result<OnnxGraph, OnnxIrError> {
+    build_graph_from_proto_with_registry(graph, opset_version, None)
+}
+
+/// Build IR graph with shared name registry (for sibling subgraphs)
+///
+/// # Errors
+///
+/// Returns an error if node conversion or type inference fails
+pub fn build_graph_from_proto_with_registry(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+    name_registry: Option<crate::graph_state::NameRegistry>,
+) -> Result<OnnxGraph, OnnxIrError> {
+    let graph_builder = build_graph_builder_from_proto(graph, opset_version, name_registry)?;
+
+    log::debug!(" PHASE 6: Node Conversion (RawNode -> Node) ");
+    Ok(graph_builder.convert_to_graph(opset_version))
+}
+
+/// Build IR graph as OnnxGraphBuilder (for subgraphs during processing)
+///
+/// This returns OnnxGraphBuilder which still contains RawNode instances.
+/// Call convert_to_graph() to get the final OnnxGraph with Node enum instances.
+///
+/// # Errors
+///
+/// Returns an error if node conversion or type inference fails
+pub(crate) fn build_graph_builder_from_proto(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+    name_registry: Option<crate::graph_state::NameRegistry>,
+) -> Result<crate::ir::OnnxGraphBuilder, OnnxIrError> {
+    log::debug!(" PHASE 1: Initialization ");
+    let state_rc = initialization::initialize_from_graph_with_registry(graph, name_registry);
+
+    log::debug!(" PHASE 2: Node Conversion (Proto -> RawNode) ");
+    node_conversion::convert_nodes_from_graph(graph, &state_rc, opset_version)?;
 
     log::debug!(" PHASE 3: Type Inference ");
-    let opset_version = extract_opset_version(model)?;
     type_inference::infer_types(&state_rc, opset_version).map_err(OnnxIrError::TypeInference)?;
 
     log::debug!(" PHASE 4: Post-processing ");

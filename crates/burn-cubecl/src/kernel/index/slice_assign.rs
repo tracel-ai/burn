@@ -1,6 +1,5 @@
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::utils::{linear_view, shape_divmod},
     tensor::CubeTensor,
 };
@@ -11,11 +10,12 @@ use cubecl::{
 };
 
 #[cube(launch_unchecked)]
-fn slice_assign_kernel<E: CubePrimitive>(
+fn slice_assign_kernel<E: Numeric>(
     input: &mut Tensor<Line<E>>,
     value: &LinearView<Line<E>>,
     slice_shape: Sequence<FastDivmod>,
     slice_offsets: Sequence<u32>,
+    #[define(E)] _dtype: StorageType,
 ) {
     if !value.is_in_bounds(ABSOLUTE_POS) {
         terminate!()
@@ -50,13 +50,14 @@ fn slice_assign_kernel<E: CubePrimitive>(
 
 /// Kernel for slice assign with steps
 #[cube(launch_unchecked)]
-fn slice_assign_with_steps_kernel<E: CubePrimitive>(
+fn slice_assign_with_steps_kernel<E: Numeric>(
     input: &mut Tensor<E>,
     value: &LinearView<E>,
     value_shape: Sequence<FastDivmod>,
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
+    #[define(E)] _dtype: StorageType,
 ) {
     if !value.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -99,7 +100,7 @@ fn slice_assign_with_steps_kernel<E: CubePrimitive>(
     input[input_offset] = value[ABSOLUTE_POS];
 }
 
-pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn slice_assign<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     indices: &[burn_tensor::Slice],
     value: CubeTensor<R>,
@@ -109,7 +110,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
 
     if has_non_unit_step {
         // Use slice_assign_with_steps
-        return slice_assign_with_steps::<R, E>(tensor, indices, value);
+        return slice_assign_with_steps(tensor, indices, value);
     }
 
     let client = tensor.client.clone();
@@ -168,7 +169,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
         calculate_cube_count_elemwise(value.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
-        slice_assign_kernel::launch_unchecked::<E, R>(
+        slice_assign_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -176,7 +177,9 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
             linear_view(&value, line_size),
             shape,
             offsets,
-        );
+            tensor.dtype.into(),
+        )
+        .expect("Kernel to never fail");
     }
 
     tensor
@@ -191,7 +194,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
 /// - values[0] goes to index 5
 /// - values[1] goes to index 4
 /// - etc.
-pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     slices: &[burn_tensor::Slice],
     value: CubeTensor<R>,
@@ -225,7 +228,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
     let cube_count = calculate_cube_count_elemwise(value.shape.num_elements(), cube_dim);
 
     unsafe {
-        slice_assign_with_steps_kernel::launch_unchecked::<E, R>(
+        slice_assign_with_steps_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -235,7 +238,9 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
             starts,
             ends,
             steps,
-        );
+            tensor.dtype.into(),
+        )
+        .expect("Kernel to never fail");
     }
 
     tensor

@@ -2,9 +2,9 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_common::device::{Device, DeviceContext, DeviceState};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_tensor::TensorData;
+use burn_std::device::{Device, DeviceContext, DeviceState};
+use burn_tensor::{TensorData, backend::ExecutionError};
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
@@ -14,7 +14,7 @@ pub struct GlobalFusionClient<R: FusionRuntime> {
 }
 
 impl<R: FusionRuntime> DeviceState for FusionServer<R> {
-    fn init(device_id: burn_common::device::DeviceId) -> Self {
+    fn init(device_id: burn_std::device::DeviceId) -> Self {
         let device = FusionDevice::<R>::from_id(device_id);
         FusionServer::new(device)
     }
@@ -120,7 +120,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -132,7 +132,7 @@ where
         self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -144,7 +144,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -156,7 +156,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -173,6 +173,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -186,6 +187,7 @@ where
 
         core::mem::drop(server_current);
         core::mem::drop(server_other);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -200,6 +202,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -213,6 +216,7 @@ where
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -227,6 +231,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -240,6 +245,7 @@ where
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -254,6 +260,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        let guard = self.server.lock_device_kind();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -263,6 +270,7 @@ where
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(guard);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }

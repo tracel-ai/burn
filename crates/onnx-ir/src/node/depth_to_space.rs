@@ -15,59 +15,54 @@
 //! - Current implementation validates opset 11+ (see FIXME at line 83)
 //! - According to spec, operator exists since opset 1
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{
-    ArgType, TensorType,
-    ir::{Node, NodeConfig},
-};
-use std::any::Any;
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
+
+/// Node representation for DepthToSpace operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct DepthToSpaceNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: DepthToSpaceConfig,
+}
 
 /// Mode for DepthToSpace operation
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DepthToSpaceMode {
-    DCR,
-    CRD,
+    #[default]
+    Dcr,
+    Crd,
 }
 
 impl DepthToSpaceMode {
     fn from_str(val: &str) -> Result<Self, String> {
         match val {
-            "DCR" => Ok(Self::DCR),
-            "CRD" => Ok(Self::CRD),
+            "DCR" => Ok(Self::Dcr),
+            "CRD" => Ok(Self::Crd),
             _ => Err(format!("Unexpected value for DepthToSpace mode: {}", val)),
         }
     }
 }
 
 /// Configuration for DepthToSpace operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct DepthToSpaceConfig {
     pub mode: DepthToSpaceMode,
     pub block_size: usize,
 }
 
-impl DepthToSpaceConfig {
-    /// Create a new DepthToSpaceConfig
-    pub fn new(mode: DepthToSpaceMode, block_size: usize) -> Self {
-        Self { mode, block_size }
-    }
-}
-
-impl NodeConfig for DepthToSpaceConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct DepthToSpaceProcessor;
+pub(crate) struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
+    type Config = DepthToSpaceConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -79,7 +74,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -97,10 +92,12 @@ impl NodeProcessor for DepthToSpaceProcessor {
         }
 
         // Get reference to config for type inference
-        let config = node.config::<DepthToSpaceConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Validate that if mode is CRD, we need opset 11+
-        if config.mode == DepthToSpaceMode::CRD && opset < 11 {
+        if config.mode == DepthToSpaceMode::Crd && opset < 11 {
             return Err(ProcessError::Custom(format!(
                 "DepthToSpace: CRD mode requires opset 11+, got opset {}",
                 opset
@@ -156,13 +153,9 @@ impl NodeProcessor for DepthToSpaceProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut block_size: Option<usize> = None;
-        let mut mode = DepthToSpaceMode::DCR;
+        let mut mode = DepthToSpaceMode::Dcr;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -184,16 +177,29 @@ impl NodeProcessor for DepthToSpaceProcessor {
             block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         let config = DepthToSpaceConfig::new(mode, block_size);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::DepthToSpace(DepthToSpaceNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DType;
+    use crate::ir::DType;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
     fn create_test_node(
@@ -201,8 +207,8 @@ mod tests {
         static_shape: Option<Vec<usize>>,
         block_size: i64,
         mode: Option<&str>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::DepthToSpace, "test_depth_to_space")
+    ) -> RawNode {
+        let mut builder = TestNodeBuilder::new(NodeType::DepthToSpace, "test_depth_to_space")
             .input_tensor_f32("input", rank, static_shape)
             .output_tensor_f32("output", rank, None) // Same rank as input
             .attr_int("blocksize", block_size);
@@ -222,12 +228,10 @@ mod tests {
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 2);
-        assert_eq!(config.mode, DepthToSpaceMode::DCR);
+        assert_eq!(config.mode, DepthToSpaceMode::Dcr);
     }
 
     #[test]
@@ -237,12 +241,10 @@ mod tests {
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
-        assert_eq!(config.mode, DepthToSpaceMode::DCR);
+        assert_eq!(config.mode, DepthToSpaceMode::Dcr);
     }
 
     #[test]
@@ -252,12 +254,10 @@ mod tests {
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
-        assert_eq!(config.mode, DepthToSpaceMode::CRD);
+        assert_eq!(config.mode, DepthToSpaceMode::Crd);
     }
 
     #[test]
@@ -265,8 +265,7 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

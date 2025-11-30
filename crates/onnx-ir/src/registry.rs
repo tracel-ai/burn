@@ -3,16 +3,68 @@
 //! This module provides a centralized registry that maps ONNX node types
 //! to their corresponding processor implementations.
 
-use crate::ir::NodeType;
-use crate::processor::NodeProcessor;
+use crate::ir::{Node, NodeType, RawNode};
+use crate::processor::{InputPreferences, NodeSpec, OutputPreferences, ProcessError};
 use std::collections::HashMap;
+
+/// Trait for registry-specific processor methods (without associated Config type).
+///
+/// This trait is object-safe and used only for storing processors in the registry.
+pub trait ProcessorMethods: Send + Sync {
+    fn spec(&self) -> NodeSpec;
+    fn input_preferences(
+        &self,
+        node: &RawNode,
+        opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError>;
+    fn lift_constants(&self, node: &mut RawNode, opset: usize) -> Result<(), ProcessError>;
+    fn infer_types(
+        &self,
+        node: &mut RawNode,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError>;
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node;
+}
+
+/// Blanket implementation: all NodeProcessor types implement ProcessorMethods
+impl<T: crate::processor::NodeProcessor> ProcessorMethods for T {
+    fn spec(&self) -> NodeSpec {
+        crate::processor::NodeProcessor::spec(self)
+    }
+
+    fn input_preferences(
+        &self,
+        node: &RawNode,
+        opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
+        crate::processor::NodeProcessor::input_preferences(self, node, opset)
+    }
+
+    fn lift_constants(&self, node: &mut RawNode, opset: usize) -> Result<(), ProcessError> {
+        crate::processor::NodeProcessor::lift_constants(self, node, opset)
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut RawNode,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        crate::processor::NodeProcessor::infer_types(self, node, opset, output_preferences)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        crate::processor::NodeProcessor::build_node(self, builder, opset)
+    }
+}
 
 /// Registry for node processors.
 ///
 /// This registry maps node types to their corresponding processor implementations.
 /// It provides a centralized way to look up and use processors for different node types.
 pub struct ProcessorRegistry {
-    processors: HashMap<NodeType, Box<dyn NodeProcessor>>,
+    processors: HashMap<NodeType, Box<dyn ProcessorMethods>>,
 }
 
 impl ProcessorRegistry {
@@ -24,12 +76,12 @@ impl ProcessorRegistry {
     }
 
     /// Register a processor for a specific node type
-    pub fn register(&mut self, node_type: NodeType, processor: Box<dyn NodeProcessor>) {
+    pub fn register(&mut self, node_type: NodeType, processor: Box<dyn ProcessorMethods>) {
         self.processors.insert(node_type, processor);
     }
 
     /// Get the processor for a node type, or the default processor if not found
-    pub fn get(&self, node_type: &NodeType) -> &dyn NodeProcessor {
+    pub fn get(&self, node_type: &NodeType) -> &dyn ProcessorMethods {
         self.processors
             .get(node_type)
             .map(|b| b.as_ref())
@@ -69,86 +121,46 @@ impl ProcessorRegistry {
             Box::new(crate::node::arithmetic::ArithmeticBinaryProcessor),
         );
 
-        // Other element-wise binary operations (simple broadcasting, no special type handling)
-        registry.register(
-            NodeType::Pow,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(
-            NodeType::Max,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(
-            NodeType::Min,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(
-            NodeType::And,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(
-            NodeType::Or,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(
-            NodeType::Xor,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
-        );
-        registry.register(NodeType::Sum, Box::new(crate::node::sum::SumProcessor));
+        // Element-wise binary operations (simple broadcasting, no special type handling)
+        registry.register(NodeType::Pow, Box::new(crate::node::pow::PowProcessor));
+        registry.register(NodeType::Max, Box::new(crate::node::max::MaxProcessor));
+        registry.register(NodeType::Min, Box::new(crate::node::min::MinProcessor));
 
-        // Unary operations
-        registry.register(
-            NodeType::Abs,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Neg,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Ceil,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
+        // Logical operations
+        registry.register(NodeType::And, Box::new(crate::node::and::AndProcessor));
+        registry.register(NodeType::Or, Box::new(crate::node::or::OrProcessor));
+        registry.register(NodeType::Xor, Box::new(crate::node::xor::XorProcessor));
+        registry.register(NodeType::Sum, Box::new(crate::node::sum::SumProcessor));
+        registry.register(NodeType::Mean, Box::new(crate::node::mean::MeanProcessor));
+
+        // Unary math operations
+        registry.register(NodeType::Abs, Box::new(crate::node::abs::AbsProcessor));
+        registry.register(NodeType::Neg, Box::new(crate::node::neg::NegProcessor));
+        registry.register(NodeType::Ceil, Box::new(crate::node::ceil::CeilProcessor));
         registry.register(
             NodeType::Floor,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::floor::FloorProcessor),
+        );
+        registry.register(NodeType::Sqrt, Box::new(crate::node::sqrt::SqrtProcessor));
+        registry.register(NodeType::Exp, Box::new(crate::node::exp::ExpProcessor));
+        registry.register(NodeType::Log, Box::new(crate::node::log::LogProcessor));
+        registry.register(
+            NodeType::Reciprocal,
+            Box::new(crate::node::reciprocal::ReciprocalProcessor),
         );
         registry.register(
-            NodeType::Sqrt,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            NodeType::Round,
+            Box::new(crate::node::round::RoundProcessor),
         );
-        registry.register(
-            NodeType::Exp,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Log,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Sin,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Cos,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Tan,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Tanh,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Sinh,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Cosh,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
+        registry.register(NodeType::Sign, Box::new(crate::node::sign::SignProcessor));
+
+        // Trigonometric operations
+        registry.register(NodeType::Sin, Box::new(crate::node::sin::SinProcessor));
+        registry.register(NodeType::Cos, Box::new(crate::node::cos::CosProcessor));
+        registry.register(NodeType::Tan, Box::new(crate::node::tan::TanProcessor));
+        registry.register(NodeType::Sinh, Box::new(crate::node::sinh::SinhProcessor));
+        registry.register(NodeType::Cosh, Box::new(crate::node::cosh::CoshProcessor));
+        registry.register(NodeType::Tanh, Box::new(crate::node::tanh::TanhProcessor));
         registry.register(
             NodeType::Asin,
             Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
@@ -173,35 +185,20 @@ impl ProcessorRegistry {
             NodeType::Atanh,
             Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
         );
-        registry.register(
-            NodeType::Erf,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
+
+        // Special functions
+        registry.register(NodeType::Erf, Box::new(crate::node::erf::ErfProcessor));
+
+        // Activation functions
         registry.register(NodeType::Relu, Box::new(crate::node::relu::ReluProcessor));
         registry.register(
             NodeType::Sigmoid,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::sigmoid::SigmoidProcessor),
         );
-        registry.register(
-            NodeType::Sign,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Reciprocal,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Not,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Round,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Gelu,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor), // FIXME has config
-        );
+        registry.register(NodeType::Gelu, Box::new(crate::node::gelu::GeluProcessor));
+
+        // Logical operations
+        registry.register(NodeType::Not, Box::new(crate::node::not::NotProcessor));
 
         // Pooling operations
         registry.register(
@@ -220,9 +217,47 @@ impl ProcessorRegistry {
             NodeType::MaxPool2d,
             Box::new(crate::node::max_pool2d::MaxPool2dProcessor),
         );
+
+        // Global pooling operations
         registry.register(
             NodeType::GlobalAveragePool,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::global_avg_pool::GlobalAveragePoolProcessor),
+        );
+
+        // Identity operation (typically eliminated during post-processing)
+        registry.register(
+            NodeType::Identity,
+            Box::new(crate::node::identity::IdentityProcessor),
+        );
+
+        // Unsupported/placeholder operations
+        registry.register(
+            NodeType::GlobalMaxPool,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::GatherND,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::Scatter,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::ScatterElements,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::ScatterND,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::Unique,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
+        );
+        registry.register(
+            NodeType::CumSum,
+            Box::new(crate::node::unsupported::UnsupportedProcessor),
         );
 
         // Convolution operations
@@ -458,6 +493,10 @@ impl ProcessorRegistry {
             Box::new(crate::node::resize::ResizeProcessor),
         );
         registry.register(
+            NodeType::GridSample,
+            Box::new(crate::node::grid_sample::GridSampleProcessor),
+        );
+        registry.register(
             NodeType::DepthToSpace,
             Box::new(crate::node::depth_to_space::DepthToSpaceProcessor),
         );
@@ -507,19 +546,19 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::BitwiseAnd,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+            Box::new(crate::node::bitwiseand::BitwiseAndProcessor),
         );
         registry.register(
             NodeType::BitwiseOr,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+            Box::new(crate::node::bitwiseor::BitwiseOrProcessor),
         );
         registry.register(
             NodeType::BitwiseXor,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+            Box::new(crate::node::bitwisexor::BitwiseXorProcessor),
         );
         registry.register(
             NodeType::BitwiseNot,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::bitwisenot::BitwiseNotProcessor),
         );
         registry.register(
             NodeType::Mod,
@@ -548,6 +587,17 @@ impl ProcessorRegistry {
         registry.register(
             NodeType::PRelu,
             Box::new(crate::node::prelu::PReluProcessor),
+        );
+
+        // Control flow operations
+        registry.register(NodeType::If, Box::new(crate::node::if_node::IfProcessor));
+        registry.register(
+            NodeType::Loop,
+            Box::new(crate::node::loop_node::LoopProcessor),
+        );
+        registry.register(
+            NodeType::Scan,
+            Box::new(crate::node::scan_node::ScanProcessor),
         );
 
         registry

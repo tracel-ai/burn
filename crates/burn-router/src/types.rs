@@ -1,8 +1,8 @@
-use burn_common::future::DynFut;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
+use burn_std::future::DynFut;
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::{Backend, DeviceId, DeviceOps},
+    backend::{Backend, DeviceId, DeviceOps, ExecutionError, SyncError},
     try_read_sync,
 };
 
@@ -67,7 +67,7 @@ macro_rules! impl_multi_backend_types {
                 }
             }
 
-            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> burn_common::device::Device for MultiDevice<$DefaultBackend, $($OtherBackend),+> {
+            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> burn_std::device::Device for MultiDevice<$DefaultBackend, $($OtherBackend),+> {
                 fn from_id(_device_id: DeviceId) -> Self {
                     // TODO: Should be fix with the new router backend.
                     Default::default()
@@ -113,7 +113,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData> {
+                fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
                     match self {
                         Self::$DefaultBackend(runner) => runner.read_tensor(tensor),
                         $(
@@ -146,13 +146,13 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) {
+                fn sync(&self) -> Result<(), SyncError> {
                     match self {
                         Self::$DefaultBackend(runner) => runner.sync(),
                         $(
                             Self::$OtherBackend(runner) => runner.sync(),
                         )+
-                    };
+                    }
                 }
 
                 fn seed(&self, seed: u64) {
@@ -285,7 +285,7 @@ macro_rules! bridge {
     ($BackendA:ident, $BackendB:ident, $handle:expr, $device:expr, $shape:expr) => {{
         // Byte bridge between two backends
         let tensor = $BackendA::float_tensor(TensorHandle { handle: $handle, shape: $shape });
-        let data = try_read_sync($BackendA::float_into_data(tensor)).expect(
+        let data = try_read_sync($BackendA::float_into_data(tensor)).unwrap().expect(
             "Failed to read tensor data synchronously. This can happen on platforms that don't support blocking futures like WASM."
         );
         let tensor = $BackendB::float_from_data(data, $device);

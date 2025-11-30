@@ -1,10 +1,14 @@
 use crate::{
-    CubeRuntime, IntElement,
+    CubeRuntime,
     kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
-    ops::{max_line_size, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
+};
 
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
     type BinaryOp<C: Int>: BinaryOpInt<C>;
@@ -80,14 +84,16 @@ impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
     input: &LinearView<Line<C>>,
-    scalar: C,
+    scalar: InputScalar,
     output: &mut LinearView<Line<C>, ReadWrite>,
+    #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
+    output[ABSOLUTE_POS] =
+        O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar.get::<C>()));
 }
 
 #[cube(launch_unchecked)]
@@ -95,6 +101,7 @@ pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
     lhs: &LinearView<Line<C>>,
     rhs: &LinearView<Line<C>>,
     out: &mut LinearView<Line<C>, ReadWrite>,
+    #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -103,7 +110,7 @@ pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
     out[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
 }
 
-pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
+pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -121,47 +128,54 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop_int::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view(&lhs, line_size),
                 linear_view_ref(&rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
-            );
+                lhs.dtype.into(),
+            )
+            .expect("Kernel to never fail");
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop_int::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view_ref(&lhs, &rhs, line_size),
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
-            );
+                lhs.dtype.into(),
+            )
+            .expect("Kernel to never fail");
 
             rhs
         } else {
-            let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
+            let output =
+                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, lhs.dtype);
 
-            kernel_binop_int::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view_ref(&lhs, &output, line_size),
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
-            );
+                lhs.dtype.into(),
+            )
+            .expect("Kernel to never fail");
 
             output
         }
     }
 }
 
-pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
+pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     tensor: CubeTensor<R>,
-    scalar: E,
+    scalar: InputScalar,
 ) -> CubeTensor<R> {
     let line_size = max_line_size(&tensor);
     let client = tensor.client.clone();
@@ -172,31 +186,36 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOp
 
     unsafe {
         if tensor.can_mut() && tensor.is_contiguous_buffer() {
-            kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 linear_view(&tensor, line_size),
-                ScalarArg::new(scalar),
+                scalar,
                 linear_view_alias(&tensor, line_size, 0),
-            );
+                tensor.dtype.into(),
+            )
+            .expect("Kernel to never fail");
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
                 tensor.shape.clone(),
+                tensor.dtype,
             );
 
-            kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 CubeDim::default(),
                 linear_view(&tensor, line_size),
-                ScalarArg::new(scalar),
+                scalar,
                 linear_view(&output, line_size),
-            );
+                tensor.dtype.into(),
+            )
+            .expect("Kernel to never fail");
 
             output
         }

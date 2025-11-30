@@ -1,8 +1,7 @@
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::utils::{linear_layout, linear_view},
-    ops::numeric::empty_device,
+    ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use cubecl::std::tensor::{
@@ -23,6 +22,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     output: &mut Tensor<Line<T>>,
     out_layout: LinearLayout,
     dim: &u32,
+    #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
     if !indices.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -46,19 +46,24 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     output[out_pos] = input[offset];
 }
 
-pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
+pub(crate) fn gather<R: CubeRuntime>(
     dim: usize,
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let shape_output = indices.shape.clone();
     let total_elem = shape_output.num_elements();
-    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output = empty_device_dtype(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        shape_output,
+        tensor.dtype,
+    );
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
     unsafe {
-        gather_kernel::launch_unchecked::<E, I, R>(
+        gather_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -67,7 +72,9 @@ pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             output.as_tensor_arg(1),
             linear_layout(&output, 1),
             ScalarArg::new(dim as u32),
+            [tensor.dtype.into(), indices.dtype.into()],
         )
+        .expect("Kernel to never fail");
     }
     output
 }

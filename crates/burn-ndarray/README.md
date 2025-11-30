@@ -18,7 +18,7 @@ The following flags support various BLAS options:
 - `blas-openblas-system` - OpenBLAS from the system
 
 Note: under the `no_std` mode, the seed is fixed if the seed is not
-initialized by by `Backend::seed` method.
+initialized by `Backend::seed` method.
 
 ### Platform Support
 

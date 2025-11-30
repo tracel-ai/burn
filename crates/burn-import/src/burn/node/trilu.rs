@@ -1,28 +1,20 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::trilu::TriluConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct TriluNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub config: TriluConfig,
-}
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::trilu::TriluNode {
+    fn inputs(&self) -> &[Argument] {
+        // Filter inputs only dynamic and constant
+        &self.inputs
+    }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
         let diagonal = self.config.diagonal.to_tokens();
+
         if self.config.upper {
             quote! {
                 let #output = #input.triu(#diagonal);
@@ -33,114 +25,46 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
             }
         }
     }
-    fn into_node(self) -> super::Node<PS> {
-        Node::Trilu(self)
-    }
-}
-
-impl OnnxIntoNode for TriluNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::trilu::TriluConfig>().clone();
-        Self::new(input, output, config)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{test::assert_tokens, trilu::TriluConfig, trilu::TriluNode},
-    };
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::trilu::{TriluConfig, TriluNodeBuilder};
 
     #[test]
-    fn test_codegen_triu() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_trilu_upper() {
         let config = TriluConfig::new(true, 0);
-        graph.register(TriluNode::new(
-            TensorType::new_float("input", 2),
-            TensorType::new_float("output", 2),
-            config,
-        ));
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.triu(0);
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+        let node = TriluNodeBuilder::new("triu1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.triu(0);
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_tril() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TriluConfig::new(false, 0);
-        graph.register(TriluNode::new(
-            TensorType::new_float("input", 2),
-            TensorType::new_float("output", 2),
-            config,
-        ));
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.tril(0);
-                    output
-                }
-            }
-        };
-        assert_tokens(graph.codegen(), expected);
+    fn test_trilu_lower() {
+        let config = TriluConfig::new(false, 1);
+        let node = TriluNodeBuilder::new("tril1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.tril(1);
+            output
+        }
+        ");
     }
 }

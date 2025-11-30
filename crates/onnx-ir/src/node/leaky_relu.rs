@@ -21,33 +21,34 @@
 //! - TODO: No test validating that input must be floating-point type - Integer inputs should be rejected
 //! - TODO: No test for zero-size tensors - Empty tensor handling
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-
-use std::any::Any;
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for LeakyRelu operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LeakyReluConfig {
     /// Alpha value for negative slope
     pub alpha: f64,
 }
 
-impl NodeConfig for LeakyReluConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for LeakyRelu operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct LeakyReluNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LeakyReluConfig,
 }
 
-pub struct LeakyReluProcessor;
+pub(crate) struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
+    type Config = LeakyReluConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 6,
@@ -59,7 +60,7 @@ impl NodeProcessor for LeakyReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -85,11 +86,7 @@ impl NodeProcessor for LeakyReluProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract alpha attribute
         let mut alpha = 0.01;
         for (key, value) in node.attrs.iter() {
@@ -100,7 +97,20 @@ impl NodeProcessor for LeakyReluProcessor {
         }
 
         let config = LeakyReluConfig { alpha };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::LeakyRelu(LeakyReluNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -108,10 +118,10 @@ impl NodeProcessor for LeakyReluProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(alpha: f32) -> Node {
-        NodeBuilder::new(NodeType::LeakyRelu, "test_leaky_relu")
+    fn create_test_node(alpha: f32) -> RawNode {
+        TestNodeBuilder::new(NodeType::LeakyRelu, "test_leaky_relu")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None)
             .attr_float("alpha", alpha)
@@ -125,9 +135,7 @@ mod tests {
         let processor = LeakyReluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<LeakyReluConfig>();
         assert!((config.alpha - 0.2).abs() < 1e-6);
     }
 
@@ -139,9 +147,7 @@ mod tests {
         let processor = LeakyReluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<LeakyReluConfig>();
         assert_eq!(config.alpha, 0.01); // Check default value
     }
 }

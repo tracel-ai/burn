@@ -18,16 +18,16 @@
 //!   - Positive k: Retains lower triangle including main diagonal and k diagonals above it
 //!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
 
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::{ArgType, Node, NodeConfig, TensorDataExt};
-
-use std::any::Any;
-
 /// Configuration for the Trilu operation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, new)]
 pub struct TriluConfig {
     /// Whether to return the upper triangular matrix.
     pub upper: bool,
@@ -35,25 +35,20 @@ pub struct TriluConfig {
     pub diagonal: i64,
 }
 
-impl TriluConfig {
-    /// Creates a TriluConfig from the node attributes and inputs.
-    pub fn new(upper: bool, diagonal: i64) -> Self {
-        Self { upper, diagonal }
-    }
+/// Node representation for Trilu operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct TriluNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: TriluConfig,
 }
 
-impl NodeConfig for TriluConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct TriluProcessor;
+pub(crate) struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
+    type Config = TriluConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 14,
@@ -63,7 +58,7 @@ impl NodeProcessor for TriluProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift diagonal input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
@@ -77,7 +72,7 @@ impl NodeProcessor for TriluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -101,11 +96,7 @@ impl NodeProcessor for TriluProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut upper = true;
         let mut diagonal = 0;
         for (key, value) in node.attrs.iter() {
@@ -141,7 +132,20 @@ impl NodeProcessor for TriluProcessor {
         }
 
         let config = TriluConfig::new(upper, diagonal);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Trilu(TriluNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -149,60 +153,11 @@ impl NodeProcessor for TriluProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
-
-    #[test]
-    #[ignore] // Manual test
-    fn test_parse_actual_trilu_onnx() {
-        use crate::pipeline::parse_onnx;
-        use std::path::Path;
-
-        let path = Path::new("burn/crates/burn-import/onnx-tests/tests/trilu/trilu_upper.onnx");
-        if !path.exists() {
-            println!("Skipping test - file not found: {}", path.display());
-            return;
-        }
-
-        let graph = parse_onnx(path).expect("Failed to parse ONNX file");
-
-        // Print all nodes
-        println!("\n=== All nodes ===");
-        for (i, node) in graph.nodes.iter().enumerate() {
-            println!("Node {}: type={:?}, name={}", i, node.node_type, node.name);
-            for (j, input) in node.inputs.iter().enumerate() {
-                println!(
-                    "  Input {}: name='{}', value_source={:?}",
-                    j, input.name, input.value_source
-                );
-            }
-        }
-
-        // Find the Trilu node
-        let trilu_node = graph
-            .nodes
-            .iter()
-            .find(|n| matches!(n.node_type, NodeType::Trilu));
-        assert!(trilu_node.is_some(), "Trilu node not found");
-
-        let trilu_node = trilu_node.unwrap();
-        println!("\n=== Trilu node ===");
-        println!("Trilu node: {}", trilu_node.name);
-
-        // Check the config
-        let config = trilu_node.config::<TriluConfig>();
-        println!(
-            "Config: upper={}, diagonal={}",
-            config.upper, config.diagonal
-        );
-
-        // Should have diagonal=1 according to the ONNX file
-        assert_eq!(config.diagonal, 1, "Expected diagonal to be 1");
-        assert_eq!(config.upper, true, "Expected upper to be true");
-    }
+    use crate::node::test_utils::TestNodeBuilder;
 
     /// Helper function to create test nodes for Trilu tests
-    fn create_test_node(upper_attr: Option<i64>, diagonal_input: Option<i64>) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Trilu, "test_trilu")
+    fn create_test_node(upper_attr: Option<i64>, diagonal_input: Option<i64>) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Trilu, "test_trilu")
             .input_tensor_f32("X", 2, None) // Typically a matrix
             .output_tensor_f32("Y", 2, None);
 
@@ -228,12 +183,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: true,
                 diagonal: 0
@@ -250,12 +203,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: true,
                 diagonal: 0
@@ -272,12 +223,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: false,
                 diagonal: 0
@@ -294,12 +243,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: true,
                 diagonal: 2
@@ -316,12 +263,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: true,
                 diagonal: -3
@@ -338,12 +283,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: false,
                 diagonal: 1
@@ -361,12 +304,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: true,
                 diagonal: 0
@@ -384,12 +325,10 @@ mod tests {
         let processor = TriluProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TriluConfig>();
 
         assert_eq!(
-            *config,
+            config,
             TriluConfig {
                 upper: true,
                 diagonal: 0

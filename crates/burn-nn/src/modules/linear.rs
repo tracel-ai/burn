@@ -70,24 +70,24 @@ impl LinearConfig {
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
                     .save_mapper(move |tensor| {
-                        B::sync(&tensor.device());
+                        B::sync(&tensor.device()).unwrap();
                         let tensor = tensor.transpose();
-                        B::sync(&tensor.device());
+                        B::sync(&tensor.device()).unwrap();
                         tensor
                     })
                     // When loading from record we have to transpose.
                     .load_mapper(move |tensor| {
-                        B::sync(&tensor.device());
+                        B::sync(&tensor.device()).unwrap();
                         let tensor = tensor.transpose();
-                        B::sync(&tensor.device());
+                        B::sync(&tensor.device()).unwrap();
 
                         tensor
                     })
                     // When loading from initialization, we have to transpose.
                     .init_mapper(|tensor| {
-                        B::sync(&tensor.device());
+                        B::sync(&tensor.device()).unwrap();
                         let tensor = tensor.transpose();
-                        B::sync(&tensor.device());
+                        B::sync(&tensor.device()).unwrap();
                         tensor
                     })
             }

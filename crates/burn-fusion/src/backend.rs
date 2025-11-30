@@ -6,7 +6,7 @@ use crate::{
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
     Device, Element,
-    backend::{Backend, DeviceOps},
+    backend::{Backend, DeviceOps, SyncError},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -50,10 +50,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::seed(device, seed);
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device) -> Result<(), SyncError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         client.drain();
-        B::sync(device);
+        B::sync(device)
     }
 
     fn ad_enabled() -> bool {
@@ -71,20 +71,27 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
     }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut burn_tensor::TensorData>,
+    {
+        B::staging(data, device);
+    }
 }
 
-/// The status of a [builder](OptimizationBuilder).
+/// The status of a [fuser](OperationFuser).
 #[derive(Clone, Debug, Copy)]
-pub enum OptimizationStatus {
+pub enum FuserStatus {
     /// No more operations can be fused.
     Closed,
     /// More operations can be fused.
     Open,
 }
 
-/// The properties of a [builder](OptimizationProperties).
+/// The properties of a [fuser](OperationFuser).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct OptimizationProperties {
+pub struct FuserProperties {
     /// The score of the optimization, higher is better.
     pub score: u64,
     /// If the operation is ready to be executed.
@@ -101,19 +108,19 @@ pub struct OptimizationProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
+/// Also, it is important to return (FuserStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait OptimizationBuilder<O>: Send {
+pub trait OperationFuser<O>: Send {
     /// Register a new [tensor operation](OperationIr).
-    fn register(&mut self, operation: &OperationIr);
+    fn fuse(&mut self, operation: &OperationIr);
     /// Finish the optimization and create a fusion operation.
-    fn build(&self) -> O;
+    fn finish(&self) -> O;
     /// Reset the state.
     fn reset(&mut self);
-    /// Return the builder [status](OptimizationStatus).
-    fn status(&self) -> OptimizationStatus;
-    /// Return the builder [properties](OptimizationProperties).
-    fn properties(&self) -> OptimizationProperties;
+    /// Return the builder [status](FuserStatus).
+    fn status(&self) -> FuserStatus;
+    /// Return the builder [properties](FuserProperties).
+    fn properties(&self) -> FuserProperties;
     /// The number of operation fused.
     fn len(&self) -> usize;
     /// If no operations are fused.
@@ -121,7 +128,7 @@ pub trait OptimizationBuilder<O>: Send {
         self.len() == 0
     }
     /// Clone the optimization builder.
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>>;
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<O>>;
 }
 
 /// The number of operations contained in the data structure.
@@ -134,9 +141,9 @@ pub trait NumOperations: core::fmt::Debug {
     }
 }
 
-/// The operation created from the [builder](OptimizationBuilder).
+/// The optimization created from a [fuser](OperationFuser).
 pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
-    /// Execute the operation.
+    /// Execute the optimization.
     fn execute(
         &mut self,
         context: &mut Context<'_, R::FusionHandle>,
@@ -169,14 +176,12 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     /// The type that represents booleans on the backend.
     type BoolRepr: Element;
 
-    /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(
-        device: Self::FusionDevice,
-    ) -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+    /// The list of fusers that will be used to optimize the computational graph.
+    fn fusers(device: Self::FusionDevice) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [operation builder](crate::OptimizationBuilder).
+/// [operation fuser](crate::OperationFuser).
 pub trait FusionBackend:
     BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {

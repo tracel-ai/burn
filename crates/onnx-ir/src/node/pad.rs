@@ -24,13 +24,16 @@
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
 //! Should validate constant_value type matches data type when provided.
 //! Location: extract_config or infer_types
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::Argument;
 
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use crate::ir::{ArgType, AttributeValue, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
-use std::any::Any;
+use crate::ir::{ArgType, AttributeValue, Node, RawNode, RuntimeInputRef, TensorDataExt};
 
 /// Represents either a static value or a runtime argument for pad values.
 #[derive(Debug, Clone)]
@@ -87,7 +90,7 @@ impl PadMode {
 }
 
 /// Configuration for the Pad operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct PadConfig {
     /// The paddings to be applied to each dimension.
     pub pads: PadInput,
@@ -97,18 +100,20 @@ pub struct PadConfig {
     pub mode: PadMode,
 }
 
-impl NodeConfig for PadConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Pad operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct PadNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: PadConfig,
 }
 
-pub struct PadProcessor;
+pub(crate) struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {
+    type Config = PadConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -120,7 +125,7 @@ impl NodeProcessor for PadProcessor {
 
     // TODO mark axes inputs as Shape if inputs are constant
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift pads input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -136,7 +141,7 @@ impl NodeProcessor for PadProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -185,13 +190,9 @@ impl NodeProcessor for PadProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Helper function to get mode
-        fn get_mode(node: &Node) -> Result<PadMode, ProcessError> {
+        fn get_mode(node: &RawNode) -> Result<PadMode, ProcessError> {
             use std::str::FromStr;
 
             // Check for mode attribute (default is "constant")
@@ -221,7 +222,7 @@ impl NodeProcessor for PadProcessor {
             Ok(PadMode::default())
         }
 
-        fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
+        fn get_pads(node: &RawNode) -> Result<PadInput, ProcessError> {
             if node.inputs.len() >= 4 {
                 return Err(ProcessError::Custom(
                     "Pad: axes input is not supported".to_string(),
@@ -349,7 +350,7 @@ impl NodeProcessor for PadProcessor {
             Ok(vec![left, right, top, bottom])
         }
 
-        fn get_constant_value(node: &Node) -> Result<ConstantValueInput, ProcessError> {
+        fn get_constant_value(node: &RawNode) -> Result<ConstantValueInput, ProcessError> {
             // Check for value attribute first (takes precedence)
             if node.attrs.contains_key("value") {
                 let constant_value = node.attrs.get("value").map(|value| match value {
@@ -401,7 +402,20 @@ impl NodeProcessor for PadProcessor {
             constant_value,
             mode,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Pad(PadNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -409,7 +423,7 @@ impl NodeProcessor for PadProcessor {
 mod tests {
     use super::*;
     use crate::ir::{ArgType, Argument, DType, NodeType, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         pad_attrs: Option<Vec<i64>>,
@@ -418,8 +432,8 @@ mod tests {
         constant_value_input: Option<f32>,
         mode: Option<&str>,
         rank: usize,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("output", rank, None);
 
@@ -467,9 +481,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)
@@ -487,9 +499,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 1.0).abs() < 1e-6)
@@ -513,9 +523,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.5).abs() < 1e-6)
@@ -540,17 +548,15 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 2, 0, 2]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)
         );
     }
 
-    fn create_test_node_with_runtime_inputs() -> NodeBuilder {
-        NodeBuilder::new(NodeType::Pad, "test_pad")
+    fn create_test_node_with_runtime_inputs() -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("pads", 1, None) // Runtime input - no static value
             .input_tensor_f32("constant_value", 0, None) // Runtime input - no static value
@@ -564,9 +570,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
 
         // Check that we have runtime inputs
         assert!(matches!(&config.pads, PadInput::Runtime(arg) if arg.name == "pads"));
@@ -578,7 +582,7 @@ mod tests {
     #[test]
     fn test_pad_config_mixed_static_runtime_pads() {
         // Static pads, runtime constant_value
-        let builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+        let builder = TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("pads", vec![0, 0, 1, 1], vec![4]) // Static
             .input_tensor_f32("constant_value", 0, None) // Runtime
@@ -589,9 +593,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
 
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
@@ -602,7 +604,7 @@ mod tests {
     #[test]
     fn test_pad_config_mixed_runtime_static_constant() {
         // Runtime pads, static constant_value
-        let builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+        let builder = TestNodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("pads", 1, None) // Runtime
             .input_scalar_tensor_f32("constant_value", Some(2.5)) // Static
@@ -613,9 +615,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
 
         assert!(matches!(&config.pads, PadInput::Runtime(arg) if arg.name == "pads"));
         assert!(
@@ -633,9 +633,7 @@ mod tests {
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
             matches!(&config.constant_value, ConstantValueInput::Static(v) if (*v - 0.0).abs() < 1e-6)

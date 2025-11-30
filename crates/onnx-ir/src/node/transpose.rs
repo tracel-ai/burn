@@ -16,32 +16,35 @@
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.
 
-use crate::ir::{ArgType, Node, NodeConfig};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError, same_as_input,
 };
-use std::any::Any;
 
 /// Configuration for Transpose operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TransposeConfig {
     /// Permutation of dimensions
     pub perm: Vec<i64>,
 }
 
-impl NodeConfig for TransposeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Transpose operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct TransposeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: TransposeConfig,
 }
 
-pub struct TransposeProcessor;
+pub(crate) struct TransposeProcessor;
 
 impl NodeProcessor for TransposeProcessor {
+    type Config = TransposeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -53,12 +56,14 @@ impl NodeProcessor for TransposeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference
-        let config = node.config::<TransposeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // TODO: Missing validation that perm is a valid permutation.
         // Must verify: len(perm) == rank, all values in [0, rank-1], no duplicates.
@@ -92,11 +97,7 @@ impl NodeProcessor for TransposeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -119,7 +120,20 @@ impl NodeProcessor for TransposeProcessor {
         }
 
         let config = TransposeConfig { perm };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Transpose(TransposeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -127,10 +141,10 @@ impl NodeProcessor for TransposeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Transpose, "test_transpose")
+    fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> RawNode {
+        let mut builder = TestNodeBuilder::new(NodeType::Transpose, "test_transpose")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("transposed", rank, None);
 
@@ -148,9 +162,7 @@ mod tests {
         let processor = TransposeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![2, 1, 0]); // Default is to reverse the dimensions
     }
 
@@ -161,9 +173,7 @@ mod tests {
         let processor = TransposeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![0, 2, 1]);
     }
 
@@ -171,7 +181,7 @@ mod tests {
     fn test_transpose_config_multiple_inputs() {
         let mut node = create_test_node(None, 3);
         // Add an extra input to cause the expected error
-        node.inputs.push(crate::ir::Argument {
+        node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
                 dtype: crate::ir::DType::F32,

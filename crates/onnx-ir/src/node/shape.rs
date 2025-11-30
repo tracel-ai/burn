@@ -21,11 +21,12 @@
 //! - **Opset 19**: Added support for bfloat16 input data type.
 //! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
-use crate::ir::{ArgType, Node, NodeConfig};
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the Shape operation.
 #[derive(Debug, Clone)]
@@ -34,19 +35,20 @@ pub struct ShapeConfig {
     pub end: usize,
 }
 
-impl NodeConfig for ShapeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Shape operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct ShapeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ShapeConfig,
 }
 
-pub struct ShapeProcessor;
+pub(crate) struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
+    type Config = ShapeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -58,15 +60,17 @@ impl NodeProcessor for ShapeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Determine output dimension based on input type
         let dim = match &node.inputs[0].ty {
             ArgType::Tensor(_) => {
                 // Shape of a Tensor: output has (end - start) elements
-                let config = node.config::<ShapeConfig>();
+                let config = self
+                    .extract_config(node, opset)
+                    .expect("Config extraction failed");
                 config.end - config.start
             }
             ArgType::Shape(_) => {
@@ -87,11 +91,7 @@ impl NodeProcessor for ShapeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the rank/dimension count from the input
         let rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -134,7 +134,20 @@ impl NodeProcessor for ShapeProcessor {
         let end = end_dim as usize;
 
         let config = ShapeConfig { start, end };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Shape(ShapeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -142,10 +155,10 @@ impl NodeProcessor for ShapeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::Shape, "test_shape")
+    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> RawNode {
+        let mut builder = TestNodeBuilder::new(NodeType::Shape, "test_shape")
             .input_tensor_f32("data", rank, None)
             .output_tensor_i64("shape", 1, None);
 
@@ -167,10 +180,8 @@ mod tests {
         let prefs = OutputPreferences::new();
 
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 4);
 
@@ -186,10 +197,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 4);
     }
@@ -202,10 +211,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 3);
     }
@@ -218,10 +225,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 3);
     }
@@ -234,10 +239,8 @@ mod tests {
 
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 2); // -2 + 4 = 2
         assert_eq!(config.end, 3); // -1 + 4 = 3
     }
@@ -246,7 +249,7 @@ mod tests {
     fn test_shape_config_multiple_inputs() {
         let mut node = create_test_node(None, None, 4);
         // Add an extra input to cause error
-        node.inputs.push(crate::ir::Argument {
+        node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
                 dtype: crate::ir::DType::F32,
@@ -282,7 +285,7 @@ mod tests {
     #[test]
     fn test_shape_output_type() {
         // Shape operation always outputs Shape type
-        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape")
+        let mut node = TestNodeBuilder::new(NodeType::Shape, "test_shape")
             .input_tensor_f32("data", 3, None)
             .output_tensor_i64("shape", 1, None)
             .build();
@@ -290,8 +293,7 @@ mod tests {
         let processor = ShapeProcessor;
         let prefs = OutputPreferences::new();
 
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should always output Shape type

@@ -14,32 +14,34 @@
 //!
 //! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
-use crate::ir::{ArgType, Node, NodeConfig};
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
 /// Configuration for Softmax operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SoftmaxConfig {
     /// Axis along which to apply softmax
     pub axis: usize,
 }
 
-impl NodeConfig for SoftmaxConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Softmax operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct SoftmaxNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: SoftmaxConfig,
 }
 
-pub struct SoftmaxProcessor;
+pub(crate) struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
+    type Config = SoftmaxConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 13,
@@ -51,7 +53,7 @@ impl NodeProcessor for SoftmaxProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -68,11 +70,7 @@ impl NodeProcessor for SoftmaxProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.clone(),
@@ -101,7 +99,20 @@ impl NodeProcessor for SoftmaxProcessor {
         let config = SoftmaxConfig {
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Softmax(SoftmaxNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -109,10 +120,10 @@ impl NodeProcessor for SoftmaxProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize) -> Node {
-        NodeBuilder::new(NodeType::Softmax, "test_softmax")
+    fn create_test_node(axis: i64, input_rank: usize) -> RawNode {
+        TestNodeBuilder::new(NodeType::Softmax, "test_softmax")
             .input_tensor_f32("data", input_rank, None)
             .output_tensor_f32("output", input_rank, None)
             .attr_int("axis", axis)
@@ -126,9 +137,7 @@ mod tests {
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
@@ -139,9 +148,7 @@ mod tests {
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 1);
     }
 
@@ -149,7 +156,7 @@ mod tests {
     fn test_softmax_config_multiple_inputs() {
         let mut node = create_test_node(1, 3);
         // Add an extra input
-        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+        let extra_input = TestNodeBuilder::new(NodeType::Identity, "temp")
             .input_tensor_f32("extra", 1, None)
             .build()
             .inputs

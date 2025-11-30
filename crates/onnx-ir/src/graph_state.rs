@@ -6,19 +6,77 @@
 //! - Name mapping between ONNX and IR names
 //! - Tensor data storage
 
-use std::collections::HashMap;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
-use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
+use crate::ir::{ArgType, Argument, DataId, NodeType, RawNode, TensorData};
 use crate::proto_conversion::argument_from_initializer;
 use crate::protos::{TensorProto, ValueInfoProto};
 
 use super::tensor_store::TensorStore;
 
+/// Shared registry for ensuring unique node names across sibling subgraphs
+#[derive(Debug, Default)]
+struct NameRegistryInner {
+    seen_names: HashSet<String>,
+    node_type_counters: HashMap<crate::ir::NodeType, usize>,
+}
+
+/// Wrapper for shared name registry
+#[derive(Debug, Clone)]
+pub struct NameRegistry(Rc<RefCell<NameRegistryInner>>);
+
+impl Default for NameRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NameRegistry {
+    pub fn new() -> Self {
+        Self(Rc::new(RefCell::new(NameRegistryInner {
+            seen_names: HashSet::new(),
+            node_type_counters: HashMap::new(),
+        })))
+    }
+
+    /// Generate a unique node name based on node type and counter
+    pub fn generate_node_name(&self, node_type: &crate::ir::NodeType) -> String {
+        let mut inner = self.0.borrow_mut();
+
+        // Increment counter for this node type
+        let counter = inner
+            .node_type_counters
+            .entry(node_type.clone())
+            .and_modify(|e| *e += 1)
+            .or_insert(1);
+
+        let name = format!("{}{}", node_type, counter).to_lowercase();
+
+        // Also add to seen_names
+        inner.seen_names.insert(name.clone());
+
+        name
+    }
+
+    /// Set initial counter for a node type (used to account for initializers)
+    #[allow(dead_code)]
+    pub fn set_initial_counter(&self, node_type: &crate::ir::NodeType, count: usize) {
+        let mut inner = self.0.borrow_mut();
+        if count > 0 {
+            inner.node_type_counters.insert(node_type.clone(), count);
+        }
+    }
+}
+
 /// Mutable state container for ONNX graph conversion
 #[derive(Debug)]
 pub struct GraphState {
     /// The nodes that have been processed, used to copy the outputs to a child node
-    pub(super) processed_nodes: Vec<Node>,
+    pub(super) processed_nodes: Vec<RawNode>,
     /// The inputs of the graph
     inputs: Vec<Argument>,
     /// The outputs of the graph
@@ -31,15 +89,29 @@ pub struct GraphState {
     pub(super) tensor_store: TensorStore,
     /// Maps ONNX value names to their type info (from value_info)
     value_info_map: HashMap<String, ArgType>,
+    /// Optional shared name registry for ensuring unique names across subgraphs
+    name_registry: Option<NameRegistry>,
 }
 
 impl GraphState {
     /// Create new GraphState from ONNX proto structures
-    pub(crate) fn new(
+    #[doc(hidden)]
+    pub fn new(
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
         value_infos: &[ValueInfoProto],
+    ) -> Self {
+        Self::new_with_registry(inputs, outputs, initializers, value_infos, None)
+    }
+
+    /// Create new GraphState with optional shared name registry
+    pub(crate) fn new_with_registry(
+        inputs: &[ValueInfoProto],
+        outputs: &[ValueInfoProto],
+        initializers: &[TensorProto],
+        value_infos: &[ValueInfoProto],
+        name_registry: Option<NameRegistry>,
     ) -> Self {
         let mut tensor_store = TensorStore::new();
         let mut graph_input_map = HashMap::new();
@@ -47,7 +119,8 @@ impl GraphState {
         let mut value_info_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
-        let processed_nodes = process_initializers(initializers, &mut tensor_store);
+        let processed_nodes =
+            process_initializers(initializers, &mut tensor_store, name_registry.as_ref());
 
         // Map initializer names to their constant node outputs
         for (i, initializer) in initializers.iter().enumerate() {
@@ -92,6 +165,7 @@ impl GraphState {
             node_output_map,
             tensor_store,
             value_info_map,
+            name_registry,
         }
     }
 
@@ -113,12 +187,12 @@ impl GraphState {
             self.processed_nodes[node_idx].outputs[output_idx].clone()
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
-            Argument::new(sanitized)
+            Argument::from_name(sanitized)
         }
     }
 
     /// Add a node (maps outputs, renames outputs)
-    pub(super) fn add_node(&mut self, mut node: Node) {
+    pub(super) fn add_node(&mut self, mut node: RawNode) {
         let node_idx = self.processed_nodes.len();
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
@@ -131,8 +205,18 @@ impl GraphState {
         self.processed_nodes.push(node);
     }
 
+    /// Get reference to node output map (maps original ONNX names to node outputs)
+    pub(crate) fn node_output_map(&self) -> &HashMap<String, (usize, usize)> {
+        &self.node_output_map
+    }
+
+    /// Get reference to the name registry (if available)
+    pub(crate) fn name_registry(&self) -> Option<&NameRegistry> {
+        self.name_registry.as_ref()
+    }
+
     /// Consume and return (nodes, inputs, outputs)
-    pub(super) fn consume(self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+    pub(super) fn consume(self) -> (Vec<RawNode>, Vec<Argument>, Vec<Argument>) {
         let outputs = self
             .outputs
             .into_iter()
@@ -171,30 +255,30 @@ impl GraphState {
     }
 
     /// Register a test constant in GraphState
-    #[cfg(test)]
-    pub(crate) fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
+    #[doc(hidden)]
+    pub fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
         let (constant_node, _) = create_test_constant(name, tensor_data, &mut self.tensor_store);
         self.processed_nodes.push(constant_node);
     }
 
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
-    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> TensorId {
+    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
         self.tensor_store.store(data)
     }
 
     /// Get tensor data by ID from central store
-    pub(crate) fn get_tensor_data(&self, id: TensorId) -> Option<&TensorData> {
+    pub(crate) fn get_tensor_data(&self, id: DataId) -> Option<&TensorData> {
         self.tensor_store.get(id)
     }
 
     /// Get mutable tensor data by ID from central store
-    pub(crate) fn get_tensor_data_mut(&mut self, id: TensorId) -> Option<&mut TensorData> {
+    pub(crate) fn get_tensor_data_mut(&mut self, id: DataId) -> Option<&mut TensorData> {
         self.tensor_store.get_mut(id)
     }
 
     /// Get data_id for a constant by output name
-    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<TensorId> {
+    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<DataId> {
         self.processed_nodes
             .iter()
             .find(|node| {
@@ -209,8 +293,8 @@ impl GraphState {
     }
 
     /// Alias for get_constant_data_id_by_output (for test utilities)
-    #[cfg(test)]
-    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<TensorId> {
+    #[doc(hidden)]
+    pub fn get_constant_data_id(&self, name: &str) -> Option<DataId> {
         self.get_constant_data_id_by_output(name)
     }
 }
@@ -220,9 +304,9 @@ fn create_constant_node(
     node_name: String,
     output_name: String,
     ty: ArgType,
-    data_id: TensorId,
-) -> Node {
-    Node {
+    data_id: DataId,
+) -> RawNode {
+    RawNode {
         node_type: NodeType::Constant,
         name: node_name,
         inputs: vec![Argument {
@@ -238,12 +322,15 @@ fn create_constant_node(
             value_store: None,
         }],
         attrs: HashMap::new(),
-        config: None,
     }
 }
 
 /// Convert ONNX initializers to Constant nodes, store in tensor store
-fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorStore) -> Vec<Node> {
+fn process_initializers(
+    initializers: &[TensorProto],
+    tensor_store: &mut TensorStore,
+    name_registry: Option<&NameRegistry>,
+) -> Vec<RawNode> {
     initializers
         .iter()
         .enumerate()
@@ -253,7 +340,12 @@ fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorS
             // Allocate ID and store tensor data
             let data_id = tensor_store.store(data);
 
-            let const_name = format!("constant{}", idx + 1);
+            // Generate unique name using registry if available
+            let const_name = if let Some(registry) = name_registry {
+                registry.generate_node_name(&crate::ir::NodeType::Constant)
+            } else {
+                format!("constant{}", idx + 1)
+            };
             let output_name = format!("{}_out1", const_name);
 
             create_constant_node(const_name, output_name, _arg.ty.clone(), data_id)
@@ -261,13 +353,12 @@ fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorS
         .collect()
 }
 
-#[cfg(test)]
 /// Create a test constant node with tensor data
 fn create_test_constant(
     name: String,
     tensor_data: TensorData,
     tensor_store: &mut TensorStore,
-) -> (Node, usize) {
+) -> (RawNode, usize) {
     use crate::ir::TensorDataExt;
     let elem_type = tensor_data.elem_type();
     let shape = tensor_data.shape.to_vec();

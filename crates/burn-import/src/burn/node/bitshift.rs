@@ -1,204 +1,237 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Direction {
-    Left,
-    Right,
-}
-
-#[derive(Debug, Clone, new)]
-pub struct BitShiftNode {
-    pub inputs: Vec<Type>,
-    pub output: Type,
-    pub direction: Direction,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::bitshift::BitShiftNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        self.inputs.clone()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs_arg = self.inputs.first().unwrap();
+        let rhs_arg = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let operation = match (&self.inputs[0], &self.inputs[1]) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
-                match self.direction {
-                    Direction::Left => quote! { #lhs.bitwise_left_shift(#rhs) },
-                    Direction::Right => quote! { #lhs.bitwise_right_shift(#rhs) },
+        let lhs = scope.arg(lhs_arg);
+
+        let rhs = scope.arg(rhs_arg);
+
+        // Determine operation based on direction
+        let operation = match self.config.direction {
+            onnx_ir::bitshift::Direction::Left => match (&lhs_arg.ty, &rhs_arg.ty) {
+                (ArgType::Tensor(_), ArgType::Tensor(_)) => {
+                    quote! { #lhs.bitwise_left_shift(#rhs) }
                 }
-            }
-            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = &rhs_scalar.name;
-                match self.direction {
-                    Direction::Left => quote! { #lhs.bitwise_left_shift_scalar(#rhs.elem()) },
-                    Direction::Right => quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) },
+                (ArgType::Tensor(_), ArgType::Scalar(_)) => {
+                    quote! { #lhs.bitwise_left_shift_scalar(#rhs.elem()) }
                 }
-            }
-            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor)) => {
-                let lhs = &lhs_scalar.name;
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
-                // For scalar op tensor, we need to broadcast the scalar to a tensor first
-                let shift_op = match self.direction {
-                    Direction::Left => quote! { _scalar_tensor.bitwise_left_shift(#rhs) },
-                    Direction::Right => quote! { _scalar_tensor.bitwise_right_shift(#rhs) },
-                };
-                quote! {
-                    {
-                        let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
-                        #shift_op
+                (ArgType::Scalar(_), ArgType::Tensor(_)) => {
+                    // For scalar << tensor, broadcast scalar to tensor first
+                    quote! {
+                        {
+                            let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
+                            _scalar_tensor.bitwise_left_shift(#rhs)
+                        }
                     }
                 }
-            }
-            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
-                let lhs = &lhs_scalar.name;
-                let rhs = &rhs_scalar.name;
-                match self.direction {
-                    Direction::Left => quote! { #lhs << #rhs },
-                    Direction::Right => quote! { #lhs >> #rhs },
+                (ArgType::Scalar(_), ArgType::Scalar(_)) => {
+                    quote! { #lhs << #rhs }
                 }
-            }
-            _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
+                _ => panic!("BitShift only supports tensor and scalar inputs"),
+            },
+            onnx_ir::bitshift::Direction::Right => match (&lhs_arg.ty, &rhs_arg.ty) {
+                (ArgType::Tensor(_), ArgType::Tensor(_)) => {
+                    quote! { #lhs.bitwise_right_shift(#rhs) }
+                }
+                (ArgType::Tensor(_), ArgType::Scalar(_)) => {
+                    quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) }
+                }
+                (ArgType::Scalar(_), ArgType::Tensor(_)) => {
+                    // For scalar >> tensor, broadcast scalar to tensor first
+                    quote! {
+                        {
+                            let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
+                            _scalar_tensor.bitwise_right_shift(#rhs)
+                        }
+                    }
+                }
+                (ArgType::Scalar(_), ArgType::Scalar(_)) => {
+                    quote! { #lhs >> #rhs }
+                }
+                _ => panic!("BitShift only supports tensor and scalar inputs"),
+            },
         };
 
         quote! {
             let #output = #operation;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::BitShift(self)
-    }
-}
-
-impl OnnxIntoNode for BitShiftNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::bitshift::BitShiftConfig>();
-        let direction = match config.direction {
-            onnx_ir::node::bitshift::Direction::Left => Direction::Left,
-            onnx_ir::node::bitshift::Direction::Right => Direction::Right,
-        };
-        Self::new(inputs, output, direction)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{bitshift::BitShiftNode, test::assert_tokens},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::bitshift::{BitShiftConfig, BitShiftNodeBuilder, Direction};
 
     #[test]
-    fn test_codegen_bitshift_left() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(BitShiftNode::new(
-            vec![
-                Type::Tensor(TensorType::new_int("input1", 1)),
-                Type::Tensor(TensorType::new_int("input2", 1)),
-            ],
-            Type::Tensor(TensorType::new_int("output", 1)),
-            Direction::Left,
-        ));
-
-        graph.register_input_output(
-            vec!["input1".to_string(), "input2".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
-                    let output = input1.bitwise_left_shift(input2);
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_bitshift_left_tensor() {
+        let config = BitShiftConfig::new(Direction::Left);
+        let node = BitShiftNodeBuilder::new("bitshift1")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_left_shift(rhs);
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_bitshift_right() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_bitshift_right_tensor() {
+        let config = BitShiftConfig::new(Direction::Right);
+        let node = BitShiftNodeBuilder::new("bitshift2")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_right_shift(rhs);
+            output
+        }
+        ");
+    }
 
-        graph.register(BitShiftNode::new(
-            vec![
-                Type::Tensor(TensorType::new_int("input1", 1)),
-                Type::Tensor(TensorType::new_int("input2", 1)),
-            ],
-            Type::Tensor(TensorType::new_int("output", 1)),
-            Direction::Right,
-        ));
+    #[test]
+    fn test_bitshift_left_scalar() {
+        let config = BitShiftConfig::new(Direction::Left);
+        let node = BitShiftNodeBuilder::new("bitshift3")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2, Int>, rhs: i32) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_left_shift_scalar(rhs.elem());
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["input1".to_string(), "input2".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
+    #[test]
+    fn test_bitshift_right_scalar() {
+        let config = BitShiftConfig::new(Direction::Right);
+        let node = BitShiftNodeBuilder::new("bitshift4")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2, Int>, rhs: i32) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_right_shift_scalar(rhs.elem());
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
+    #[test]
+    fn test_bitshift_left_scalar_tensor() {
+        let config = BitShiftConfig::new(Direction::Left);
+        let node = BitShiftNodeBuilder::new("bitshift5")
+            .input_scalar("lhs", DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = {
+                let _scalar_tensor = Tensor::full(rhs.shape(), lhs, &rhs.device());
+                _scalar_tensor.bitwise_left_shift(rhs)
+            };
+            output
+        }
+        ");
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
+    #[test]
+    fn test_bitshift_right_scalar_tensor() {
+        let config = BitShiftConfig::new(Direction::Right);
+        let node = BitShiftNodeBuilder::new("bitshift6")
+            .input_scalar("lhs", DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = {
+                let _scalar_tensor = Tensor::full(rhs.shape(), lhs, &rhs.device());
+                _scalar_tensor.bitwise_right_shift(rhs)
+            };
+            output
+        }
+        ");
+    }
 
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
-                    let output = input1.bitwise_right_shift(input2);
-                    output
-                }
-            }
-        };
+    #[test]
+    fn test_bitshift_left_scalar_scalar() {
+        let config = BitShiftConfig::new(Direction::Left);
+        let node = BitShiftNodeBuilder::new("bitshift7")
+            .input_scalar("lhs", DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_scalar("output", DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: i32) -> i32 {
+            let output = lhs << rhs;
+            output
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_bitshift_right_scalar_scalar() {
+        let config = BitShiftConfig::new(Direction::Right);
+        let node = BitShiftNodeBuilder::new("bitshift8")
+            .input_scalar("lhs", DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_scalar("output", DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: i32) -> i32 {
+            let output = lhs >> rhs;
+            output
+        }
+        ");
     }
 }

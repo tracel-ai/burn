@@ -24,16 +24,17 @@
 //! - TODO: No test for edge case: kernel larger than input dimension
 //! - TODO: No test validating input is 4D (N x C x H x W) - Lower/higher rank should be rejected
 //! - TODO: No test for asymmetric kernel sizes - e.g., kernel=[3, 5]
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, RawNode};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for MaxPool2d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct MaxPool2dConfig {
     /// Kernel size [height, width]
     pub kernel_size: [usize; 2],
@@ -45,17 +46,16 @@ pub struct MaxPool2dConfig {
     pub dilation: [usize; 2],
 }
 
-impl MaxPool2dConfig {
-    /// Create a new MaxPool2dConfig
-    pub fn new(kernel_size: [usize; 2]) -> Self {
-        Self {
-            kernel_size,
-            strides: [1, 1],
-            padding: PaddingConfig2d::Valid,
-            dilation: [1, 1],
-        }
-    }
+/// Node representation for MaxPool2d operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct MaxPool2dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: MaxPool2dConfig,
+}
 
+impl MaxPool2dConfig {
     /// Set the strides
     pub fn with_strides(mut self, strides: [usize; 2]) -> Self {
         self.strides = strides;
@@ -75,19 +75,11 @@ impl MaxPool2dConfig {
     }
 }
 
-impl NodeConfig for MaxPool2dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct MaxPool2dProcessor;
+pub(crate) struct MaxPool2dProcessor;
 
 impl NodeProcessor for MaxPool2dProcessor {
+    type Config = MaxPool2dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -99,7 +91,7 @@ impl NodeProcessor for MaxPool2dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -159,11 +151,7 @@ impl NodeProcessor for MaxPool2dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
@@ -184,12 +172,27 @@ impl NodeProcessor for MaxPool2dProcessor {
 
         let padding = padding_config_2d(&pads);
 
-        let config = MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-            .with_strides([strides[0] as usize, strides[1] as usize])
-            .with_padding(padding)
-            .with_dilation([dilations[0] as usize, dilations[1] as usize]);
+        let config = MaxPool2dConfig::new(
+            [kernel_shape[0] as usize, kernel_shape[1] as usize],
+            [strides[0] as usize, strides[1] as usize],
+            padding,
+            [dilations[0] as usize, dilations[1] as usize],
+        );
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::MaxPool2d(MaxPool2dNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -197,7 +200,7 @@ impl NodeProcessor for MaxPool2dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -206,8 +209,8 @@ mod tests {
         dilations: Vec<i64>,
         ceil_mode: i64,
         auto_pad: Option<&str>,
-    ) -> Node {
-        let mut builder = NodeBuilder::new(NodeType::MaxPool2d, "test_maxpool2d")
+    ) -> RawNode {
+        let mut builder = TestNodeBuilder::new(NodeType::MaxPool2d, "test_maxpool2d")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 4, None)
             .attr_ints("kernel_shape", kernel_shape)
@@ -235,9 +238,7 @@ mod tests {
         let processor = MaxPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -259,9 +260,7 @@ mod tests {
         let processor = MaxPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
@@ -283,9 +282,7 @@ mod tests {
         let processor = MaxPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -307,9 +304,7 @@ mod tests {
         let processor = MaxPool2dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);

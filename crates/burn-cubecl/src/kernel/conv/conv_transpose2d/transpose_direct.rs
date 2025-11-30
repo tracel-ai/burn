@@ -1,16 +1,14 @@
-use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
-
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_device},
+        numeric::{empty_device_dtype, zeros_client},
         reshape,
     },
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, ops::ConvTransposeOptions};
+use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
@@ -30,6 +28,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     bias: &Tensor<E>,
     output: &mut Tensor<E>,
     args: ConvArgs,
+    #[define(E)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -123,7 +122,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
+pub fn conv_transpose2d_direct<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -147,10 +146,11 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 
     let shape_out = Shape::new([batch_size, out_channels * options.groups, out_0, out_1]);
 
-    let output = empty_device::<R, E>(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
+        input.dtype,
     );
 
     let bias = match bias {
@@ -160,14 +160,19 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
         }
         None => {
             let shape = Shape::from([output.shape[0], 1, 1, 1]);
-            zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
+            zeros_client(
+                input.client.clone(),
+                input.device.clone(),
+                shape,
+                input.dtype,
+            )
         }
     };
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    conv_transpose2d_direct_kernel::launch::<E, R>(
+    conv_transpose2d_direct_kernel::launch(
         &input.client,
         cube_count,
         cube_dim,
@@ -184,7 +189,8 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
             ScalarArg::new(options.padding[1] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-    );
+        input.dtype.into(),
+    )?;
 
     Ok(output)
 }

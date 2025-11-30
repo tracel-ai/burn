@@ -1,35 +1,32 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, Scope, ShapeType, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct ShapeNode {
-    pub input: Type,
-    pub output: ShapeType,
-    pub start_dim: usize,
-    pub end_dim: usize,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::shape::ShapeNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Shape(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
-        let dim = self.output.rank.to_tokens();
-        let start_dim_tok = self.start_dim.to_tokens();
-        let end_dim_tok = self.end_dim.to_tokens();
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        use onnx_ir::ir::ArgType;
 
-        let function = match &self.input {
-            Type::Tensor(tensor) => {
-                let input = scope.tensor_use_owned(tensor, node_position);
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+        let output = arg_to_ident(output_arg);
+
+        let dim = match &output_arg.ty {
+            ArgType::Shape(rank) => rank.to_tokens(),
+            _ => panic!("Shape operation expects Shape output"),
+        };
+
+        let start_dim_tok = self.config.start.to_tokens();
+        let end_dim_tok = self.config.end.to_tokens();
+
+        let function = match &input_arg.ty {
+            ArgType::Tensor(_) => {
+                let input = scope.arg(input_arg);
                 quote! {
                     #input.dims()[#start_dim_tok..#end_dim_tok]
                         .iter()
@@ -39,14 +36,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
                         .unwrap()
                 }
             }
-            Type::Shape(shape_type) => {
+            ArgType::Shape(shape_rank) => {
                 // If input is already a shape array [i64; N], the Shape operation
                 // returns the dimensionality of the shape (which is N) as a Shape(1) array
                 // This matches the ONNX semantics where Shape of a shape gives you the rank
-                let rank_value = shape_type.rank as i64;
+                let rank_value = *shape_rank as i64;
                 quote! { [#rank_value] }
             }
-            _ => panic!("Shape operation only supports Tensor or Shape inputs"),
+            ArgType::Scalar(_) => panic!("Shape operation only supports Tensor or Shape inputs"),
         };
 
         quote! {
@@ -54,85 +51,97 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::Shape(self)
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("alloc::vec::Vec");
-    }
-}
-
-impl OnnxIntoNode for ShapeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = match Type::from(node.outputs.first().unwrap()) {
-            Type::Shape(s) => s,
-            _ => panic!("Shape expects shape output"),
-        };
-        let config = node.config::<onnx_ir::node::shape::ShapeConfig>();
-        let start_dim = config.start;
-        let end_dim = config.end;
-        Self::new(input, output, start_dim, end_dim)
+        // Only register Vec if we're extracting shape from a tensor
+        if self.inputs.first().unwrap().ty.is_tensor() {
+            imports.register("alloc::vec::Vec");
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{ArgType, Argument, TensorType};
+    use onnx_ir::shape::{ShapeConfig, ShapeNode};
 
     #[test]
-    fn test_codegen_shape() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ShapeNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            ShapeType::new("shape1", 2),
-            1,
-            3,
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["shape1".to_string()],
-            &[],
-            &[],
+    fn test_shape_full() {
+        let config = ShapeConfig { start: 0, end: 3 };
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 3, None)),
         );
 
-        let expected = quote! {
-            use burn::prelude::*;
-            use alloc::vec::Vec;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> [i64; 2] {
-                    let shape1: [i64; 2] = tensor1.dims()[1..3]
-                        .iter()
-                        .map(|&x| x as i64)
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    shape1
-                }
-            }
+        let node = ShapeNode {
+            name: "shape1".to_string(),
+            inputs: vec![input],
+            outputs: vec![Argument::new("output", ArgType::Shape(3))],
+            config,
         };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> [i64; 3] {
+            let output: [i64; 3] = input
+                .dims()[0..3]
+                .iter()
+                .map(|&x| x as i64)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+            output
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_shape_partial() {
+        let config = ShapeConfig { start: 1, end: 3 };
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 4, None)),
+        );
+
+        let node = ShapeNode {
+            name: "shape2".to_string(),
+            inputs: vec![input],
+            outputs: vec![Argument::new("output", ArgType::Shape(2))],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> [i64; 2] {
+            let output: [i64; 2] = input
+                .dims()[1..3]
+                .iter()
+                .map(|&x| x as i64)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_shape_of_shape() {
+        let config = ShapeConfig { start: 0, end: 1 };
+        let input = Argument::new("input", ArgType::Shape(3));
+
+        let node = ShapeNode {
+            name: "shape3".to_string(),
+            inputs: vec![input],
+            outputs: vec![Argument::new("output", ArgType::Shape(1))],
+            config,
+        };
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: [i64; 3]) -> [i64; 1] {
+            let output: [i64; 1] = [3i64];
+            output
+        }
+        ");
     }
 }

@@ -1,0 +1,18 @@
+[package]
+name = "onnx-ir-derive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Derive macros for onnx-ir"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/onnx-ir-derive"
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true, features = ["full", "extra-traits"] }

@@ -20,6 +20,8 @@ pub enum LearnerEvent<T> {
 
 /// Event happening during the evaluation process.
 pub enum EvaluatorEvent<T> {
+    /// Signal the start of the process (e.g., training start)
+    Start,
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, LearnerItem<T>),
     /// Signal the end of the process (e.g., training end).

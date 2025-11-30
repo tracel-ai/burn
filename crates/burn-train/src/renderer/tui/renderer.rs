@@ -1,3 +1,4 @@
+use crate::metric::{MetricDefinition, MetricId};
 use crate::renderer::tui::TuiSplit;
 use crate::renderer::{
     EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
@@ -14,6 +15,7 @@ use ratatui::{
     },
     prelude::*,
 };
+use std::collections::HashMap;
 use std::panic::{set_hook, take_hook};
 use std::sync::Arc;
 use std::{
@@ -41,6 +43,7 @@ pub struct TuiMetricsRenderer {
     terminal: Terminal<TerminalBackend>,
     last_update: std::time::Instant,
     progress: ProgressBarState,
+    metric_definitions: HashMap<MetricId, MetricDefinition>,
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
     status: StatusState,
@@ -73,6 +76,11 @@ impl MetricsRenderer for TuiMetricsRenderer {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
+    }
+
+    fn register_metric(&mut self, definition: MetricDefinition) {
+        self.metric_definitions
+            .insert(definition.metric_id.clone(), definition);
     }
 }
 
@@ -112,15 +120,26 @@ impl TuiMetricsRenderer {
     fn update_metric(&mut self, split: TuiSplit, group: TuiGroup, state: MetricState) {
         match state {
             MetricState::Generic(entry) => {
-                self.metrics_text.update(split, group, entry);
+                let name = self
+                    .metric_definitions
+                    .get(&entry.metric_id)
+                    .unwrap()
+                    .name
+                    .clone()
+                    .into();
+                self.metrics_text.update(split, group, entry, name);
             }
             MetricState::Numeric(entry, value) => {
-                self.metrics_numeric.push(
-                    TuiTag::new(split, group.clone()),
-                    entry.name.clone(),
-                    value,
-                );
-                self.metrics_text.update(split, group, entry);
+                let name: Arc<String> = self
+                    .metric_definitions
+                    .get(&entry.metric_id)
+                    .unwrap()
+                    .name
+                    .clone()
+                    .into();
+                self.metrics_numeric
+                    .push(TuiTag::new(split, group.clone()), name.clone(), value);
+                self.metrics_text.update(split, group, entry, name);
             }
         };
     }
@@ -148,6 +167,7 @@ impl TuiMetricsRenderer {
             terminal,
             last_update: Instant::now(),
             progress: ProgressBarState::new(checkpoint),
+            metric_definitions: HashMap::default(),
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
             status: StatusState::default(),

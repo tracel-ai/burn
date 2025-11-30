@@ -1,6 +1,5 @@
 use crate::{
-    CubeRuntime, IntElement,
-    element::CubeElement,
+    CubeRuntime,
     kernel::{self},
     tensor::CubeTensor,
 };
@@ -13,6 +12,7 @@ fn scatter_kernel<T: Numeric, I: Int>(
     indices: &Tensor<I>,
     value: &Tensor<T>,
     dim: &u32,
+    #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
     let stride_input = input.stride(*dim);
     let shape_value = value.shape(*dim);
@@ -65,7 +65,7 @@ fn scatter_kernel<T: Numeric, I: Int>(
     }
 }
 
-pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
+pub(crate) fn scatter<R: CubeRuntime>(
     dim: usize,
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
@@ -105,7 +105,7 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        scatter_kernel::launch_unchecked::<E, I, R>(
+        scatter_kernel::launch_unchecked(
             &indices.client.clone(),
             cube_count,
             cube_dim,
@@ -113,7 +113,9 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
             indices.as_tensor_arg(1),
             value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
+            [tensor.dtype.into(), indices.dtype.into()],
         )
+        .expect("Kernel to never fail");
     }
     tensor
 }

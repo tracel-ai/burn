@@ -1,54 +1,42 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::is_inf::IsInfConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct IsInfNode {
-    pub input: Type,
-    pub output: Type,
-    pub config: IsInfConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for IsInfNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::is_inf::IsInfNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = match &self.input {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+
+        let input = scope.arg(input_arg);
+        let output = arg_to_ident(output_arg);
+
+        let function = match &output_arg.ty {
+            ArgType::Scalar(_) => {
+                match (self.config.detect_negative, self.config.detect_positive) {
+                    (true, true) => quote! { #input.is_infinite() },
+                    (false, true) => quote! { #input.is_infinite() && #input.is_sign_positive() },
+                    (true, false) => quote! { #input.is_infinite() && #input.is_sign_negative() },
+                    (false, false) => quote! { false },
+                }
             }
-            _ => panic!("Input must be a tensor or scalar"),
-        };
-        let output = &self.output.name();
-
-        let function = match &self.output {
-            Type::Scalar(_) => match (self.config.detect_negative, self.config.detect_positive) {
-                (true, true) => quote! { #input.is_infinite() },
-                (false, true) => quote! { #input.is_infinite() && #input.is_sign_positive() },
-                (true, false) => quote! { #input.is_infinite() && #input.is_sign_negative() },
-                (false, false) => quote! { false },
-            },
-            Type::Tensor(_) => match (self.config.detect_negative, self.config.detect_positive) {
-                (true, true) => quote! { #input.is_inf() },
-                (false, true) => {
-                    quote! { #input.clone().is_inf().bool_and(#input.greater_elem(0.0)) }
+            ArgType::Tensor(_) => {
+                match (self.config.detect_negative, self.config.detect_positive) {
+                    (true, true) => quote! { #input.is_inf() },
+                    (false, true) => {
+                        quote! { #input.clone().is_inf().bool_and(#input.greater_elem(0.0)) }
+                    }
+                    (true, false) => {
+                        quote! { #input.clone().is_inf().bool_and(#input.lower_elem(0.0)) }
+                    }
+                    (false, false) => quote! { #input.zeros_like().bool() },
                 }
-                (true, false) => {
-                    quote! { #input.clone().is_inf().bool_and(#input.lower_elem(0.0)) }
-                }
-                (false, false) => quote! { #input.zeros_like().bool() },
-            },
+            }
             _ => panic!("IsInf only supports scalar or tensor outputs"),
         };
 
@@ -57,116 +45,151 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IsInfNode {
         }
     }
 
-    fn into_node(self) -> Node<PS> {
-        Node::IsInf(self)
-    }
-}
-
-impl OnnxIntoNode for IsInfNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::is_inf::IsInfConfig>();
-        Self::new(input, output, config.clone())
+    fn register_imports(&self, _imports: &mut BurnImports) {
+        // No special imports needed - is_inf() is a tensor method
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        ScalarKind, ScalarType, TensorType, graph::BurnGraph, node::test::assert_tokens,
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::is_inf::{IsInfConfig, IsInfNodeBuilder};
 
     #[test]
-    fn test_codegen_is_inf_tensor() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(IsInfNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_bool("tensor2", 4)),
-            IsInfConfig::new(true, true),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
-                    let tensor2 = tensor1.is_inf();
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_is_inf_both() {
+        let config = IsInfConfig::new(true, true);
+        let node = IsInfNodeBuilder::new("isinf1")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.is_inf();
+            output
+        }
+        ");
     }
 
     #[test]
-    fn test_codegen_is_inf_scalar() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_is_inf_positive_only() {
+        let config = IsInfConfig::new(false, true);
+        let node = IsInfNodeBuilder::new("isinf2")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.clone().is_inf().bool_and(input.greater_elem(0.0));
+            output
+        }
+        ");
+    }
 
-        graph.register(IsInfNode::new(
-            Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
-            Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
-            IsInfConfig::new(true, true),
-        ));
+    #[test]
+    fn test_is_inf_negative_only() {
+        let config = IsInfConfig::new(true, false);
+        let node = IsInfNodeBuilder::new("isinf3")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.clone().is_inf().bool_and(input.lower_elem(0.0));
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["scalar1".to_string()],
-            vec!["scalar2".to_string()],
-            &[],
-            &[],
-        );
+    #[test]
+    fn test_is_inf_neither() {
+        let config = IsInfConfig::new(false, false);
+        let node = IsInfNodeBuilder::new("isinf4")
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Bool> {
+            let output = input.zeros_like().bool();
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
+    #[test]
+    fn test_is_inf_scalar_both() {
+        let config = IsInfConfig::new(true, true);
+        let node = IsInfNodeBuilder::new("isinf5")
+            .input_scalar("input", DType::F32)
+            .output_scalar("output", DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = input.is_infinite();
+            output
+        }
+        ");
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
+    #[test]
+    fn test_is_inf_scalar_positive_only() {
+        let config = IsInfConfig::new(false, true);
+        let node = IsInfNodeBuilder::new("isinf6")
+            .input_scalar("input", DType::F32)
+            .output_scalar("output", DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = input.is_infinite() && input.is_sign_positive();
+            output
+        }
+        ");
+    }
 
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, scalar1: f32) -> bool {
-                    let scalar2 = scalar1.is_infinite();
-                    scalar2
-                }
-            }
-        };
+    #[test]
+    fn test_is_inf_scalar_negative_only() {
+        let config = IsInfConfig::new(true, false);
+        let node = IsInfNodeBuilder::new("isinf7")
+            .input_scalar("input", DType::F32)
+            .output_scalar("output", DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = input.is_infinite() && input.is_sign_negative();
+            output
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_is_inf_scalar_neither() {
+        let config = IsInfConfig::new(false, false);
+        let node = IsInfNodeBuilder::new("isinf8")
+            .input_scalar("input", DType::F32)
+            .output_scalar("output", DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: f32) -> bool {
+            let output = false;
+            output
+        }
+        ");
     }
 }

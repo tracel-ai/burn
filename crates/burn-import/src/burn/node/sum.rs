@@ -1,115 +1,67 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
+use super::prelude::*;
 
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
-
-#[derive(Debug, Clone, new)]
-pub struct SumNode {
-    pub inputs: Vec<TensorType>,
-    pub output: TensorType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SumNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::sum::SumNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        self.inputs
-            .iter()
-            .map(|t| Type::Tensor(t.clone()))
-            .collect()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|t| scope.tensor_use_owned(t, node_position));
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let inputs = self.inputs.iter().map(|arg| scope.arg(arg));
 
-        let output = &self.output.name;
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = #(#inputs)+*;
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Sum(self)
-    }
-}
-
-impl OnnxIntoNode for SumNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let inputs = node.inputs.iter().map(TensorType::from).collect();
-        let output = TensorType::from(node.outputs.first().unwrap());
-        Self::new(inputs, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{sum::SumNode, test::assert_tokens},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::sum::SumNodeBuilder;
 
     #[test]
-    fn test_codegen_sum() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_sum() {
+        let node = SumNodeBuilder::new("sum1")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .input_tensor("c", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2>,
+            b: Tensor<B, 2>,
+            c: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = a + b + c;
+            output
+        }
+        ");
+    }
 
-        graph.register(SumNode::new(
-            vec![
-                TensorType::new_float("tensor1", 4),
-                TensorType::new_float("tensor2", 4),
-            ],
-            TensorType::new_float("tensor3", 4),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(
-                    &self,
-                    tensor1: Tensor<B, 4>,
-                    tensor2: Tensor<B, 4>
-                ) -> Tensor<B, 4> {
-                    let tensor3 = tensor1 + tensor2;
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_sum_two_inputs() {
+        let node = SumNodeBuilder::new("sum2")
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a + b;
+            output
+        }
+        ");
     }
 }

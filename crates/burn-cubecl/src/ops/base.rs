@@ -1,7 +1,8 @@
-use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
-use burn_common::tensor::{ReshapeAction, contiguous_strides, reshape_action};
+use crate::{CubeRuntime, kernel, tensor::CubeTensor};
+use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use burn_tensor::{
     DType, Shape, TensorData,
+    backend::ExecutionError,
     quantization::{QTensorPrimitive, QuantLevel, params_shape},
 };
 use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
@@ -11,31 +12,34 @@ use cubecl_quant::scheme::BlockSize;
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.as_bytes());
+    let buffer = client.create(data.bytes);
 
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
-pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+) -> Result<TensorData, ExecutionError> {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
-    let elem_size = size_of::<E>();
+    let elem_size = tensor.elem_size();
     let shape = &tensor.shape.dims;
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
-    let bytes = tensor.client.read_one_tensor_async(binding).await;
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    let bytes = tensor
+        .client
+        .read_one_tensor_async(binding)
+        .await
+        .map_err(|err| ExecutionError::Generic {
+            context: format!("{err}"),
+        })?;
+
+    Ok(TensorData::from_bytes(bytes, tensor.shape, tensor.dtype))
 }
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
-pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous_aligned(tensor);
-
-    let elem_size = size_of::<E>();
-    let shape = &tensor.shape.dims;
-    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
-    let bytes = tensor.client.read_one_tensor(binding);
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
+    burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(
@@ -51,14 +55,15 @@ pub(crate) fn to_device<R: CubeRuntime>(
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn empty<R: CubeRuntime>(
     shape: Shape,
     device: &R::Device,
+    dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+    let buffer = client.empty(shape.num_elements() * dtype.size());
 
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
+    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, dtype)
 }
 
 pub(crate) fn swap_dims<R: CubeRuntime>(

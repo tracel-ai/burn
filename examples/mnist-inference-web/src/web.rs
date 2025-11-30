@@ -68,7 +68,7 @@ impl Mnist {
         let output = burn::tensor::activation::softmax(output, 1);
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
-        let output = output.into_data_async().await;
+        let output = output.into_data_async().await.unwrap();
 
         let array = Array::new();
         for value in output.iter::<f32>() {

@@ -12,19 +12,23 @@
 //! - **Opset 19**: Added antialiasing improvements and clarified coordinate transformation modes.
 //!
 //! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, Node, RawNode, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use std::any::Any;
 use std::str::FromStr;
 
 /// Interpolation mode for resize operation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ResizeMode {
     /// Nearest neighbor interpolation
+    #[default]
     Nearest,
     /// Linear interpolation (bilinear for 2D, trilinear for 3D)
     Linear,
@@ -46,7 +50,8 @@ impl FromStr for ResizeMode {
 }
 
 /// Configuration for the Resize operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct ResizeConfig {
     pub mode: ResizeMode,
     pub scales: Option<ResizeScales>,
@@ -56,22 +61,29 @@ pub struct ResizeConfig {
     /// Cubic coefficient for cubic interpolation (default: -0.75)
     pub cubic_coeff_a: f32,
     /// Nearest mode rounding strategy (default: "round_prefer_floor")
-    pub nearest_mode: String,
+    pub nearest_mode: String, // TODO convert to enum
     /// Exclude outside weights (default: 0)
     pub exclude_outside: i32,
     /// Extrapolation value for tf_crop_and_resize mode (default: 0.0)
     pub extrapolation_value: f32,
     /// Antialias flag (default: 0) - opset 13+
     pub antialias: i32,
+    // FIXME add other missing fields
 }
 
-impl NodeConfig for ResizeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
+impl Default for ResizeConfig {
+    fn default() -> Self {
+        Self {
+            mode: ResizeMode::Nearest,
+            scales: None,
+            sizes: None,
+            coordinate_transformation_mode: "half_pixel".to_string(),
+            cubic_coeff_a: -0.75,
+            nearest_mode: "round_prefer_floor".to_string(), // TODO convert to enum
+            exclude_outside: 0,
+            extrapolation_value: 0.0,
+            antialias: 0,
+        }
     }
 }
 
@@ -84,6 +96,12 @@ pub enum ResizeScales {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for ResizeScales {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
+}
+
 /// Represents either a static value or a runtime argument for resize sizes.
 #[derive(Debug, Clone)]
 pub enum ResizeSizes {
@@ -93,8 +111,23 @@ pub enum ResizeSizes {
     Runtime(RuntimeInputRef),
 }
 
+impl Default for ResizeSizes {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
+}
+
+/// Node representation for Resize operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct ResizeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ResizeConfig,
+}
+
 /// Extract scales input as either static or runtime
-fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> {
+fn extract_scales_input(node: &RawNode, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
             // Skip optional inputs (those that were never provided)
@@ -141,7 +174,7 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
 }
 
 /// Extract sizes input as either static or runtime
-fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
+fn extract_sizes_input(node: &RawNode, input_rank: usize) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
             // Skip optional inputs (those that were never provided)
@@ -190,9 +223,11 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
     }
 }
 
-pub struct ResizeProcessor;
+pub(crate) struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
+    type Config = ResizeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -202,7 +237,7 @@ impl NodeProcessor for ResizeProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift roi input (input[1]) if present and constant
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -223,8 +258,8 @@ impl NodeProcessor for ResizeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Add maximum input count validation
@@ -303,10 +338,10 @@ impl NodeProcessor for ResizeProcessor {
                     });
                 }
                 "coordinate_transformation_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CoordinateTransformationMode::HalfPixel
                 }
                 "cubic_coeff_a" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum and pass CubicCoeffA::HalfPixel
                 }
                 "exclude_outside" => {
                     if value.clone().into_i32() != 0 {
@@ -335,9 +370,11 @@ impl NodeProcessor for ResizeProcessor {
                         });
                     }
                 }
-                "mode" => {} // Validated in extract_config
+                "mode" => {
+                    // FIXME: Implement conversion to enum
+                } // Validated in extract_config
                 "nearest_mode" => {
-                    // Ignored: approximate results are acceptable
+                    // FIXME: Implement conversion to enum
                 }
                 _ => {}
             }
@@ -362,7 +399,9 @@ impl NodeProcessor for ResizeProcessor {
         }
 
         // Get reference to config for validation
-        let config = node.config::<ResizeConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // Check that at least one of scales or sizes is provided
         if config.scales.is_none() && config.sizes.is_none() {
@@ -377,11 +416,7 @@ impl NodeProcessor for ResizeProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut mode: Option<ResizeMode> = None;
         let mut coordinate_transformation_mode = "half_pixel".to_string();
         let mut cubic_coeff_a = -0.75f32;
@@ -459,7 +494,20 @@ impl NodeProcessor for ResizeProcessor {
             extrapolation_value,
             antialias,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Resize(ResizeNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -467,15 +515,15 @@ impl NodeProcessor for ResizeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         mode: &str,
         scales: Option<Vec<f32>>,
         sizes: Option<Vec<i64>>,
         roi: Option<Vec<f32>>,
-    ) -> NodeBuilder {
-        let mut builder = NodeBuilder::new(NodeType::Resize, "test_resize")
+    ) -> TestNodeBuilder {
+        let mut builder = TestNodeBuilder::new(NodeType::Resize, "test_resize")
             .input_tensor_f32("X", 4, None) // N,C,H,W format
             .output_tensor_f32("Y", 4, None)
             .attr_string("mode", mode);
@@ -523,9 +571,7 @@ mod tests {
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Nearest);
         match &config.scales {
             Some(ResizeScales::Static(scales)) => {
@@ -556,9 +602,7 @@ mod tests {
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Linear);
         assert!(config.scales.is_none(), "Expected no scales");
         match &config.sizes {
@@ -581,8 +625,7 @@ mod tests {
         let mut node = node;
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -593,8 +636,7 @@ mod tests {
         let mut node = node;
         let processor = ResizeProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }

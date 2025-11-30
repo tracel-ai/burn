@@ -74,7 +74,8 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             rhs.as_tensor_arg(1),
             bias.as_tensor_arg(1),
             output.as_tensor_arg(1),
-        );
+        )
+        .expect("Kernel to never fail");
 
         // Return the output tensor.
         output

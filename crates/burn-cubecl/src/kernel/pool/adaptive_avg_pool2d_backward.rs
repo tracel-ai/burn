@@ -1,8 +1,7 @@
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::into_contiguous,
-    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -12,6 +11,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
     grad: &Tensor<Line<E>>,
     output: &mut Tensor<Line<E>>,
+    #[define(E)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -84,7 +84,7 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     }
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
+pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     x: CubeTensor<R>,
     out_grad: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -94,20 +94,22 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
     let line_size = max_line_size(&out_grad);
 
     let out_shape = Shape::new([batches, height, width, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
     let num_elems = output.shape.num_elements();
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    adaptive_avg_pool2d_backward_direct::launch::<E, R>(
+    adaptive_avg_pool2d_backward_direct::launch(
         &x.client,
         cube_count,
         cube_dim,
         out_grad.as_tensor_arg(line_size),
         output.as_tensor_arg(line_size),
-    );
+        output.dtype.into(),
+    )
+    .expect("Kernel to never fail");
 
     permute_nhwc_to_nchw(output)
 }

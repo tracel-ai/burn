@@ -95,7 +95,7 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
         let info = build_info::<_, F>(&[&lhs, &rhs, &output]);
-        let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+        let info_handle = lhs.client.create_from_slice(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;
@@ -104,17 +104,19 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
             CubeCount::Static(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
-        lhs.client.execute(
-            Box::new(SourceKernel::new(kernel, cube_dim)),
-            cube_count,
-            Bindings::new().with_buffers(vec![
-                lhs.handle.binding(),
-                rhs.handle.binding(),
-                bias.handle.binding(),
-                output.handle.clone().binding(),
-                info_handle.binding(),
-            ]),
-        );
+        lhs.client
+            .launch(
+                Box::new(SourceKernel::new(kernel, cube_dim)),
+                cube_count,
+                Bindings::new().with_buffers(vec![
+                    lhs.handle.binding(),
+                    rhs.handle.binding(),
+                    bias.handle.binding(),
+                    output.handle.clone().binding(),
+                    info_handle.binding(),
+                ]),
+            )
+            .unwrap();
 
         // Return the output tensor.
         output

@@ -237,7 +237,14 @@ pub trait ModuleVisitor<B: Backend> {
     ///
     /// # Parameters
     /// - `name`: The name of the submodule being entered
-    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    /// - `container_type`: The type of the container with format:
+    ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
+    ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Array containers: "Array" (name is the index)
+    ///
+    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn enter_module(&mut self, name: &str, container_type: &str) {}
 
@@ -245,7 +252,14 @@ pub trait ModuleVisitor<B: Backend> {
     ///
     /// # Parameters
     /// - `name`: The name of the submodule being exited
-    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    /// - `container_type`: The type of the container with format:
+    ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
+    ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Array containers: "Array" (name is the index)
+    ///
+    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn exit_module(&mut self, name: &str, container_type: &str) {}
 
@@ -307,7 +321,14 @@ pub trait ModuleMapper<B: Backend> {
     ///
     /// # Parameters
     /// - `name`: The name of the submodule being entered
-    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    /// - `container_type`: The type of the container with format:
+    ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
+    ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Array containers: "Array" (name is the index)
+    ///
+    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn enter_module(&mut self, name: &str, container_type: &str) {}
 
@@ -315,7 +336,14 @@ pub trait ModuleMapper<B: Backend> {
     ///
     /// # Parameters
     /// - `name`: The name of the submodule being exited
-    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    /// - `container_type`: The type of the container with format:
+    ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
+    ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Array containers: "Array" (name is the index)
+    ///
+    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn exit_module(&mut self, name: &str, container_type: &str) {}
 

@@ -1,8 +1,7 @@
 use crate::{
     CubeRuntime,
-    element::CubeElement,
     kernel::utils::{linear_view, shape_divmod},
-    ops::numeric::{empty_device, empty_device_dtype},
+    ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use burn_tensor::Slice;
@@ -45,13 +44,13 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
             tensor.dtype,
         )
     } else {
-        let output = empty_device_dtype::<R>(
+        let output = empty_device_dtype(
             tensor.client.clone(),
             tensor.device.clone(),
             dims,
             tensor.dtype,
         );
-        slice_on_output::<R>(tensor, output, indices)
+        slice_on_output(tensor, output, indices)
     }
 }
 
@@ -106,7 +105,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        slice_kernel::launch_unchecked::<R>(
+        slice_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -116,6 +115,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             indices_sequence,
             tensor.dtype.into(),
         )
+        .expect("Kernel to never fail");
     };
 
     output
@@ -123,13 +123,14 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
 
 /// Kernel for slicing with steps
 #[cube(launch_unchecked)]
-fn slice_with_steps_kernel<E: CubePrimitive>(
+fn slice_with_steps_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod>,
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
+    #[define(E)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -169,10 +170,7 @@ fn slice_with_steps_kernel<E: CubePrimitive>(
 }
 
 /// Slice a tensor with steps
-pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
-    tensor: CubeTensor<R>,
-    slices: &[Slice],
-) -> CubeTensor<R> {
+pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice]) -> CubeTensor<R> {
     // Check if all steps are 1 - if so, use the optimized regular slice
     let all_steps_one = slices.iter().all(|info| info.step == 1);
 
@@ -183,17 +181,18 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             .enumerate()
             .map(|(i, slice)| slice.to_range(tensor.shape[i]))
             .collect();
-        return slice::<R>(tensor, &simple_ranges);
+        return slice(tensor, &simple_ranges);
     }
 
     // Calculate output shape
     let shape_output = tensor.shape.clone().slice(slices).unwrap();
 
     // Create output tensor
-    let output = empty_device::<R, E>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
         shape_output.clone(),
+        tensor.dtype,
     );
 
     // Prepare three separate sequences for kernel
@@ -220,7 +219,7 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
     let cube_count = calculate_cube_count_elemwise(shape_output.num_elements(), cube_dim);
 
     unsafe {
-        slice_with_steps_kernel::launch_unchecked::<E, R>(
+        slice_with_steps_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
@@ -230,7 +229,9 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             starts,
             ends,
             steps,
-        );
+            tensor.dtype.into(),
+        )
+        .expect("Kernel to never fail");
     }
 
     output

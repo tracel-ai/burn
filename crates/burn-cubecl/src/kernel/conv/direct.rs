@@ -255,7 +255,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     shape_out.extend(out_size.iter().copied());
     shape_out.push(out_channels);
 
-    let output = empty_device_optimized_dtype::<R>(
+    let output = empty_device_optimized_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out.into(),
@@ -296,7 +296,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
     unsafe {
-        direct_conv2d_kernel::launch_unchecked::<R>(
+        direct_conv2d_kernel::launch_unchecked(
             &input.client,
             cube_count,
             cube_dim,
@@ -310,7 +310,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             options.padding.iter().any(|it| *it != 0),
             out_dtype.into(),
         )
-    };
+    }?;
 
     Ok(output)
 }

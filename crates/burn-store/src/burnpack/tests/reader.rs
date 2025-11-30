@@ -189,7 +189,7 @@ fn test_reader_lazy_loading() {
 #[test]
 fn test_reader_all_dtypes() {
     // Test all data types
-    let test_data = vec![
+    let test_data = [
         (DType::F32, [1.0f32.to_le_bytes().to_vec()].concat()),
         (DType::F64, [2.0f64.to_le_bytes().to_vec()].concat()),
         (DType::I32, [3i32.to_le_bytes().to_vec()].concat()),

@@ -1,5 +1,5 @@
 use super::MetricMetadata;
-use crate::metric::{Metric, MetricAttributes, MetricEntry, MetricName, Numeric, NumericEntry};
+use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry, SerializedEntry};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -65,7 +65,7 @@ impl Default for CpuUse {
 impl Metric for CpuUse {
     type Input = ();
 
-    fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         if self.last_refresh.elapsed() >= self.refresh_frequency {
             self.current = Self::refresh(&mut self.sys);
             self.last_refresh = Instant::now();
@@ -74,7 +74,7 @@ impl Metric for CpuUse {
         let formatted = format!("{}: {:.2} %", self.name(), self.current);
         let raw = format!("{:.2}", self.current);
 
-        MetricEntry::new(self.name(), formatted, raw)
+        SerializedEntry::new(formatted, raw)
     }
 
     fn clear(&mut self) {}

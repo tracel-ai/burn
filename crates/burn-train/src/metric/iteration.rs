@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use super::MetricEntry;
 use super::MetricMetadata;
+use super::SerializedEntry;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use crate::metric::MetricName;
@@ -36,7 +36,7 @@ impl IterationSpeedMetric {
 impl Metric for IterationSpeedMetric {
     type Input = ();
 
-    fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry {
         let raw = match self.instant {
             Some(val) => metadata.iteration as f64 / val.elapsed().as_secs_f64(),
             None => {
@@ -73,6 +73,6 @@ impl Metric for IterationSpeedMetric {
 
 impl Numeric for IterationSpeedMetric {
     fn value(&self) -> NumericEntry {
-        self.state.value()
+        self.state.current_value()
     }
 }

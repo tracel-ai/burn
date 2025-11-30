@@ -16,41 +16,38 @@
 //! - Supports casting from string tensor in plain (e.g., "3.14", "1000") and scientific notation
 //!   (e.g., "1e-5", "1E8") to float types.
 //! - The 'to' argument must match one of the data types in the TensorProto DataType enum.
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, AttributeValue, DType, Node, NodeConfig, TensorType};
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, AttributeValue, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::proto_conversion::element_type_from_proto;
-use std::any::Any;
 
 /// Configuration for Cast operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CastConfig {
     /// Target element type to cast to
     pub to: DType,
 }
 
-impl CastConfig {
-    /// Create a new CastConfig
-    pub fn new(to: DType) -> Self {
-        Self { to }
-    }
+/// Node representation for Cast operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct CastNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: CastConfig,
 }
 
-impl NodeConfig for CastConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct CastProcessor;
+pub(crate) struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
+    type Config = CastConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -62,8 +59,8 @@ impl NodeProcessor for CastProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: Add validation for unexpected attributes
@@ -76,7 +73,9 @@ impl NodeProcessor for CastProcessor {
         // TODO: Add test for casting from complex types (should error per spec)
 
         // Get reference to config for type inference
-        let config = node.config::<CastConfig>();
+        let config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
         let elem_type = config.to;
 
         // Infer output type based on input type
@@ -102,19 +101,16 @@ impl NodeProcessor for CastProcessor {
             ArgType::Shape(rank) => {
                 // When casting Shape to float or bool types, convert to 1D tensor
                 // This allows Shape values to be used in tensor operations
-                match elem_type {
-                    DType::F32 | DType::F64 | DType::F16 | DType::Bool => {
-                        output.ty = ArgType::Tensor(TensorType {
-                            dtype: elem_type,
-                            rank: 1,
-                            static_shape: Some(vec![rank]),
-                        });
-                    }
-                    _ => {
-                        // For int types, keep as Shape
-                        // This matches Burn's representation where shapes are always [i64; N]
-                        output.ty = ArgType::Shape(rank);
-                    }
+                if elem_type.is_float() || elem_type.is_bool() {
+                    output.ty = ArgType::Tensor(TensorType {
+                        dtype: elem_type,
+                        rank: 1,
+                        static_shape: Some(vec![rank]),
+                    });
+                } else {
+                    // For int types, keep as Shape
+                    // This matches Burn's representation where shapes are always [i64; N]
+                    output.ty = ArgType::Shape(rank);
                 }
             }
         }
@@ -122,11 +118,7 @@ impl NodeProcessor for CastProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the target element type from attributes
         let elem_type = match node.attrs.get("to") {
             Some(AttributeValue::Int64(type_id)) => element_type_from_proto(*type_id as i32)
@@ -146,7 +138,20 @@ impl NodeProcessor for CastProcessor {
         };
 
         let config = CastConfig::new(elem_type);
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Cast(CastNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -154,11 +159,11 @@ impl NodeProcessor for CastProcessor {
 mod tests {
     use super::*;
     use crate::ir::{Argument, NodeType, TensorType};
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
     use protobuf::Enum;
-    fn create_test_node(input_rank: usize, to_type: i64) -> Node {
-        NodeBuilder::new(NodeType::Cast, "test_cast")
+    fn create_test_node(input_rank: usize, to_type: i64) -> RawNode {
+        TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", input_rank, None) // Element type will be overwritten
             .attr_int("to", to_type)
@@ -166,8 +171,8 @@ mod tests {
     }
 
     // Additional test function to demonstrate scalar inputs
-    fn create_scalar_test_node(to_type: i64) -> Node {
-        NodeBuilder::new(NodeType::Cast, "test_cast")
+    fn create_scalar_test_node(to_type: i64) -> RawNode {
+        TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_scalar_f32("X")
             .output_scalar_f32("Y") // Element type will be overwritten
             .attr_int("to", to_type)
@@ -181,10 +186,8 @@ mod tests {
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<CastConfig>();
         assert_eq!(config.to, DType::I64);
 
         let mut node = create_test_node(2, DataType::FLOAT.value() as i64);
@@ -192,10 +195,8 @@ mod tests {
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<CastConfig>();
         assert_eq!(config.to, DType::F32);
 
         let mut node = create_test_node(2, DataType::BOOL.value() as i64);
@@ -203,10 +204,8 @@ mod tests {
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        let config = node.config::<CastConfig>();
         assert_eq!(config.to, DType::Bool);
     }
 
@@ -216,8 +215,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -235,8 +233,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -286,8 +283,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -300,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_cast_shape_to_float32() {
-        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+        let mut node = TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_shape("shape_input", 3)
             .output_shape("output", 3) // Will be overwritten
             .attr_int("to", DataType::FLOAT.value() as i64)
@@ -308,8 +304,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -324,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_cast_shape_to_int64_remains_shape() {
-        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+        let mut node = TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_shape("shape_input", 4)
             .output_shape("output", 4) // Will be preserved
             .attr_int("to", DataType::INT64.value() as i64)
@@ -332,8 +327,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -346,7 +340,7 @@ mod tests {
 
     #[test]
     fn test_cast_shape_to_bool() {
-        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+        let mut node = TestNodeBuilder::new(NodeType::Cast, "test_cast")
             .input_shape("shape_input", 3)
             .output_shape("output", 3) // Will be overwritten
             .attr_int("to", DataType::BOOL.value() as i64)
@@ -354,8 +348,7 @@ mod tests {
 
         let processor = CastProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

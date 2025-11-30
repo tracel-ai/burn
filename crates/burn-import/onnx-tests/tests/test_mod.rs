@@ -55,9 +55,11 @@ pub mod global_avr_pool;
 pub mod graph_multiple_output_tracking;
 pub mod greater;
 pub mod greater_or_equal;
+pub mod grid_sample;
 pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod identity;
+pub mod if_op;
 pub mod initializer_to_const;
 pub mod instance_norm;
 pub mod is_inf;
@@ -69,6 +71,7 @@ pub mod less_or_equal;
 pub mod linear;
 pub mod log;
 pub mod log_softmax;
+pub mod r#loop;
 pub mod matmul;
 pub mod matmulinteger;
 pub mod max;
@@ -96,6 +99,7 @@ pub mod relu;
 pub mod reshape;
 pub mod resize;
 pub mod round;
+pub mod scan;
 pub mod shape;
 pub mod sigmoid;
 pub mod sign;
@@ -108,6 +112,7 @@ pub mod split;
 pub mod sqrt;
 pub mod squeeze;
 pub mod sub;
+pub mod subgraph;
 pub mod sum;
 pub mod tan;
 pub mod tanh;
@@ -118,6 +123,7 @@ pub mod trilu;
 pub mod unsqueeze;
 pub mod where_op;
 pub mod xor;
+
 /// Include specified models in the `model` directory in the target directory.
 #[macro_export]
 macro_rules! include_models {

@@ -16,19 +16,20 @@
 //! ## Examples
 //! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]
 //! - If direction is "LEFT", X = [1, 2], and Y = [1, 2], output Z = [2, 8]
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::Argument;
+
+use crate::ir::{Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
-use std::any::Any;
-
-pub use self::Direction as BitShiftDirection;
-
 /// Direction for BitShift operation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Direction {
+    #[default]
     Left,
     Right,
 }
@@ -44,23 +45,25 @@ impl Direction {
 }
 
 /// Configuration for BitShift operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct BitShiftConfig {
     pub direction: Direction,
 }
 
-impl NodeConfig for BitShiftConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for BitShift operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct BitShiftNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: BitShiftConfig,
 }
 
-pub struct BitShiftProcessor;
+pub(crate) struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
+    type Config = BitShiftConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -72,7 +75,7 @@ impl NodeProcessor for BitShiftProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -86,11 +89,7 @@ impl NodeProcessor for BitShiftProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract direction attribute
         // FIXME: Spec marks 'direction' as required, but we provide default "left"
         let direction_str = node
@@ -106,7 +105,20 @@ impl NodeProcessor for BitShiftProcessor {
             })?;
 
         let config = BitShiftConfig { direction };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::BitShift(BitShiftNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -114,11 +126,11 @@ impl NodeProcessor for BitShiftProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     #[test]
     fn test_bitshift_config_with_direction_left() {
-        let node = NodeBuilder::new(NodeType::BitShift, "test_bitshift")
+        let node = TestNodeBuilder::new(NodeType::BitShift, "test_bitshift")
             .input_tensor_i32("X", 2, None)
             .input_tensor_i32("Y", 2, None)
             .output_tensor_i32("Z", 2, None)
@@ -129,15 +141,13 @@ mod tests {
         let processor = BitShiftProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Left);
     }
 
     #[test]
     fn test_bitshift_config_with_direction_right() {
-        let node = NodeBuilder::new(NodeType::BitShift, "test_bitshift")
+        let node = TestNodeBuilder::new(NodeType::BitShift, "test_bitshift")
             .input_tensor_i32("X", 2, None)
             .input_tensor_i32("Y", 2, None)
             .output_tensor_i32("Z", 2, None)
@@ -148,15 +158,13 @@ mod tests {
         let processor = BitShiftProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Right);
     }
 
     #[test]
     fn test_bitshift_config_default_direction() {
-        let node = NodeBuilder::new(NodeType::BitShift, "test_bitshift")
+        let node = TestNodeBuilder::new(NodeType::BitShift, "test_bitshift")
             .input_tensor_i32("X", 2, None)
             .input_tensor_i32("Y", 2, None)
             .output_tensor_i32("Z", 2, None)
@@ -166,9 +174,7 @@ mod tests {
         let processor = BitShiftProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Left);
     }
 }

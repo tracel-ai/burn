@@ -14,30 +14,22 @@
 //! ## Opset Versions
 //! - Available since opset version 1
 //! - Current version: 22
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, TensorType};
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
-use std::any::Any;
 
 /// Configuration for RandomNormalLike operation.
 #[derive(Debug, Clone)]
 pub struct RandomNormalLikeConfig {
     pub mean: f64,
     pub scale: f64,
-}
-
-impl NodeConfig for RandomNormalLikeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
 }
 
 /// Configuration for RandomUniformLike operation.
@@ -47,19 +39,36 @@ pub struct RandomUniformLikeConfig {
     pub high: f64,
 }
 
-impl NodeConfig for RandomUniformLikeConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Enum config that can hold either RandomNormalLike or RandomUniformLike config
+#[derive(Debug, Clone)]
+pub enum RandomLikeConfig {
+    Normal(RandomNormalLikeConfig),
+    Uniform(RandomUniformLikeConfig),
 }
 
-pub struct RandomLikeProcessor;
+/// Node representation for RandomNormalLike operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct RandomNormalLikeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RandomNormalLikeConfig,
+}
+
+/// Node representation for RandomUniformLike operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct RandomUniformLikeNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: RandomUniformLikeConfig,
+}
+
+pub(crate) struct RandomLikeProcessor;
 
 impl NodeProcessor for RandomLikeProcessor {
+    type Config = RandomLikeConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -71,7 +80,7 @@ impl NodeProcessor for RandomLikeProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -113,12 +122,8 @@ impl NodeProcessor for RandomLikeProcessor {
         }
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
-        let config: Box<dyn NodeConfig> = match node.node_type {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
+        let config = match node.node_type {
             crate::ir::NodeType::RandomNormalLike => {
                 let mean = node
                     .attrs
@@ -130,7 +135,7 @@ impl NodeProcessor for RandomLikeProcessor {
                     .get("scale")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomNormalLikeConfig { mean, scale })
+                RandomLikeConfig::Normal(RandomNormalLikeConfig { mean, scale })
             }
             crate::ir::NodeType::RandomUniformLike => {
                 let low = node
@@ -143,7 +148,7 @@ impl NodeProcessor for RandomLikeProcessor {
                     .get("high")
                     .map(|v| v.clone().into_f32() as f64)
                     .unwrap_or(1.0);
-                Box::new(RandomUniformLikeConfig { low, high })
+                RandomLikeConfig::Uniform(RandomUniformLikeConfig { low, high })
             }
             _ => {
                 return Err(ProcessError::Custom(format!(
@@ -153,7 +158,32 @@ impl NodeProcessor for RandomLikeProcessor {
             }
         };
 
-        Ok(Some(config))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        match config {
+            RandomLikeConfig::Normal(normal_like_config) => {
+                Node::RandomNormalLike(RandomNormalLikeNode {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config: normal_like_config,
+                })
+            }
+            RandomLikeConfig::Uniform(uniform_like_config) => {
+                Node::RandomUniformLike(RandomUniformLikeNode {
+                    name: builder.name,
+                    inputs: builder.inputs,
+                    outputs: builder.outputs,
+                    config: uniform_like_config,
+                })
+            }
+        }
     }
 }
 
@@ -161,11 +191,15 @@ impl NodeProcessor for RandomLikeProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: i32, input_rank: usize, static_shape: Option<Vec<usize>>) -> Node {
-        NodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
+    fn create_test_node(
+        dtype: i32,
+        input_rank: usize,
+        static_shape: Option<Vec<usize>>,
+    ) -> RawNode {
+        TestNodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
             .input_tensor_f32("input", input_rank, static_shape)
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
             .attr_int("dtype", dtype as i64)

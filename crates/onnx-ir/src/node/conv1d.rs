@@ -8,16 +8,28 @@
 //! - **Opset 1**: Initial version with basic convolution support
 //! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
+/// Node representation for Conv1d operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct Conv1dNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: Conv1dConfig,
+}
+
 /// Configuration for Conv1d operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
+#[allow(clippy::too_many_arguments)]
 pub struct Conv1dConfig {
     /// Input channels
     pub channels_in: usize,
@@ -37,46 +49,12 @@ pub struct Conv1dConfig {
     pub padding: PaddingConfig1d,
 }
 
-impl Conv1dConfig {
-    /// Create a new Conv1dConfig
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        channels_in: usize,
-        channels_out: usize,
-        kernel_size: usize,
-        stride: usize,
-        padding: PaddingConfig1d,
-        dilation: usize,
-        groups: usize,
-        bias: bool,
-    ) -> Self {
-        Self {
-            channels_in,
-            channels_out,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-        }
-    }
-}
-
-impl NodeConfig for Conv1dConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
 /// Node processor for Conv1d operation
-pub struct Conv1dProcessor;
+pub(crate) struct Conv1dProcessor;
 
 impl NodeProcessor for Conv1dProcessor {
+    type Config = Conv1dConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 1,
@@ -86,7 +64,7 @@ impl NodeProcessor for Conv1dProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -100,7 +78,7 @@ impl NodeProcessor for Conv1dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -219,11 +197,7 @@ impl NodeProcessor for Conv1dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];
@@ -269,18 +243,31 @@ impl NodeProcessor for Conv1dProcessor {
             kernel_shape[0] as _
         };
 
-        let config = Conv1dConfig {
+        let config = Conv1dConfig::new(
             channels_in,
             channels_out,
             kernel_size,
-            stride: strides[0] as usize,
-            dilation: dilations[0] as usize,
-            groups: group,
+            strides[0] as usize,
+            dilations[0] as usize,
+            group,
             bias,
             padding,
-        };
+        );
 
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Conv1d(Conv1dNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -288,7 +275,7 @@ impl NodeProcessor for Conv1dProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -298,14 +285,14 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         // Create weight tensor data
         let weight_data = vec![0.1; 16];
 
         let has_kernel_shape = !kernel_shape.is_empty();
 
         // Start building the node with input and weight
-        let mut builder = NodeBuilder::new(NodeType::Conv1d, "test_conv1d")
+        let mut builder = TestNodeBuilder::new(NodeType::Conv1d, "test_conv1d")
             .input_tensor_f32("data", 3, None)
             .input_tensor_f32_data(
                 "weight",
@@ -345,9 +332,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -367,9 +352,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -389,9 +372,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -411,9 +392,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 4);
         assert_eq!(config.channels_out, 2);
@@ -459,9 +438,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -508,9 +485,7 @@ mod tests {
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<Conv1dConfig>();
 
         assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape
     }

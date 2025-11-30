@@ -18,28 +18,28 @@
 //! ## Opset Versions
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
+use crate::ir::{Argument, Node, RawNode, RuntimeInputRef, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for the GatherElements operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct GatherElementsConfig {
     pub indices: GatherElementsInput,
     pub axis: usize,
 }
 
-impl NodeConfig for GatherElementsConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for GatherElements operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct GatherElementsNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: GatherElementsConfig,
 }
 
 /// Represents either a static value or a runtime argument for gather elements indices.
@@ -51,9 +51,17 @@ pub enum GatherElementsInput {
     Runtime(RuntimeInputRef),
 }
 
-pub struct GatherElementsProcessor;
+impl Default for GatherElementsInput {
+    fn default() -> Self {
+        GatherElementsInput::Static(Vec::new())
+    }
+}
+
+pub(crate) struct GatherElementsProcessor;
 
 impl NodeProcessor for GatherElementsProcessor {
+    type Config = GatherElementsConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 11,
@@ -65,7 +73,7 @@ impl NodeProcessor for GatherElementsProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -86,11 +94,7 @@ impl NodeProcessor for GatherElementsProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {
             crate::ir::ArgType::Tensor(tensor) => tensor.rank as i64,
@@ -151,7 +155,20 @@ impl NodeProcessor for GatherElementsProcessor {
             indices,
             axis: axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::GatherElements(GatherElementsNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 

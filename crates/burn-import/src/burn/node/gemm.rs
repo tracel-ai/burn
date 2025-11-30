@@ -1,303 +1,201 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[allow(clippy::too_many_arguments)]
-#[derive(Debug, Clone, new)]
-pub struct GemmNode {
-    pub a: TensorType,
-    pub b: TensorType,
-    pub c: Option<Type>,
-    pub output: TensorType,
-    pub alpha: f32,
-    pub beta: f32,
-    pub trans_a: i64,
-    pub trans_b: i64,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        let mut inputs = vec![Type::Tensor(self.a.clone()), Type::Tensor(self.b.clone())];
-
-        if let Some(ref c) = self.c {
-            match c {
-                Type::Tensor(tensor) => inputs.push(Type::Tensor(tensor.clone())),
-                Type::Scalar(scalar) => inputs.push(Type::Scalar(scalar.clone())),
-                _ => panic!("C should be Tensor or Scalar!"),
-            }
-        }
-
-        inputs
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let a = scope.tensor_use_owned(&self.a, node_position);
-        let b = scope.tensor_use_owned(&self.b, node_position);
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let a = scope.arg(self.inputs.first().unwrap());
+        let b = scope.arg(self.inputs.get(1).unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let output = &self.output.name;
-        let alpha = self.alpha;
-        let beta = self.beta;
-        let trans_a = self.trans_a;
-        let trans_b = self.trans_b;
+        let alpha = self.config.alpha;
+        let beta = self.config.beta;
+        let trans_a = self.config.trans_a;
+        let trans_b = self.config.trans_b;
 
+        // Apply transpose to A if trans_a is set
         let a = if trans_a != 0 {
-            quote! {#a.transpose()}
+            quote! { #a.transpose() }
         } else {
-            quote! {#a}
+            quote! { #a }
         };
 
+        // Apply transpose to B if trans_b is set
         let b = if trans_b != 0 {
-            quote! {#b.transpose()}
+            quote! { #b.transpose() }
         } else {
-            quote! {#b}
+            quote! { #b }
         };
 
-        let product = quote! {#a.matmul(#b)};
+        // Compute A * B
+        let product = quote! { #a.matmul(#b) };
 
+        // Apply alpha scaling
         let scaled_product = match alpha {
             1.0 => product,
-            _ => quote! {#product * #alpha},
+            _ => quote! { #product * #alpha },
         };
 
-        if let Some(ref c) = self.c {
-            match (c, beta) {
-                (Type::Tensor(tensor), 1.0) => {
-                    let c_tensor = scope.tensor_use_owned(tensor, node_position);
-                    quote! {
-                        let #output = #scaled_product + #c_tensor.unsqueeze();
-                    }
+        // Handle optional C input with beta scaling
+        if let Some(c_input) = self.inputs.get(2) {
+            // Get C as either tensor or scalar depending on its type
+            let c = match &c_input.ty {
+                onnx_ir::ir::ArgType::Tensor(_) => {
+                    let c_tensor = scope.arg(c_input);
+                    quote! { #c_tensor.unsqueeze() }
                 }
-                (Type::Scalar(scalar), 1.0) => {
-                    let c_scalar = &scalar.name;
-                    quote! {
-                        let #output = #scaled_product + #c_scalar;
-                    }
+                onnx_ir::ir::ArgType::Scalar(_) => {
+                    let c_scalar = arg_to_ident(c_input);
+                    quote! { #c_scalar }
                 }
-                (Type::Tensor(tensor), _) => {
-                    let c_tensor = scope.tensor_use_owned(tensor, node_position);
-                    quote! {
-                        let #output = #scaled_product + (#c_tensor.unsqueeze() * #beta);
-                    }
-                }
-                (Type::Scalar(scalar), _) => {
-                    let c_scalar = &scalar.name;
-                    quote! {
-                        let #output = #scaled_product + (#c_scalar * #beta);
-                    }
-                }
-                _ => panic!("C should be Tensor or a Scalar!"),
+                _ => panic!("C input should be Tensor or Scalar!"),
+            };
+
+            // Apply beta scaling to C
+            let scaled_c = match beta {
+                1.0 => c,
+                _ => quote! { (#c) * #beta },
+            };
+
+            quote! {
+                let #output = #scaled_product + #scaled_c;
             }
         } else {
+            // No C input, just return scaled A * B
             quote! {
                 let #output = #scaled_product;
             }
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Gemm(self)
-    }
-}
-
-impl OnnxIntoNode for GemmNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let a = TensorType::from(node.inputs.first().unwrap());
-        let b = TensorType::from(node.inputs.get(1).unwrap());
-        let c = node.inputs.get(2).map(Type::from);
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let config = node.config::<onnx_ir::node::gemm::GemmConfig>();
-        Self::new(
-            a,
-            b,
-            c,
-            output,
-            config.alpha,
-            config.beta,
-            config.trans_a,
-            config.trans_b,
-        )
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::gemm::{GemmConfig, GemmNode, GemmNodeBuilder};
 
-    use super::*;
-    use crate::burn::{
-        ScalarKind, ScalarType, TensorType,
-        graph::BurnGraph,
-        node::{gemm::GemmNode, test::assert_tokens},
-    };
+    fn create_gemm_node_ab(
+        name: &str,
+        alpha: f32,
+        beta: f32,
+        trans_a: i64,
+        trans_b: i64,
+        has_c: bool,
+    ) -> GemmNode {
+        let config = GemmConfig::new(alpha, beta, trans_a, trans_b);
+        let mut builder = GemmNodeBuilder::new(name)
+            .input_tensor("a", 2, DType::F32)
+            .input_tensor("b", 2, DType::F32);
 
-    #[test]
-    fn test_codegen_nodes() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        if has_c {
+            builder = builder.input_tensor("c", 2, DType::F32);
+        }
 
-        graph.register(GemmNode::new(
-            TensorType::new_float("tensor1", 2),
-            TensorType::new_float("tensor2", 2),
-            Some(Type::Scalar(ScalarType::new(
-                "scalar1",
-                ScalarKind::Float32,
-            ))),
-            TensorType::new_float("tensor3", 2),
-            1.0,
-            1.0,
-            0,
-            0,
-        ));
-
-        graph.register_input_output(
-            vec![
-                "tensor1".to_string(),
-                "tensor2".to_string(),
-                "scalar1".to_string(),
-            ],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>, scalar1: f32) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.matmul(tensor2) + scalar1;
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+        builder
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
     }
+
     #[test]
-    fn test_codegen_non_unit_alpha_beta() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(GemmNode::new(
-            TensorType::new_float("tensor1", 2),
-            TensorType::new_float("tensor2", 2),
-            Some(Type::Scalar(ScalarType::new(
-                "scalar1",
-                ScalarKind::Float32,
-            ))),
-            TensorType::new_float("tensor3", 2),
-            0.5,
-            0.5,
-            0,
-            0,
-        ));
-
-        graph.register_input_output(
-            vec![
-                "tensor1".to_string(),
-                "tensor2".to_string(),
-                "scalar1".to_string(),
-            ],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>, scalar1: f32) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.matmul(tensor2) * 0.5f32 + (scalar1 * 0.5f32);
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_gemm_basic_ab() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 0, 0, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.matmul(b);
+            output
+        }
+        ");
     }
+
     #[test]
-    fn test_codegen_no_c() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_gemm_with_alpha() {
+        let node = create_gemm_node_ab("gemm1", 2.5, 1.0, 0, 0, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.matmul(b) * 2.5f32;
+            output
+        }
+        ");
+    }
 
-        graph.register(GemmNode::new(
-            TensorType::new_float("tensor1", 2),
-            TensorType::new_float("tensor2", 2),
-            None,
-            TensorType::new_float("tensor3", 2),
-            1.,
-            1.,
-            0,
-            0,
-        ));
+    #[test]
+    fn test_gemm_with_alpha_and_c() {
+        let node = create_gemm_node_ab("gemm1", 2.5, 1.0, 0, 0, true);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2>,
+            b: Tensor<B, 2>,
+            c: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = a.matmul(b) * 2.5f32 + c.unsqueeze();
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
+    #[test]
+    fn test_gemm_with_alpha_beta_c() {
+        let node = create_gemm_node_ab("gemm1", 2.0, 3.0, 0, 0, true);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            a: Tensor<B, 2>,
+            b: Tensor<B, 2>,
+            c: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = a.matmul(b) * 2f32 + (c.unsqueeze()) * 3f32;
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
+    #[test]
+    fn test_gemm_with_trans_a() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 1, 0, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.transpose().matmul(b);
+            output
+        }
+        ");
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
+    #[test]
+    fn test_gemm_with_trans_b() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 0, 1, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.matmul(b.transpose());
+            output
+        }
+        ");
+    }
 
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.matmul(tensor2);
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_gemm_with_trans_a_and_b() {
+        let node = create_gemm_node_ab("gemm1", 1.0, 1.0, 1, 1, false);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = a.transpose().matmul(b.transpose());
+            output
+        }
+        ");
     }
 }

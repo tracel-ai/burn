@@ -9,33 +9,37 @@
 //! - **Opset 4-10**: Updated type support
 //! - **Opset 11-12**: More type support
 //! - **Opset 13+**: Current version with extended type support
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::Argument;
+
+use crate::ir::{ArgType, Node, RawNode, TensorType};
 use crate::processor::{
     InputPreferences, InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec,
     ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for Concat operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConcatConfig {
     pub axis: usize,
 }
 
-impl NodeConfig for ConcatConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
+/// Node representation for Concat operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct ConcatNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: ConcatConfig,
 }
 
-pub struct ConcatProcessor;
+pub(crate) struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
+    type Config = ConcatConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 4,
@@ -47,7 +51,7 @@ impl NodeProcessor for ConcatProcessor {
 
     fn input_preferences(
         &self,
-        node: &Node,
+        node: &RawNode,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
         use crate::processor::ArgPreference;
@@ -77,12 +81,14 @@ impl NodeProcessor for ConcatProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
-        _opset: usize,
+        node: &mut RawNode,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Get reference to config for type inference (not used, but extracted for consistency)
-        let _config = node.config::<ConcatConfig>();
+        let _config = self
+            .extract_config(node, opset)
+            .expect("Config extraction failed");
 
         // For shapes, axis must be 0 (since they're 1D) - validation already done in extract_config
 
@@ -202,11 +208,7 @@ impl NodeProcessor for ConcatProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the axis attribute (required per ONNX spec)
         let mut axis: Option<i64> = None;
 
@@ -245,7 +247,20 @@ impl NodeProcessor for ConcatProcessor {
         let config = ConcatConfig {
             axis: normalized_axis as usize,
         };
-        Ok(Some(Box::new(config)))
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::Concat(ConcatNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -253,10 +268,10 @@ impl NodeProcessor for ConcatProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Concat, "test_concat")
+    fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> TestNodeBuilder {
+        TestNodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensors_f32::<Vec<usize>>("data", num_inputs, input_rank, None)
             .output_tensor_f32("output", input_rank, None)
             .attr_int("axis", axis)
@@ -265,33 +280,36 @@ mod tests {
     #[test]
     fn test_concat_config_basic() {
         let node = create_test_node(1, 3, 2).process(ConcatProcessor, 16);
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
     fn test_concat_config_negative_axis() {
         let node = create_test_node(-2, 3, 2).process(ConcatProcessor, 16);
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
     #[test]
     fn test_concat_config_shape_input() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
             .attr_int("axis", 0) // Required attribute
             .process(ConcatProcessor, 16);
 
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 0); // Shape concat uses axis 0
     }
 
     #[test]
     fn test_concat_config_missing_axis() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensor_f32("data1", 3, None)
             .input_tensor_f32("data2", 3, None)
             .output_tensor_f32("output", 3, None)
@@ -305,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_concat_config_axis_out_of_bounds() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensor_f32("data1", 3, None)
             .input_tensor_f32("data2", 3, None)
             .output_tensor_f32("output", 3, None)
@@ -319,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_concat_update_outputs_shape() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .input_shape("shape3", 1)
@@ -336,20 +354,21 @@ mod tests {
 
     #[test]
     fn test_concat_config_shape_negative_axis() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
             .attr_int("axis", -1) // -1 should become 0 for 1D shapes
             .process(ConcatProcessor, 16);
 
-        let config = node.config::<ConcatConfig>();
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
         assert_eq!(config.axis, 0); // -1 + 1 = 0
     }
 
     #[test]
     fn test_concat_config_shape_invalid_axis() {
-        let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
@@ -363,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_concat_mixed_inputs() {
-        let mut node = NodeBuilder::new(NodeType::Concat, "test_concat_mixed")
+        let mut node = TestNodeBuilder::new(NodeType::Concat, "test_concat_mixed")
             .input_shape("shape1", 2)
             .input_tensor_f32("tensor1", 3, None)
             .output_shape("output", 0)
@@ -372,8 +391,7 @@ mod tests {
 
         let processor = ConcatProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
+        let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }

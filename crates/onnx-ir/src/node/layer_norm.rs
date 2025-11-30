@@ -19,15 +19,16 @@
 //! - TODO: No test for axis != -1 cases (positive axis values) - Only axis=-1 tested
 //! - TODO: No test for edge cases: zero-variance inputs, constant inputs, very large/small values
 //! - TODO: No test for optional Mean and InvStdDev outputs - Implementation doesn't support multiple outputs
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
 
-use crate::ir::{Node, NodeConfig};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
-use std::any::Any;
 
 /// Configuration for LayerNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LayerNormConfig {
     /// Number of features/model dimension
     pub d_model: usize,
@@ -37,26 +38,7 @@ pub struct LayerNormConfig {
     pub full_precision: bool,
 }
 
-impl NodeConfig for LayerNormConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
-
 impl LayerNormConfig {
-    /// Create a new LayerNormConfig
-    pub fn new(d_model: usize) -> Self {
-        Self {
-            d_model,
-            epsilon: 1e-5,
-            full_precision: true, // Default to true (stash_type default is 1)
-        }
-    }
-
     /// Set the epsilon value
     pub fn with_epsilon(mut self, epsilon: f64) -> Self {
         self.epsilon = epsilon;
@@ -70,9 +52,20 @@ impl LayerNormConfig {
     }
 }
 
-pub struct LayerNormProcessor;
+/// Node representation for LayerNormalization operation
+#[derive(Debug, Clone, NodeBuilder)]
+pub struct LayerNormalizationNode {
+    pub name: String,
+    pub inputs: Vec<Argument>,
+    pub outputs: Vec<Argument>,
+    pub config: LayerNormConfig,
+}
+
+pub(crate) struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
+    type Config = LayerNormConfig;
+
     fn spec(&self) -> NodeSpec {
         NodeSpec {
             min_opset: 17,
@@ -82,7 +75,7 @@ impl NodeProcessor for LayerNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input 1) and bias (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -96,7 +89,7 @@ impl NodeProcessor for LayerNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut Node,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -145,11 +138,7 @@ impl NodeProcessor for LayerNormProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
@@ -172,10 +161,21 @@ impl NodeProcessor for LayerNormProcessor {
         }
 
         let full_precision = stash_type == 1;
-        let config = LayerNormConfig::new(num_features)
-            .with_epsilon(epsilon as f64)
-            .with_full_precision(full_precision);
-        Ok(Some(Box::new(config)))
+        let config = LayerNormConfig::new(num_features, epsilon as f64, full_precision);
+        Ok(config)
+    }
+
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
+        let config = self
+            .extract_config(&builder, opset)
+            .expect("Config extraction failed");
+
+        Node::LayerNormalization(LayerNormalizationNode {
+            name: builder.name,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            config,
+        })
     }
 }
 
@@ -183,18 +183,18 @@ impl NodeProcessor for LayerNormProcessor {
 mod tests {
     use super::*;
     use crate::ir::NodeType;
-    use crate::node::test_utils::NodeBuilder;
+    use crate::node::test_utils::TestNodeBuilder;
 
     fn create_test_node(
         epsilon: f32,
         axis: i64,
         stash_type: i64,
         num_features: usize,
-    ) -> NodeBuilder {
+    ) -> TestNodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
-        NodeBuilder::new(NodeType::LayerNormalization, "test_layernorm")
+        TestNodeBuilder::new(NodeType::LayerNormalization, "test_layernorm")
             .input_tensor_f32("X", 3, None)
             .input_tensor_f32_data("scale", weight_data, vec![num_features])
             .input_tensor_f32_data("bias", bias_data, vec![num_features])
@@ -210,10 +210,8 @@ mod tests {
         let processor = LayerNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 17).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 17, &prefs).unwrap();
 
-        let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
         assert!(config.full_precision); // stash_type == 1
@@ -225,10 +223,8 @@ mod tests {
         let processor = LayerNormProcessor;
         let prefs = OutputPreferences::new();
         let config = processor.extract_config(&node, 17).unwrap();
-        node.config = config;
         processor.infer_types(&mut node, 17, &prefs).unwrap();
 
-        let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 32);
         assert!(!config.full_precision); // stash_type == 0
     }
@@ -243,7 +239,7 @@ mod tests {
         let weight_data = vec![1.0; 32 * 64]; // 2D weight tensor
         let bias_data = vec![0.0; 32 * 64];
 
-        let node = NodeBuilder::new(NodeType::LayerNormalization, "test_layernorm_invalid")
+        let node = TestNodeBuilder::new(NodeType::LayerNormalization, "test_layernorm_invalid")
             .input_tensor_f32("X", 3, None)
             .input_tensor_f32_data("scale", weight_data, vec![32, 64]) // 2D shape
             .input_tensor_f32_data("bias", bias_data, vec![32, 64])
