@@ -261,11 +261,15 @@ impl TryFrom<TensorProto> for TensorData {
         let elem =
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
-        // Optimize using burn-tensor's from_bytes_vec for direct byte conversion
+        // Use zero-copy path when raw_data is available
         if !tensor.raw_data.is_empty() {
-            // Types that can use zero-copy or minimal-copy from raw bytes
+            // Check if buffer is properly aligned for the target type.
+            // bytemuck requires alignment for safe casting, and some code paths
+            // (e.g., topk.rs) unwrap cast results, so we must ensure alignment.
+            let is_aligned = (tensor.raw_data.as_ptr() as usize).is_multiple_of(elem.size());
+
             match elem {
-                // These types can use from_bytes_vec directly (just reinterpret bytes)
+                // These types can use zero-copy if properly aligned
                 DType::F32
                 | DType::F64
                 | DType::F16
@@ -273,20 +277,31 @@ impl TryFrom<TensorProto> for TensorData {
                 | DType::I64
                 | DType::U16
                 | DType::U8 => {
-                    // Use from_bytes_vec to avoid intermediate typed Vec allocation
-                    Ok(burn_tensor::TensorData::from_bytes_vec(
-                        tensor.raw_data,
-                        shape,
-                        elem,
-                    ))
+                    if is_aligned {
+                        // Zero-copy: wrap bytes::Bytes in ZeroCopyAllocationController
+                        let controller =
+                            crate::zero_copy::ZeroCopyAllocationController::from_bytes_full(
+                                tensor.raw_data,
+                            );
+                        // SAFETY: len is the exact number of initialized bytes
+                        let bytes = unsafe { controller.into_bytes() };
+                        Ok(burn_tensor::TensorData::from_bytes(bytes, shape, elem))
+                    } else {
+                        // Fallback: copy to aligned buffer when mmap'd data is unaligned
+                        Ok(burn_tensor::TensorData::from_bytes_vec(
+                            tensor.raw_data.to_vec(),
+                            shape,
+                            elem,
+                        ))
+                    }
                 }
-                // These types need element-wise conversion
+                // These types need element-wise conversion (no zero-copy possible)
                 DType::I8 => {
-                    let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
+                    let data: Vec<i8> = tensor.raw_data.iter().map(|&b| b as i8).collect();
                     Ok(TensorData::new(data, shape))
                 }
                 DType::Bool => {
-                    let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
+                    let data: Vec<bool> = tensor.raw_data.iter().map(|&b| b != 0).collect();
                     Ok(TensorData::new(data, shape))
                 }
                 _ => Err(ParseError::VariantNotFound(format!(
@@ -441,12 +456,12 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> RawNode 
     }
 }
 
-fn to_string(bytes: Vec<u8>) -> String {
-    from_utf8(bytes.as_slice()).unwrap().to_string()
+fn to_string(bytes: bytes::Bytes) -> String {
+    from_utf8(&bytes).unwrap().to_string()
 }
 
-fn to_string_vec(bytes: Vec<Vec<u8>>) -> Vec<String> {
-    bytes.iter().map(|b| to_string(b.clone())).collect()
+fn to_string_vec(bytes: Vec<bytes::Bytes>) -> Vec<String> {
+    bytes.into_iter().map(to_string).collect()
 }
 
 fn convert_shape(shape: Vec<i64>) -> Vec<usize> {

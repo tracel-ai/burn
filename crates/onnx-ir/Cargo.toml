@@ -15,6 +15,10 @@ version.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["mmap"]
+mmap = ["memmap2"]
+
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", default-features = false }
 onnx-ir-derive = { path = "../onnx-ir-derive", version = "=0.20.0-pre.4" }
@@ -26,6 +30,9 @@ protobuf = { workspace = true, features = ["with-bytes"] }
 regex = { workspace = true, features = ["default"] }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
+bytes = { workspace = true }
+cubecl-common = { workspace = true }
+memmap2 = { workspace = true, optional = true }
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }
@@ -33,3 +40,4 @@ protobuf-codegen = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
+tempfile = { workspace = true }

@@ -2,7 +2,14 @@
 //!
 //! This module provides the high-level orchestration of the ONNX conversion process.
 //! It clearly shows the entire conversion flow from start to finish.
+//!
+//! # Zero-Copy Loading
+//!
+//! When the `mmap` feature is enabled (default), files are memory-mapped for zero-copy
+//! tensor loading. This significantly reduces memory usage for large models.
 
+#[cfg(not(feature = "mmap"))]
+use std::io::Read;
 use std::{fmt, fs::File, path::Path};
 
 use protobuf::Message;
@@ -104,6 +111,9 @@ impl From<ProcessError> for OnnxIrError {
 
 /// Parse an ONNX file and convert to IR
 ///
+/// When the `mmap` feature is enabled (default), the file is memory-mapped for
+/// zero-copy tensor loading. This significantly reduces memory usage for large models.
+///
 /// # Errors
 ///
 /// Returns an error if:
@@ -115,15 +125,82 @@ impl From<ProcessError> for OnnxIrError {
 pub fn parse_onnx(onnx_path: &Path) -> Result<OnnxGraph, OnnxIrError> {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
-    // Load and validate model
-    let mut file = File::open(onnx_path).map_err(|error| OnnxIrError::Io {
-        path: onnx_path.display().to_string(),
-        error,
-    })?;
+    // Load file contents - mmap when feature is enabled
+    #[cfg(feature = "mmap")]
+    let buffer = {
+        let file = File::open(onnx_path).map_err(|error| OnnxIrError::Io {
+            path: onnx_path.display().to_string(),
+            error,
+        })?;
+        // SAFETY: We're mapping a read-only file, and the mmap will be kept alive
+        // by the Arc in MmapAllocationController for as long as tensor data is referenced
+        let mmap = unsafe { memmap2::Mmap::map(&file) }.map_err(|error| OnnxIrError::Io {
+            path: onnx_path.display().to_string(),
+            error,
+        })?;
+        log::debug!("Memory-mapped ONNX file ({} bytes)", mmap.len());
+        bytes::Bytes::from_owner(mmap)
+    };
+
+    #[cfg(not(feature = "mmap"))]
+    let buffer = {
+        let mut file = File::open(onnx_path).map_err(|error| OnnxIrError::Io {
+            path: onnx_path.display().to_string(),
+            error,
+        })?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)
+            .map_err(|error| OnnxIrError::Io {
+                path: onnx_path.display().to_string(),
+                error,
+            })?;
+        log::debug!("Read ONNX file into memory ({} bytes)", buf.len());
+        bytes::Bytes::from(buf)
+    };
+
+    parse_onnx_from_bytes(buffer, Some(onnx_path))
+}
+
+/// Parse an ONNX model from a byte slice
+///
+/// This creates a copy of the data internally. For zero-copy parsing,
+/// use [`parse_onnx_from_bytes`] with a `bytes::Bytes` buffer.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Data is not valid ONNX protobuf format
+/// - ONNX opset version is less than 16
+/// - Graph nodes are not topologically sorted
+/// - Type inference fails
+pub fn parse_onnx_bytes(data: &[u8]) -> Result<OnnxGraph, OnnxIrError> {
+    // bytes::Bytes::copy_from_slice creates a new allocation
+    let buffer = bytes::Bytes::copy_from_slice(data);
+    parse_onnx_from_bytes(buffer, None)
+}
+
+/// Parse an ONNX model from a `bytes::Bytes` buffer (zero-copy)
+///
+/// This is the most efficient way to parse ONNX models when you already have
+/// the data in a `bytes::Bytes` buffer (e.g., from network or mmap).
+/// Tensor data will reference slices of the original buffer without copying.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Data is not valid ONNX protobuf format
+/// - ONNX opset version is less than 16
+/// - Graph nodes are not topologically sorted
+/// - Type inference fails
+pub fn parse_onnx_from_bytes(
+    buffer: bytes::Bytes,
+    source_path: Option<&Path>,
+) -> Result<OnnxGraph, OnnxIrError> {
+    let path_str = source_path.map(|p| p.display().to_string());
 
     let model: ModelProto =
-        Message::parse_from_reader(&mut file).map_err(|e| OnnxIrError::InvalidFormat {
-            path: Some(onnx_path.display().to_string()),
+        Message::parse_from_tokio_bytes(&buffer).map_err(|e| OnnxIrError::InvalidFormat {
+            path: path_str.clone(),
             error: e.to_string(),
         })?;
 
@@ -153,7 +230,11 @@ pub fn parse_onnx(onnx_path: &Path) -> Result<OnnxGraph, OnnxIrError> {
 
     let graph = build_graph(&model)?;
 
-    log::info!("Finished parsing ONNX file: {}", onnx_path.display());
+    if let Some(path) = path_str {
+        log::info!("Finished parsing ONNX file: {}", path);
+    } else {
+        log::info!("Finished parsing ONNX from bytes");
+    }
     Ok(graph)
 }
 
