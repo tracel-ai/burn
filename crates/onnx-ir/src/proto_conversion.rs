@@ -10,6 +10,7 @@ use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType as DT,
     tensor_shape_proto::dimension::Value,
 };
+use crate::tensor_store::LazyTensorData;
 
 use burn_tensor::DType;
 use protobuf::Enum;
@@ -252,90 +253,83 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
     }
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<TensorProto> for TensorData {
+/// Convert TensorProto to LazyTensorData for zero-copy mmap support
+///
+/// This stores raw bytes directly without copying, deferring conversion
+/// to TensorData until the data is actually accessed.
+impl TryFrom<TensorProto> for LazyTensorData {
     type Error = ParseError;
 
-    fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
+    fn try_from(tensor: TensorProto) -> Result<LazyTensorData, Self::Error> {
         let shape = convert_shape(tensor.dims);
         let elem =
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
-        // Use zero-copy path when raw_data is available
+        // Use raw_data directly when available (zero-copy from mmap)
         if !tensor.raw_data.is_empty() {
-            // Check if buffer is properly aligned for the target type.
-            // bytemuck requires alignment for safe casting, and some code paths
-            // (e.g., topk.rs) unwrap cast results, so we must ensure alignment.
-            let is_aligned = (tensor.raw_data.as_ptr() as usize).is_multiple_of(elem.size());
-
             match elem {
-                // These types can use zero-copy if properly aligned
                 DType::F32
                 | DType::F64
                 | DType::F16
                 | DType::I32
                 | DType::I64
                 | DType::U16
-                | DType::U8 => {
-                    if is_aligned {
-                        // Zero-copy: wrap bytes::Bytes in ZeroCopyAllocationController
-                        let controller =
-                            crate::zero_copy::ZeroCopyAllocationController::from_bytes_full(
-                                tensor.raw_data,
-                            );
-                        // SAFETY: len is the exact number of initialized bytes
-                        let bytes = unsafe { controller.into_bytes() };
-                        Ok(burn_tensor::TensorData::from_bytes(bytes, shape, elem))
-                    } else {
-                        // Fallback: copy to aligned buffer when mmap'd data is unaligned
-                        Ok(burn_tensor::TensorData::from_bytes_vec(
-                            tensor.raw_data.to_vec(),
-                            shape,
-                            elem,
-                        ))
-                    }
-                }
-                // These types need element-wise conversion (no zero-copy possible)
-                DType::I8 => {
-                    let data: Vec<i8> = tensor.raw_data.iter().map(|&b| b as i8).collect();
-                    Ok(TensorData::new(data, shape))
-                }
-                DType::Bool => {
-                    let data: Vec<bool> = tensor.raw_data.iter().map(|&b| b != 0).collect();
-                    Ok(TensorData::new(data, shape))
-                }
+                | DType::U8
+                | DType::I8
+                | DType::Bool => Ok(LazyTensorData::new(tensor.raw_data, shape, elem)),
                 _ => Err(ParseError::VariantNotFound(format!(
                     "Unsupported dtype {:?}",
                     elem
                 ))),
             }
         } else {
-            match elem {
-                DType::F32 => Ok(TensorData::new(tensor.float_data, shape)),
-                DType::F64 => Ok(TensorData::new(tensor.double_data, shape)),
-                DType::I32 => Ok(TensorData::new(tensor.int32_data, shape)),
-                DType::I64 => Ok(TensorData::new(tensor.int64_data, shape)),
+            // Convert typed fields to bytes
+            let raw_bytes = match elem {
+                DType::F32 => vec_to_bytes(&tensor.float_data),
+                DType::F64 => vec_to_bytes(&tensor.double_data),
+                DType::I32 => vec_to_bytes(&tensor.int32_data),
+                DType::I64 => vec_to_bytes(&tensor.int64_data),
                 DType::Bool => {
-                    let data: Vec<bool> = tensor.int32_data.into_iter().map(|x| x != 0).collect();
-                    Ok(TensorData::new(data, shape))
+                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| (x != 0) as u8).collect();
+                    bytes::Bytes::from(data)
                 }
                 DType::U8 => {
-                    // accept weird exporters that stuff zp as int32_data
-                    let data: Vec<u8> = tensor.int32_data.into_iter().map(|x| x as u8).collect();
-                    Ok(TensorData::new(data, shape))
+                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| x as u8).collect();
+                    bytes::Bytes::from(data)
                 }
                 DType::I8 => {
-                    let data: Vec<i8> = tensor.int32_data.into_iter().map(|x| x as i8).collect();
-                    Ok(TensorData::new(data, shape))
+                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| x as u8).collect();
+                    bytes::Bytes::from(data)
                 }
-                DType::F16 => Ok(TensorData::new(Vec::<half::f16>::new(), shape)),
-                DType::U16 => Ok(TensorData::new(Vec::<u16>::new(), shape)),
-                _ => Err(ParseError::VariantNotFound(format!(
-                    "empty/unsupported payload for {:?}",
-                    elem
-                ))),
-            }
+                DType::F16 => bytes::Bytes::new(), // Empty
+                DType::U16 => bytes::Bytes::new(), // Empty
+                _ => {
+                    return Err(ParseError::VariantNotFound(format!(
+                        "empty/unsupported payload for {:?}",
+                        elem
+                    )));
+                }
+            };
+            Ok(LazyTensorData::new(raw_bytes, shape, elem))
         }
+    }
+}
+
+/// Helper to convert a Vec of POD elements to bytes::Bytes
+fn vec_to_bytes<T: bytemuck::Pod>(data: &[T]) -> bytes::Bytes {
+    bytes::Bytes::copy_from_slice(bytemuck::cast_slice(data))
+}
+
+/// Convert TensorProto to TensorData (convenience wrapper)
+///
+/// This goes through LazyTensorData, which means the data is copied
+/// to ensure proper alignment for typed access.
+impl TryFrom<TensorProto> for TensorData {
+    type Error = ParseError;
+
+    fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
+        let lazy = LazyTensorData::try_from(tensor)?;
+        Ok(lazy.to_tensor_data())
     }
 }
 impl TryFrom<TensorShapeProto> for Vec<usize> {

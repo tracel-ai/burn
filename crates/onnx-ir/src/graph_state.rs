@@ -15,6 +15,7 @@ use std::{
 use crate::ir::{ArgType, Argument, DataId, NodeType, RawNode, TensorData};
 use crate::proto_conversion::argument_from_initializer;
 use crate::protos::{TensorProto, ValueInfoProto};
+use crate::tensor_store::LazyTensorData;
 
 use super::tensor_store::TensorStore;
 
@@ -301,7 +302,7 @@ impl GraphState {
 
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
-    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
+    pub(crate) fn store_tensor_data(&mut self, data: LazyTensorData) -> DataId {
         Rc::make_mut(&mut self.tensor_store).store(data)
     }
 
@@ -397,8 +398,9 @@ fn process_initializers(
         .map(|(idx, initializer)| {
             let (_arg, data) = argument_from_initializer(initializer);
 
-            // Allocate ID and store tensor data
-            let data_id = tensor_store.store(data);
+            // Convert TensorData to LazyTensorData and store
+            let lazy_data = LazyTensorData::from(data);
+            let data_id = tensor_store.store(lazy_data);
 
             // Generate unique name using registry if available
             let const_name = if let Some(registry) = name_registry {
@@ -434,7 +436,9 @@ fn create_test_constant(
         static_shape: Some(shape.clone()),
     });
 
-    let data_id = tensor_store.store(tensor_data);
+    // Convert TensorData to LazyTensorData and store
+    let lazy_data = LazyTensorData::from(tensor_data);
+    let data_id = tensor_store.store(lazy_data);
 
     // Use name directly as output name for test lookups (no _const_out suffix)
     let const_node_name = format!("{}_const", name);

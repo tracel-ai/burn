@@ -188,11 +188,11 @@ impl Argument {
 
         match &self.value_source {
             // Static: data is embedded directly
-            ValueSource::Static(data_id) => store.get_tensor_data(*data_id).cloned(),
+            ValueSource::Static(data_id) => store.get_tensor_data(*data_id),
             // Constant: look up the constant node by output name
             ValueSource::Constant => {
                 let data_id = store.get_constant_data_id(&self.name)?;
-                store.get_tensor_data(data_id).cloned()
+                store.get_tensor_data(data_id)
             }
             // Dynamic/Optional: no constant data
             ValueSource::Dynamic | ValueSource::Optional => None,

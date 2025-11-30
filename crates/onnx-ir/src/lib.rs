@@ -12,7 +12,6 @@ mod protos;
 mod registry;
 mod tensor_store;
 mod util;
-pub(crate) mod zero_copy;
 
 // Public API - only expose essentials
 pub use ir::*;
