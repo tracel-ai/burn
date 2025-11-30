@@ -94,6 +94,16 @@ macro_rules! impl_minmax {
 
 impl_minmax!(u8, i8, u16, i16, u32, i32, u64, i64);
 
+impl MinMax for half::f16 {
+    fn min(self, other: Self) -> Self {
+        self.min(other)
+    }
+
+    fn max(self, other: Self) -> Self {
+        self.max(other)
+    }
+}
+
 impl MinMax for f32 {
     fn min(self, other: Self) -> Self {
         self.min(other)

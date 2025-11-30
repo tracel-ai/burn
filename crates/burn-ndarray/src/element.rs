@@ -1,6 +1,6 @@
 use burn_tensor::Element;
 use ndarray::LinalgScalar;
-use num_traits::{Signed, AsPrimitive};
+use num_traits::{AsPrimitive, Signed};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -61,8 +61,8 @@ impl QuantElement for i8 {}
 
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
-impl FloatNdArrayElement for half::f16 {}
 impl FloatNdArrayElement for half::bf16 {}
+impl FloatNdArrayElement for half::f16 {}
 
 impl IntNdArrayElement for i64 {}
 impl IntNdArrayElement for i32 {}
@@ -112,8 +112,7 @@ macro_rules! make_elem {
                 #[cfg(feature = "std")]
                 let val = {
                     let self_f64: f64 = self.as_();
-                    let val = f64::powi(self_f64, value).as_();
-                    val
+                    f64::powi(self_f64, value).as_()
                 };
 
                 #[cfg(not(feature = "std"))]
@@ -177,8 +176,7 @@ macro_rules! make_elem {
                 #[cfg(feature = "std")]
                 let val = {
                     let self_f32: f32 = self.as_();
-                    let val = f32::powi(self_f32, value).as_();
-                    val
+                    f32::powi(self_f32, value).as_()
                 };
 
                 #[cfg(not(feature = "std"))]
@@ -214,10 +212,12 @@ make_elem!(double u64);
 
 make_elem!(single f32);
 make_elem!(single i32);
-make_elem!(single half::f16);
-make_elem!(single half::bf16);
-make_elem!(single i16);
-make_elem!(single i8);
 make_elem!(single u32);
+
+make_elem!(single half::bf16);
+make_elem!(single half::f16);
+make_elem!(single i16);
 make_elem!(single u16);
+
+make_elem!(single i8);
 make_elem!(single u8);

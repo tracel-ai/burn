@@ -42,6 +42,15 @@ pub(crate) fn try_avg_pool2d_simd<E: Element>(
             padding,
             with_pad,
         ))),
+        DType::F16 if is_accelerated::<half::f16>(PhantomData) => {
+            Ok(cast(avg_pool_nhwc::<half::f16>(
+                cast(x),
+                ksize,
+                stride,
+                padding,
+                with_pad,
+            )))
+        }
         _ => Err(x),
     }
 }

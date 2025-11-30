@@ -4,6 +4,7 @@ use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::GridSampleOptions;
 use burn_tensor::{TensorMetadata, cast::ToElement};
+use num_traits::Float;
 
 // Current crate
 use super::{
@@ -453,7 +454,7 @@ where
     }
 
     fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
-        cat_with_dtype!(tensors, dim, [F64, F32])
+        cat_with_dtype!(tensors, dim, [F64, F32, BF16, F16])
     }
 
     fn float_clamp_min(tensor: FloatTensor<Self>, min: E) -> FloatTensor<Self> {

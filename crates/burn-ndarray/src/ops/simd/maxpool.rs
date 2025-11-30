@@ -23,6 +23,7 @@ macro_rules! launch_kernel {
         match <$ty as Element>::dtype() {
             DType::F64 if is_accelerated::<f64>() => Ok(cast($func::<f64>(cast($x), $($arg),*))),
             DType::F32 if is_accelerated::<f32>() => Ok(cast($func::<f32>(cast($x), $($arg),*))),
+            DType::F16 if is_accelerated::<half::f16>() => Ok(cast($func::<half::f16>(cast($x), $($arg),*))),
             DType::I64 if is_accelerated::<i64>() => Ok(cast($func::<i64>(cast($x), $($arg),*))),
             DType::I32 if is_accelerated::<i32>() => Ok(cast($func::<i32>(cast($x), $($arg),*))),
             DType::I16 if is_accelerated::<i16>() => Ok(cast($func::<i16>(cast($x), $($arg),*))),
