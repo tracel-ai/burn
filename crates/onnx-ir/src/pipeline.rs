@@ -195,11 +195,10 @@ impl OnnxGraphBuilder {
                 error,
             })?;
             let mut buf = Vec::new();
-            file.read_to_end(&mut buf)
-                .map_err(|error| Error::Io {
-                    path: path.display().to_string(),
-                    error,
-                })?;
+            file.read_to_end(&mut buf).map_err(|error| Error::Io {
+                path: path.display().to_string(),
+                error,
+            })?;
             log::debug!("Read ONNX file into memory ({} bytes)", buf.len());
             bytes::Bytes::from(buf)
         };
@@ -238,12 +237,10 @@ impl OnnxGraphBuilder {
     /// - Type inference fails
     pub fn parse_reader<R: Read>(self, mut reader: R) -> Result<OnnxGraph, Error> {
         let mut buf = Vec::new();
-        reader
-            .read_to_end(&mut buf)
-            .map_err(|error| Error::Io {
-                path: "<reader>".to_string(),
-                error,
-            })?;
+        reader.read_to_end(&mut buf).map_err(|error| Error::Io {
+            path: "<reader>".to_string(),
+            error,
+        })?;
         log::debug!("Read ONNX from reader ({} bytes)", buf.len());
         let buffer = bytes::Bytes::from(buf);
         self.parse_buffer(buffer, None)
