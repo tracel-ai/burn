@@ -7,8 +7,22 @@
 //!
 //! When the `mmap` feature is enabled (default), files are memory-mapped for zero-copy
 //! tensor loading. This significantly reduces memory usage for large models.
+//!
+//! # Usage
+//!
+//! ```ignore
+//! use onnx_ir::OnnxGraphBuilder;
+//!
+//! // Build from file
+//! let graph = OnnxGraphBuilder::new().parse_file("model.onnx")?;
+//!
+//! // Build from bytes
+//! let graph = OnnxGraphBuilder::new().parse_bytes(&bytes)?;
+//!
+//! // Build from reader
+//! let graph = OnnxGraphBuilder::new().parse_reader(file)?;
+//! ```
 
-#[cfg(not(feature = "mmap"))]
 use std::io::Read;
 use std::{fmt, fs::File, path::Path};
 
@@ -25,7 +39,7 @@ use super::phases::{
 
 /// Errors that can occur when parsing ONNX models
 #[derive(Debug)]
-pub enum OnnxIrError {
+pub enum Error {
     /// Failed to open or read the ONNX file
     Io { path: String, error: std::io::Error },
 
@@ -51,20 +65,20 @@ pub enum OnnxIrError {
     Processing(ProcessError),
 }
 
-impl fmt::Display for OnnxIrError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OnnxIrError::Io { path, error } => {
+            Error::Io { path, error } => {
                 write!(f, "Failed to open ONNX file '{}': {}", path, error)
             }
-            OnnxIrError::InvalidFormat { path, error } => {
+            Error::InvalidFormat { path, error } => {
                 if let Some(p) = path {
                     write!(f, "Invalid ONNX format in '{}': {}", p, error)
                 } else {
                     write!(f, "Invalid ONNX format: {}", error)
                 }
             }
-            OnnxIrError::UnsupportedOpset {
+            Error::UnsupportedOpset {
                 found,
                 minimum_required,
             } => {
@@ -75,167 +89,211 @@ impl fmt::Display for OnnxIrError {
                     found, minimum_required
                 )
             }
-            OnnxIrError::InvalidGraphStructure { reason } => {
+            Error::InvalidGraphStructure { reason } => {
                 write!(f, "Invalid ONNX graph structure: {}", reason)
             }
-            OnnxIrError::MissingOpsetVersion => {
+            Error::MissingOpsetVersion => {
                 write!(
                     f,
                     "ONNX model must specify opset version for default domain"
                 )
             }
-            OnnxIrError::TypeInference(e) => {
+            Error::TypeInference(e) => {
                 write!(f, "Type inference failed: {:?}", e)
             }
-            OnnxIrError::Processing(e) => {
+            Error::Processing(e) => {
                 write!(f, "Processing error: {:?}", e)
             }
         }
     }
 }
 
-impl std::error::Error for OnnxIrError {
+impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            OnnxIrError::Io { error, .. } => Some(error),
+            Error::Io { error, .. } => Some(error),
             _ => None,
         }
     }
 }
 
-impl From<ProcessError> for OnnxIrError {
+impl From<ProcessError> for Error {
     fn from(error: ProcessError) -> Self {
-        OnnxIrError::Processing(error)
+        Error::Processing(error)
     }
 }
 
-/// Parse an ONNX file and convert to IR
+/// ONNX IR builder with fluent API
 ///
-/// When the `mmap` feature is enabled (default), the file is memory-mapped for
-/// zero-copy tensor loading. This significantly reduces memory usage for large models.
+/// Builds ONNX IR graphs from various sources (files, bytes, readers).
+/// Future configuration options can be added without breaking changes.
 ///
-/// # Errors
+/// # Examples
 ///
-/// Returns an error if:
-/// - File cannot be opened or read
-/// - File is not valid ONNX protobuf format
-/// - ONNX opset version is less than 16
-/// - Graph nodes are not topologically sorted
-/// - Type inference fails
-pub fn parse_onnx(onnx_path: &Path) -> Result<OnnxGraph, OnnxIrError> {
-    log::info!("Parsing ONNX file: {}", onnx_path.display());
+/// ```ignore
+/// use onnx_ir::OnnxGraphBuilder;
+///
+/// // Build from file (uses mmap when feature is enabled)
+/// let graph = OnnxGraphBuilder::new().parse_file("model.onnx")?;
+///
+/// // Build from bytes
+/// let graph = OnnxGraphBuilder::new().parse_bytes(&model_bytes)?;
+///
+/// // Build from reader
+/// let graph = OnnxGraphBuilder::new().parse_reader(std::io::Cursor::new(data))?;
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct OnnxGraphBuilder {
+    // Future options can be added here without breaking changes
+    // e.g., strict_mode: bool, min_opset_version: Option<usize>
+}
 
-    // Load file contents - mmap when feature is enabled
-    #[cfg(feature = "mmap")]
-    let buffer = {
-        let file = File::open(onnx_path).map_err(|error| OnnxIrError::Io {
-            path: onnx_path.display().to_string(),
-            error,
-        })?;
-        // SAFETY: We're mapping a read-only file, and the mmap will be kept alive
-        // by the Arc in MmapAllocationController for as long as tensor data is referenced
-        let mmap = unsafe { memmap2::Mmap::map(&file) }.map_err(|error| OnnxIrError::Io {
-            path: onnx_path.display().to_string(),
-            error,
-        })?;
-        log::debug!("Memory-mapped ONNX file ({} bytes)", mmap.len());
-        bytes::Bytes::from_owner(mmap)
-    };
+impl OnnxGraphBuilder {
+    /// Create a new ONNX graph builder with default settings
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    #[cfg(not(feature = "mmap"))]
-    let buffer = {
-        let mut file = File::open(onnx_path).map_err(|error| OnnxIrError::Io {
-            path: onnx_path.display().to_string(),
-            error,
-        })?;
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf)
-            .map_err(|error| OnnxIrError::Io {
-                path: onnx_path.display().to_string(),
+    /// Parse an ONNX model from a file path
+    ///
+    /// When the `mmap` feature is enabled (default), the file is memory-mapped
+    /// for zero-copy tensor loading, significantly reducing memory usage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - File cannot be opened or read
+    /// - File is not valid ONNX protobuf format
+    /// - ONNX opset version is less than 16
+    /// - Graph nodes are not topologically sorted
+    /// - Type inference fails
+    pub fn parse_file(self, path: impl AsRef<Path>) -> Result<OnnxGraph, Error> {
+        let path = path.as_ref();
+        log::info!("Parsing ONNX file: {}", path.display());
+
+        // Load file contents - mmap when feature is enabled
+        #[cfg(feature = "mmap")]
+        let buffer = {
+            let file = File::open(path).map_err(|error| Error::Io {
+                path: path.display().to_string(),
                 error,
             })?;
-        log::debug!("Read ONNX file into memory ({} bytes)", buf.len());
-        bytes::Bytes::from(buf)
-    };
+            // SAFETY: We're mapping a read-only file. The bytes::Bytes keeps
+            // the mmap alive for as long as tensor data references it.
+            let mmap = unsafe { memmap2::Mmap::map(&file) }.map_err(|error| Error::Io {
+                path: path.display().to_string(),
+                error,
+            })?;
+            log::debug!("Memory-mapped ONNX file ({} bytes)", mmap.len());
+            bytes::Bytes::from_owner(mmap)
+        };
 
-    parse_onnx_from_bytes(buffer, Some(onnx_path))
-}
+        #[cfg(not(feature = "mmap"))]
+        let buffer = {
+            let mut file = File::open(path).map_err(|error| Error::Io {
+                path: path.display().to_string(),
+                error,
+            })?;
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf)
+                .map_err(|error| Error::Io {
+                    path: path.display().to_string(),
+                    error,
+                })?;
+            log::debug!("Read ONNX file into memory ({} bytes)", buf.len());
+            bytes::Bytes::from(buf)
+        };
 
-/// Parse an ONNX model from a byte slice
-///
-/// This creates a copy of the data internally. For zero-copy parsing,
-/// use [`parse_onnx_from_bytes`] with a `bytes::Bytes` buffer.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Data is not valid ONNX protobuf format
-/// - ONNX opset version is less than 16
-/// - Graph nodes are not topologically sorted
-/// - Type inference fails
-pub fn parse_onnx_bytes(data: &[u8]) -> Result<OnnxGraph, OnnxIrError> {
-    // bytes::Bytes::copy_from_slice creates a new allocation
-    let buffer = bytes::Bytes::copy_from_slice(data);
-    parse_onnx_from_bytes(buffer, None)
-}
-
-/// Parse an ONNX model from a `bytes::Bytes` buffer (zero-copy)
-///
-/// This is the most efficient way to parse ONNX models when you already have
-/// the data in a `bytes::Bytes` buffer (e.g., from network or mmap).
-/// Tensor data will reference slices of the original buffer without copying.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Data is not valid ONNX protobuf format
-/// - ONNX opset version is less than 16
-/// - Graph nodes are not topologically sorted
-/// - Type inference fails
-pub fn parse_onnx_from_bytes(
-    buffer: bytes::Bytes,
-    source_path: Option<&Path>,
-) -> Result<OnnxGraph, OnnxIrError> {
-    let path_str = source_path.map(|p| p.display().to_string());
-
-    let model: ModelProto =
-        Message::parse_from_tokio_bytes(&buffer).map_err(|e| OnnxIrError::InvalidFormat {
-            path: path_str.clone(),
-            error: e.to_string(),
-        })?;
-
-    if !verify_opsets(&model.opset_import, MIN_OPSET_VERSION) {
-        // Find the actual opset version for better error message
-        let found_version = model
-            .opset_import
-            .iter()
-            .find(|opset| opset.domain.is_empty())
-            .map(|opset| opset.version as usize)
-            .unwrap_or(0);
-
-        return Err(OnnxIrError::UnsupportedOpset {
-            found: found_version,
-            minimum_required: MIN_OPSET_VERSION,
-        });
+        self.parse_buffer(buffer, Some(path))
     }
 
-    // ONNX nodes must be topologically sorted per spec:
-    // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
-    // This is a runtime check (not debug_assert) to catch malformed models in production
-    if !model.graph.node.is_top_sorted() {
-        return Err(OnnxIrError::InvalidGraphStructure {
-            reason: "Nodes are not topologically sorted (ONNX spec violation)".to_string(),
-        });
+    /// Parse an ONNX model from a byte slice
+    ///
+    /// Note: This copies the data internally. For large models already in memory
+    /// as `bytes::Bytes`, consider using the internal buffer directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Data is not valid ONNX protobuf format
+    /// - ONNX opset version is less than 16
+    /// - Graph nodes are not topologically sorted
+    /// - Type inference fails
+    pub fn parse_bytes(self, data: &[u8]) -> Result<OnnxGraph, Error> {
+        let buffer = bytes::Bytes::copy_from_slice(data);
+        self.parse_buffer(buffer, None)
     }
 
-    let graph = build_graph(&model)?;
-
-    if let Some(path) = path_str {
-        log::info!("Finished parsing ONNX file: {}", path);
-    } else {
-        log::info!("Finished parsing ONNX from bytes");
+    /// Parse an ONNX model from a reader
+    ///
+    /// Reads all data into memory before parsing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Reading from the reader fails
+    /// - Data is not valid ONNX protobuf format
+    /// - ONNX opset version is less than 16
+    /// - Graph nodes are not topologically sorted
+    /// - Type inference fails
+    pub fn parse_reader<R: Read>(self, mut reader: R) -> Result<OnnxGraph, Error> {
+        let mut buf = Vec::new();
+        reader
+            .read_to_end(&mut buf)
+            .map_err(|error| Error::Io {
+                path: "<reader>".to_string(),
+                error,
+            })?;
+        log::debug!("Read ONNX from reader ({} bytes)", buf.len());
+        let buffer = bytes::Bytes::from(buf);
+        self.parse_buffer(buffer, None)
     }
-    Ok(graph)
+
+    /// Internal: Parse from a bytes::Bytes buffer
+    fn parse_buffer(
+        self,
+        buffer: bytes::Bytes,
+        source_path: Option<&Path>,
+    ) -> Result<OnnxGraph, Error> {
+        let path_str = source_path.map(|p| p.display().to_string());
+
+        let model: ModelProto =
+            Message::parse_from_tokio_bytes(&buffer).map_err(|e| Error::InvalidFormat {
+                path: path_str.clone(),
+                error: e.to_string(),
+            })?;
+
+        if !verify_opsets(&model.opset_import, MIN_OPSET_VERSION) {
+            let found_version = model
+                .opset_import
+                .iter()
+                .find(|opset| opset.domain.is_empty())
+                .map(|opset| opset.version as usize)
+                .unwrap_or(0);
+
+            return Err(Error::UnsupportedOpset {
+                found: found_version,
+                minimum_required: MIN_OPSET_VERSION,
+            });
+        }
+
+        // ONNX nodes must be topologically sorted per spec:
+        // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
+        if !model.graph.node.is_top_sorted() {
+            return Err(Error::InvalidGraphStructure {
+                reason: "Nodes are not topologically sorted (ONNX spec violation)".to_string(),
+            });
+        }
+
+        let graph = build_graph(&model)?;
+
+        if let Some(path) = path_str {
+            log::info!("Finished parsing ONNX file: {}", path);
+        } else {
+            log::info!("Finished parsing ONNX from bytes");
+        }
+        Ok(graph)
+    }
 }
 
 /// Build IR graph from ONNX model through 5 phases:
@@ -246,7 +304,7 @@ pub fn parse_onnx_from_bytes(
 /// Returns an error if:
 /// - Missing opset version for default domain
 /// - Type inference fails
-pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, OnnxIrError> {
+pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, Error> {
     let opset_version = extract_opset_version(model)?;
     build_graph_from_proto(&model.graph, opset_version)
 }
@@ -259,7 +317,7 @@ pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, OnnxIrError> {
 pub fn build_graph_from_proto(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
-) -> Result<OnnxGraph, OnnxIrError> {
+) -> Result<OnnxGraph, Error> {
     build_graph_from_proto_with_registry(graph, opset_version, None)
 }
 
@@ -272,7 +330,7 @@ pub fn build_graph_from_proto_with_registry(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
-) -> Result<OnnxGraph, OnnxIrError> {
+) -> Result<OnnxGraph, Error> {
     let graph_builder = build_graph_builder_from_proto(graph, opset_version, name_registry)?;
 
     log::debug!(" PHASE 6: Node Conversion (RawNode -> Node) ");
@@ -291,7 +349,7 @@ pub(crate) fn build_graph_builder_from_proto(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
-) -> Result<crate::ir::OnnxGraphBuilder, OnnxIrError> {
+) -> Result<crate::ir::OnnxGraphBuilder, Error> {
     log::debug!(" PHASE 1: Initialization ");
     let state_rc = initialization::initialize_from_graph_with_registry(graph, name_registry);
 
@@ -299,7 +357,7 @@ pub(crate) fn build_graph_builder_from_proto(
     node_conversion::convert_nodes_from_graph(graph, &state_rc, opset_version)?;
 
     log::debug!(" PHASE 3: Type Inference ");
-    type_inference::infer_types(&state_rc, opset_version).map_err(OnnxIrError::TypeInference)?;
+    type_inference::infer_types(&state_rc, opset_version).map_err(Error::TypeInference)?;
 
     log::debug!(" PHASE 4: Post-processing ");
     let (mut nodes, inputs, mut outputs) = post_processing::post_process(&state_rc);
@@ -314,13 +372,13 @@ pub(crate) fn build_graph_builder_from_proto(
 }
 
 /// Extract opset version from model (default ONNX domain)
-fn extract_opset_version(model: &ModelProto) -> Result<usize, OnnxIrError> {
+fn extract_opset_version(model: &ModelProto) -> Result<usize, Error> {
     model
         .opset_import
         .iter()
         .find(|opset| opset.domain.is_empty())
         .map(|opset| opset.version as usize)
-        .ok_or(OnnxIrError::MissingOpsetVersion)
+        .ok_or(Error::MissingOpsetVersion)
 }
 
 /// Trait for checking if a list of nodes is topologically sorted
