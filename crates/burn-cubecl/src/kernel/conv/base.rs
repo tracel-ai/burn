@@ -2,7 +2,7 @@ use burn_tensor::ops::ConvOptions;
 use cubecl::convolution::components::ConvSetupError;
 
 use crate::{
-    CubeRuntime, FloatElement,
+    CubeRuntime,
     ops::{permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
@@ -45,7 +45,7 @@ impl Default for ConvStrategy {
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
-pub fn conv<R: CubeRuntime, E: FloatElement, const N: usize>(
+pub fn conv<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -56,11 +56,11 @@ pub fn conv<R: CubeRuntime, E: FloatElement, const N: usize>(
     let weight = permute_nchw_to_nhwc(weight);
 
     let out = match strategy {
-        ConvStrategy::Direct => conv_direct::<R, E, N>(input, weight, bias, options),
+        ConvStrategy::Direct => conv_direct::<R, N>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
-        ConvStrategy::Autotune => Ok(conv_autotune::<R, E, N>(input, weight, bias, options)),
-        ConvStrategy::Gemm => conv_im2col::<R, E, N>(input, weight, bias, options),
-        ConvStrategy::ImplicitGemm => conv_gemm_cyclic::<R, E, N>(input, weight, bias, options),
+        ConvStrategy::Autotune => Ok(conv_autotune::<R, N>(input, weight, bias, options)),
+        ConvStrategy::Gemm => conv_im2col::<R, N>(input, weight, bias, options),
+        ConvStrategy::ImplicitGemm => conv_gemm_cyclic::<R, N>(input, weight, bias, options),
     }?;
 
     Ok(permute_nhwc_to_nchw(out))

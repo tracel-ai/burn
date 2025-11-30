@@ -66,8 +66,8 @@ impl OnnxIntoNode for IsInfNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::is_inf::is_inf_config(&node);
-        Self::new(input, output, config)
+        let config = node.config::<onnx_ir::node::is_inf::IsInfConfig>();
+        Self::new(input, output, config.clone())
     }
 }
 
@@ -90,7 +90,12 @@ mod tests {
             IsInfConfig::new(true, true),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -130,7 +135,12 @@ mod tests {
             IsInfConfig::new(true, true),
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

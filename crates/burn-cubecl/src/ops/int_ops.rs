@@ -82,11 +82,7 @@ where
                 .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
-            execute_with_dtype!(
-                int(tensor.dtype),
-                I,
-                kernel::slice::<R, I>(tensor, &simple_ranges)
-            )
+            kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
             execute_with_dtype!(
@@ -111,11 +107,7 @@ where
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        execute_with_dtype!(
-            int(dtype),
-            E,
-            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
-        )
+        matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
     fn int_mask_where(

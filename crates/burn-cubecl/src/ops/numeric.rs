@@ -10,7 +10,7 @@ use crate::{
     },
     ops::max_line_size,
 };
-use burn_tensor::{ElementConversion, Shape};
+use burn_tensor::{DType, ElementConversion, Shape};
 use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
@@ -93,15 +93,25 @@ pub fn ones_device<R: CubeRuntime, E: CubeElement>(
     full_device::<R, E>(client, shape, device, 1.elem())
 }
 
-/// Create a tensor with uninitialized memory
+/// Creates a tensor with uninitialized memory
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+    empty_device_dtype::<R>(client, device, shape, E::dtype())
+}
 
-    CubeTensor::new_contiguous(client, device, shape, buffer, E::dtype())
+/// Creates a tensor with uninitialized memory with the specific dtype.
+pub fn empty_device_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let buffer = client.empty(shape.num_elements() * dtype.size());
+
+    CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
 }
 
 /// Create a tensor with uninitialized memory
@@ -113,6 +123,18 @@ pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
     let Allocation { handle, strides } = client.empty_tensor(&shape.dims, size_of::<E>());
 
     CubeTensor::new(client, handle, shape, device, strides, E::dtype())
+}
+
+/// Create a tensor with uninitialized memory
+pub fn empty_device_optimized_dtype<R: CubeRuntime>(
+    client: ComputeClient<R::Server>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let Allocation { handle, strides } = client.empty_tensor(&shape.dims, dtype.size());
+
+    CubeTensor::new(client, handle, shape, device, strides, dtype)
 }
 
 /// Add two tensors
@@ -418,7 +440,7 @@ fn cumulative_op<R: CubeRuntime, E: CubeElement, O: CumulativeOpFamily>(
         &client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
+        input.as_tensor_arg(1),
         linear_view(&output, 1),
         shape_divmod(&input),
         dim as u32,

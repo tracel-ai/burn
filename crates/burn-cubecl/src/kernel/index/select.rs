@@ -51,10 +51,10 @@ pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             // Ignore shape and stride
             TensorArg::from_raw_parts::<I>(&indices.handle, &dummy_array, &dummy_array, 1),
-            output.as_tensor_arg::<E>(1),
+            output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     };

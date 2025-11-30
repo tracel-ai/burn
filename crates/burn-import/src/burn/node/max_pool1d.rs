@@ -93,9 +93,9 @@ impl OnnxIntoNode for MaxPool1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::max_pool1d::max_pool1d_config(&node);
+        let config = node.config::<onnx_ir::node::max_pool1d::MaxPool1dConfig>();
         let name = &node.name;
-        Self::new(name, input, output, config)
+        Self::new(name, input, output, config.clone())
     }
 }
 
@@ -120,7 +120,12 @@ mod tests {
                 .with_dilation(1),
         ));
 
-        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["input".to_string()],
+            vec!["output".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

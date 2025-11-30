@@ -515,15 +515,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     ///
     /// * `input_names` - The names of the inputs of the graph.
     /// * `output_names` - The names of the outputs of the graph.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the graph is empty.
-    pub fn register_input_output(&mut self, input_names: Vec<String>, output_names: Vec<String>) {
-        assert!(
-            !self.nodes.is_empty(),
-            "Cannot register input and output types for an empty graph."
-        );
+    /// * `input_types` - The types of the inputs (from ONNX graph, used for empty graphs).
+    /// * `output_types` - The types of the outputs (from ONNX graph, used for empty graphs).
+    pub fn register_input_output(
+        &mut self,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
+        input_types: &[Type],
+        output_types: &[Type],
+    ) {
+        // Handle empty graphs: use provided types directly
+        if self.nodes.is_empty() {
+            // For empty graphs, inputs pass through directly to outputs
+            self.graph_input_types.extend_from_slice(input_types);
+            self.graph_output_types.extend_from_slice(output_types);
+            return;
+        }
 
         // Get the unique names of each input of the nodes
         let mut inputs = HashMap::new();
@@ -541,20 +548,34 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         input_names.iter().for_each(|input| {
             self.graph_input_types.push(
                 inputs
-                    .get(&Type::format_name(input))
+                    .get(input)
                     .unwrap_or_else(|| panic!("Input type not found for {input}"))
                     .clone(),
             );
         });
 
-        output_names.iter().for_each(|output| {
-            self.graph_output_types.push(
-                outputs
-                    .get(&Type::format_name(output))
-                    .unwrap_or_else(|| panic!("Output type not found for {output}"))
-                    .clone(),
-            );
-        });
+        // Handle outputs - if output_types is provided (from ONNX), use it with renaming
+        // Otherwise, look up types from node outputs (for tests)
+        if !output_types.is_empty() {
+            output_names
+                .iter()
+                .zip(output_types.iter())
+                .for_each(|(name, ty)| {
+                    // Use the type from onnx-ir but rename it to the graph output name
+                    // (onnx-ir provides the resolved node output, we want the graph output name)
+                    self.graph_output_types.push(ty.with_name(name));
+                });
+        } else {
+            // For tests and non-ONNX usage: look up output types from node outputs
+            output_names.iter().for_each(|output| {
+                self.graph_output_types.push(
+                    outputs
+                        .get(output)
+                        .unwrap_or_else(|| panic!("Output type not found for {output}"))
+                        .clone(),
+                );
+            });
+        }
     }
 }
 

@@ -39,6 +39,7 @@ pub mod cosh;
 pub mod depth_to_space;
 pub mod div;
 pub mod dropout;
+pub mod empty_graph;
 pub mod equal;
 pub mod erf;
 pub mod exp;
@@ -123,7 +124,7 @@ macro_rules! include_models {
     ($($model:ident),*) => {
         $(
             // Allow type complexity for generated code
-            #[allow(clippy::type_complexity,unused_variables)]
+            #[allow(clippy::type_complexity)]
             pub mod $model {
                 include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
             }

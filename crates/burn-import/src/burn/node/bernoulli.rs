@@ -67,7 +67,12 @@ mod tests {
             TensorType::new("output1", 2, TensorKind::Float),
         ));
 
-        graph.register_input_output(vec!["input1".to_string()], vec!["output1".to_string()]);
+        graph.register_input_output(
+            vec!["input1".to_string()],
+            vec!["output1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -110,7 +115,12 @@ mod tests {
             TensorType::new("output1", 2, TensorKind::Int),
         ));
 
-        graph.register_input_output(vec!["input1".to_string()], vec!["output1".to_string()]);
+        graph.register_input_output(
+            vec!["input1".to_string()],
+            vec!["output1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

@@ -111,8 +111,17 @@ impl OnnxIntoNode for GemmNode {
         let b = TensorType::from(node.inputs.get(1).unwrap());
         let c = node.inputs.get(2).map(Type::from);
         let output = TensorType::from(node.outputs.first().unwrap());
-        let (alpha, beta, trans_a, trans_b) = onnx_ir::node::gemm::gemm_config(&node);
-        Self::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+        let config = node.config::<onnx_ir::node::gemm::GemmConfig>();
+        Self::new(
+            a,
+            b,
+            c,
+            output,
+            config.alpha,
+            config.beta,
+            config.trans_a,
+            config.trans_b,
+        )
     }
 }
 
@@ -152,6 +161,8 @@ mod tests {
                 "scalar1".to_string(),
             ],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -207,6 +218,8 @@ mod tests {
                 "scalar1".to_string(),
             ],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {
@@ -255,6 +268,8 @@ mod tests {
         graph.register_input_output(
             vec!["tensor1".to_string(), "tensor2".to_string()],
             vec!["tensor3".to_string()],
+            &[],
+            &[],
         );
 
         let expected = quote! {

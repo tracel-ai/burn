@@ -114,7 +114,13 @@ impl OnnxIntoNode for SqueezeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let axes = onnx_ir::node::squeeze::squeeze_config(&node);
+        let config = node.config::<onnx_ir::node::squeeze::SqueezeConfig>();
+        let axes = config.axes.as_ref().map(|a| match a {
+            onnx_ir::node::squeeze::SqueezeInput::Static(axes) => axes.clone(),
+            onnx_ir::node::squeeze::SqueezeInput::Runtime(_) => {
+                panic!("Runtime squeeze axes not yet supported in burn-import")
+            }
+        });
         Self::new(input, output, axes)
     }
 }
@@ -140,7 +146,12 @@ mod tests {
             Some(vec![1]),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -183,7 +194,12 @@ mod tests {
             Some(vec![0]),
         ));
 
-        graph.register_input_output(vec!["shape1".to_string()], vec!["scalar1".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["scalar1".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -223,7 +239,12 @@ mod tests {
             Some(vec![0]),
         ));
 
-        graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
+        graph.register_input_output(
+            vec!["shape1".to_string()],
+            vec!["shape2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -263,7 +284,12 @@ mod tests {
             None,
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

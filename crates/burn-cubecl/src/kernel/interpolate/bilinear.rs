@@ -115,8 +115,8 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime, F: FloatElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<F>(line_size),
-        output.as_tensor_arg::<F>(line_size),
+        input.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
         out_shape,
         out_layout,
     );

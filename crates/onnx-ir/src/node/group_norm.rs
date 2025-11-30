@@ -1,4 +1,20 @@
-use crate::ir::Node;
+//! # GroupNormalization
+//!
+//! Group normalization operation.
+//!
+//! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__GroupNormalization.html>
+//!
+//! ## Opset Versions
+//! - **Opset 18**: Initial version introducing GroupNormalization operator. Includes support for
+//!   the `stash_type` attribute to control intermediate calculation precision.
+//!
+//! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
+
+use crate::ir::{Node, NodeConfig};
+use crate::processor::{
+    InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+};
+use std::any::Any;
 
 /// Configuration for GroupNorm operations
 #[derive(Debug, Clone)]
@@ -9,51 +25,133 @@ pub struct GroupNormConfig {
     pub num_groups: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
+    /// Whether to use full precision for intermediate calculations (stash_type == 1)
+    pub full_precision: bool,
+}
+
+impl NodeConfig for GroupNormConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl GroupNormConfig {
     /// Create a new GroupNormConfig
-    pub fn new(num_features: usize, num_groups: usize, epsilon: f64) -> Self {
+    pub fn new(num_features: usize, num_groups: usize, epsilon: f64, full_precision: bool) -> Self {
         Self {
             num_features,
             num_groups,
             epsilon,
+            full_precision,
         }
     }
 }
 
-/// Create a GroupNormConfig from the attributes of the node
-pub fn group_norm_config(node: &Node) -> (GroupNormConfig, bool) {
-    let weight_shape = node.inputs[1]
-        .value
-        .as_ref()
-        .expect("GroupNorm: weight tensor must be present")
-        .shape
-        .clone();
+pub struct GroupNormProcessor;
 
-    let mut stash_type = 1;
-    let num_features = weight_shape[0];
-    let mut num_groups = None;
-    let mut epsilon = 1e-5;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "epsilon" => epsilon = value.clone().into_f32(),
-            "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
-            "stash_type" => stash_type = value.clone().into_i64(),
-            _ => panic!("Unexpected attribute for GroupNorm: {key}"),
+impl NodeProcessor for GroupNormProcessor {
+    fn spec(&self) -> NodeSpec {
+        NodeSpec {
+            min_opset: 18,
+            max_opset: None,
+            inputs: InputSpec::Exact(3),
+            outputs: OutputSpec::Exact(1),
         }
     }
 
-    let num_groups = num_groups.expect("GroupNorm: num_groups attribute must be present");
-    if num_groups > 0 && !num_features.is_multiple_of(num_groups) {
-        panic!("GroupNorm: number of features must be divisible by the number of groups");
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+        // Lift scale (input 1) and bias (input 2)
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
+        }
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
+            node.inputs[2].to_static()?;
+        }
+
+        Ok(())
     }
 
-    (
-        GroupNormConfig::new(num_features, num_groups, epsilon as f64),
-        stash_type == 1,
-    )
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        _opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // TODO: Validate X tensor rank is at least 3 per ONNX spec (N x C x D1 x ... x Dn) - Missing rank validation
+        // TODO: Validate scale and bias tensors have rank 1 and size matches num_channels - Missing shape validation
+
+        // Validate attributes before extracting config
+        for (key, _value) in node.attrs.iter() {
+            match key.as_str() {
+                "epsilon" | "num_groups" | "stash_type" => {}
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for GroupNorm: {key}"),
+                    });
+                }
+            }
+        }
+
+        // Validate num_groups divisibility
+        let config = node.config::<GroupNormConfig>();
+
+        // TODO: Validate num_groups > 0 per ONNX spec - num_groups must be positive - Missing constraint validation
+        if config.num_groups > 0 && !config.num_features.is_multiple_of(config.num_groups) {
+            return Err(ProcessError::Custom(
+                "GroupNorm: number of features must be divisible by the number of groups"
+                    .to_string(),
+            ));
+        }
+
+        // Output type is same as input
+        crate::processor::same_as_input(node);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let weight_shape = node.inputs[1]
+            .value()
+            .as_ref()
+            .ok_or_else(|| {
+                ProcessError::Custom("GroupNorm: weight tensor must be present".to_string())
+            })?
+            .shape
+            .to_vec();
+
+        let num_features = weight_shape[0];
+        let mut num_groups = None;
+        let mut epsilon = 1e-5;
+        let mut stash_type = 1; // Default value is 1 (full precision)
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "epsilon" => epsilon = value.clone().into_f32(),
+                "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
+                "stash_type" => stash_type = value.clone().into_i64(),
+                _ => {}
+            }
+        }
+
+        let num_groups = num_groups.ok_or_else(|| {
+            ProcessError::MissingAttribute(
+                "GroupNorm: num_groups attribute must be present".to_string(),
+            )
+        })?;
+
+        let full_precision = stash_type == 1;
+        let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64, full_precision);
+        Ok(Some(Box::new(config)))
+    }
 }
 
 #[cfg(test)]
@@ -67,7 +165,7 @@ mod tests {
         num_features: usize,
         num_groups: usize,
         stash_type: i64,
-    ) -> Node {
+    ) -> NodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
@@ -79,36 +177,59 @@ mod tests {
             .attr_int("num_groups", num_groups as i64)
             .attr_int("stash_type", stash_type)
             .attr_float("epsilon", epsilon)
-            .build()
     }
 
     #[test]
     fn test_group_norm_config_basic() {
-        let node = create_test_node(1e-5, 64, 8, 1);
-        let (config, full_precision) = group_norm_config(&node);
+        let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(18);
+        let processor = GroupNormProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 18).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 18, &prefs).unwrap();
 
+        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
-        assert!(full_precision);
+        assert!(config.full_precision); // stash_type == 1
     }
 
     #[test]
     fn test_group_norm_config_no_stash_type() {
-        let node = create_test_node(1e-5, 64, 8, 0);
-        let (config, full_precision) = group_norm_config(&node);
+        let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(18);
+        let processor = GroupNormProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 18).unwrap();
+        node.config = config;
+        processor.infer_types(&mut node, 18, &prefs).unwrap();
 
+        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
-        assert!(!full_precision);
+        assert!(!config.full_precision); // stash_type == 0
     }
 
     #[test]
-    #[should_panic]
     fn test_group_norm_config_invalid_num_groups() {
         // num features is not divisible by num groups
-        let node = create_test_node(1e-5, 64, 7, 0);
-        let _ = group_norm_config(&node);
+        let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(18);
+        let processor = GroupNormProcessor;
+        let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 18).unwrap();
+        node.config = config;
+        let result = processor.infer_types(&mut node, 18, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
+
+    // TODO: Add test for num_groups=0 - Should fail per spec, num_groups must be positive - Missing constraint validation test
+    // TODO: Add test for num_groups > num_features - Invalid configuration - Missing constraint test
+    // TODO: Add test for tensor rank validation - X must be at least rank 3 (N x C x D1 x ...) - Missing rank validation test
+    // TODO: Add test for scale/bias shape mismatch - scale and bias must match num_channels - Missing shape validation test
+    // TODO: Add test for epsilon edge cases - Test with epsilon=0 or negative epsilon - Missing edge case test
+    // TODO: Add test for different stash_type values - Test values other than 0 and 1 - Missing attribute value test
+    // TODO: Add test for different data types - Spec supports float16, float, double, bfloat16 - Only testing f32
+    // TODO: Add test for opset < 18 - Should fail per implementation requirement - Missing opset validation test
+    // TODO: Add test for missing weight/bias tensors - Required inputs per spec - Missing input validation test
 }

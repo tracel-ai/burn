@@ -20,6 +20,19 @@ mod tests {
     }
 
     #[test]
+    fn test_linear_1d_one_element_output() {
+        let weight = TestTensor::<2>::from([[3.0], [4.0]]);
+
+        let x = TestTensor::<1>::from([1.0, 2.0]);
+        let output = linear(x, weight, None);
+
+        let expected = TensorData::from([11.0]);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(1e-5));
+    }
+
+    #[test]
     fn test_linear_forward_no_bias() {
         let weight = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
 

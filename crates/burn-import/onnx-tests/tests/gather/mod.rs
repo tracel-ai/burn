@@ -152,11 +152,12 @@ mod tests {
         // Just call forward to get the output
         let output = model.forward();
 
-        // Verify output shape is [1, 5, 7]
+        // ONNX spec: indices with shape [1,5] produce output [1,5,7]
+        // With PR #3681, Burn's take() now supports multi-dimensional indices
         assert_eq!(
             output.dims(),
             [1, 5, 7],
-            "Output should have shape [1, 5, 7]"
+            "Output should have shape [1, 5, 7] per ONNX spec"
         );
 
         // The model computes: output = gather1 + gather2 + gather3
@@ -216,11 +217,12 @@ mod tests {
             "1D index should preserve dimension"
         );
 
-        // 2D index (rank 2) should give [1, 2, 4, 5] shape
+        // ONNX spec: 2D indices with shape [1,2] produce 4D output [1,2,4,5]
+        // With PR #3681, Burn's take() now supports multi-dimensional indices
         assert_eq!(
             output_2d.dims(),
             [1, 2, 4, 5],
-            "2D index should add dimension"
+            "2D indices produce 4D output per ONNX spec"
         );
 
         // All should have selected index 1 (value 5.0) for first element

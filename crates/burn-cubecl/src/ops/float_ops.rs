@@ -178,11 +178,8 @@ where
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(lhs.dtype, rhs.dtype),
-            E,
-            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
-        )
+        let dtype = lhs.dtype;
+        matmul::<R>(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
     fn float_cross(
@@ -283,11 +280,7 @@ where
                 .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
-            execute_with_dtype!(
-                float(tensor.dtype),
-                E,
-                kernel::slice::<R, E>(tensor, &simple_ranges)
-            )
+            kernel::slice::<R>(tensor, &simple_ranges)
         } else {
             // Use slice with steps kernel
             execute_with_dtype!(

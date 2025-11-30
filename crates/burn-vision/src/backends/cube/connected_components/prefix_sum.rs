@@ -244,10 +244,10 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<I>(4),
-            out.as_tensor_arg::<I>(4),
-            bump.as_tensor_arg::<I>(1),
-            reduction.as_tensor_arg::<I>(1),
+            input.as_tensor_arg(4),
+            out.as_tensor_arg(4),
+            bump.as_tensor_arg(1),
+            reduction.as_tensor_arg(1),
             ScalarArg::new(cubes),
         )
     };

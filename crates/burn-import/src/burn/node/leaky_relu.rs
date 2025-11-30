@@ -45,7 +45,8 @@ impl OnnxIntoNode for LeakyReluNode {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("LeakyRelu expects tensor output"),
         };
-        let alpha = onnx_ir::node::leaky_relu::leaky_relu_config(&node);
+        let config = node.config::<onnx_ir::node::leaky_relu::LeakyReluConfig>();
+        let alpha = config.alpha;
         Self::new(input, output, alpha)
     }
 }
@@ -67,7 +68,12 @@ mod tests {
             0.1,
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+            &[],
+            &[],
+        );
 
         let expected = quote! {
             use burn::prelude::*;

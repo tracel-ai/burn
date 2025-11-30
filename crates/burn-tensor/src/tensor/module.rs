@@ -392,7 +392,7 @@ pub fn linear<B: Backend, const D: usize>(
         // Insert and remove an extra batch dimension for the batch matmul to work.
         let input = input.unsqueeze::<2>();
         let output = linear(input, weight, bias);
-        return output.squeeze::<D>();
+        return output.squeeze_dim(0);
     }
 
     // Perform broadcasting
