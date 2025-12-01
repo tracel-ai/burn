@@ -9,7 +9,7 @@ pub mod dataset {
 }
 
 /// Network module.
-#[cfg(all(feature = "network"))]
+#[cfg(feature = "network")]
 pub mod network {
     pub use burn_std::network::*;
 }
