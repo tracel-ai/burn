@@ -202,7 +202,8 @@ where
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
     ) -> FloatTensor<Self> {
-        kernel::attention::flash_attention(query, key, value, mask, query.dtype)
+        let out_dtype = query.dtype;
+        kernel::attention::flash_attention(query, key, value, mask, out_dtype)
             .expect("Kernel to never fail")
     }
 }

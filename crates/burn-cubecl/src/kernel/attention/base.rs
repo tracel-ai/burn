@@ -43,7 +43,7 @@ pub fn flash_attention<R: CubeRuntime>(
             key_value_tile: value.dtype.into(),
             softmax: query.dtype.into(),
             accumulator: out_dtype.into(),
-            mask: mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8),
+            mask: mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8).into(),
             out_global: out_dtype.into(),
             out_stage: out_dtype.into(),
         },
