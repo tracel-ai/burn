@@ -305,6 +305,8 @@ impl TryFrom<TensorProto> for LazyTensorData {
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
         // Use raw_data directly when available (zero-copy from mmap)
+        // Note: For Bool, raw bytes are stored as u8 (0 or 1) and will be reinterpreted
+        // as bool during to_tensor_data(). TensorData::as_slice handles this via transmute.
         if !tensor.raw_data.is_empty() {
             match elem {
                 DType::F32
