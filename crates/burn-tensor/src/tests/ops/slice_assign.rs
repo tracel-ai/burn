@@ -351,4 +351,43 @@ mod tests {
         ]);
         output.into_data().assert_eq(&expected, false);
     }
+
+    #[test]
+    fn should_support_slice_assign_empty_range() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let values: TestTensor<2> = TestTensor::empty([2, 0], &device);
+
+        // Empty slice assignment (start == end) should be a no-op
+        let output = tensor.clone().slice_assign([0..2, 1..1], values);
+        let expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_assign_empty_range_1d() {
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0, 4.0, 5.0], &device);
+        let values: TestTensor<1> = TestTensor::empty([0], &device);
+
+        // Empty slice assignment should return tensor unchanged
+        let output = tensor.clone().slice_assign([2..2], values);
+        let expected = TensorData::from([1.0, 2.0, 3.0, 4.0, 5.0]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_assign_empty_range_int() {
+        let device = Default::default();
+        let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &device);
+        let values: TestTensorInt<1> = TestTensorInt::empty([0], &device);
+
+        // Empty slice assignment for int tensor
+        let output = tensor.clone().slice_assign([3..3], values);
+        let expected = TensorData::from([1i32, 2, 3, 4, 5]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
 }
