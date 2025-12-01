@@ -5572,6 +5572,7 @@ dependencies = [
  "bytes",
  "cubecl-common",
  "derive-new",
+ "divan",
  "half",
  "log",
  "memmap2",

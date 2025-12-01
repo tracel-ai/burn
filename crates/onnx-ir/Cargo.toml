@@ -41,3 +41,8 @@ protobuf-codegen = { workspace = true }
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
 tempfile = { workspace = true }
+divan = "0.1"
+
+[[bench]]
+name = "mmap_loading"
+harness = false
