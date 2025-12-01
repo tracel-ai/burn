@@ -186,11 +186,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
 
         // Transform outputs to ONNX format
         // Burn output shape depends on batch_first config:
-        //   batch_first=true:  [batch_size, seq_length, hidden_size]
-        //   batch_first=false: [seq_length, batch_size, hidden_size]
+        //   batch_first=true:  [batch_size, seq_length, hidden_size] or [batch_size, seq_length, 2*hidden_size] for bidirectional
+        //   batch_first=false: [seq_length, batch_size, hidden_size] or [seq_length, batch_size, 2*hidden_size] for bidirectional
         // ONNX Y output: [seq_length, num_directions, batch_size, hidden_size]
         // Y_h: [num_directions, batch_size, hidden_size]
         // Y_c: [num_directions, batch_size, hidden_size]
+
+        // For unidirectional LSTM:
+        //   - Burn final_state.hidden/cell: [batch_size, hidden_size] (2D)
+        //   - Need to unsqueeze to add num_directions dimension
+        // For bidirectional LSTM:
+        //   - Burn final_state.hidden/cell: [2, batch_size, hidden_size] (already 3D)
+        //   - No unsqueeze needed
+        let is_bidirectional = matches!(self.config.direction, LstmDirection::Bidirectional);
+
+        let (hidden_expr, cell_expr) = if is_bidirectional {
+            (quote! { final_state.hidden }, quote! { final_state.cell })
+        } else {
+            (
+                quote! { final_state.hidden.unsqueeze_dims::<3>(&[0]) },
+                quote! { final_state.cell.unsqueeze_dims::<3>(&[0]) },
+            )
+        };
 
         // Build output assignments based on which outputs are used
         // Use block scoping to contain temporary variables
@@ -201,8 +218,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                         #forward_call
                         (
                             output_seq.unsqueeze_dims::<4>(&[1]),
-                            final_state.hidden.unsqueeze_dims::<3>(&[0]),
-                            final_state.cell.unsqueeze_dims::<3>(&[0])
+                            #hidden_expr,
+                            #cell_expr
                         )
                     };
                 }
@@ -213,7 +230,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                         #forward_call
                         (
                             output_seq.unsqueeze_dims::<4>(&[1]),
-                            final_state.hidden.unsqueeze_dims::<3>(&[0])
+                            #hidden_expr
                         )
                     };
                 }
@@ -231,8 +248,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                     let (#y_h, #y_c) = {
                         #forward_call
                         (
-                            final_state.hidden.unsqueeze_dims::<3>(&[0]),
-                            final_state.cell.unsqueeze_dims::<3>(&[0])
+                            #hidden_expr,
+                            #cell_expr
                         )
                     };
                 }
@@ -487,11 +504,7 @@ mod tests {
         ) -> (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>) {
             let (Y, Y_h, Y_c) = {
                 let (output_seq, final_state) = self.lstm1.forward(input, None);
-                (
-                    output_seq.unsqueeze_dims::<4>(&[1]),
-                    final_state.hidden.unsqueeze_dims::<3>(&[0]),
-                    final_state.cell.unsqueeze_dims::<3>(&[0]),
-                )
+                (output_seq.unsqueeze_dims::<4>(&[1]), final_state.hidden, final_state.cell)
             };
             (Y, Y_h, Y_c)
         }
