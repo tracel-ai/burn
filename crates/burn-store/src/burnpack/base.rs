@@ -28,6 +28,24 @@ pub const METADATA_SIZE_FIELD_SIZE: usize = 4;
 /// Total header size (computed from components)
 pub const HEADER_SIZE: usize = MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_SIZE;
 
+/// Alignment for tensor data in bytes.
+///
+/// All tensor data is aligned to 256-byte boundaries to enable efficient
+/// memory-mapped (mmap) zero-copy loading. This alignment ensures:
+/// - Proper pointer alignment for all tensor element types (f64 requires 8-byte alignment)
+/// - Cache-line friendly access (most CPUs use 64-byte cache lines)
+/// - GPU memory alignment (CUDA prefers 256-byte for coalesced access)
+/// - Future-proofing for wider SIMD (AVX-512 = 64 bytes, future AVX-1024 = 128 bytes)
+///
+/// Industry alignment choices:
+/// - 256-byte: GGUF, MLX, ncnn, MNN, TNN, vLLM-AWQ, Marlin (15+ formats)
+/// - 64-byte: SafeTensors (minimum for AVX-512)
+/// - 4096-byte: Core ML
+///
+/// 256-byte alignment has negligible overhead for typical tensor sizes while
+/// providing maximum compatibility with current and future hardware.
+pub const TENSOR_ALIGNMENT: u64 = 256;
+
 // Security limits to prevent DoS attacks via resource exhaustion
 // These can be adjusted based on your use case
 
