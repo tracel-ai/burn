@@ -408,14 +408,10 @@ impl NodeProcessor for LstmProcessor {
         let has_peephole = node.inputs.len() > 7 && !node.inputs[7].is_optional();
 
         // Extract clip threshold (default: None)
-        let clip = node
-            .attrs
-            .get("clip")
-            .map(|v| {
-                let val = v.clone().into_f32();
-                if val > 0.0 { Some(val) } else { None }
-            })
-            .flatten();
+        let clip = node.attrs.get("clip").and_then(|v| {
+            let val = v.clone().into_f32();
+            if val > 0.0 { Some(val) } else { None }
+        });
 
         // Extract input_forget coupling (default: false)
         let input_forget = node
@@ -427,50 +423,51 @@ impl NodeProcessor for LstmProcessor {
         // Extract activations (default: Sigmoid, Tanh, Tanh for each direction)
         // ONNX format: [f, g, h] for unidirectional, [f, g, h, f, g, h] for bidirectional
         // f = gate activation (i, o, f gates), g = cell activation, h = hidden activation
-        let (gate_activation, cell_activation, hidden_activation) =
-            if let Some(activations) = node.attrs.get("activations") {
-                let acts = activations.clone().into_strings();
-                if acts.is_empty() {
-                    // Empty means use defaults
-                    (
-                        LstmActivationFunction::Sigmoid,
-                        LstmActivationFunction::Tanh,
-                        LstmActivationFunction::Tanh,
-                    )
-                } else if acts.len() >= 3 {
-                    // Parse the first 3 activations (forward direction or only direction)
-                    let gate: LstmActivationFunction = acts[0].parse()?;
-                    let cell: LstmActivationFunction = acts[1].parse()?;
-                    let hidden: LstmActivationFunction = acts[2].parse()?;
-
-                    // For bidirectional, verify both directions use the same activations
-                    if direction == LstmDirection::Bidirectional && acts.len() >= 6 {
-                        let gate2: LstmActivationFunction = acts[3].parse()?;
-                        let cell2: LstmActivationFunction = acts[4].parse()?;
-                        let hidden2: LstmActivationFunction = acts[5].parse()?;
-
-                        if gate != gate2 || cell != cell2 || hidden != hidden2 {
-                            return Err(ProcessError::Custom(
-                                "LSTM bidirectional with different activations per direction is not supported. Both directions must use the same activations.".to_string(),
-                            ));
-                        }
-                    }
-
-                    (gate, cell, hidden)
-                } else {
-                    return Err(ProcessError::Custom(format!(
-                        "LSTM activations must have at least 3 elements, got {}",
-                        acts.len()
-                    )));
-                }
-            } else {
-                // No activations attribute means use defaults
+        let (gate_activation, cell_activation, hidden_activation) = if let Some(activations) =
+            node.attrs.get("activations")
+        {
+            let acts = activations.clone().into_strings();
+            if acts.is_empty() {
+                // Empty means use defaults
                 (
                     LstmActivationFunction::Sigmoid,
                     LstmActivationFunction::Tanh,
                     LstmActivationFunction::Tanh,
                 )
-            };
+            } else if acts.len() >= 3 {
+                // Parse the first 3 activations (forward direction or only direction)
+                let gate: LstmActivationFunction = acts[0].parse()?;
+                let cell: LstmActivationFunction = acts[1].parse()?;
+                let hidden: LstmActivationFunction = acts[2].parse()?;
+
+                // For bidirectional, verify both directions use the same activations
+                if direction == LstmDirection::Bidirectional && acts.len() >= 6 {
+                    let gate2: LstmActivationFunction = acts[3].parse()?;
+                    let cell2: LstmActivationFunction = acts[4].parse()?;
+                    let hidden2: LstmActivationFunction = acts[5].parse()?;
+
+                    if gate != gate2 || cell != cell2 || hidden != hidden2 {
+                        return Err(ProcessError::Custom(
+                                "LSTM bidirectional with different activations per direction is not supported. Both directions must use the same activations.".to_string(),
+                            ));
+                    }
+                }
+
+                (gate, cell, hidden)
+            } else {
+                return Err(ProcessError::Custom(format!(
+                    "LSTM activations must have at least 3 elements, got {}",
+                    acts.len()
+                )));
+            }
+        } else {
+            // No activations attribute means use defaults
+            (
+                LstmActivationFunction::Sigmoid,
+                LstmActivationFunction::Tanh,
+                LstmActivationFunction::Tanh,
+            )
+        };
 
         let config = LstmConfig::new(
             input_size,
