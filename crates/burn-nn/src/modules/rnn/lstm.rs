@@ -35,6 +35,10 @@ pub struct LstmConfig {
     /// Lstm initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
+    /// If true, the input tensor is expected to be `[batch_size, seq_length, input_size]`.
+    /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
+    #[config(default = true)]
+    pub batch_first: bool,
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
@@ -55,6 +59,9 @@ pub struct Lstm<B: Backend> {
     pub cell_gate: GateController<B>,
     /// The hidden state of the LSTM.
     pub d_hidden: usize,
+    /// If true, input is `[batch_size, seq_length, input_size]`.
+    /// If false, input is `[seq_length, batch_size, input_size]`.
+    pub batch_first: bool,
 }
 
 impl<B: Backend> ModuleDisplay for Lstm<B> {
@@ -97,6 +104,7 @@ impl LstmConfig {
             output_gate: new_gate(),
             cell_gate: new_gate(),
             d_hidden: self.d_hidden,
+            batch_first: self.batch_first,
         }
     }
 }
@@ -106,13 +114,17 @@ impl<B: Backend> Lstm<B> {
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
     /// ## Parameters:
-    /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
+    /// - batched_input: The input tensor of shape:
+    ///   - `[batch_size, sequence_length, input_size]` if `batch_first` is true (default)
+    ///   - `[sequence_length, batch_size, input_size]` if `batch_first` is false
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
     ///   Each state tensor has shape `[batch_size, hidden_size]`.
     ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
-    /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size]`
+    /// - output: A tensor represents the output features of LSTM. Shape:
+    ///   - `[batch_size, sequence_length, hidden_size]` if `batch_first` is true
+    ///   - `[sequence_length, batch_size, hidden_size]` if `batch_first` is false
     /// - state: A `LstmState` represents the final states. Both `state.cell` and `state.hidden` have the shape
     ///   `[batch_size, hidden_size]`.
     pub fn forward(
@@ -120,16 +132,32 @@ impl<B: Backend> Lstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<LstmState<B, 2>>,
     ) -> (Tensor<B, 3>, LstmState<B, 2>) {
+        // Convert to batch-first layout internally if needed
+        let batched_input = if self.batch_first {
+            batched_input
+        } else {
+            batched_input.swap_dims(0, 1)
+        };
+
         let device = batched_input.device();
         let [batch_size, seq_length, _] = batched_input.dims();
 
-        self.forward_iter(
+        let (output, state) = self.forward_iter(
             batched_input.iter_dim(1).zip(0..seq_length),
             state,
             batch_size,
             seq_length,
             &device,
-        )
+        );
+
+        // Convert output back to seq-first layout if needed
+        let output = if self.batch_first {
+            output
+        } else {
+            output.swap_dims(0, 1)
+        };
+
+        (output, state)
     }
 
     fn forward_iter<I: Iterator<Item = (Tensor<B, 3>, usize)>>(
@@ -208,6 +236,10 @@ pub struct BiLstmConfig {
     /// BiLstm initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
+    /// If true, the input tensor is expected to be `[batch_size, seq_length, input_size]`.
+    /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
+    #[config(default = true)]
+    pub batch_first: bool,
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
@@ -224,6 +256,9 @@ pub struct BiLstm<B: Backend> {
     pub reverse: Lstm<B>,
     /// The size of the hidden state.
     pub d_hidden: usize,
+    /// If true, input is `[batch_size, seq_length, input_size]`.
+    /// If false, input is `[seq_length, batch_size, input_size]`.
+    pub batch_first: bool,
 }
 
 impl<B: Backend> ModuleDisplay for BiLstm<B> {
@@ -254,14 +289,18 @@ impl<B: Backend> ModuleDisplay for BiLstm<B> {
 impl BiLstmConfig {
     /// Initialize a new [Bidirectional LSTM](BiLstm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> BiLstm<B> {
+        // Internal LSTMs always use batch_first=true; BiLstm handles layout conversion
         BiLstm {
             forward: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
                 .with_initializer(self.initializer.clone())
+                .with_batch_first(true)
                 .init(device),
             reverse: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
                 .with_initializer(self.initializer.clone())
+                .with_batch_first(true)
                 .init(device),
             d_hidden: self.d_hidden,
+            batch_first: self.batch_first,
         }
     }
 }
@@ -271,13 +310,17 @@ impl<B: Backend> BiLstm<B> {
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
     /// ## Parameters:
-    /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
+    /// - batched_input: The input tensor of shape:
+    ///   - `[batch_size, sequence_length, input_size]` if `batch_first` is true (default)
+    ///   - `[sequence_length, batch_size, input_size]` if `batch_first` is false
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
     ///   Each state tensor has shape `[2, batch_size, hidden_size]`.
     ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
-    /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size * 2]`
+    /// - output: A tensor represents the output features of LSTM. Shape:
+    ///   - `[batch_size, sequence_length, hidden_size * 2]` if `batch_first` is true
+    ///   - `[sequence_length, batch_size, hidden_size * 2]` if `batch_first` is false
     /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
     ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
@@ -285,6 +328,13 @@ impl<B: Backend> BiLstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<LstmState<B, 3>>,
     ) -> (Tensor<B, 3>, LstmState<B, 3>) {
+        // Convert to batch-first layout internally if needed
+        let batched_input = if self.batch_first {
+            batched_input
+        } else {
+            batched_input.swap_dims(0, 1)
+        };
+
         let device = batched_input.clone().device();
         let [batch_size, seq_length, _] = batched_input.shape().dims();
 
@@ -335,6 +385,13 @@ impl<B: Backend> BiLstm<B> {
             [batched_hidden_state_forward, batched_hidden_state_reverse].to_vec(),
             2,
         );
+
+        // Convert output back to seq-first layout if needed
+        let output = if self.batch_first {
+            output
+        } else {
+            output.swap_dims(0, 1)
+        };
 
         let state = LstmState::new(
             Tensor::stack(

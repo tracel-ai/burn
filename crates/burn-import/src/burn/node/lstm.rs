@@ -1,0 +1,500 @@
+use super::prelude::*;
+use burn::{
+    module::{ConstantRecord, Param, ParamId},
+    nn::{BiLstmRecord, GateControllerRecord, LinearRecord, LstmRecord},
+    record::{PrecisionSettings, Record},
+    tensor::{Tensor, TensorData},
+};
+use onnx_ir::lstm::LstmDirection;
+use serde::Serialize;
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
+    }
+
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
+    }
+
+    fn field(&self) -> Option<Field> {
+        let name = Ident::new(&self.name, Span::call_site());
+        let d_input = self.config.input_size.to_tokens();
+        let d_hidden = self.config.hidden_size.to_tokens();
+        let bias = self.config.has_bias;
+        let batch_first = self.config.batch_first;
+
+        match self.config.direction {
+            LstmDirection::Forward | LstmDirection::Reverse => Some(Field::new(
+                self.name.clone(),
+                quote! { Lstm<B> },
+                quote! {
+                    let #name = LstmConfig::new(#d_input, #d_hidden, #bias)
+                        .with_batch_first(#batch_first)
+                        .init(device);
+                },
+            )),
+            LstmDirection::Bidirectional => Some(Field::new(
+                self.name.clone(),
+                quote! { BiLstm<B> },
+                quote! {
+                    let #name = BiLstmConfig::new(#d_input, #d_hidden, #bias)
+                        .with_batch_first(#batch_first)
+                        .init(device);
+                },
+            )),
+        }
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let device = Default::default();
+
+        // Extract weight tensors from inputs
+        // Input 1: W - weight tensor [num_directions, 4*hidden_size, input_size]
+        // Input 2: R - recurrence weight tensor [num_directions, 4*hidden_size, hidden_size]
+        // Input 3: B - bias tensor [num_directions, 8*hidden_size] (optional)
+        let data_w = extract_node_data(&self.inputs, 1).unwrap();
+        let data_r = extract_node_data(&self.inputs, 2).unwrap();
+        let data_b = extract_node_data(&self.inputs, 3);
+
+        let hidden_size = self.config.hidden_size;
+        let input_size = self.config.input_size;
+
+        match self.config.direction {
+            LstmDirection::Forward => {
+                let record = create_lstm_record::<PS>(
+                    &data_w,
+                    &data_r,
+                    data_b.as_ref(),
+                    hidden_size,
+                    input_size,
+                    0, // direction index
+                    &device,
+                );
+                let item = Record::into_item::<PS>(record);
+                item.serialize(serializer)
+            }
+            LstmDirection::Reverse => {
+                // For reverse, we use the same weights but process sequence in reverse
+                // The weights are stored in direction index 0
+                let record = create_lstm_record::<PS>(
+                    &data_w,
+                    &data_r,
+                    data_b.as_ref(),
+                    hidden_size,
+                    input_size,
+                    0, // For single-direction reverse, weights are at index 0
+                    &device,
+                );
+                let item = Record::into_item::<PS>(record);
+                item.serialize(serializer)
+            }
+            LstmDirection::Bidirectional => {
+                let forward_record = create_lstm_record::<PS>(
+                    &data_w,
+                    &data_r,
+                    data_b.as_ref(),
+                    hidden_size,
+                    input_size,
+                    0, // forward direction
+                    &device,
+                );
+                let reverse_record = create_lstm_record::<PS>(
+                    &data_w,
+                    &data_r,
+                    data_b.as_ref(),
+                    hidden_size,
+                    input_size,
+                    1, // reverse direction
+                    &device,
+                );
+
+                let record = BiLstmRecord::<SerializationBackend> {
+                    forward: forward_record,
+                    reverse: reverse_record,
+                    d_hidden: ConstantRecord::new(),
+                    batch_first: ConstantRecord::new(),
+                };
+                let item = Record::into_item::<PS>(record);
+                item.serialize(serializer)
+            }
+        }
+    }
+
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
+
+        // Get output variable names
+        let output_y = self.outputs.first().map(arg_to_ident);
+        let output_y_h = self.outputs.get(1).map(arg_to_ident);
+        let output_y_c = self.outputs.get(2).map(arg_to_ident);
+
+        // Handle initial states if provided
+        let has_initial_h = self.config.has_initial_h;
+        let has_initial_c = self.config.has_initial_c;
+
+        // Get initial state inputs if present
+        // Input indices: 0=X, 1=W, 2=R, 3=B, 4=sequence_lens, 5=initial_h, 6=initial_c
+        // ONNX initial states: [num_directions, batch_size, hidden_size]
+        // Burn expects: [batch_size, hidden_size] for unidirectional
+        let initial_state_expr = if has_initial_h && has_initial_c {
+            let h_input = scope.arg(&self.inputs[5]);
+            let c_input = scope.arg(&self.inputs[6]);
+            match self.config.direction {
+                LstmDirection::Forward | LstmDirection::Reverse => {
+                    // Squeeze out the direction dimension (index 0) for unidirectional LSTM
+                    // ONNX: [1, batch_size, hidden_size] -> Burn: [batch_size, hidden_size]
+                    quote! { Some(LstmState::new(#c_input.squeeze_dim(0), #h_input.squeeze_dim(0))) }
+                }
+                LstmDirection::Bidirectional => {
+                    // For bidirectional, keep all dimensions but reshape appropriately
+                    quote! { Some(LstmState::new(#c_input, #h_input)) }
+                }
+            }
+        } else {
+            quote! { None }
+        };
+
+        // The LSTM module now handles batch_first internally via config,
+        // so no input transformation is needed here
+        let input_expr = quote! { #input };
+
+        // Handle reverse direction for unidirectional reverse LSTM
+        // For batch_first=false (seq-first), flip on dim 0 (seq dimension)
+        // For batch_first=true, flip on dim 1 (seq dimension)
+        let seq_dim = if self.config.batch_first {
+            1usize
+        } else {
+            0usize
+        };
+        let forward_call = match self.config.direction {
+            LstmDirection::Reverse => {
+                // For reverse, we need to reverse the input sequence, run forward, then reverse output
+                quote! {
+                    let input_reversed = #input_expr.flip([#seq_dim]);
+                    let (output_seq, final_state) = self.#field.forward(input_reversed, #initial_state_expr);
+                    let output_seq = output_seq.flip([#seq_dim]);
+                }
+            }
+            _ => {
+                quote! {
+                    let (output_seq, final_state) = self.#field.forward(#input_expr, #initial_state_expr);
+                }
+            }
+        };
+
+        // Transform outputs to ONNX format
+        // Burn output shape depends on batch_first config:
+        //   batch_first=true:  [batch_size, seq_length, hidden_size]
+        //   batch_first=false: [seq_length, batch_size, hidden_size]
+        // ONNX Y output: [seq_length, num_directions, batch_size, hidden_size]
+        // Y_h: [num_directions, batch_size, hidden_size]
+        // Y_c: [num_directions, batch_size, hidden_size]
+
+        // Build output assignments based on which outputs are used
+        // Use block scoping to contain temporary variables
+        match (output_y, output_y_h, output_y_c) {
+            (Some(y), Some(y_h), Some(y_c)) => {
+                quote! {
+                    let (#y, #y_h, #y_c) = {
+                        #forward_call
+                        (
+                            output_seq.unsqueeze_dims::<4>(&[1]),
+                            final_state.hidden.unsqueeze_dims::<3>(&[0]),
+                            final_state.cell.unsqueeze_dims::<3>(&[0])
+                        )
+                    };
+                }
+            }
+            (Some(y), Some(y_h), None) => {
+                quote! {
+                    let (#y, #y_h) = {
+                        #forward_call
+                        (
+                            output_seq.unsqueeze_dims::<4>(&[1]),
+                            final_state.hidden.unsqueeze_dims::<3>(&[0])
+                        )
+                    };
+                }
+            }
+            (Some(y), None, None) => {
+                quote! {
+                    let #y = {
+                        #forward_call
+                        output_seq.unsqueeze_dims::<4>(&[1])
+                    };
+                }
+            }
+            (None, Some(y_h), Some(y_c)) => {
+                quote! {
+                    let (#y_h, #y_c) = {
+                        #forward_call
+                        (
+                            final_state.hidden.unsqueeze_dims::<3>(&[0]),
+                            final_state.cell.unsqueeze_dims::<3>(&[0])
+                        )
+                    };
+                }
+            }
+            _ => {
+                // Handle remaining cases - just run the forward pass
+                quote! {
+                    {
+                        #forward_call
+                    }
+                }
+            }
+        }
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        match self.config.direction {
+            LstmDirection::Forward | LstmDirection::Reverse => {
+                imports.register("burn::nn::Lstm");
+                imports.register("burn::nn::LstmConfig");
+                imports.register("burn::nn::LstmState");
+            }
+            LstmDirection::Bidirectional => {
+                imports.register("burn::nn::BiLstm");
+                imports.register("burn::nn::BiLstmConfig");
+                imports.register("burn::nn::LstmState");
+            }
+        }
+    }
+}
+
+/// Create an LstmRecord by splitting ONNX weights into Burn's gate structure
+fn create_lstm_record<PS: PrecisionSettings>(
+    data_w: &TensorData,
+    data_r: &TensorData,
+    data_b: Option<&TensorData>,
+    hidden_size: usize,
+    input_size: usize,
+    direction_idx: usize,
+    device: &<SerializationBackend as burn::tensor::backend::Backend>::Device,
+) -> LstmRecord<SerializationBackend> {
+    // W shape: [num_directions, 4*hidden_size, input_size]
+    // R shape: [num_directions, 4*hidden_size, hidden_size]
+    // B shape: [num_directions, 8*hidden_size]
+
+    // Extract weights for this direction
+    let w_tensor: Tensor<SerializationBackend, 3> =
+        Tensor::from_data(data_w.clone().convert::<PS::FloatElem>(), device);
+    let r_tensor: Tensor<SerializationBackend, 3> =
+        Tensor::from_data(data_r.clone().convert::<PS::FloatElem>(), device);
+
+    // Select the direction
+    let w_dir = w_tensor
+        .slice([
+            direction_idx..direction_idx + 1,
+            0..4 * hidden_size,
+            0..input_size,
+        ])
+        .squeeze_dim(0); // [4*hidden_size, input_size]
+    let r_dir = r_tensor
+        .slice([
+            direction_idx..direction_idx + 1,
+            0..4 * hidden_size,
+            0..hidden_size,
+        ])
+        .squeeze_dim(0); // [4*hidden_size, hidden_size]
+
+    // Split into gates: ONNX order is [i, o, f, c]
+    let split_weights = |tensor: Tensor<SerializationBackend, 2>,
+                         size: usize|
+     -> [Tensor<SerializationBackend, 2>; 4] {
+        let i = tensor.clone().slice([0..hidden_size, 0..size]);
+        let o = tensor
+            .clone()
+            .slice([hidden_size..2 * hidden_size, 0..size]);
+        let f = tensor
+            .clone()
+            .slice([2 * hidden_size..3 * hidden_size, 0..size]);
+        let c = tensor.slice([3 * hidden_size..4 * hidden_size, 0..size]);
+        [i, o, f, c]
+    };
+
+    let [wi, wo, wf, wc] = split_weights(w_dir, input_size);
+    let [ri, ro, rf, rc] = split_weights(r_dir, hidden_size);
+
+    // Handle biases
+    // Note: clippy::single_range_in_vec_init is a false positive - Burn's tensor slice API
+    // requires array syntax [Range; N] for N-dimensional tensors
+    #[allow(clippy::single_range_in_vec_init)]
+    let (bi_input, bi_hidden, bo_input, bo_hidden, bf_input, bf_hidden, bc_input, bc_hidden) =
+        if let Some(b_data) = data_b {
+            let b_tensor: Tensor<SerializationBackend, 2> =
+                Tensor::from_data(b_data.clone().convert::<PS::FloatElem>(), device);
+            let b_dir = b_tensor
+                .slice([direction_idx..direction_idx + 1, 0..8 * hidden_size])
+                .squeeze_dim(0); // [8*hidden_size]
+
+            // ONNX bias order: [Wb_i, Wb_o, Wb_f, Wb_c, Rb_i, Rb_o, Rb_f, Rb_c]
+            let wb_i = b_dir.clone().slice([0..hidden_size]);
+            let wb_o = b_dir.clone().slice([hidden_size..2 * hidden_size]);
+            let wb_f = b_dir.clone().slice([2 * hidden_size..3 * hidden_size]);
+            let wb_c = b_dir.clone().slice([3 * hidden_size..4 * hidden_size]);
+            let rb_i = b_dir.clone().slice([4 * hidden_size..5 * hidden_size]);
+            let rb_o = b_dir.clone().slice([5 * hidden_size..6 * hidden_size]);
+            let rb_f = b_dir.clone().slice([6 * hidden_size..7 * hidden_size]);
+            let rb_c = b_dir.slice([7 * hidden_size..8 * hidden_size]);
+
+            (
+                Some(wb_i),
+                Some(rb_i),
+                Some(wb_o),
+                Some(rb_o),
+                Some(wb_f),
+                Some(rb_f),
+                Some(wb_c),
+                Some(rb_c),
+            )
+        } else {
+            (None, None, None, None, None, None, None, None)
+        };
+
+    // Create GateController records
+    // Note: Burn's Linear stores weight as [d_input, d_output] (row-major layout)
+    // ONNX stores as [d_output, d_input], so we need to transpose
+    // ONNX W: [4*hidden_size, input_size] -> Burn: [input_size, hidden_size]
+    // ONNX R: [4*hidden_size, hidden_size] -> Burn: [hidden_size, hidden_size]
+
+    let create_gate_record = |input_weight: Tensor<SerializationBackend, 2>,
+                              hidden_weight: Tensor<SerializationBackend, 2>,
+                              input_bias: Option<Tensor<SerializationBackend, 1>>,
+                              hidden_bias: Option<Tensor<SerializationBackend, 1>>|
+     -> GateControllerRecord<SerializationBackend> {
+        GateControllerRecord {
+            input_transform: LinearRecord {
+                weight: Param::initialized(ParamId::new(), input_weight.transpose()),
+                bias: input_bias.map(|b| Param::initialized(ParamId::new(), b)),
+            },
+            hidden_transform: LinearRecord {
+                weight: Param::initialized(ParamId::new(), hidden_weight.transpose()),
+                bias: hidden_bias.map(|b| Param::initialized(ParamId::new(), b)),
+            },
+        }
+    };
+
+    LstmRecord {
+        input_gate: create_gate_record(wi, ri, bi_input, bi_hidden),
+        forget_gate: create_gate_record(wf, rf, bf_input, bf_hidden),
+        output_gate: create_gate_record(wo, ro, bo_input, bo_hidden),
+        cell_gate: create_gate_record(wc, rc, bc_input, bc_hidden),
+        d_hidden: ConstantRecord::new(),
+        batch_first: ConstantRecord::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::ir::{ArgType, Argument, TensorType};
+    use onnx_ir::lstm::{LstmConfig, LstmDirection, LstmNode};
+
+    fn create_lstm_node(
+        name: &str,
+        direction: LstmDirection,
+        batch_first: bool,
+        num_outputs: usize,
+    ) -> LstmNode {
+        let config = LstmConfig::new(
+            4, // input_size
+            8, // hidden_size
+            direction,
+            true,  // has_bias
+            false, // has_initial_h
+            false, // has_initial_c
+            false, // has_peephole
+            batch_first,
+        );
+
+        let input = Argument::new(
+            "input",
+            ArgType::Tensor(TensorType::new(DType::F32, 3, None)),
+        );
+        let w = Argument::new("W", ArgType::Tensor(TensorType::new(DType::F32, 3, None)));
+        let r = Argument::new("R", ArgType::Tensor(TensorType::new(DType::F32, 3, None)));
+        let b = Argument::new("B", ArgType::Tensor(TensorType::new(DType::F32, 2, None)));
+
+        let mut outputs = vec![];
+        if num_outputs > 0 {
+            outputs.push(Argument::new(
+                "Y",
+                ArgType::Tensor(TensorType::new(DType::F32, 4, None)),
+            ));
+        }
+        if num_outputs > 1 {
+            outputs.push(Argument::new(
+                "Y_h",
+                ArgType::Tensor(TensorType::new(DType::F32, 3, None)),
+            ));
+        }
+        if num_outputs > 2 {
+            outputs.push(Argument::new(
+                "Y_c",
+                ArgType::Tensor(TensorType::new(DType::F32, 3, None)),
+            ));
+        }
+
+        LstmNode {
+            name: name.to_string(),
+            inputs: vec![input, w, r, b],
+            outputs,
+            config,
+        }
+    }
+
+    #[test]
+    fn test_lstm_forward_basic() {
+        let node = create_lstm_node("lstm1", LstmDirection::Forward, false, 3);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input: Tensor<B, 3>,
+            W: Tensor<B, 3>,
+            R: Tensor<B, 3>,
+            B: Tensor<B, 2>,
+        ) -> (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>) {
+            let (Y, Y_h, Y_c) = {
+                let (output_seq, final_state) = self.lstm1.forward(input, None);
+                (
+                    output_seq.unsqueeze_dims::<4>(&[1]),
+                    final_state.hidden.unsqueeze_dims::<3>(&[0]),
+                    final_state.cell.unsqueeze_dims::<3>(&[0]),
+                )
+            };
+            (Y, Y_h, Y_c)
+        }
+        ");
+    }
+
+    #[test]
+    fn test_lstm_forward_bidirectional() {
+        let node = create_lstm_node("lstm1", LstmDirection::Bidirectional, false, 3);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input: Tensor<B, 3>,
+            W: Tensor<B, 3>,
+            R: Tensor<B, 3>,
+            B: Tensor<B, 2>,
+        ) -> (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>) {
+            let (Y, Y_h, Y_c) = {
+                let (output_seq, final_state) = self.lstm1.forward(input, None);
+                (
+                    output_seq.unsqueeze_dims::<4>(&[1]),
+                    final_state.hidden.unsqueeze_dims::<3>(&[0]),
+                    final_state.cell.unsqueeze_dims::<3>(&[0]),
+                )
+            };
+            (Y, Y_h, Y_c)
+        }
+        ");
+    }
+}

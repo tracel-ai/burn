@@ -69,6 +69,7 @@ macro_rules! define_node_enum {
         /// Note: Some operators have dimensional variants (e.g., Conv1d, Conv2d, Conv3d) that are
         /// Burn-specific extensions for better type safety and code generation.
         #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
+        #[strum(ascii_case_insensitive)]
         pub enum NodeType {
             $(
                 $(#[$variant_meta])*
@@ -327,7 +328,7 @@ define_node_enum! {
     LpNormalization => unsupported::LpNormalizationNode,
     LpPool => unsupported::LpPoolNode,
     Lrn => unsupported::LrnNode,
-    Lstm => unsupported::LstmNode,
+    Lstm => lstm::LstmNode,
     MaxPool => unsupported::MaxPoolNode,
     MaxRoiPool => unsupported::MaxRoiPoolNode,
     MaxUnpool => unsupported::MaxUnpoolNode,

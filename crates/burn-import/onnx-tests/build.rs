@@ -200,6 +200,7 @@ fn main() {
         .input("tests/less_or_equal/less_or_equal_broadcast.onnx")
         .input("tests/linear/linear.onnx")
         .input("tests/log/log.onnx")
+        .input("tests/lstm/lstm.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/where_op/where_op.onnx")
         .input("tests/where_op/where_op_broadcast.onnx")

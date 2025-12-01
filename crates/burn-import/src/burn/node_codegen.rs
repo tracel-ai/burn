@@ -210,6 +210,9 @@ impl_node_codegen_dispatch! {
     Loop,
     Scan,
 
+    // Recurrent neural network ops
+    Lstm,
+
     // Reduce ops (handled by ReduceNode in onnx-ir)
     ReduceMax,
     ReduceMin,

@@ -107,7 +107,7 @@ functionality.
 | [LpNormalization][90]            | ❌             | ❌           |
 | [LpPool][91]                     | ❌             | ❌           |
 | [LRN][92]                        | ❌             | ❌           |
-| [LSTM][93]                       | ❌             | ✅           |
+| [LSTM][93]                       | ✅             | ✅           |
 | [MatMul][94]                     | ✅             | ✅           |
 | [MatMulInteger][95]              | ✅             | ✅           |
 | [Max][96]                        | ✅             | ✅           |
