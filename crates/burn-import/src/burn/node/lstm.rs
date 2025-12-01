@@ -25,12 +25,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
         let batch_first = self.config.batch_first;
 
         match self.config.direction {
-            LstmDirection::Forward | LstmDirection::Reverse => Some(Field::new(
+            LstmDirection::Forward => Some(Field::new(
                 self.name.clone(),
                 quote! { Lstm<B> },
                 quote! {
                     let #name = LstmConfig::new(#d_input, #d_hidden, #bias)
                         .with_batch_first(#batch_first)
+                        .init(device);
+                },
+            )),
+            LstmDirection::Reverse => Some(Field::new(
+                self.name.clone(),
+                quote! { Lstm<B> },
+                quote! {
+                    let #name = LstmConfig::new(#d_input, #d_hidden, #bias)
+                        .with_batch_first(#batch_first)
+                        .with_reverse(true)
                         .init(device);
                 },
             )),
@@ -156,32 +166,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
             quote! { None }
         };
 
-        // The LSTM module now handles batch_first internally via config,
-        // so no input transformation is needed here
-        let input_expr = quote! { #input };
-
-        // Handle reverse direction for unidirectional reverse LSTM
-        // For batch_first=false (seq-first), flip on dim 0 (seq dimension)
-        // For batch_first=true, flip on dim 1 (seq dimension)
-        let seq_dim = if self.config.batch_first {
-            1usize
-        } else {
-            0usize
-        };
-        let forward_call = match self.config.direction {
-            LstmDirection::Reverse => {
-                // For reverse, we need to reverse the input sequence, run forward, then reverse output
-                quote! {
-                    let input_reversed = #input_expr.flip([#seq_dim]);
-                    let (output_seq, final_state) = self.#field.forward(input_reversed, #initial_state_expr);
-                    let output_seq = output_seq.flip([#seq_dim]);
-                }
-            }
-            _ => {
-                quote! {
-                    let (output_seq, final_state) = self.#field.forward(#input_expr, #initial_state_expr);
-                }
-            }
+        // The LSTM module now handles batch_first and reverse internally via config,
+        // so no input/output transformation is needed here
+        let forward_call = quote! {
+            let (output_seq, final_state) = self.#field.forward(#input, #initial_state_expr);
         };
 
         // Transform outputs to ONNX format
@@ -195,10 +183,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
         // For unidirectional LSTM:
         //   - Burn final_state.hidden/cell: [batch_size, hidden_size] (2D)
         //   - Need to unsqueeze to add num_directions dimension
+        //   - Burn output: [seq, batch, hidden] -> ONNX Y: [seq, 1, batch, hidden]
         // For bidirectional LSTM:
         //   - Burn final_state.hidden/cell: [2, batch_size, hidden_size] (already 3D)
         //   - No unsqueeze needed
+        //   - Burn output: [seq, batch, 2*hidden] -> ONNX Y: [seq, 2, batch, hidden]
+        //     This requires reshape + transpose
         let is_bidirectional = matches!(self.config.direction, LstmDirection::Bidirectional);
+        let hidden_size = self.config.hidden_size;
 
         let (hidden_expr, cell_expr) = if is_bidirectional {
             (quote! { final_state.hidden }, quote! { final_state.cell })
@@ -209,6 +201,34 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
             )
         };
 
+        // Y output transformation
+        // For unidirectional: unsqueeze at dim 1 to add num_directions=1
+        // For bidirectional: reshape [seq, batch, 2*hidden] -> [seq, batch, 2, hidden]
+        //                    then swap_dims(1, 2) -> [seq, 2, batch, hidden]
+        let y_output_expr = if is_bidirectional {
+            let batch_dim = if self.config.batch_first {
+                0usize
+            } else {
+                1usize
+            };
+            let seq_dim = if self.config.batch_first {
+                1usize
+            } else {
+                0usize
+            };
+            quote! {
+                {
+                    // Reshape [seq, batch, 2*hidden] -> [seq, batch, 2, hidden]
+                    let [seq_len, batch_size, _] = output_seq.dims();
+                    let reshaped = output_seq.reshape([seq_len, batch_size, 2, #hidden_size]);
+                    // Transpose to [seq, 2, batch, hidden] by swapping batch and num_directions
+                    reshaped.swap_dims(#seq_dim + 1, #batch_dim + 1)
+                }
+            }
+        } else {
+            quote! { output_seq.unsqueeze_dims::<4>(&[1]) }
+        };
+
         // Build output assignments based on which outputs are used
         // Use block scoping to contain temporary variables
         match (output_y, output_y_h, output_y_c) {
@@ -217,7 +237,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                     let (#y, #y_h, #y_c) = {
                         #forward_call
                         (
-                            output_seq.unsqueeze_dims::<4>(&[1]),
+                            #y_output_expr,
                             #hidden_expr,
                             #cell_expr
                         )
@@ -229,7 +249,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                     let (#y, #y_h) = {
                         #forward_call
                         (
-                            output_seq.unsqueeze_dims::<4>(&[1]),
+                            #y_output_expr,
                             #hidden_expr
                         )
                     };
@@ -239,7 +259,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                 quote! {
                     let #y = {
                         #forward_call
-                        output_seq.unsqueeze_dims::<4>(&[1])
+                        #y_output_expr
                     };
                 }
             }
@@ -401,6 +421,7 @@ fn create_lstm_record<PS: PrecisionSettings>(
         cell_gate: create_gate_record(wc, rc, bc_input, bc_hidden),
         d_hidden: ConstantRecord::new(),
         batch_first: ConstantRecord::new(),
+        reverse: ConstantRecord::new(),
     }
 }
 
@@ -504,7 +525,41 @@ mod tests {
         ) -> (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>) {
             let (Y, Y_h, Y_c) = {
                 let (output_seq, final_state) = self.lstm1.forward(input, None);
-                (output_seq.unsqueeze_dims::<4>(&[1]), final_state.hidden, final_state.cell)
+                (
+                    {
+                        let [seq_len, batch_size, _] = output_seq.dims();
+                        let reshaped = output_seq.reshape([seq_len, batch_size, 2, 8usize]);
+                        reshaped.swap_dims(0usize + 1, 1usize + 1)
+                    },
+                    final_state.hidden,
+                    final_state.cell,
+                )
+            };
+            (Y, Y_h, Y_c)
+        }
+        ");
+    }
+
+    #[test]
+    fn test_lstm_forward_reverse() {
+        let node = create_lstm_node("lstm1", LstmDirection::Reverse, false, 3);
+        let code = codegen_forward_default(&node);
+        // Note: reverse is now handled by the LSTM module's config, not by flip() in codegen
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input: Tensor<B, 3>,
+            W: Tensor<B, 3>,
+            R: Tensor<B, 3>,
+            B: Tensor<B, 2>,
+        ) -> (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>) {
+            let (Y, Y_h, Y_c) = {
+                let (output_seq, final_state) = self.lstm1.forward(input, None);
+                (
+                    output_seq.unsqueeze_dims::<4>(&[1]),
+                    final_state.hidden.unsqueeze_dims::<3>(&[0]),
+                    final_state.cell.unsqueeze_dims::<3>(&[0]),
+                )
             };
             (Y, Y_h, Y_c)
         }

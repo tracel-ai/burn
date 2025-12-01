@@ -39,6 +39,10 @@ pub struct LstmConfig {
     /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
     #[config(default = true)]
     pub batch_first: bool,
+    /// If true, process the sequence in reverse order.
+    /// This is useful for implementing reverse-direction LSTMs (e.g., ONNX reverse direction).
+    #[config(default = false)]
+    pub reverse: bool,
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
@@ -62,6 +66,8 @@ pub struct Lstm<B: Backend> {
     /// If true, input is `[batch_size, seq_length, input_size]`.
     /// If false, input is `[seq_length, batch_size, input_size]`.
     pub batch_first: bool,
+    /// If true, process the sequence in reverse order.
+    pub reverse: bool,
 }
 
 impl<B: Backend> ModuleDisplay for Lstm<B> {
@@ -105,6 +111,7 @@ impl LstmConfig {
             cell_gate: new_gate(),
             d_hidden: self.d_hidden,
             batch_first: self.batch_first,
+            reverse: self.reverse,
         }
     }
 }
@@ -142,13 +149,24 @@ impl<B: Backend> Lstm<B> {
         let device = batched_input.device();
         let [batch_size, seq_length, _] = batched_input.dims();
 
-        let (output, state) = self.forward_iter(
-            batched_input.iter_dim(1).zip(0..seq_length),
-            state,
-            batch_size,
-            seq_length,
-            &device,
-        );
+        // Process sequence in forward or reverse order based on config
+        let (output, state) = if self.reverse {
+            self.forward_iter(
+                batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
+                state,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        } else {
+            self.forward_iter(
+                batched_input.iter_dim(1).zip(0..seq_length),
+                state,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        };
 
         // Convert output back to seq-first layout if needed
         let output = if self.batch_first {

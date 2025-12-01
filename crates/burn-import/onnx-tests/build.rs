@@ -202,6 +202,8 @@ fn main() {
         .input("tests/log/log.onnx")
         .input("tests/lstm/lstm.onnx")
         .input("tests/lstm/lstm_bidirectional.onnx")
+        .input("tests/lstm/lstm_reverse.onnx")
+        .input("tests/lstm/lstm_with_initial_state.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/where_op/where_op.onnx")
         .input("tests/where_op/where_op_broadcast.onnx")
