@@ -842,6 +842,7 @@ dependencies = [
 name = "burn-dataset"
 version = "0.20.0-pre.4"
 dependencies = [
+ "burn-std",
  "csv",
  "derive-new",
  "dirs",
@@ -852,14 +853,12 @@ dependencies = [
  "globwalk",
  "hound",
  "image",
- "indicatif 0.18.3",
  "planus",
  "polars",
  "r2d2",
  "r2d2_sqlite",
  "rand 0.9.2",
  "rayon",
- "reqwest",
  "rmp-serde",
  "rstest",
  "rusqlite",
@@ -871,7 +870,6 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.17",
- "tokio",
  "zip 6.0.0",
 ]
 
@@ -1083,8 +1081,11 @@ dependencies = [
  "cubecl-quant",
  "dashmap",
  "half",
+ "indicatif 0.18.3",
  "num-traits",
+ "reqwest",
  "serde",
+ "tokio",
 ]
 
 [[package]]
