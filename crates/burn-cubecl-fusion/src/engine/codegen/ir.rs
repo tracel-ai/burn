@@ -553,6 +553,8 @@ impl From<DType> for FuseType {
                 },
                 QuantStore::U32 => Self::U32,
             },
+            DType::Complex64 => todo!(),
+            DType::Complex32 => todo!(),
         }
     }
 }

@@ -27,6 +27,10 @@ pub enum NdArrayTensor {
     U16(SharedArray<u16>),
     U8(SharedArray<u8>),
     Bool(SharedArray<bool>),
+    #[cfg(feature = "complex")]
+    Complex32(SharedArray<burn_complex::base::element::Complex32>),
+    #[cfg(feature = "complex")]
+    Complex64(SharedArray<burn_complex::base::element::Complex64>),
 }
 
 impl NdArrayTensor {
@@ -63,6 +67,10 @@ where
         DType::U16 => cast::<E1, u16>(array).into(),
         DType::U8 => cast::<E1, u8>(array).into(),
         DType::Bool => cast::<E1, bool>(array).into(),
+        #[cfg(feature = "complex")]
+        DType::Complex32 => cast::<E1, burn_complex::base::element::Complex32>(array).into(),
+        #[cfg(feature = "complex")]
+        DType::Complex64 => cast::<E1, burn_complex::base::element::Complex64>(array).into(),
         dtype => panic!("Unsupported dtype: {dtype:?}"),
     }
 }
@@ -82,6 +90,11 @@ impl_from!(
     i64 => I64, i32 => I32, i16 => I16, i8 => I8,
     u64 => U64, u32 => U32, u16 => U16, u8 => U8,
     bool => Bool
+);
+#[cfg(feature = "complex")]
+impl_from!(
+    burn_complex::base::element::Complex32 => Complex32,
+    burn_complex::base::element::Complex64 => Complex64
 );
 
 /// Macro to execute an operation a given element type.
@@ -298,6 +311,10 @@ impl TensorMetadata for NdArrayTensor {
             NdArrayTensor::U16(_) => DType::U16,
             NdArrayTensor::U8(_) => DType::U8,
             NdArrayTensor::Bool(_) => DType::Bool,
+            #[cfg(feature = "complex")]
+            NdArrayTensor::Complex32(_) => DType::Complex32,
+            #[cfg(feature = "complex")]
+            NdArrayTensor::Complex64(_) => DType::Complex64,
         }
     }
 
@@ -474,13 +491,26 @@ impl NdArrayTensor {
                 }
             };
         }
-
-        execute!(data, [
-            F64 => f64, F32 => f32,
-            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
-            U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
-        ])
+        #[cfg(feature = "complex")]
+        {
+            execute!(data, [
+                F64 => f64, F32 => f32,
+                I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+                U64 => u64, U32 => u32, U16 => u16, U8 => u8,
+                Bool => bool,
+                Complex32 => burn_complex::base::element::Complex32,
+                Complex64 => burn_complex::base::element::Complex64
+            ])
+        }
+        #[cfg(not(feature = "complex"))]
+        {
+            execute!(data, [
+                F64 => f64, F32 => f32,
+                I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+                U64 => u64, U32 => u32, U16 => u16, U8 => u8,
+                Bool => bool
+            ])
+        }
     }
 }
 
