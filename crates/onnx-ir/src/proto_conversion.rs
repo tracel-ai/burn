@@ -337,8 +337,9 @@ impl TryFrom<TensorProto> for LazyTensorData {
                     bytes::Bytes::from(data)
                 }
                 DType::I8 => {
-                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| x as u8).collect();
-                    bytes::Bytes::from(data)
+                    // Convert i32 to i8 first, then get bytes via bytemuck for clarity
+                    let data: Vec<i8> = tensor.int32_data.iter().map(|&x| x as i8).collect();
+                    vec_to_bytes(&data)
                 }
                 DType::F16 => bytes::Bytes::new(), // Empty
                 DType::U16 => bytes::Bytes::new(), // Empty
