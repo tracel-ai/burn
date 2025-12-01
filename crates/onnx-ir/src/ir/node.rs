@@ -317,7 +317,7 @@ define_node_enum! {
     Det => unsupported::DetNode,
     DynamicQuantizeLinear => unsupported::DynamicQuantizeLinearNode,
     Einsum => unsupported::EinsumNode,
-    GridSample => unsupported::GridSampleNode,
+    GridSample => grid_sample::GridSampleNode,
     Gru => unsupported::GruNode,
     HammingWindow => unsupported::HammingWindowNode,
     HannWindow => unsupported::HannWindowNode,

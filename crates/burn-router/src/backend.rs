@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 
 use burn_tensor::{
     DType,
-    backend::Backend,
+    backend::{Backend, SyncError},
     quantization::{QTensorPrimitive, QuantScheme},
 };
 
@@ -69,8 +69,8 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         client.seed(seed);
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device) -> Result<(), SyncError> {
         let client = get_client::<R>(device);
-        client.sync();
+        client.sync()
     }
 }

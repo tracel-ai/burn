@@ -493,6 +493,10 @@ impl ProcessorRegistry {
             Box::new(crate::node::resize::ResizeProcessor),
         );
         registry.register(
+            NodeType::GridSample,
+            Box::new(crate::node::grid_sample::GridSampleProcessor),
+        );
+        registry.register(
             NodeType::DepthToSpace,
             Box::new(crate::node::depth_to_space::DepthToSpaceProcessor),
         );

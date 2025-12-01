@@ -55,6 +55,7 @@ pub mod global_avr_pool;
 pub mod graph_multiple_output_tracking;
 pub mod greater;
 pub mod greater_or_equal;
+pub mod grid_sample;
 pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod identity;

@@ -71,6 +71,7 @@ pub mod gather;
 pub mod gather_elements;
 pub mod gemm;
 pub mod global_avg_pool;
+pub mod grid_sample;
 pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod identity;

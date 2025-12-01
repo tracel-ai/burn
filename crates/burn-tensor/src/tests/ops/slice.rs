@@ -418,25 +418,43 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn should_panic_when_slice_is_desc() {
+    fn should_support_descending_slice_as_empty() {
+        // Like PyTorch, x[3:1] should return an empty tensor, not panic
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
         let output = tensor.slice(s![2..1]);
 
-        output.into_data().assert_eq(&data, false);
+        // Should produce an empty tensor with shape [0]
+        assert_eq!(output.dims(), [0]);
     }
 
     #[test]
-    #[should_panic]
-    fn should_panic_when_slice_is_equal() {
+    fn should_support_empty_slice() {
+        // ONNX models can have empty slices where start == end
+        // This should produce a tensor with size 0 in that dimension
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
         let output = tensor.slice([1..1]);
 
-        output.into_data().assert_eq(&data, false);
+        // Should produce an empty tensor with shape [0]
+        assert_eq!(output.dims(), [0]);
+    }
+
+    #[test]
+    fn should_support_empty_slice_2d() {
+        // Test empty slice on 2D tensor
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
+
+        // Empty slice on first dimension
+        let output = tensor.clone().slice([1..1, 0..3]);
+        assert_eq!(output.dims(), [0, 3]);
+
+        // Empty slice on second dimension
+        let output = tensor.slice([0..2, 2..2]);
+        assert_eq!(output.dims(), [2, 0]);
     }
 
     #[test]

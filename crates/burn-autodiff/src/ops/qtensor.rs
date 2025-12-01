@@ -1,6 +1,6 @@
 use burn_tensor::{
     Device, Shape, TensorData,
-    backend::Backend,
+    backend::{Backend, ExecutionError},
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -46,7 +46,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         B::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         B::q_into_data(tensor).await
     }
 

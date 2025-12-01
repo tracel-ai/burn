@@ -1,6 +1,7 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use crate::backend::ExecutionError;
 use crate::{
     Distribution, ElementConversion, Int, IntDType, TensorData, backend::Backend, tensor::Shape,
 };
@@ -33,7 +34,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn int_into_data(
+        tensor: IntTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -83,6 +86,11 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements at the given indices.
+    ///
+    /// # Note
+    ///
+    /// Empty slices (where start >= end) are handled at the high-level tensor API and will not
+    /// be passed to this method. Backend implementations do not need to handle empty slices.
     fn int_slice(tensor: IntTensor<B>, slices: &[crate::Slice]) -> IntTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.

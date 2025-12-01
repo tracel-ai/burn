@@ -1,6 +1,7 @@
 use burn_std::future::DynFut;
 use burn_tensor::{
     Bool, Device, Distribution, ElementConversion, IntDType, Shape, TensorData,
+    backend::ExecutionError,
     ops::{BoolTensor, FloatTensor, FloatTensorOps, IntElem, IntTensor, IntTensorOps},
 };
 
@@ -16,7 +17,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::empty(shape, device, dtype.into_dtype())
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
+    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::base::into_data(tensor)
     }
 
