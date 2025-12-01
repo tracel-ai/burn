@@ -46,6 +46,19 @@ pub const HEADER_SIZE: usize = MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_S
 /// providing maximum compatibility with current and future hardware.
 pub const TENSOR_ALIGNMENT: u64 = 256;
 
+/// Calculate the byte offset where the tensor data section starts.
+///
+/// The data section is padded to start at a 256-byte aligned position
+/// so that all tensor offsets (which are relative to data section) result
+/// in properly aligned absolute file positions for mmap zero-copy access.
+///
+/// This function must be used consistently by both writer and reader.
+#[inline]
+pub fn aligned_data_section_start(metadata_size: usize) -> usize {
+    let unaligned_start = (HEADER_SIZE + metadata_size) as u64;
+    unaligned_start.div_ceil(TENSOR_ALIGNMENT) as usize * TENSOR_ALIGNMENT as usize
+}
+
 // Security limits to prevent DoS attacks via resource exhaustion
 // These can be adjusted based on your use case
 
