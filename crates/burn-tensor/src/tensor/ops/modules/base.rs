@@ -312,6 +312,39 @@ impl GridSampleOptions {
     }
 }
 
+/// Padding mode for tensor pad operations.
+///
+/// Defines how values are filled when padding a tensor beyond its original boundaries.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum PadMode {
+    /// Fill padded regions with a constant value.
+    ///
+    /// # Example
+    /// For tensor `[1, 2, 3]` with padding 2 on the left and value 0:
+    /// Result: `[0, 0, 1, 2, 3]`
+    Constant(f32),
+
+    /// Reflect values at the boundary, excluding the edge value.
+    ///
+    /// # Example
+    /// For tensor `[1, 2, 3, 4]` with padding 2 on the left:
+    /// Result: `[3, 2, 1, 2, 3, 4]` (reflects from index 1, not 0)
+    Reflect,
+
+    /// Replicate the edge values.
+    ///
+    /// # Example
+    /// For tensor `[1, 2, 3, 4]` with padding 2 on the left:
+    /// Result: `[1, 1, 1, 2, 3, 4]`
+    Edge,
+}
+
+impl Default for PadMode {
+    fn default() -> Self {
+        PadMode::Constant(0.0)
+    }
+}
+
 /// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
 #[derive(new)]
 pub struct InterpolateBackward<B: Backend> {

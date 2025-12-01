@@ -245,7 +245,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.one_hot(num_classes)`                                   | `torch.nn.functional.one_hot`                  |
 | `tensor.one_hot_fill(num_classes, on_value, off_value, axis)`   | N/A                                            |
 | `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
-| `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
+| `tensor.pad(pads, mode)`                                        | `torch.nn.functional.pad(tensor, pads, mode)`  |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
 | `tensor.prod()`                                                 | `tensor.prod()`                                |
