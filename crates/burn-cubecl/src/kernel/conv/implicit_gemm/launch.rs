@@ -18,6 +18,7 @@ use cubecl::{
     matmul::{
         MatmulInputHandleRef,
         components::{InputArg, MatmulElems, OutputArg},
+        tune_key::MatmulElemType,
     },
 };
 
@@ -133,8 +134,20 @@ where
     let bias = bias.as_ref().map(|bias| bias.as_handle_ref());
 
     let client = input.client.clone();
-    let dtypes =
-        MatmulElems::from_globals(input.dtype.into(), weight.dtype.into(), out_dtype.into());
+    let dtypes = MatmulElems::from_globals(
+        MatmulElemType {
+            dtype: input.dtype.into(),
+            quantized: false,
+        },
+        MatmulElemType {
+            dtype: weight.dtype.into(),
+            quantized: false,
+        },
+        MatmulElemType {
+            dtype: out_dtype.into(),
+            quantized: false,
+        },
+    );
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());
 
