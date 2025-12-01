@@ -23,6 +23,7 @@ use burn::{
 };
 
 #[derive(Config, Debug)]
+/// Configuration to create a [Crossattention](Crossattention) layer using the [init function](CrossattentionConfig::init).
 pub struct CrossAttentionConfig {
     /// Dimension of the Query (e.g., Decoder state).
     pub d_model: usize,
@@ -46,11 +47,21 @@ pub struct CrossAttentionConfig {
 }
 
 #[derive(Module, Debug)]
+/// The Cross attention module
+///
+/// # Params
+///
+/// - `query`: [`Linear`] layer with `d_model` input and output features.
+/// - `key`: [`Linear`] layer with `d_model` input and output features.
+/// - `value`: [`Linear`] layer with `d_model` input and output features.
+/// - `output`: [`Linear`] layer with `d_model` input and output features.
+///
+/// Should be created with [MultiHeadAttentionConfig].
 pub struct CrossAttention<B: Backend> {
-    q_proj: Linear<B>,
-    k_proj: Linear<B>,
-    v_proj: Linear<B>,
-    o_proj: Linear<B>,
+    query: Linear<B>,
+    key: Linear<B>,
+    value: Linear<B>,
+    output: Linear<B>,
     dropout: Dropout,
 
     n_heads: usize,
@@ -62,8 +73,17 @@ pub struct CrossAttention<B: Backend> {
 }
 
 impl CrossAttentionConfig {
+    /// Initializes a new cross-attention module.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The device on which to initialize the module.
+    ///
+    /// # Returns
+    ///
+    /// A new [CrossAttention] module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> CrossAttention<B> {
-        // ADVICE: Safety Rail for GQA
+        // Safety Rail for GQA
         assert_eq!(
             self.n_heads % self.n_heads_kv,
             0,
@@ -81,10 +101,10 @@ impl CrossAttentionConfig {
 
         CrossAttention {
             // ADVICE: Asymmetric Projections
-            q_proj: init_linear(self.d_model, self.n_heads * self.d_head),
-            k_proj: init_linear(self.d_context, self.n_heads_kv * self.d_head),
-            v_proj: init_linear(self.d_context, self.n_heads_kv * self.d_head),
-            o_proj: init_linear(self.n_heads * self.d_head, self.d_model),
+            query: init_linear(self.d_model, self.n_heads * self.d_head),
+            key: init_linear(self.d_context, self.n_heads_kv * self.d_head),
+            value: init_linear(self.d_context, self.n_heads_kv * self.d_head),
+            output: init_linear(self.n_heads * self.d_head, self.d_model),
 
             dropout: DropoutConfig::new(self.dropout).init(),
             n_heads: self.n_heads,
@@ -98,6 +118,17 @@ impl CrossAttentionConfig {
 }
 
 impl<B: Backend> CrossAttention<B> {
+    /// Applies cross-attention to query using context as key and value.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - Query tensor of shape `[batch, seq_len_query, d_model]`.
+    /// * `context` - Context tensor of shape `[batch, seq_len_context, d_context]`.
+    /// * `mask` - Optional attention mask of shape `[batch, seq_len_context]` where `true` indicates positions to mask.
+    ///
+    /// # Returns
+    ///
+    /// Output tensor of shape `[batch, seq_len_query, d_model]`.
     pub fn forward(
         &self,
         query: Tensor<B, 3>,
@@ -108,9 +139,9 @@ impl<B: Backend> CrossAttention<B> {
         let [_, l_k, _] = context.dims();
 
         // 1. Projections
-        let q = self.q_proj.forward(query);
-        let k = self.k_proj.forward(context.clone());
-        let v = self.v_proj.forward(context);
+        let q = self.query.forward(query);
+        let k = self.key.forward(context.clone());
+        let v = self.value.forward(context);
 
         // 2. Reshape Heads
         // Q: [Batch, Heads, L_q, D_head]
@@ -163,7 +194,7 @@ impl<B: Backend> CrossAttention<B> {
             .swap_dims(1, 2)
             .reshape([batch, l_q, self.n_heads * self.d_head]);
 
-        self.o_proj.forward(output)
+        self.output.forward(output)
     }
 
     /// Helper for Grouped Query Attention
