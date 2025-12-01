@@ -273,4 +273,45 @@ mod tests {
         padded_reflect.into_data().assert_eq(&expected, false);
         padded_edge.into_data().assert_eq(&expected, false);
     }
+
+    #[test]
+    fn padding_empty_tensor_constant_test() {
+        // Test constant padding on an empty tensor (zero-sized dimension)
+        // This should work - creates a tensor filled with the constant value
+        let tensor: TestTensor<2> = TestTensor::empty([0, 3], &Default::default());
+
+        // Padding an empty height dimension with constant should create a tensor of just padding
+        let padded = tensor.pad((0, 0, 2, 2), PadMode::Constant(1.0));
+
+        // Result should be 4x3 (0 + 2 + 2 = 4 rows)
+        assert_eq!(padded.dims(), [4, 3]);
+
+        let expected = TensorData::from(as_type!(FloatType: [
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ]));
+        padded.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "edge padding")]
+    fn padding_empty_tensor_edge_panics_test() {
+        // Test that edge padding panics on empty tensor
+        let tensor: TestTensor<2> = TestTensor::empty([0, 3], &Default::default());
+
+        // Edge padding on zero-sized dimension should panic
+        let _ = tensor.pad((0, 0, 1, 1), PadMode::Edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "Reflect padding")]
+    fn padding_empty_tensor_reflect_panics_test() {
+        // Test that reflect padding panics on empty tensor
+        let tensor: TestTensor<2> = TestTensor::empty([0, 3], &Default::default());
+
+        // Reflect padding on zero-sized dimension should panic
+        let _ = tensor.pad((0, 0, 1, 1), PadMode::Reflect);
+    }
 }
