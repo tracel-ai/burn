@@ -315,6 +315,15 @@ impl GridSampleOptions {
 /// Padding mode for tensor pad operations.
 ///
 /// Defines how values are filled when padding a tensor beyond its original boundaries.
+///
+/// **Note**: Currently, padding is only supported on the last two dimensions of a tensor
+/// (typically height and width for image data in NCHW format).
+///
+/// # Modes
+///
+/// - [`Constant`](PadMode::Constant): Fill with a specified value (default: 0.0)
+/// - [`Reflect`](PadMode::Reflect): Mirror values at boundary, excluding edge (requires padding < dim_size)
+/// - [`Edge`](PadMode::Edge): Replicate boundary values
 #[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum PadMode {
     /// Fill padded regions with a constant value.
@@ -325,6 +334,8 @@ pub enum PadMode {
     Constant(f32),
 
     /// Reflect values at the boundary, excluding the edge value.
+    ///
+    /// Padding must be less than the dimension size (i.e., `padding < dim_size`).
     ///
     /// # Example
     /// For tensor `[1, 2, 3, 4]` with padding 2 on the left:

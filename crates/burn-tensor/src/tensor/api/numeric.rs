@@ -2149,14 +2149,22 @@ where
 
     /// Pad the tensor of rank two or higher on the last two dimensions.
     ///
+    /// **Note**: This operation only pads the last two dimensions (typically height and width
+    /// for image tensors in NCHW format). Padding on batch or channel dimensions is not supported.
+    ///
     /// # Arguments
     ///
-    /// * `padding` - A tuple of four integers representing the padding on the left, right, top, and bottom.
-    /// * `mode` - The padding mode to use (Constant, Reflect, or Edge).
+    /// * `padding` - A tuple `(left, right, top, bottom)` specifying padding for the last two dimensions.
+    /// * `mode` - The padding mode: `Constant(value)`, `Reflect`, or `Edge`.
     ///
     /// # Returns
     ///
-    /// A new tensor with the given padding.
+    /// A new tensor with the specified padding applied.
+    ///
+    /// # Panics
+    ///
+    /// - `Reflect` mode panics if padding exceeds `dimension_size - 1`.
+    /// - `Edge` mode panics if padding is applied to a zero-sized dimension.
     ///
     /// # Example
     ///
@@ -2308,6 +2316,21 @@ where
     /// Example: `[1, 2, 3, 4]` with left padding 2 becomes `[1, 1, 1, 2, 3, 4]`
     fn pad_edge(self, padding: (usize, usize, usize, usize)) -> Self {
         let (left, right, top, bottom) = padding;
+        let dims = self.dims();
+
+        // Validate dimensions are non-zero when padding is requested
+        if top > 0 || bottom > 0 {
+            assert!(
+                dims[D - 2] > 0,
+                "Cannot apply edge padding to zero-sized height dimension"
+            );
+        }
+        if left > 0 || right > 0 {
+            assert!(
+                dims[D - 1] > 0,
+                "Cannot apply edge padding to zero-sized width dimension"
+            );
+        }
 
         let mut result = self;
 
