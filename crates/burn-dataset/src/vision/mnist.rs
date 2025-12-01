@@ -10,7 +10,7 @@ use crate::{
     transform::{Mapper, MapperDataset},
 };
 
-use burn_std::network::downloader::download_file_as_bytes;
+use crate::network::downloader::download_file_as_bytes;
 
 // CVDF mirror of http://yann.lecun.com/exdb/mnist/
 const URL: &str = "https://storage.googleapis.com/cvdf-datasets/mnist/";
