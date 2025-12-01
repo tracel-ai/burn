@@ -5570,7 +5570,6 @@ dependencies = [
  "burn-tensor",
  "bytemuck",
  "bytes",
- "cubecl-common",
  "derive-new",
  "divan",
  "half",

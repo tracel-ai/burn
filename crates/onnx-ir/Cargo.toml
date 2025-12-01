@@ -31,7 +31,6 @@ regex = { workspace = true, features = ["default"] }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
 bytes = { workspace = true }
-cubecl-common = { workspace = true }
 memmap2 = { workspace = true, optional = true }
 
 [build-dependencies]
