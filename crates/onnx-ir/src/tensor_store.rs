@@ -49,7 +49,9 @@ impl LazyTensorData {
     /// Get the tensor data, copying bytes to an aligned buffer.
     ///
     /// This is the point where data is copied from the mmap'd buffer
-    /// to heap memory. The copy ensures proper alignment for typed access.
+    /// to heap memory. This copy is necessary for correctness: mmap'd buffers may not
+    /// have proper alignment for multi-byte types (e.g., f32, i64), so copying to a
+    /// heap-allocated Vec<u8> ensures alignment for safe typed access.
     pub fn to_tensor_data(&self) -> TensorData {
         TensorData::from_bytes_vec(self.raw_bytes.to_vec(), self.shape.clone(), self.dtype)
     }
