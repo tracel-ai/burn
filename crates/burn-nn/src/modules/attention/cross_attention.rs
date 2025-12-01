@@ -6,7 +6,7 @@
 //! - Quantization-Safe Masking (min_float)
 //! - Sparse-Ready (quiet_softmax)
 //! - KV Caching for Streaming Inference
-
+use num_traits::Float;
 use burn_core as burn;
 
 use crate::modules::{Linear, LinearConfig};
