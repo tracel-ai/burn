@@ -36,6 +36,16 @@ impl LazyTensorData {
         }
     }
 
+    /// Get the shape of the tensor
+    pub fn shape(&self) -> &[usize] {
+        &self.shape
+    }
+
+    /// Get the data type of the tensor
+    pub fn dtype(&self) -> DType {
+        self.dtype
+    }
+
     /// Get the tensor data, copying bytes to an aligned buffer.
     ///
     /// This is the point where data is copied from the mmap'd buffer

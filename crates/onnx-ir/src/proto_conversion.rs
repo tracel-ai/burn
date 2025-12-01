@@ -253,6 +253,45 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
     }
 }
 
+/// Create an Argument and LazyTensorData from an ONNX initializer (zero-copy path)
+///
+/// This is the preferred path for mmap loading - it creates LazyTensorData directly
+/// from the TensorProto without going through TensorData, avoiding unnecessary copies.
+/// The tensor bytes remain as references to the mmap'd buffer until actually accessed.
+pub fn argument_from_initializer_lazy(
+    initializer: TensorProto,
+) -> Result<(Argument, LazyTensorData), ParseError> {
+    use crate::ir::ValueSource;
+
+    let name = initializer.name.clone();
+
+    // Try to create LazyTensorData directly (zero-copy for raw_data)
+    let lazy_data = LazyTensorData::try_from(initializer)?;
+
+    let arg = if lazy_data.shape().is_empty() {
+        // rank-0 (scalar)
+        Argument {
+            name,
+            ty: ArgType::Scalar(lazy_data.dtype()),
+            value_source: ValueSource::Constant,
+            value_store: None,
+        }
+    } else {
+        Argument {
+            name,
+            ty: ArgType::Tensor(TensorType {
+                dtype: lazy_data.dtype(),
+                rank: lazy_data.shape().len(),
+                static_shape: Some(lazy_data.shape().to_vec()),
+            }),
+            value_source: ValueSource::Constant,
+            value_store: None,
+        }
+    };
+
+    Ok((arg, lazy_data))
+}
+
 /// Convert TensorProto to LazyTensorData for zero-copy mmap support
 ///
 /// This stores raw bytes directly without copying, deferring conversion

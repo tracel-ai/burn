@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::ir::{ArgType, Argument, DataId, NodeType, RawNode, TensorData};
-use crate::proto_conversion::argument_from_initializer;
+use crate::proto_conversion::{argument_from_initializer, argument_from_initializer_lazy};
 use crate::protos::{TensorProto, ValueInfoProto};
 use crate::tensor_store::LazyTensorData;
 
@@ -386,6 +386,9 @@ fn create_constant_node(
 }
 
 /// Convert ONNX initializers to Constant nodes, store in tensor store
+///
+/// Uses the zero-copy lazy path when possible (raw_data available),
+/// falling back to the standard path for edge cases (scalars, empty tensors).
 fn process_initializers(
     initializers: &[TensorProto],
     tensor_store: &mut TensorStore,
@@ -396,10 +399,16 @@ fn process_initializers(
         .iter()
         .enumerate()
         .map(|(idx, initializer)| {
-            let (_arg, data) = argument_from_initializer(initializer);
+            // Try the zero-copy lazy path first (preserves mmap references)
+            let (arg, lazy_data) = match argument_from_initializer_lazy(initializer.clone()) {
+                Ok((arg, lazy_data)) => (arg, lazy_data),
+                Err(_) => {
+                    // Fallback to standard path for edge cases (scalars, empty tensors)
+                    let (arg, data) = argument_from_initializer(initializer);
+                    (arg, LazyTensorData::from(data))
+                }
+            };
 
-            // Convert TensorData to LazyTensorData and store
-            let lazy_data = LazyTensorData::from(data);
             let data_id = tensor_store.store(lazy_data);
 
             // Generate unique name using registry if available
@@ -413,7 +422,7 @@ fn process_initializers(
             // Register in constant_map for fast lookup
             constant_map.insert(output_name.clone(), data_id);
 
-            create_constant_node(const_name, output_name, _arg.ty.clone(), data_id)
+            create_constant_node(const_name, output_name, arg.ty.clone(), data_id)
         })
         .collect()
 }
