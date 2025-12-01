@@ -643,6 +643,7 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn-std",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "num-traits",
  "paste",

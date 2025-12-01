@@ -1,3 +1,5 @@
+use burn_backend::tensor::QuantizationParametersPrimitive;
+
 use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
@@ -10,9 +12,7 @@ use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{Int, TensorPrimitive};
-
-use super::Bool;
+use crate::{Bool, Int, TensorPrimitive};
 
 /// Default RTOL value for `is_close` and `all_close`.
 pub const DEFAULT_RTOL: f64 = 1e-5;
@@ -402,7 +402,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Tensor::new(TensorPrimitive::QFloat(B::quantize(
             self.primitive.tensor(),
             scheme,
-            qparams.into(),
+            QuantizationParametersPrimitive {
+                scales: qparams.scales.primitive.tensor(),
+            },
         )))
     }
 

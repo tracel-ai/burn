@@ -13,7 +13,50 @@ mod data;
 pub use data::*;
 
 pub mod distribution;
+pub use distribution::*;
 pub mod element;
 
-// /// Quantization data representation.
-// pub mod quantization;
+/// [`Backend`] trait and required types.
+pub mod backend;
+pub use backend::*;
+
+/// Backend tensor primitives and operations.
+pub mod tensor;
+
+// // Re-exported types
+// pub use burn_std::{
+//     DType, FloatDType, IntDType, s,
+//     tensor::{indexing::*, shape::*, slice::*},
+// };
+
+#[cfg(feature = "cubecl-wgpu")]
+mod cube_wgpu {
+    use crate::backend::DeviceOps;
+    use cubecl::wgpu::WgpuDevice;
+
+    impl DeviceOps for WgpuDevice {}
+}
+
+#[cfg(feature = "cubecl-cuda")]
+mod cube_cuda {
+    use crate::backend::DeviceOps;
+    use cubecl::cuda::CudaDevice;
+
+    impl DeviceOps for CudaDevice {}
+}
+
+#[cfg(all(feature = "cubecl-cpu", target_os = "linux"))]
+mod cube_cpu {
+    use crate::backend::DeviceOps;
+    use cubecl::cpu::CpuDevice;
+
+    impl DeviceOps for CpuDevice {}
+}
+
+#[cfg(feature = "cubecl-hip")]
+mod cube_hip {
+    use crate::backend::DeviceOps;
+    use cubecl::hip::AmdDevice;
+
+    impl DeviceOps for AmdDevice {}
+}
