@@ -36,7 +36,5 @@ pub fn naive_attention<B: Backend>(
     let softmax = B::float_div(numerator, sum_exp);
 
     // Context: S · V
-    let context = B::float_matmul(softmax, value);
-
-    context
+    B::float_matmul(softmax, value)
 }

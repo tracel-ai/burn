@@ -416,7 +416,7 @@ pub fn linear<B: Backend, const D: usize>(
 /// - `key`: Key tensor of shape `[batch_size, seq_len_k, num_heads, head_dim]`
 /// - `value`: Value tensor of shape `[batch_size, seq_len_k, num_heads, head_dim]`
 /// - `mask`: Optional boolean mask of shape `[batch_size, seq_len_q, num_heads, seq_len_k]`,
-///           where `true` indicates positions to mask (i.e. set to -∞ before softmax).
+///   where `true` indicates positions to mask (i.e. set to -∞ before softmax).
 ///
 /// # Returns
 /// A tensor of shape `[batch_size, seq_len_q, num_heads, head_dim]`

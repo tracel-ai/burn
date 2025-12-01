@@ -858,7 +858,7 @@ pub trait ModuleOps<B: Backend> {
     /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
     /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
     /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
-    ///           where `true` indicates positions to mask (i.e. set to -∞ before softmax).
+    ///   here `true` indicates positions to mask (i.e. set to -∞ before softmax).
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
