@@ -1,6 +1,7 @@
+pub use super::RemoteDevice;
 use super::worker::{ClientRequest, ClientWorker};
 use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponseContent};
-use async_channel::Sender;
+use async_channel::{RecvError, SendError, Sender};
 use burn_communication::ProtocolClient;
 use burn_ir::TensorId;
 use burn_std::id::StreamId;
@@ -8,8 +9,6 @@ use std::{
     future::Future,
     sync::{Arc, atomic::AtomicU64},
 };
-
-pub use super::RemoteDevice;
 
 #[derive(Clone)]
 pub struct RemoteClient {
@@ -31,7 +30,7 @@ impl RemoteClient {
     ) -> Self {
         Self {
             device,
-            runtime,
+            runtime: runtime.clone(),
             sender: Arc::new(RemoteSender {
                 sender,
                 position_counter: AtomicU64::new(0),
@@ -49,49 +48,62 @@ pub(crate) struct RemoteSender {
     session_id: SessionId,
 }
 
+#[allow(unused)]
+#[derive(Debug)]
+pub enum RemoteSendError {
+    SendError(SendError<ClientRequest>),
+    RecvError(RecvError),
+}
+
 impl RemoteSender {
-    pub(crate) fn send(&self, task: ComputeTask) {
-        let position = self
-            .position_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let stream_id = StreamId::current();
-        let sender = self.sender.clone();
-
-        sender
-            .send_blocking(ClientRequest::WithoutCallback(Task::Compute(
-                task,
-                ConnectionId::new(position, stream_id),
-            )))
-            .unwrap();
-    }
-
+    /// Generate a new unique (for this [`RemoteSender`] [`TensorId`].
     pub(crate) fn new_tensor_id(&self) -> TensorId {
         let val = self
             .tensor_id_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         TensorId::new(val)
     }
-    pub(crate) fn send_callback(
+
+    /// Give the next operation sequence number.
+    fn next_position(&self) -> u64 {
+        self.position_counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn send(&self, task: ComputeTask) {
+        self.sender
+            .send_blocking(ClientRequest::WithoutCallback(Task::Compute(
+                task,
+                ConnectionId::new(self.next_position(), StreamId::current()),
+            )))
+            .unwrap();
+    }
+
+    pub(crate) fn send_async(
         &self,
         task: ComputeTask,
-    ) -> impl Future<Output = TaskResponseContent> + Send + use<> {
-        let position = self
-            .position_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    ) -> impl Future<Output = Result<TaskResponseContent, RemoteSendError>> + Send + use<> {
         let stream_id = StreamId::current();
+        let position = self.next_position();
         let sender = self.sender.clone();
-        let (callback_sender, callback_recv) = async_channel::bounded(1);
-        sender
-            .send_blocking(ClientRequest::WithSyncCallback(
-                Task::Compute(task, ConnectionId::new(position, stream_id)),
-                callback_sender,
-            ))
-            .unwrap();
 
         async move {
-            match callback_recv.recv().await {
-                Ok(val) => val,
-                Err(err) => panic!("{err:?}"),
+            let (tx, rx) = async_channel::bounded(1);
+
+            match sender
+                .send(ClientRequest::WithSyncCallback(
+                    Task::Compute(task, ConnectionId::new(position, stream_id)),
+                    tx,
+                ))
+                .await
+            {
+                Err(e) => return Err(RemoteSendError::SendError(e)),
+                Ok(_) => {}
+            }
+
+            match rx.recv().await {
+                Ok(response) => Ok(response),
+                Err(e) => Err(RemoteSendError::RecvError(e)),
             }
         }
     }

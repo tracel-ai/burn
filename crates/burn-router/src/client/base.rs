@@ -39,7 +39,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
         out
     }
     /// Read the values contained by a tensor.
-    fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Sync the runner, ensure that all computations are finished.
     fn sync(&self) -> Result<(), SyncError>;
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).

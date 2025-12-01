@@ -86,13 +86,13 @@ where
                         count,
                     } => {
                         log::info!("Exposing tensor: (id: {transfer_id:?})");
-                        let data = runner.read_tensor(tensor).await;
+                        let data = runner.read_tensor_async(tensor).await;
                         data_service
                             .expose_data(data.unwrap(), count, transfer_id)
                             .await;
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
-                        let tensor = runner.read_tensor(tensor).await;
+                        let tensor = runner.read_tensor_async(tensor).await;
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::ReadTensor(tensor),
