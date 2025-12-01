@@ -2,7 +2,7 @@ use protobuf_codegen::Customize;
 
 fn main() {
     // Generate the onnx protobuf files
-    // Enable tokio_bytes to generate bytes::Bytes for bytes fields
+    // Enable bytes::Bytes generation for protobuf bytes fields instead of Vec<u8>
     // This enables zero-copy parsing when combined with mmap
     protobuf_codegen::Codegen::new()
         .pure()
