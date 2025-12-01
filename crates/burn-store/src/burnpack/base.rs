@@ -56,7 +56,8 @@ pub const TENSOR_ALIGNMENT: u64 = 256;
 #[inline]
 pub fn aligned_data_section_start(metadata_size: usize) -> usize {
     let unaligned_start = (HEADER_SIZE + metadata_size) as u64;
-    unaligned_start.div_ceil(TENSOR_ALIGNMENT) as usize * TENSOR_ALIGNMENT as usize
+    // Keep multiplication in u64 space to avoid overflow on 32-bit systems
+    (unaligned_start.div_ceil(TENSOR_ALIGNMENT) * TENSOR_ALIGNMENT) as usize
 }
 
 // Security limits to prevent DoS attacks via resource exhaustion
