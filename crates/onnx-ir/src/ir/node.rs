@@ -107,11 +107,29 @@ macro_rules! define_node_enum {
                 }
             }
 
+            /// Get mutable node inputs (internal use only)
+            pub(crate) fn inputs_mut(&mut self) -> &mut Vec<Argument> {
+                match self {
+                    $(
+                        Node::$variant(inner) => &mut inner.inputs,
+                    )*
+                }
+            }
+
             /// Get the node outputs
             pub fn outputs(&self) -> &[Argument] {
                 match self {
                     $(
                         Node::$variant(inner) => &inner.outputs,
+                    )*
+                }
+            }
+
+            /// Get mutable node outputs (internal use only)
+            pub(crate) fn outputs_mut(&mut self) -> &mut Vec<Argument> {
+                match self {
+                    $(
+                        Node::$variant(inner) => &mut inner.outputs,
                     )*
                 }
             }

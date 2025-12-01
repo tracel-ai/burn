@@ -38,11 +38,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {
         let data_weights = extract_node_data(&self.inputs, 1).unwrap();
         let data_bias = extract_node_data(&self.inputs, 2);
 
+        // Create weight tensor
+        let weight_tensor: Tensor<SerializationBackend, 2> =
+            Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device);
+
+        // Transpose only if needed (Gemm-sourced Linear has weights in [out, in] layout)
+        // MatMul-sourced Linear already has weights in [in, out] layout
+        let weight_final = if self.config.transpose_weight {
+            weight_tensor.transpose()
+        } else {
+            weight_tensor
+        };
+
         let record = LinearRecord::<SerializationBackend> {
-            weight: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device),
-            ),
+            weight: Param::initialized(ParamId::new(), weight_final),
             bias: data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
@@ -81,7 +90,8 @@ mod tests {
 
     #[test]
     fn test_linear_forward() {
-        let config = LinearConfig::new(128, 64, true);
+        // transpose_weight=true simulates Gemm-sourced Linear
+        let config = LinearConfig::new(128, 64, true, true);
         let input = Argument::new(
             "input",
             ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
@@ -120,7 +130,8 @@ mod tests {
 
     #[test]
     fn test_linear_forward_no_bias() {
-        let config = LinearConfig::new(128, 64, false);
+        // transpose_weight=false simulates MatMul-sourced Linear
+        let config = LinearConfig::new(128, 64, false, false);
         let input = Argument::new(
             "input",
             ArgType::Tensor(TensorType::new(DType::F32, 2, None)),
