@@ -23,7 +23,7 @@ use burn::{
 };
 
 #[derive(Config, Debug)]
-/// Configuration to create a [Crossattention](Crossattention) layer using the [init function](CrossattentionConfig::init).
+/// Configuration to create a [CrossAttention](CrossAttention) layer using the [init function](CrossAttentionConfig::init).
 pub struct CrossAttentionConfig {
     /// Dimension of the Query (e.g., Decoder state).
     pub d_model: usize,
@@ -56,7 +56,7 @@ pub struct CrossAttentionConfig {
 /// - `value`: [`Linear`] layer with `d_model` input and output features.
 /// - `output`: [`Linear`] layer with `d_model` input and output features.
 ///
-/// Should be created with [MultiHeadAttentionConfig].
+/// Should be created with [CrossAttentionConfig].
 pub struct CrossAttention<B: Backend> {
     query: Linear<B>,
     key: Linear<B>,
