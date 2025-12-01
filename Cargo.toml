@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0-pre.3"
+version = "0.20.0-pre.4"
 
 [workspace.lints.clippy]
 
@@ -174,9 +174,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86b23d0f6e73d6e1ea3f7ba97eaf876402da9b94" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86b23d0f6e73d6e1ea3f7ba97eaf876402da9b94" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86b23d0f6e73d6e1ea3f7ba97eaf876402da9b94" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "aa13164ee5754c66faa0ecfe68ab1e202ef165f6" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "aa13164ee5754c66faa0ecfe68ab1e202ef165f6" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "aa13164ee5754c66faa0ecfe68ab1e202ef165f6" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
