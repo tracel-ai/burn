@@ -28,6 +28,66 @@ pub enum LstmDirection {
     Bidirectional,
 }
 
+/// Activation function for LSTM gates.
+///
+/// This enum represents all activation functions defined in the ONNX LSTM spec.
+/// Not all of these are supported by burn-nn; unsupported activations will
+/// cause an error during burn-import code generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LstmActivationFunction {
+    /// Sigmoid activation (default for gates)
+    #[default]
+    Sigmoid,
+    /// Hyperbolic tangent (default for cell/hidden)
+    Tanh,
+    /// Rectified Linear Unit
+    Relu,
+    /// Hard sigmoid approximation: max(0, min(1, alpha*x + beta))
+    HardSigmoid,
+    /// Leaky ReLU: max(alpha*x, x)
+    LeakyRelu,
+    /// Thresholded ReLU: x if x > alpha else 0
+    ThresholdedRelu,
+    /// Scaled Tanh: alpha * tanh(beta * x)
+    ScaledTanh,
+    /// Exponential Linear Unit: x if x >= 0 else alpha * (exp(x) - 1)
+    Elu,
+    /// Softsign: x / (1 + |x|)
+    Softsign,
+    /// Softplus: log(1 + exp(x))
+    Softplus,
+    /// Affine transformation: alpha * x + beta
+    Affine,
+}
+
+impl std::str::FromStr for LstmActivationFunction {
+    type Err = ProcessError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // ONNX activation names (case-insensitive matching)
+        match s.to_lowercase().as_str() {
+            "sigmoid" => Ok(LstmActivationFunction::Sigmoid),
+            "tanh" => Ok(LstmActivationFunction::Tanh),
+            "relu" => Ok(LstmActivationFunction::Relu),
+            "hardsigmoid" => Ok(LstmActivationFunction::HardSigmoid),
+            "leakyrelu" => Ok(LstmActivationFunction::LeakyRelu),
+            "thresholdedrelu" => Ok(LstmActivationFunction::ThresholdedRelu),
+            "scaledtanh" => Ok(LstmActivationFunction::ScaledTanh),
+            "elu" => Ok(LstmActivationFunction::Elu),
+            "softsign" => Ok(LstmActivationFunction::Softsign),
+            "softplus" => Ok(LstmActivationFunction::Softplus),
+            "affine" => Ok(LstmActivationFunction::Affine),
+            _ => Err(ProcessError::InvalidAttribute {
+                name: "activations".to_string(),
+                reason: format!(
+                    "Unknown ONNX activation '{}'. Valid activations: Sigmoid, Tanh, Relu, HardSigmoid, LeakyRelu, ThresholdedRelu, ScaledTanh, Elu, Softsign, Softplus, Affine",
+                    s
+                ),
+            }),
+        }
+    }
+}
+
 impl std::str::FromStr for LstmDirection {
     type Err = ProcessError;
 
@@ -77,6 +137,16 @@ pub struct LstmConfig {
     pub has_peephole: bool,
     /// Tensor layout: false = seq_length major (default), true = batch_size major
     pub batch_first: bool,
+    /// Cell state clipping threshold (None = no clipping)
+    pub clip: Option<f32>,
+    /// Whether to couple input and forget gates (f = 1 - i)
+    pub input_forget: bool,
+    /// Activation function for input/forget/output gates (default: Sigmoid)
+    pub gate_activation: LstmActivationFunction,
+    /// Activation function for cell gate candidate (default: Tanh)
+    pub cell_activation: LstmActivationFunction,
+    /// Activation function for hidden state output (default: Tanh)
+    pub hidden_activation: LstmActivationFunction,
 }
 
 /// Node representation for LSTM operation
@@ -337,43 +407,70 @@ impl NodeProcessor for LstmProcessor {
         let has_initial_c = node.inputs.len() > 6 && !node.inputs[6].is_optional();
         let has_peephole = node.inputs.len() > 7 && !node.inputs[7].is_optional();
 
-        // Validate unsupported attributes
-        if let Some(clip) = node.attrs.get("clip") {
-            let clip_val = clip.clone().into_f32();
-            if clip_val > 0.0 {
-                return Err(ProcessError::Custom(
-                    "LSTM clip attribute is not yet supported".to_string(),
-                ));
-            }
-        }
+        // Extract clip threshold (default: None)
+        let clip = node
+            .attrs
+            .get("clip")
+            .map(|v| {
+                let val = v.clone().into_f32();
+                if val > 0.0 { Some(val) } else { None }
+            })
+            .flatten();
 
-        if let Some(input_forget) = node.attrs.get("input_forget") {
-            let input_forget_val = input_forget.clone().into_i64();
-            if input_forget_val != 0 {
-                return Err(ProcessError::Custom(
-                    "LSTM input_forget coupling is not yet supported".to_string(),
-                ));
-            }
-        }
+        // Extract input_forget coupling (default: false)
+        let input_forget = node
+            .attrs
+            .get("input_forget")
+            .map(|v| v.clone().into_i64() != 0)
+            .unwrap_or(false);
 
-        // Validate activations are default (Sigmoid, Tanh, Tanh)
-        if let Some(activations) = node.attrs.get("activations") {
-            let acts = activations.clone().into_strings();
-            let expected = vec!["Sigmoid", "Tanh", "Tanh"];
-            let expected_bidirectional = vec!["Sigmoid", "Tanh", "Tanh", "Sigmoid", "Tanh", "Tanh"];
+        // Extract activations (default: Sigmoid, Tanh, Tanh for each direction)
+        // ONNX format: [f, g, h] for unidirectional, [f, g, h, f, g, h] for bidirectional
+        // f = gate activation (i, o, f gates), g = cell activation, h = hidden activation
+        let (gate_activation, cell_activation, hidden_activation) =
+            if let Some(activations) = node.attrs.get("activations") {
+                let acts = activations.clone().into_strings();
+                if acts.is_empty() {
+                    // Empty means use defaults
+                    (
+                        LstmActivationFunction::Sigmoid,
+                        LstmActivationFunction::Tanh,
+                        LstmActivationFunction::Tanh,
+                    )
+                } else if acts.len() >= 3 {
+                    // Parse the first 3 activations (forward direction or only direction)
+                    let gate: LstmActivationFunction = acts[0].parse()?;
+                    let cell: LstmActivationFunction = acts[1].parse()?;
+                    let hidden: LstmActivationFunction = acts[2].parse()?;
 
-            let is_default = match direction {
-                LstmDirection::Bidirectional => acts.is_empty() || acts == expected_bidirectional,
-                _ => acts.is_empty() || acts == expected,
+                    // For bidirectional, verify both directions use the same activations
+                    if direction == LstmDirection::Bidirectional && acts.len() >= 6 {
+                        let gate2: LstmActivationFunction = acts[3].parse()?;
+                        let cell2: LstmActivationFunction = acts[4].parse()?;
+                        let hidden2: LstmActivationFunction = acts[5].parse()?;
+
+                        if gate != gate2 || cell != cell2 || hidden != hidden2 {
+                            return Err(ProcessError::Custom(
+                                "LSTM bidirectional with different activations per direction is not supported. Both directions must use the same activations.".to_string(),
+                            ));
+                        }
+                    }
+
+                    (gate, cell, hidden)
+                } else {
+                    return Err(ProcessError::Custom(format!(
+                        "LSTM activations must have at least 3 elements, got {}",
+                        acts.len()
+                    )));
+                }
+            } else {
+                // No activations attribute means use defaults
+                (
+                    LstmActivationFunction::Sigmoid,
+                    LstmActivationFunction::Tanh,
+                    LstmActivationFunction::Tanh,
+                )
             };
-
-            if !is_default {
-                return Err(ProcessError::Custom(format!(
-                    "LSTM custom activations {:?} are not yet supported. Only default activations (Sigmoid, Tanh, Tanh) are supported.",
-                    acts
-                )));
-            }
-        }
 
         let config = LstmConfig::new(
             input_size,
@@ -384,6 +481,11 @@ impl NodeProcessor for LstmProcessor {
             has_initial_c,
             has_peephole,
             batch_first,
+            clip,
+            input_forget,
+            gate_activation,
+            cell_activation,
+            hidden_activation,
         );
 
         Ok(config)

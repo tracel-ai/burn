@@ -1,12 +1,43 @@
 use super::prelude::*;
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::{BiLstmRecord, GateControllerRecord, LinearRecord, LstmRecord},
+    nn::{BiLstmRecord, GateControllerRecord, LinearRecord, LstmActivation, LstmRecord},
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
-use onnx_ir::lstm::LstmDirection;
+use onnx_ir::lstm::{LstmActivationFunction, LstmDirection};
 use serde::Serialize;
+
+/// Convert ONNX activation function to Burn LstmActivation.
+///
+/// # Panics
+///
+/// Panics if the ONNX activation function is not supported by burn-nn.
+/// Supported activations: Sigmoid, Tanh, Relu, HardSigmoid.
+fn to_burn_activation(onnx_activation: LstmActivationFunction) -> LstmActivation {
+    match onnx_activation {
+        LstmActivationFunction::Sigmoid => LstmActivation::Sigmoid,
+        LstmActivationFunction::Tanh => LstmActivation::Tanh,
+        LstmActivationFunction::Relu => LstmActivation::Relu,
+        LstmActivationFunction::HardSigmoid => LstmActivation::HardSigmoid,
+        unsupported => panic!(
+            "LSTM activation '{:?}' is not supported by burn-nn. \
+             Supported activations: Sigmoid, Tanh, Relu, HardSigmoid. \
+             Consider using a supported activation or implementing support in burn-nn.",
+            unsupported
+        ),
+    }
+}
+
+/// Convert LstmActivation to tokens for code generation
+fn activation_to_tokens(activation: LstmActivation) -> TokenStream {
+    match activation {
+        LstmActivation::Sigmoid => quote! { LstmActivation::Sigmoid },
+        LstmActivation::Tanh => quote! { LstmActivation::Tanh },
+        LstmActivation::Relu => quote! { LstmActivation::Relu },
+        LstmActivation::HardSigmoid => quote! { LstmActivation::HardSigmoid },
+    }
+}
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
     fn inputs(&self) -> &[Argument] {
@@ -23,6 +54,39 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
         let d_hidden = self.config.hidden_size.to_tokens();
         let bias = self.config.has_bias;
         let batch_first = self.config.batch_first;
+        let input_forget = self.config.input_forget;
+
+        // Convert activations to tokens
+        let gate_act = to_burn_activation(self.config.gate_activation);
+        let cell_act = to_burn_activation(self.config.cell_activation);
+        let hidden_act = to_burn_activation(self.config.hidden_activation);
+
+        let gate_activation = activation_to_tokens(gate_act);
+        let cell_activation = activation_to_tokens(cell_act);
+        let hidden_activation = activation_to_tokens(hidden_act);
+
+        // Generate clip config if present
+        let clip_config = if let Some(clip) = self.config.clip {
+            let clip_val = clip as f64;
+            quote! { .with_clip(Some(#clip_val)) }
+        } else {
+            quote! {}
+        };
+
+        // Only add non-default activations to config
+        let activations_config = {
+            let mut tokens = quote! {};
+            if gate_act != LstmActivation::Sigmoid {
+                tokens = quote! { #tokens .with_gate_activation(#gate_activation) };
+            }
+            if cell_act != LstmActivation::Tanh {
+                tokens = quote! { #tokens .with_cell_activation(#cell_activation) };
+            }
+            if hidden_act != LstmActivation::Tanh {
+                tokens = quote! { #tokens .with_hidden_activation(#hidden_activation) };
+            }
+            tokens
+        };
 
         match self.config.direction {
             LstmDirection::Forward => Some(Field::new(
@@ -31,6 +95,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                 quote! {
                     let #name = LstmConfig::new(#d_input, #d_hidden, #bias)
                         .with_batch_first(#batch_first)
+                        .with_input_forget(#input_forget)
+                        #clip_config
+                        #activations_config
                         .init(device);
                 },
             )),
@@ -41,6 +108,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                     let #name = LstmConfig::new(#d_input, #d_hidden, #bias)
                         .with_batch_first(#batch_first)
                         .with_reverse(true)
+                        .with_input_forget(#input_forget)
+                        #clip_config
+                        #activations_config
                         .init(device);
                 },
             )),
@@ -50,6 +120,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                 quote! {
                     let #name = BiLstmConfig::new(#d_input, #d_hidden, #bias)
                         .with_batch_first(#batch_first)
+                        .with_input_forget(#input_forget)
+                        #clip_config
+                        #activations_config
                         .init(device);
                 },
             )),
@@ -286,6 +359,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
+        // Check if we need to import LstmActivation (for non-default activations)
+        let gate_act = to_burn_activation(self.config.gate_activation);
+        let cell_act = to_burn_activation(self.config.cell_activation);
+        let hidden_act = to_burn_activation(self.config.hidden_activation);
+
+        let needs_activation_import = gate_act != LstmActivation::Sigmoid
+            || cell_act != LstmActivation::Tanh
+            || hidden_act != LstmActivation::Tanh;
+
+        if needs_activation_import {
+            imports.register("burn::nn::LstmActivation");
+        }
+
         match self.config.direction {
             LstmDirection::Forward | LstmDirection::Reverse => {
                 imports.register("burn::nn::Lstm");
@@ -422,6 +508,12 @@ fn create_lstm_record<PS: PrecisionSettings>(
         d_hidden: ConstantRecord::new(),
         batch_first: ConstantRecord::new(),
         reverse: ConstantRecord::new(),
+        clip: None,
+        input_forget: ConstantRecord::new(),
+        // Ignored<T> has Record type ConstantRecord (same as raw constant types)
+        gate_activation: ConstantRecord::new(),
+        cell_activation: ConstantRecord::new(),
+        hidden_activation: ConstantRecord::new(),
     }
 }
 
@@ -431,7 +523,7 @@ mod tests {
     use burn::tensor::DType;
     use insta::assert_snapshot;
     use onnx_ir::ir::{ArgType, Argument, TensorType};
-    use onnx_ir::lstm::{LstmConfig, LstmDirection, LstmNode};
+    use onnx_ir::lstm::{LstmActivationFunction, LstmConfig, LstmDirection, LstmNode};
 
     fn create_lstm_node(
         name: &str,
@@ -448,6 +540,11 @@ mod tests {
             false, // has_initial_c
             false, // has_peephole
             batch_first,
+            None,                            // clip
+            false,                           // input_forget
+            LstmActivationFunction::Sigmoid, // gate_activation
+            LstmActivationFunction::Tanh,    // cell_activation
+            LstmActivationFunction::Tanh,    // hidden_activation
         );
 
         let input = Argument::new(

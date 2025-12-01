@@ -2,11 +2,41 @@ use burn_core as burn;
 
 use crate::GateController;
 use burn::config::Config;
-use burn::module::Module;
-use burn::module::{Content, DisplaySettings, Initializer, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::activation;
 use burn::tensor::backend::Backend;
+
+/// Activation functions available for LSTM gates and cell computations.
+///
+/// These are the stateless activation functions commonly used in LSTM implementations,
+/// matching the ONNX LSTM specification's supported activations.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum LstmActivation {
+    /// Sigmoid activation
+    /// Default for input, forget, and output gates.
+    Sigmoid,
+    /// Hyperbolic tangent activation
+    /// Default for cell gate and output transformation.
+    Tanh,
+    /// Rectified Linear Unit
+    Relu,
+    /// Hard sigmoid approximation
+    /// More efficient than sigmoid but less smooth.
+    HardSigmoid,
+}
+
+impl LstmActivation {
+    /// Apply the activation function to a tensor.
+    pub fn apply<B: Backend, const D: usize>(&self, tensor: Tensor<B, D>) -> Tensor<B, D> {
+        match self {
+            LstmActivation::Sigmoid => activation::sigmoid(tensor),
+            LstmActivation::Tanh => tensor.tanh(),
+            LstmActivation::Relu => activation::relu(tensor),
+            LstmActivation::HardSigmoid => activation::hard_sigmoid(tensor, 0.2, 0.5),
+        }
+    }
+}
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
@@ -43,6 +73,26 @@ pub struct LstmConfig {
     /// This is useful for implementing reverse-direction LSTMs (e.g., ONNX reverse direction).
     #[config(default = false)]
     pub reverse: bool,
+    /// Optional cell state clip threshold. If provided, cell state values are clipped
+    /// to the range `[-clip, +clip]` after each timestep. This can help prevent
+    /// exploding values during inference.
+    pub clip: Option<f64>,
+    /// If true, couples the input and forget gates: `f_t = 1 - i_t`.
+    /// This reduces the number of parameters and is based on GRU-style simplification.
+    #[config(default = false)]
+    pub input_forget: bool,
+    /// Activation function for the input, forget, and output gates.
+    /// Default is Sigmoid, which is standard for LSTM gates.
+    #[config(default = "LstmActivation::Sigmoid")]
+    pub gate_activation: LstmActivation,
+    /// Activation function for the cell gate (candidate cell state).
+    /// Default is Tanh, which is standard for LSTM.
+    #[config(default = "LstmActivation::Tanh")]
+    pub cell_activation: LstmActivation,
+    /// Activation function applied to the cell state before computing hidden output.
+    /// Default is Tanh, which is standard for LSTM.
+    #[config(default = "LstmActivation::Tanh")]
+    pub hidden_activation: LstmActivation,
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
@@ -56,6 +106,7 @@ pub struct Lstm<B: Backend> {
     /// The input gate regulates which information to update and store in the cell state at each time step.
     pub input_gate: GateController<B>,
     /// The forget gate is used to control which information to discard or keep in the memory cell at each time step.
+    /// Note: When `input_forget` is true, this gate is not used (forget = 1 - input).
     pub forget_gate: GateController<B>,
     /// The output gate determines which information from the cell state to output at each time step.
     pub output_gate: GateController<B>,
@@ -68,6 +119,16 @@ pub struct Lstm<B: Backend> {
     pub batch_first: bool,
     /// If true, process the sequence in reverse order.
     pub reverse: bool,
+    /// Optional cell state clip threshold.
+    pub clip: Option<f64>,
+    /// If true, couples input and forget gates: f_t = 1 - i_t.
+    pub input_forget: bool,
+    /// Activation function for gates (input, forget, output).
+    pub gate_activation: Ignored<LstmActivation>,
+    /// Activation function for cell gate (candidate cell state).
+    pub cell_activation: Ignored<LstmActivation>,
+    /// Activation function for hidden output.
+    pub hidden_activation: Ignored<LstmActivation>,
 }
 
 impl<B: Backend> ModuleDisplay for Lstm<B> {
@@ -112,6 +173,11 @@ impl LstmConfig {
             d_hidden: self.d_hidden,
             batch_first: self.batch_first,
             reverse: self.reverse,
+            clip: self.clip,
+            input_forget: self.input_forget,
+            gate_activation: Ignored(self.gate_activation),
+            cell_activation: Ignored(self.cell_activation),
+            hidden_activation: Ignored(self.hidden_activation),
         }
     }
 }
@@ -199,32 +265,44 @@ impl<B: Backend> Lstm<B> {
 
         for (input_t, t) in input_timestep_iter {
             let input_t = input_t.squeeze_dim(1);
-            // f(orget)g(ate) tensors
-            let biased_fg_input_sum = self
-                .forget_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
-            let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
 
             // i(nput)g(ate) tensors
             let biased_ig_input_sum = self
                 .input_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let add_values = activation::sigmoid(biased_ig_input_sum);
+            let input_values = self.gate_activation.0.apply(biased_ig_input_sum);
+
+            // f(orget)g(ate) tensors - either computed or coupled to input gate
+            let forget_values = if self.input_forget {
+                // Coupled mode: f_t = 1 - i_t
+                input_values.clone().neg().add_scalar(1.0)
+            } else {
+                let biased_fg_input_sum = self
+                    .forget_gate
+                    .gate_product(input_t.clone(), hidden_state.clone());
+                self.gate_activation.0.apply(biased_fg_input_sum)
+            };
 
             // o(output)g(ate) tensors
             let biased_og_input_sum = self
                 .output_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let output_values = activation::sigmoid(biased_og_input_sum);
+            let output_values = self.gate_activation.0.apply(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
             let biased_cg_input_sum = self
                 .cell_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let candidate_cell_values = biased_cg_input_sum.tanh();
+            let candidate_cell_values = self.cell_activation.0.apply(biased_cg_input_sum);
 
-            cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
-            hidden_state = output_values * cell_state.clone().tanh();
+            cell_state = forget_values * cell_state.clone() + input_values * candidate_cell_values;
+
+            // Apply cell state clipping if configured
+            if let Some(clip) = self.clip {
+                cell_state = cell_state.clamp(-clip, clip);
+            }
+
+            hidden_state = output_values * self.hidden_activation.0.apply(cell_state.clone());
 
             let unsqueezed_hidden_state = hidden_state.clone().unsqueeze_dim(1);
 
@@ -258,6 +336,20 @@ pub struct BiLstmConfig {
     /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
     #[config(default = true)]
     pub batch_first: bool,
+    /// Optional cell state clip threshold.
+    pub clip: Option<f64>,
+    /// If true, couples the input and forget gates.
+    #[config(default = false)]
+    pub input_forget: bool,
+    /// Activation function for the input, forget, and output gates.
+    #[config(default = "LstmActivation::Sigmoid")]
+    pub gate_activation: LstmActivation,
+    /// Activation function for the cell gate (candidate cell state).
+    #[config(default = "LstmActivation::Tanh")]
+    pub cell_activation: LstmActivation,
+    /// Activation function applied to the cell state before computing hidden output.
+    #[config(default = "LstmActivation::Tanh")]
+    pub hidden_activation: LstmActivation,
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
@@ -308,15 +400,18 @@ impl BiLstmConfig {
     /// Initialize a new [Bidirectional LSTM](BiLstm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> BiLstm<B> {
         // Internal LSTMs always use batch_first=true; BiLstm handles layout conversion
+        let base_config = LstmConfig::new(self.d_input, self.d_hidden, self.bias)
+            .with_initializer(self.initializer.clone())
+            .with_batch_first(true)
+            .with_clip(self.clip)
+            .with_input_forget(self.input_forget)
+            .with_gate_activation(self.gate_activation)
+            .with_cell_activation(self.cell_activation)
+            .with_hidden_activation(self.hidden_activation);
+
         BiLstm {
-            forward: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
-                .with_initializer(self.initializer.clone())
-                .with_batch_first(true)
-                .init(device),
-            reverse: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
-                .with_initializer(self.initializer.clone())
-                .with_batch_first(true)
-                .init(device),
+            forward: base_config.clone().init(device),
+            reverse: base_config.init(device),
             d_hidden: self.d_hidden,
             batch_first: self.batch_first,
         }
