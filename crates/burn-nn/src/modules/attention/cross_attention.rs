@@ -10,7 +10,6 @@
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig};
 use burn_core as burn;
-use num_traits::Float;
 
 use burn::{
     config::Config,
@@ -203,5 +202,231 @@ impl<B: Backend> CrossAttention<B> {
         x.reshape([b, h, 1, l, d])
             .expand([b, h, n_rep, l, d])
             .reshape([b, h * n_rep, l, d])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+    use burn::tensor::{Distribution, Int, Shape, Tensor, Tolerance};
+
+    #[test]
+    fn test_cross_attention_mha_shapes() {
+        let [
+            batch_size,
+            seq_len_query,
+            seq_len_context,
+            d_model,
+            d_context,
+            n_heads,
+            d_head,
+        ] = [7, 13, 15, 32, 40, 4, 8];
+        let device = Default::default();
+        let config = CrossAttentionConfig {
+            d_model,
+            d_context,
+            n_heads,
+            n_heads_kv: n_heads, // MHA case
+            d_head,
+            dropout: 0.1,
+            min_float: -1.0e4,
+            quiet_softmax: false,
+        };
+        let cross_attn = config.init::<TestBackend>(&device);
+
+        let query = Tensor::random(
+            [batch_size, seq_len_query, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let context = Tensor::random(
+            [batch_size, seq_len_context, d_context],
+            Distribution::Default,
+            &device,
+        );
+
+        let output = cross_attn.forward(query, context, None);
+
+        assert_eq!(
+            output.shape(),
+            Shape::new([batch_size, seq_len_query, d_model]),
+            "Output should have the correct shape",
+        );
+    }
+
+    #[test]
+    fn test_cross_attention_gqa_shapes() {
+        let [
+            batch_size,
+            seq_len_query,
+            seq_len_context,
+            d_model,
+            d_context,
+            n_heads,
+            n_heads_kv,
+            d_head,
+        ] = [7, 13, 15, 32, 40, 4, 2, 8];
+        let device = Default::default();
+        let config = CrossAttentionConfig {
+            d_model,
+            d_context,
+            n_heads,
+            n_heads_kv, // GQA case
+            d_head,
+            dropout: 0.1,
+            min_float: -1.0e4,
+            quiet_softmax: false,
+        };
+        let cross_attn = config.init::<TestBackend>(&device);
+
+        let query = Tensor::random(
+            [batch_size, seq_len_query, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let context = Tensor::random(
+            [batch_size, seq_len_context, d_context],
+            Distribution::Default,
+            &device,
+        );
+
+        let output = cross_attn.forward(query, context, None);
+
+        assert_eq!(
+            output.shape(),
+            Shape::new([batch_size, seq_len_query, d_model]),
+            "Output should have the correct shape",
+        );
+    }
+
+    #[test]
+    fn test_cross_attention_mqa_shapes() {
+        let [
+            batch_size,
+            seq_len_query,
+            seq_len_context,
+            d_model,
+            d_context,
+            n_heads,
+            d_head,
+        ] = [7, 13, 15, 32, 40, 4, 8];
+        let device = Default::default();
+        let config = CrossAttentionConfig {
+            d_model,
+            d_context,
+            n_heads,
+            n_heads_kv: 1, // MQA case
+            d_head,
+            dropout: 0.1,
+            min_float: -1.0e4,
+            quiet_softmax: false,
+        };
+        let cross_attn = config.init::<TestBackend>(&device);
+
+        let query = Tensor::random(
+            [batch_size, seq_len_query, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let context = Tensor::random(
+            [batch_size, seq_len_context, d_context],
+            Distribution::Default,
+            &device,
+        );
+
+        let output = cross_attn.forward(query, context, None);
+
+        assert_eq!(
+            output.shape(),
+            Shape::new([batch_size, seq_len_query, d_model]),
+            "Output should have the correct shape",
+        );
+    }
+
+    #[test]
+    fn test_cross_attention_mask() {
+        let [
+            batch_size,
+            seq_len_query,
+            seq_len_context,
+            d_model,
+            d_context,
+            n_heads,
+            d_head,
+        ] = [3, 6, 8, 12, 16, 4, 3];
+        let num_padded = 2;
+        let device = Default::default();
+        let config = CrossAttentionConfig {
+            d_model,
+            d_context,
+            n_heads,
+            n_heads_kv: n_heads,
+            d_head,
+            dropout: 0.0, // No dropout for deterministic test
+            min_float: -1.0e4,
+            quiet_softmax: false,
+        };
+        let cross_attn = config.init::<TestBackend>(&device);
+
+        // Create a padding mask for the context
+        let mut mask: Tensor<TestBackend, 2, Int> =
+            Tensor::zeros([batch_size, seq_len_context], &device);
+        mask = mask.slice_assign(
+            [0..batch_size, seq_len_context - num_padded..seq_len_context],
+            Tensor::ones([batch_size, num_padded], &device),
+        );
+        let mask_bool = mask.equal_elem(1);
+
+        let query = Tensor::<TestBackend, 3>::random(
+            [batch_size, seq_len_query, d_model],
+            Distribution::Default,
+            &device,
+        );
+
+        let context_1 = Tensor::<TestBackend, 3>::random(
+            [batch_size, seq_len_context, d_context],
+            Distribution::Default,
+            &device,
+        );
+
+        // Change the padded part of the context tensor
+        let context_2 = context_1.clone().slice_assign(
+            [
+                0..batch_size,
+                seq_len_context - num_padded..seq_len_context,
+                0..d_context,
+            ],
+            Tensor::random(
+                [batch_size, num_padded, d_context],
+                Distribution::Default,
+                &device,
+            ),
+        );
+
+        // The outputs should be the same since the changed part is masked.
+        let output_1 = cross_attn.forward(query.clone(), context_1, Some(mask_bool.clone()));
+        let output_2 = cross_attn.forward(query, context_2, Some(mask_bool));
+
+        output_1
+            .into_data()
+            .assert_approx_eq(&output_2.into_data(), Tolerance::<f32>::default());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_gqa_panic_if_n_heads_not_divisible_by_n_heads_kv() {
+        let device = Default::default();
+        let config = CrossAttentionConfig {
+            d_model: 32,
+            d_context: 32,
+            n_heads: 5,
+            n_heads_kv: 2,
+            d_head: 8,
+            dropout: 0.1,
+            min_float: -1.0e4,
+            quiet_softmax: false,
+        };
+        config.init::<TestBackend>(&device);
     }
 }
