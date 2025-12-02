@@ -1,3 +1,4 @@
+use burn_tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -369,8 +370,8 @@ pub enum NumericOperationIr {
     Gather(GatherOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter).
-    /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter).
+    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter_add).
+    /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter_add).
     Scatter(ScatterOpIr),
     /// Operation corresponding to:
     ///
@@ -379,8 +380,8 @@ pub enum NumericOperationIr {
     Select(SelectOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_assign).
-    /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_assign).
+    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_add).
+    /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_add).
     SelectAssign(SelectAssignOpIr),
     /// Operation corresponding to:
     ///
@@ -804,6 +805,7 @@ pub struct ScatterOpIr {
     pub dim: usize,
     pub indices: TensorIr,
     pub value: TensorIr,
+    pub update: IndexingUpdateOp,
     pub out: TensorIr,
 }
 
@@ -823,6 +825,7 @@ pub struct SelectAssignOpIr {
     pub dim: usize,
     pub indices: TensorIr,
     pub value: TensorIr,
+    pub update: IndexingUpdateOp,
     pub out: TensorIr,
 }
 

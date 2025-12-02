@@ -5,7 +5,7 @@ use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use burn_tensor::{
     TensorData,
-    backend::{DeviceId, DeviceOps, ExecutionError, SyncError},
+    backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use core::ops::DerefMut;
 use hashbrown::HashMap;
@@ -41,7 +41,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Read the values contained by a tensor.
     fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self) -> Result<(), SyncError>;
+    fn sync(&self) -> Result<(), ExecutionError>;
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.

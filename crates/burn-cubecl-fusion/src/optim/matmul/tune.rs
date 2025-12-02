@@ -221,15 +221,15 @@ pub(crate) fn create_key<R: Runtime>(
         &lhs_strides,
         &rhs_strides,
         MatmulElemType {
-            elem: lhs.dtype.into(),
+            dtype: lhs.dtype.into(),
             quantized: matches!(lhs.dtype, DType::QFloat(_)),
         },
         MatmulElemType {
-            elem: rhs.dtype.into(),
+            dtype: rhs.dtype.into(),
             quantized: matches!(rhs.dtype, DType::QFloat(_)),
         },
         MatmulElemType {
-            elem: out.dtype.into(),
+            dtype: out.dtype.into(),
             quantized: matches!(out.dtype, DType::QFloat(_)),
         },
     );

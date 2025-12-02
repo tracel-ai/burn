@@ -5,7 +5,7 @@ use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
-use crate::{DType, Element, TensorPrimitive};
+use crate::{DType, Element, IndexingUpdateOp, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
 use alloc::{format, string::String, vec, vec::Vec};
 use burn_std::stub::RwLock;
@@ -1621,6 +1621,7 @@ where
     /// * `dim` - The dimension along which to select. Supports negative indexing.
     /// * `indices` - The indices to select from the tensor.
     /// * `values` - The values to assign to the selected indices.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Example
     ///
@@ -1640,6 +1641,7 @@ where
         dim: impl AsIndex,
         indices: Tensor<B, 1, Int>,
         values: Tensor<B, D, K>,
+        update: IndexingUpdateOp,
     ) -> Self {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::select_assign::<D>(
@@ -1653,6 +1655,7 @@ where
             dim,
             indices,
             values.primitive,
+            update,
         ))
     }
 
@@ -3113,6 +3116,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// * `dim` - The axis along which to assign elements.
     /// * `indices` - The indices of the elements to assign.
     /// * `values` - The values to assign to the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Returns
     ///
@@ -3134,6 +3138,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.
@@ -3544,14 +3549,17 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
         // Select assign is ambiguous for QFloat
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices.primitive,
-            values.tensor(),
-        ))
+        match update {
+            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_select_add(
+                tensor.tensor(),
+                dim,
+                indices.primitive,
+                values.tensor(),
+            )),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -3740,8 +3748,11 @@ impl<B: Backend> BasicOps<B> for Int {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
-        B::int_select_assign(tensor, dim, indices.primitive, values)
+        match update {
+            IndexingUpdateOp::Add => B::int_select_add(tensor, dim, indices.primitive, values),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -3893,8 +3904,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
-        B::bool_select_assign(tensor, dim, indices.primitive, values)
+        match update {
+            IndexingUpdateOp::Add => B::bool_select_add(tensor, dim, indices.primitive, values),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {

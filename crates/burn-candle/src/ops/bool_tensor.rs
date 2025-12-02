@@ -1,4 +1,4 @@
-use burn_std::future::DynFut;
+use burn_std::{backtrace::BackTrace, future::DynFut};
 use burn_tensor::{
     Device, Shape, TensorData, TensorMetadata,
     backend::ExecutionError,
@@ -30,11 +30,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
             .tensor
             .flatten_all()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
+                backtrace: BackTrace::capture(),
             })?
             .to_vec1()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
+                backtrace: BackTrace::capture(),
             })?;
 
         let y = x.iter().map(|b| !matches!(b, 0)).collect();
@@ -131,7 +133,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn bool_select_assign(
+    fn bool_select_add(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Int, Tensor, backend::Backend};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{IndexingUpdateOp, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -57,8 +57,8 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data(), &ref_device);
 
-        let actual = tensor.scatter(dim, indices, value);
-        let expected = tensor_ref.scatter(dim, indices_ref, value_ref);
+        let actual = tensor.scatter(dim, indices, value, IndexingUpdateOp::Add);
+        let expected = tensor_ref.scatter(dim, indices_ref, value_ref, IndexingUpdateOp::Add);
 
         expected
             .into_data()

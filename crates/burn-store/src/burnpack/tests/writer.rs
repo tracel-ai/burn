@@ -1,6 +1,7 @@
 use crate::burnpack::{
     base::{
-        BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER, magic_range,
+        BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
+        aligned_data_section_start, magic_range,
     },
     writer::BurnpackWriter,
 };
@@ -135,14 +136,16 @@ fn test_writer_to_bytes_with_tensors() {
     assert_eq!(bias.data_offsets.1 - bias.data_offsets.0, 24); // 3 * 8 bytes
 
     // Verify actual tensor data
+    // Data section starts at aligned position after metadata
+    let data_section_start = aligned_data_section_start(header.metadata_size as usize);
     let weights = metadata.tensors.get("weights").unwrap();
     let bias = metadata.tensors.get("bias").unwrap();
-    let weights_data = &bytes[metadata_end + weights.data_offsets.0 as usize
-        ..metadata_end + weights.data_offsets.1 as usize];
+    let weights_data = &bytes[data_section_start + weights.data_offsets.0 as usize
+        ..data_section_start + weights.data_offsets.1 as usize];
     assert_eq!(weights_data, f32_bytes);
 
-    let bias_data = &bytes
-        [metadata_end + bias.data_offsets.0 as usize..metadata_end + bias.data_offsets.1 as usize];
+    let bias_data = &bytes[data_section_start + bias.data_offsets.0 as usize
+        ..data_section_start + bias.data_offsets.1 as usize];
     assert_eq!(bias_data, i64_bytes);
 }
 
@@ -375,7 +378,9 @@ fn test_writer_lazy_snapshot_evaluation() {
     assert_eq!(tensor.shape, vec![2, 2]);
 
     // Verify the data was correctly written
-    let tensor_data = &bytes[metadata_end..metadata_end + 16];
+    // Data section starts at aligned position after metadata
+    let data_section_start = aligned_data_section_start(header.metadata_size as usize);
+    let tensor_data = &bytes[data_section_start..data_section_start + 16];
     let expected: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0]
         .iter()
         .flat_map(|f| f.to_le_bytes())
