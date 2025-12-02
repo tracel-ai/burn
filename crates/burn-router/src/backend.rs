@@ -1,13 +1,11 @@
+use super::{RouterTensor, RunnerChannel, RunnerClient, get_client};
 use alloc::{format, string::String};
-use core::marker::PhantomData;
-
 use burn_tensor::{
     DType,
-    backend::{Backend, SyncError},
+    backend::{Backend, ExecutionError},
     quantization::{QTensorPrimitive, QuantScheme},
 };
-
-use super::{RouterTensor, RunnerChannel, RunnerClient, get_client};
+use core::marker::PhantomData;
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
 pub struct BackendRouter<R: RunnerChannel> {
@@ -69,7 +67,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         client.seed(seed);
     }
 
-    fn sync(device: &Self::Device) -> Result<(), SyncError> {
+    fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
         client.sync()
     }
