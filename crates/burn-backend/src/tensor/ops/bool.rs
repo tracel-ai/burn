@@ -2,10 +2,10 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    Backend, ExecutionError, TensorData,
+    AutodiffBackend, Backend, ExecutionError, TensorData,
     element::{Element, ElementConversion},
     ops::TransactionPrimitive,
-    tensor::{BasicOps, Bool, Device, IndexingUpdateOp, IntTensor},
+    tensor::{BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor, TensorKind},
 };
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -161,5 +161,21 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
         B::bool_unfold(tensor, dim, size, step)
+    }
+}
+
+impl<B: AutodiffBackend> BasicAutodiffOps<B> for Bool {
+    type InnerKind = Bool;
+
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
+        B::bool_inner(tensor)
+    }
+
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive {
+        B::bool_from_inner(inner)
     }
 }

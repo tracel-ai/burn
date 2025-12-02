@@ -2,10 +2,13 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    Backend, Distribution, ExecutionError, TensorData,
+    AutodiffBackend, Backend, Distribution, ExecutionError, TensorData,
     element::ElementConversion,
     ops::TransactionPrimitive,
-    tensor::{BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric},
+    tensor::{
+        BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
+        TensorKind,
+    },
 };
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -405,5 +408,21 @@ impl<B: Backend> Numeric<B> for Int {
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_matmul(lhs, rhs)
+    }
+}
+
+impl<B: AutodiffBackend> BasicAutodiffOps<B> for Int {
+    type InnerKind = Int;
+
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
+        B::int_inner(tensor)
+    }
+
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive {
+        B::int_from_inner(inner)
     }
 }

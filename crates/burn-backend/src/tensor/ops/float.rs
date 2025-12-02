@@ -2,10 +2,12 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    Backend, Distribution, ExecutionError, TensorData, TensorPrimitive,
+    AutodiffBackend, Backend, Distribution, ExecutionError, TensorData, TensorPrimitive,
     element::ElementConversion,
     ops::TransactionPrimitive,
-    tensor::{BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric},
+    tensor::{
+        BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, TensorKind,
+    },
 };
 
 macro_rules! q_bin_ops {
@@ -690,6 +692,28 @@ impl<B: Backend> Numeric<B> for Float {
                 TensorPrimitive::Float(B::float_matmul(lhs, rhs))
             }
             (lhs, rhs) => B::q_matmul(lhs, rhs),
+        }
+    }
+}
+
+impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
+    type InnerKind = Float;
+
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::inner(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_inner(tensor)),
+        }
+    }
+
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive {
+        match inner {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::from_inner(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_from_inner(tensor)),
         }
     }
 }

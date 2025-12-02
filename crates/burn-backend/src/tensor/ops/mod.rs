@@ -1,9 +1,11 @@
+mod autodiff;
 mod base;
 mod bool;
 mod float;
 mod int;
 mod numeric;
 
+pub use autodiff::*;
 pub use base::*;
 pub use numeric::*;
 
