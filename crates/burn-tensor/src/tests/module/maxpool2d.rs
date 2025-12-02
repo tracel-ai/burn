@@ -413,4 +413,122 @@ mod tests {
             .to_data()
             .assert_approx_eq::<FT>(&output_ceil.into_data(), Tolerance::default());
     }
+
+    #[test]
+    fn test_max_pool2d_ceil_mode_with_indices() {
+        // Test ceil_mode=true with indices to verify correct index calculation
+        // when pooling windows extend beyond original input bounds
+        let kernel_size_1 = 3;
+        let kernel_size_2 = 3;
+        let padding_1 = 0;
+        let padding_2 = 0;
+        let stride_1 = 2;
+        let stride_2 = 2;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
+
+        // Input 6x6 (indices 0-35 in row-major order):
+        // row 0:  0  1  2  3  4  5
+        // row 1:  6  7  8  9 10 11
+        // row 2: 12 13 14 15 16 17
+        // row 3: 18 19 20 21 22 23
+        // row 4: 24 25 26 27 28 29
+        // row 5: 30 31 32 33 34 35
+        let x = TestTensor::from([[[
+            [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+            [6.0, 7.0, 8.0, 9.0, 10.0, 11.0],
+            [12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+            [18.0, 19.0, 20.0, 21.0, 22.0, 23.0],
+            [24.0, 25.0, 26.0, 27.0, 28.0, 29.0],
+            [30.0, 31.0, 32.0, 33.0, 34.0, 35.0],
+        ]]]);
+
+        // With ceil_mode=true: output is 3x3
+        // (0,0): rows 0-2, cols 0-2 -> max at index 14
+        // (0,1): rows 0-2, cols 2-4 -> max at index 16
+        // (0,2): rows 0-2, cols 4-5 -> max at index 17
+        // (1,0): rows 2-4, cols 0-2 -> max at index 26
+        // (1,1): rows 2-4, cols 2-4 -> max at index 28
+        // (1,2): rows 2-4, cols 4-5 -> max at index 29
+        // (2,0): rows 4-5, cols 0-2 -> max at index 32
+        // (2,1): rows 4-5, cols 2-4 -> max at index 34
+        // (2,2): rows 4-5, cols 4-5 -> max at index 35
+        let expected_values =
+            TestTensor::<4>::from([[[[14.0, 16.0, 17.0], [26.0, 28.0, 29.0], [32.0, 34.0, 35.0]]]]);
+        let expected_indices = TensorData::from([[[[14i64, 16, 17], [26, 28, 29], [32, 34, 35]]]]);
+
+        let (output, output_indices) = max_pool2d_with_indices(
+            x,
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+            [dilation_1, dilation_2],
+            true,
+        );
+
+        expected_values
+            .to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+        output_indices.into_data().assert_eq(&expected_indices, false);
+    }
+
+    #[test]
+    fn test_max_pool2d_ceil_mode_with_indices_and_padding() {
+        // Test ceil_mode=true with padding and indices to verify correct index calculation
+        // This exercises the case where both user padding and ceil_mode extra padding apply
+        let kernel_size_1 = 3;
+        let kernel_size_2 = 3;
+        let padding_1 = 1;
+        let padding_2 = 1;
+        let stride_1 = 2;
+        let stride_2 = 2;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
+
+        // Input 5x5 (indices 0-24 in row-major order):
+        // row 0:  0  1  2  3  4
+        // row 1:  5  6  7  8  9
+        // row 2: 10 11 12 13 14
+        // row 3: 15 16 17 18 19
+        // row 4: 20 21 22 23 24
+        let x = TestTensor::from([[[
+            [0.0, 1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0, 9.0],
+            [10.0, 11.0, 12.0, 13.0, 14.0],
+            [15.0, 16.0, 17.0, 18.0, 19.0],
+            [20.0, 21.0, 22.0, 23.0, 24.0],
+        ]]]);
+
+        // With padding=1, ceil_mode=true:
+        // Effective input is 7x7 (5 + 2*1)
+        // Output size: ceil((5 + 2*1 - 3) / 2) + 1 = ceil(4/2) + 1 = 3
+        //
+        // Windows (with -inf padding at boundaries):
+        // (0,0): rows -1 to 1, cols -1 to 1 -> valid: (0,0) to (1,1), max at (1,1)=6
+        // (0,1): rows -1 to 1, cols 1 to 3 -> max at (1,3)=8
+        // (0,2): rows -1 to 1, cols 3 to 5 -> max at (1,4)=9
+        // (1,0): rows 1 to 3, cols -1 to 1 -> max at (3,1)=16
+        // (1,1): rows 1 to 3, cols 1 to 3 -> max at (3,3)=18
+        // (1,2): rows 1 to 3, cols 3 to 5 -> max at (3,4)=19
+        // (2,0): rows 3 to 5, cols -1 to 1 -> max at (4,1)=21
+        // (2,1): rows 3 to 5, cols 1 to 3 -> max at (4,3)=23
+        // (2,2): rows 3 to 5, cols 3 to 5 -> max at (4,4)=24
+        let expected_values =
+            TestTensor::<4>::from([[[[6.0, 8.0, 9.0], [16.0, 18.0, 19.0], [21.0, 23.0, 24.0]]]]);
+        let expected_indices = TensorData::from([[[[6i64, 8, 9], [16, 18, 19], [21, 23, 24]]]]);
+
+        let (output, output_indices) = max_pool2d_with_indices(
+            x,
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+            [dilation_1, dilation_2],
+            true,
+        );
+
+        expected_values
+            .to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+        output_indices.into_data().assert_eq(&expected_indices, false);
+    }
 }
