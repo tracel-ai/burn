@@ -201,12 +201,15 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
             };
 
             // Create input with Static value
-            node.inputs.push(crate::ir::Argument {
+            let mut input_arg = crate::ir::Argument {
                 name: String::new(),
                 ty: ty.clone(),
                 value_source: crate::ir::ValueSource::Static(data_id),
-                value_store: Some(state_rc.clone()),
-            });
+                value_store: None,
+            };
+            let value_store = state_rc.borrow().build_value_store();
+            input_arg.set_value_store(value_store);
+            node.inputs.push(input_arg);
 
             // Set output type and value_source
             if !node.outputs.is_empty() {
@@ -222,11 +225,12 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
 
 /// Attach value_store references to all node arguments
 fn attach_value_stores(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
+    let value_store = state_rc.borrow().build_value_store();
     for arg in &mut node.inputs {
-        arg.value_store = Some(state_rc.clone());
+        arg.set_value_store(value_store.clone());
     }
     for arg in &mut node.outputs {
-        arg.value_store = Some(state_rc.clone());
+        arg.set_value_store(value_store.clone());
     }
 }
 
@@ -323,7 +327,7 @@ fn coalesce(
 ) {
     #[allow(clippy::single_match)]
     match node.node_type {
-        NodeType::Gemm => convert_gemm_to_linear(node, graph_data),
+        NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
             convert_matmul_to_linear(node, nodes_iter, graph_data);
         }
@@ -332,7 +336,11 @@ fn coalesce(
 }
 
 /// Convert Gemm to Linear (when alpha=1, beta=1, transB=1)
-fn convert_gemm_to_linear(node: &mut RawNode, graph_data: &mut GraphState) {
+///
+/// Note: The weight tensor is kept in its original ONNX layout [out_features, in_features].
+/// The burn-import layer is responsible for transposing the weights to Burn's expected
+/// layout [in_features, out_features] during code generation.
+fn convert_gemm_to_linear(node: &mut RawNode) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -355,9 +363,9 @@ fn convert_gemm_to_linear(node: &mut RawNode, graph_data: &mut GraphState) {
         node.attrs.remove("alpha");
         node.attrs.remove("beta");
         node.attrs.remove("transB");
-
-        // Transpose the weights
-        transpose_linear_node_weights(node, graph_data);
+        // Mark that weights need transposition (Gemm layout is [out, in])
+        node.attrs
+            .insert("transpose_weight".to_string(), AttributeValue::Int64(1));
     } else {
         log::debug!(
             "Keeping Gemm node {} (alpha={:?}, beta={:?}, transB={:?} don't match Linear pattern)",
@@ -367,87 +375,6 @@ fn convert_gemm_to_linear(node: &mut RawNode, graph_data: &mut GraphState) {
             node.attrs.get("transB")
         );
     }
-}
-
-/// Transpose linear weights (required for Gemm → Linear conversion)
-fn transpose_linear_node_weights(node: &mut RawNode, graph_data: &mut GraphState) {
-    assert!(
-        node.inputs.len() > 1,
-        "Linear node must have at least 2 input"
-    );
-
-    assert!(
-        graph_data.has_value(&node.inputs[1].name),
-        "Input must have a value"
-    );
-
-    // Get the data_id - either directly from Static input, or lookup from Constant input
-    let data_id = match &node.inputs[1].value_source {
-        crate::ir::ValueSource::Static(id) => {
-            // Static input with embedded data_id
-            *id
-        }
-        crate::ir::ValueSource::Constant => {
-            // Constant input - lookup the constant node to get data_id
-            graph_data
-                .get_constant_data_id_by_output(&node.inputs[1].name)
-                .expect("Constant input must have data_id in constant node")
-        }
-        _ => panic!("Weight input must be either Static or Constant"),
-    };
-
-    let tensor_data = graph_data
-        .get_tensor_data(data_id)
-        .expect("Weight must have tensor data in central store")
-        .clone();
-
-    let shape = tensor_data.shape.clone();
-
-    assert_eq!(shape.len(), 2, "Weight must be a 2D tensor");
-
-    let new_shape = vec![shape[1], shape[0]];
-
-    let new_tensor_data = match tensor_data.elem_type() {
-        crate::ir::DType::F32 => {
-            let data: Vec<f32> = tensor_data.to_vec().unwrap();
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            TensorData::new(data_t, new_shape)
-        }
-        crate::ir::DType::F64 => {
-            let data: Vec<f64> = tensor_data.to_vec().unwrap();
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            TensorData::new(data_t, new_shape)
-        }
-        crate::ir::DType::F16 => {
-            let data: Vec<half::f16> = tensor_data.to_vec().unwrap();
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            TensorData::new(data_t, new_shape)
-        }
-        _ => panic!("Only float types are supported for Linear node"),
-    };
-
-    // Update the central store with the transposed weights
-    if let Some(stored_data) = graph_data.get_tensor_data_mut(data_id) {
-        *stored_data = new_tensor_data;
-    }
-
-    // Embed the data_id in the input for downstream use (lift_constants may not have run yet)
-    node.inputs[1].value_source = crate::ir::ValueSource::Static(data_id);
-    node.inputs[1].name.clear(); // Static values are accessed by ID, not name
-}
-
-fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {
-    assert_eq!(matrix.len(), rows * cols, "Matrix must be flattened");
-
-    let mut transposed: Vec<T> = vec![matrix[0]; matrix.len()];
-
-    for i in 0..rows {
-        for j in 0..cols {
-            transposed[j * rows + i] = matrix[i * cols + j];
-        }
-    }
-
-    transposed
 }
 
 /// Convert MatMul to Linear, fusing the following Add node as bias if present

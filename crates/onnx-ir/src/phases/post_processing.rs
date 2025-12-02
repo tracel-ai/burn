@@ -251,21 +251,19 @@ fn apply_identity_elimination(
 pub(crate) fn post_process(
     state_rc: &Rc<RefCell<GraphState>>,
 ) -> (Vec<RawNode>, Vec<Argument>, Vec<Argument>) {
-    // Extract graph data while preserving tensor_store and node_output_map
+    // Extract graph data while preserving tensor_store, constant_map, and node_output_map
     let (mut nodes, inputs, mut outputs, node_output_map) = {
         let mut state = state_rc.borrow_mut();
-        let tensor_data_clone = state.tensor_store.clone_data();
-        let next_tensor_id = state.tensor_store.next_id();
 
-        // Clone node_output_map BEFORE consuming the state
+        // Clone Rc references BEFORE consuming - these are cheap Rc clones, not data clones
+        let tensor_store_rc = state.tensor_store.clone();
+        let constant_map_rc = state.constant_map_rc();
         let node_output_map = state.node_output_map().clone();
 
         let result = std::mem::replace(&mut *state, GraphState::new(&[], &[], &[], &[])).consume();
 
-        // Restore tensor_store for .value() access
-        state
-            .tensor_store
-            .restore_data(tensor_data_clone, next_tensor_id);
+        // Restore the Rc references to the new empty GraphState (no data copying)
+        state.restore_stores(tensor_store_rc, constant_map_rc);
         (result.0, result.1, result.2, node_output_map)
     };
 
@@ -281,12 +279,13 @@ pub(crate) fn post_process(
     {
         let mut state = state_rc.borrow_mut();
         state.processed_nodes = nodes.clone();
+        let value_store = state.build_value_store();
         drop(state);
 
         // Re-attach value_store and lift constants
         for node in &mut nodes {
             for arg in &mut node.inputs {
-                arg.value_store = Some(state_rc.clone());
+                arg.set_value_store(value_store.clone());
             }
 
             let registry = get_processor_registry();
