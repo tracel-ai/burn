@@ -1,4 +1,5 @@
 use alloc::string::String;
+use burn_std::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -142,10 +143,23 @@ pub trait Backend:
 #[derive(Error, Serialize, Deserialize)]
 pub enum ExecutionError {
     /// A generic error happened during execution.
-    #[error("A generic error happened during execution\nCaused by:\n  {reason}")]
+    ///
+    /// The backtrace and context information should be included in the reason string.
+    #[error("An error happened during execution\nCaused by:\n  {reason}")]
+    WithContext {
+        /// The reason of the error.
+        reason: String,
+    },
+    /// A generic error happened during execution thrown in the Burn project.
+    ///
+    /// The full context isn't captured by the string alone.
+    #[error("An error happened during execution\nCaused by:\n  {reason}")]
     Generic {
         /// The reason of the error.
         reason: String,
+        /// The backtrace.
+        #[serde(skip)]
+        backtrace: BackTrace,
     },
 }
 

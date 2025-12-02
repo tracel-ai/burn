@@ -29,7 +29,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
         .client
         .read_one_tensor_async(binding)
         .await
-        .map_err(|err| ExecutionError::Generic {
+        .map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })?;
 

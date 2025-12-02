@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
+#[cfg(feature = "cuda")]
+use burn_std::backtrace::BackTrace;
 use burn_std::{
+    backtrace::BackTrace,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
@@ -243,6 +246,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
                     .synchronize()
                     .map_err(|err| ExecutionError::Generic {
                         context: format!("Can't sync the cuda device: {err}"),
+                        backtrace: BackTrace::capture(),
                     })?;
             }
             candle_core::Device::Metal(device) => {
@@ -252,6 +256,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
                     reason:
                         "Device synchronization unavailable with Metal device on Candle backend"
                             .into(),
+                    backtrace: BackTrace::capture(),
                 });
             }
         }

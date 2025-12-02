@@ -111,7 +111,7 @@ where
         let mut data: Vec<Option<_>> = client
             .read_tensor_async(bindings)
             .await
-            .map_err(|err| ExecutionError::Generic {
+            .map_err(|err| ExecutionError::WithContext {
                 reason: format!("{err:?}"),
             })?
             .into_iter()

@@ -55,7 +55,7 @@ where
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = R::client(device);
-        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::Generic {
+        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })
     }
