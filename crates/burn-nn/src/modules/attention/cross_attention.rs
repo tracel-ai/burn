@@ -22,6 +22,10 @@ use burn::{
     },
 };
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
+
 #[derive(Config, Debug)]
 /// Configuration to create a [CrossAttention](CrossAttention) layer using the [init function](CrossAttentionConfig::init).
 pub struct CrossAttentionConfig {
