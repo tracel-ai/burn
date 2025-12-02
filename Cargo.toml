@@ -104,7 +104,7 @@ strum = { version = "0.27.2", features = ["derive"] }
 syn = { version = "2.0.111", features = ["full", "extra-traits"] }
 tar = "0.4.44"
 tempfile = "3.20.0"
-thiserror = "2.0.17"
+thiserror = { version = "2", default-features = false }
 tokio = { version = "1.47.1", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
@@ -174,9 +174,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b079d0b401441f4f79724c0451ef56297a8a359f" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b079d0b401441f4f79724c0451ef56297a8a359f" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b079d0b401441f4f79724c0451ef56297a8a359f" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86ecc12238f11f3b58d149845b2afb5fb7efacae" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86ecc12238f11f3b58d149845b2afb5fb7efacae" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86ecc12238f11f3b58d149845b2afb5fb7efacae" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
