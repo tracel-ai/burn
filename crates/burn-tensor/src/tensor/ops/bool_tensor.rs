@@ -181,7 +181,7 @@ pub trait BoolTensorOps<B: Backend> {
     }
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// to the given value.
+    /// to the given value using sum reduction.
     ///
     /// # Arguments
     ///
@@ -193,7 +193,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the assigned values.
-    fn bool_select_assign(
+    fn bool_select_add(
         tensor: BoolTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
@@ -202,7 +202,7 @@ pub trait BoolTensorOps<B: Backend> {
         // Default implementation: convert to int, select_assign, then convert back to bool
         let int_tensor = B::bool_into_int(tensor);
         let int_values = B::bool_into_int(value);
-        let assigned = B::int_select_assign(int_tensor, dim, indices, int_values);
+        let assigned = B::int_select_add(int_tensor, dim, indices, int_values);
         // After select_assign with sum reduction, any non-zero value should be true
         B::int_greater_elem(assigned, 0_i32.elem())
     }
