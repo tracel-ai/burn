@@ -16,6 +16,7 @@ members = [
 
 exclude = [
     "examples/notebook",
+    "examples/raspberry-pi-pico",
     "crates/burn-import/model-checks/*", # exclude model checking crates from workspace
 ]
 

@@ -5,8 +5,8 @@ name = "raspberry-pi-pico"
 license = "MIT OR Apache-2.0"
 version = "0.1.0"
 
-[lints]
-workspace = true
+# [lints]
+# workspace = true
 
 [dependencies]
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
