@@ -10,7 +10,7 @@ use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType as DT,
     tensor_shape_proto::dimension::Value,
 };
-use crate::tensor_store::LazyTensorData;
+use crate::tensor_store::TensorDataRef;
 
 use burn_tensor::DType;
 use protobuf::Enum;
@@ -253,26 +253,26 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
     }
 }
 
-/// Create an Argument and LazyTensorData from an ONNX initializer (zero-copy path)
+/// Create an Argument and TensorDataRef from an ONNX initializer (zero-copy path)
 ///
-/// This is the preferred path for mmap loading - it creates LazyTensorData directly
+/// This is the preferred path for mmap loading - it creates TensorDataRef directly
 /// from the TensorProto without going through TensorData, avoiding unnecessary copies.
 /// The tensor bytes remain as references to the mmap'd buffer until actually accessed.
 pub fn argument_from_initializer_lazy(
     initializer: TensorProto,
-) -> Result<(Argument, LazyTensorData), ParseError> {
+) -> Result<(Argument, TensorDataRef), ParseError> {
     use crate::ir::ValueSource;
 
     let name = initializer.name.clone();
 
-    // Try to create LazyTensorData directly (zero-copy for raw_data)
-    let lazy_data = LazyTensorData::try_from(initializer)?;
+    // Try to create TensorDataRef directly (zero-copy for raw_data)
+    let data_ref = TensorDataRef::try_from(initializer)?;
 
-    let arg = if lazy_data.shape().is_empty() {
+    let arg = if data_ref.shape().is_empty() {
         // rank-0 (scalar)
         Argument {
             name,
-            ty: ArgType::Scalar(lazy_data.dtype()),
+            ty: ArgType::Scalar(data_ref.dtype()),
             value_source: ValueSource::Constant,
             value_store: None,
         }
@@ -280,26 +280,26 @@ pub fn argument_from_initializer_lazy(
         Argument {
             name,
             ty: ArgType::Tensor(TensorType {
-                dtype: lazy_data.dtype(),
-                rank: lazy_data.shape().len(),
-                static_shape: Some(lazy_data.shape().to_vec()),
+                dtype: data_ref.dtype(),
+                rank: data_ref.shape().len(),
+                static_shape: Some(data_ref.shape().to_vec()),
             }),
             value_source: ValueSource::Constant,
             value_store: None,
         }
     };
 
-    Ok((arg, lazy_data))
+    Ok((arg, data_ref))
 }
 
-/// Convert TensorProto to LazyTensorData for zero-copy mmap support
+/// Convert TensorProto to TensorDataRef for zero-copy mmap support
 ///
 /// This stores raw bytes directly without copying, deferring conversion
 /// to TensorData until the data is actually accessed.
-impl TryFrom<TensorProto> for LazyTensorData {
+impl TryFrom<TensorProto> for TensorDataRef {
     type Error = ParseError;
 
-    fn try_from(tensor: TensorProto) -> Result<LazyTensorData, Self::Error> {
+    fn try_from(tensor: TensorProto) -> Result<TensorDataRef, Self::Error> {
         let shape = convert_shape(tensor.dims);
         let elem =
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
@@ -317,7 +317,7 @@ impl TryFrom<TensorProto> for LazyTensorData {
                 | DType::U16
                 | DType::U8
                 | DType::I8
-                | DType::Bool => Ok(LazyTensorData::new(tensor.raw_data, shape, elem)),
+                | DType::Bool => Ok(TensorDataRef::new(tensor.raw_data, shape, elem)),
                 _ => Err(ParseError::VariantNotFound(format!(
                     "Unsupported dtype {:?}",
                     elem
@@ -352,7 +352,7 @@ impl TryFrom<TensorProto> for LazyTensorData {
                     )));
                 }
             };
-            Ok(LazyTensorData::new(raw_bytes, shape, elem))
+            Ok(TensorDataRef::new(raw_bytes, shape, elem))
         }
     }
 }
@@ -364,14 +364,14 @@ fn vec_to_bytes<T: bytemuck::Pod>(data: &[T]) -> bytes::Bytes {
 
 /// Convert TensorProto to TensorData (convenience wrapper)
 ///
-/// This goes through LazyTensorData, which means the data is copied
+/// This goes through TensorDataRef, which means the data is copied
 /// to ensure proper alignment for typed access.
 impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
 
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
-        let lazy = LazyTensorData::try_from(tensor)?;
-        Ok(lazy.to_tensor_data())
+        let data_ref = TensorDataRef::try_from(tensor)?;
+        Ok(data_ref.to_tensor_data())
     }
 }
 impl TryFrom<TensorShapeProto> for Vec<usize> {

@@ -1,8 +1,8 @@
 //! Central tensor data storage with unique IDs for constants and initializers
 //!
-//! This module provides lazy tensor data storage that enables zero-copy parsing
-//! from memory-mapped ONNX files. Tensor data is stored as raw bytes and only
-//! converted to `TensorData` when accessed.
+//! This module provides tensor data storage that enables zero-copy parsing
+//! from memory-mapped ONNX files. Tensor data is stored as raw bytes references
+//! and only converted to `TensorData` when accessed.
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -11,13 +11,13 @@ use burn_tensor::DType;
 
 use crate::ir::{DataId, TensorData};
 
-/// Lazy tensor data that stores raw bytes and converts to TensorData on demand.
+/// A reference to tensor data via cheaply cloneable `bytes::Bytes`.
 ///
 /// This enables zero-copy parsing from mmap'd ONNX files - the raw bytes
 /// reference the mmap'd buffer directly, and copying only happens when
-/// the tensor data is actually accessed.
+/// the tensor data is actually accessed via `to_tensor_data()`.
 #[derive(Debug, Clone)]
-pub struct LazyTensorData {
+pub struct TensorDataRef {
     /// Raw bytes from protobuf (zero-copy slice of mmap'd buffer)
     raw_bytes: bytes::Bytes,
     /// Shape of the tensor
@@ -26,8 +26,8 @@ pub struct LazyTensorData {
     dtype: DType,
 }
 
-impl LazyTensorData {
-    /// Create new lazy tensor data from raw bytes
+impl TensorDataRef {
+    /// Create new tensor data reference from raw bytes
     pub fn new(raw_bytes: bytes::Bytes, shape: Vec<usize>, dtype: DType) -> Self {
         Self {
             raw_bytes,
@@ -57,11 +57,11 @@ impl LazyTensorData {
     }
 }
 
-/// Convert from TensorData to LazyTensorData
+/// Convert from TensorData to TensorDataRef
 ///
 /// This is used for compatibility with existing code that produces TensorData,
 /// such as the fallback paths in argument_from_initializer for scalars and empty tensors.
-impl From<TensorData> for LazyTensorData {
+impl From<TensorData> for TensorDataRef {
     fn from(tensor_data: TensorData) -> Self {
         // Extract bytes from TensorData's internal storage
         // burn_tensor::Bytes implements Deref<[u8]>, so we can copy to bytes::Bytes
@@ -76,12 +76,12 @@ impl From<TensorData> for LazyTensorData {
 
 /// Central storage for tensor data with unique ID assignment
 ///
-/// Stores tensor data lazily - raw bytes are kept as references to the
+/// Stores tensor data as references - raw bytes are kept as references to the
 /// mmap'd buffer, and conversion to TensorData happens on access.
 #[derive(Debug, Clone)]
 pub struct TensorStore {
-    /// Maps tensor IDs to their lazy data
-    data: HashMap<DataId, LazyTensorData>,
+    /// Maps tensor IDs to their data references
+    data: HashMap<DataId, TensorDataRef>,
     /// Next available tensor ID
     next_id: DataId,
 }
@@ -95,19 +95,19 @@ impl TensorStore {
         }
     }
 
-    /// Store lazy tensor data and return allocated ID
-    pub fn store(&mut self, data: LazyTensorData) -> DataId {
+    /// Store tensor data reference and return allocated ID
+    pub fn store(&mut self, data: TensorDataRef) -> DataId {
         let id = self.next_id;
         self.next_id += 1;
         self.data.insert(id, data);
         id
     }
 
-    /// Get tensor data by ID, converting from lazy storage
+    /// Get tensor data by ID, converting from reference storage
     ///
     /// This triggers a copy from the mmap'd buffer to aligned heap memory.
     pub fn get(&self, id: DataId) -> Option<TensorData> {
-        self.data.get(&id).map(|lazy| lazy.to_tensor_data())
+        self.data.get(&id).map(|data_ref| data_ref.to_tensor_data())
     }
 }
 

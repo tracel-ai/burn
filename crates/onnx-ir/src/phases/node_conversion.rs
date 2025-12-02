@@ -183,7 +183,7 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
         };
 
         if let Some(tensor_data) = tensor_data_opt {
-            // Store in central tensor store (convert to LazyTensorData)
+            // Store in central tensor store (convert to TensorDataRef)
             let data_id = {
                 let mut state = state_rc.borrow_mut();
                 state.store_tensor_data(tensor_data.clone().into())
