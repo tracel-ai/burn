@@ -30,7 +30,7 @@ impl RemoteClient {
     ) -> Self {
         Self {
             device,
-            runtime: runtime.clone(),
+            runtime,
             sender: Arc::new(RemoteSender {
                 sender,
                 position_counter: AtomicU64::new(0),

@@ -74,7 +74,7 @@ impl RunnerClient for RemoteClient {
                 _ => panic!("Invalid message type"),
             },
             Err(e) => Err(SyncError::Generic {
-                context: format!("Failed to read tensor: {:?}", e),
+                context: format!("Failed to sync: {:?}", e),
             }),
         }
     }
