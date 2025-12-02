@@ -8,7 +8,9 @@ use alloc::vec::Vec;
 use burn_std::{Shape, Slice};
 use core::future::Future;
 
-/// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
+/// Bool Tensor API for basic operations, see
+#[cfg_attr(doc, doc = crate::doc_tensor!())]
+#[cfg_attr(not(doc), doc = "`Tensor`")]
 /// for documentation on each function.
 pub trait BoolTensorOps<B: Backend> {
     /// Creates a new bool tensor.

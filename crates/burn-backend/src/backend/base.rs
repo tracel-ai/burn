@@ -52,7 +52,10 @@ use super::DeviceOps;
 ///
 /// ## Documentation
 ///
-/// Most of the documentation for each function can be found on the user API [tensor struct](crate::Tensor).
+/// Most of the documentation for each function can be found on the user API
+#[cfg_attr(doc, doc = crate::doc_tensor!())]
+#[cfg_attr(not(doc), doc = "`Tensor`")]
+/// struct in the `burn-tensor` crate.
 /// For modules, public functions are often created, which can be used by `burn-core` modules.
 pub trait Backend:
     FloatTensorOps<Self>

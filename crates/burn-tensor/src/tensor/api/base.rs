@@ -1672,7 +1672,7 @@ where
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
@@ -1686,7 +1686,7 @@ where
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
@@ -1701,7 +1701,7 @@ where
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn to_data(&self) -> TensorData {

@@ -11,8 +11,6 @@ pub use burn_std::quantization::QParams;
 /// This is a low-level struct used internally by the library to provide the quantization parameters
 /// to the backends. It is not designed for direct usage by users, and not recommended to import
 /// or use this struct directly.
-///
-/// Users should prefer the [QuantizationParameters] struct, which is designed for public use.
 pub struct QuantizationParametersPrimitive<B: Backend> {
     /// The scaling factor.
     pub scales: B::FloatTensorPrimitive,

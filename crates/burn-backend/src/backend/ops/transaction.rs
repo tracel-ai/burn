@@ -92,7 +92,7 @@ impl<B: Backend> TransactionPrimitive<B> {
         }
     }
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
-    /// in which they were [registered](Self::register).
+    /// in which they were [registered](crate::tensor::BasicOps::register_transaction).
     pub async fn execute_async(mut self) -> Result<Vec<TensorData>, ExecutionError> {
         let mut orders = Vec::new();
         core::mem::swap(&mut orders, &mut self.orders);

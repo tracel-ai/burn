@@ -10,7 +10,10 @@ use crate::{
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by [tensor struct](Tensor).
+/// This is an internal trait, use the public API provided by the
+#[cfg_attr(doc, doc = crate::doc_tensor!())]
+#[cfg_attr(not(doc), doc = "`Tensor`")]
+/// struct.
 pub trait Numeric<B: Backend>: BasicOps<B>
 where
     Self::Elem: Element,
@@ -32,8 +35,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For adding tensors, users should prefer the [Tensor::add](Tensor::add) function,
-    /// which is more high-level and designed for public use.
+    /// For adding tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("add"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::add`")]
+    /// function, which is more high-level and designed for public use.
     fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Adds a scalar to a tensor element-wise.
@@ -53,8 +58,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For adding a scalar to a tensor, users should prefer the [Tensor::add_scalar](Tensor::add_scalar) function,
-    /// which is more high-level and designed for public use.
+    /// For adding a scalar to a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("add_scalar"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::add_scalar`")]
+    /// function, which is more high-level and designed for public use.
     fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Subtracts two tensors.
@@ -74,8 +81,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For subtracting tensors, users should prefer the [Tensor::sub](Tensor::sub) function,
-    /// which is more high-level and designed for public use.
+    /// For subtracting tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sub"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sub`")]
+    /// function, which is more high-level and designed for public use.
     fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Subtracts a scalar from a tensor element-wise.
@@ -95,8 +104,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For subtracting a scalar from a tensor, users should prefer the [Tensor::sub_scalar](Tensor::sub_scalar) function,
-    /// which is more high-level and designed for public use.
+    /// For subtracting a scalar from a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sub_scalar"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sub_scalar`")]
+    /// function, which is more high-level and designed for public use.
     fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Divides two tensors.
@@ -116,8 +127,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For dividing tensors, users should prefer the [Tensor::div](Tensor::div) function,
-    /// which is more high-level and designed for public use.
+    /// For dividing tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("div"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::div`")]
+    /// function, which is more high-level and designed for public use.
     fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Divides a tensor by a scalar element-wise.
@@ -137,8 +150,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For dividing a tensor by a scalar, users should prefer the [Tensor::div_scalar](Tensor::div_scalar) function,
-    /// which is more high-level and designed for public use.
+    /// For dividing a tensor by a scalar, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("div_scalar"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::div_scalar`")]
+    /// function, which is more high-level and designed for public use.
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
@@ -159,8 +174,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulo operation, users should prefer the [Tensor::remainder](Tensor::remainder) function,
-    /// which is more high-level and designed for public use.
+    /// For performing the modulo operation, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("remainder"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::remainder`")]
+    /// function, which is more high-level and designed for public use.
     fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
@@ -181,8 +198,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulo operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
-    /// which is more high-level and designed for public use.
+    /// For performing the modulo operation, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("remainder_scalar"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::remainder_scalar`")]
+    /// function, which is more high-level and designed for public use.
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Multiplies two tensors.
@@ -202,8 +221,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For multiplying tensors, users should prefer the [Tensor::mul](Tensor::mul) function,
-    /// which is more high-level and designed for public use.
+    /// For multiplying tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("mul"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::mul`")]
+    /// function, which is more high-level and designed for public use.
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Multiplies a tensor by a scalar element-wise.
@@ -223,8 +244,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For multiplying a tensor by a scalar, users should prefer the [Tensor::mul_scalar](Tensor::mul_scalar) function,
-    /// which is more high-level and designed for public use.
+    /// For multiplying a tensor by a scalar, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("mul_scalar"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::mul_scalar`")]
+    /// function, which is more high-level and designed for public use.
     fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Negates a tensor.
@@ -243,8 +266,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For negating a tensor, users should prefer the [Tensor::neg](Tensor::neg) function,
-    /// which is more high-level and designed for public use.
+    /// For negating a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("neg"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::neg`")]
+    /// function, which is more high-level and designed for public use.
     fn neg(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Returns the signs of the elements of a tensor.
@@ -263,8 +288,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For getting the signs of the elements of a tensor, users should prefer the [Tensor::sign](Tensor::sign) function,
-    /// which is more high-level and designed for public use.
+    /// For getting the signs of the elements of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sign"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sign`")]
+    /// function, which is more high-level and designed for public use.
     fn sign(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Sums all the elements of the tensor.
@@ -283,8 +310,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For summing all the elements of a tensor, users should prefer the [Tensor::sum](Tensor::sum) function,
-    /// which is more high-level and designed for public use.
+    /// For summing all the elements of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sum"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sum`")]
+    /// function, which is more high-level and designed for public use.
     fn sum(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Sums all the elements of the tensor along a dimension.
@@ -304,8 +333,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For summing all the elements of a tensor along a dimension, users should prefer the [Tensor::sum_dim](Tensor::sum_dim) function,
-    /// which is more high-level and designed for public use.
+    /// For summing all the elements of a tensor along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sum_dim"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sum_dim`")]
+    /// function, which is more high-level and designed for public use.
     fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the product of all the elements of the tensor.
@@ -325,8 +356,9 @@ where
     /// or use this function directly.
     ///
     /// For computing the product of all the elements of a tensor, users should prefer the
-    /// [Tensor::prod](Tensor::prod) function,
-    /// which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("prod"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::prod`")]
+    /// function, which is more high-level and designed for public use.
     fn prod(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Computes the product of all the elements of the tensor along a dimension.
@@ -346,11 +378,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the product of all the elements of a tensor along a dimension, users should
-    /// prefer the [Tensor::prod_dim](Tensor::prod_dim) function,
-    /// which is more high-level and designed for public use.
-    ///
-    ///
+    /// For computing the product of all the elements of a tensor along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("prod_dim"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::prod_dim`")]
+    /// function, which is more high-level and designed for public use.
     fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the mean of all the elements of the tensor.
@@ -369,8 +400,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the mean of all the elements of a tensor, users should prefer the [Tensor::mean](Tensor::mean) function,
-    /// which is more high-level and designed for public use.
+    /// For computing the mean of all the elements of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("mean"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::mean`")]
+    /// function, which is more high-level and designed for public use.
     fn mean(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Computes the mean of all the elements of the tensor along a dimension.
@@ -390,8 +423,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the mean of all the elements of a tensor along a dimension, users should prefer
-    /// the [Tensor::mean_dim](Tensor::mean_dim) function, which is more high-level and designed for public use.
+    /// For computing the mean of all the elements of a tensor along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("mean_dim"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::mean_dim`")]
+    /// function, which is more high-level and designed for public use.
     fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative sum of elements along a dimension.
@@ -412,8 +447,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the cumulative sum of elements along a dimension, users should prefer
-    /// the [Tensor::cumsum](Tensor::cumsum) function, which is more high-level and designed for public use.
+    /// For computing the cumulative sum of elements along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("cumsum"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::cumsum`")]
+    /// function, which is more high-level and designed for public use.
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative product of elements along a dimension.
@@ -434,8 +471,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the cumulative product of elements along a dimension, users should prefer
-    /// the [Tensor::cumprod](Tensor::cumprod) function, which is more high-level and designed for public use.
+    /// For computing the cumulative product of elements along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("cumprod"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::cumprod`")]
+    /// function, which is more high-level and designed for public use.
     fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative minimum of elements along a dimension.
@@ -456,8 +495,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the cumulative minimum of elements along a dimension, users should prefer
-    /// the [Tensor::cummin](Tensor::cummin) function, which is more high-level and designed for public use.
+    /// For computing the cumulative minimum of elements along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("cummin"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::cummin`")]
+    /// function, which is more high-level and designed for public use.
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative maximum of elements along a dimension.
@@ -478,8 +519,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the cumulative maximum of elements along a dimension, users should prefer
-    /// the [Tensor::cummax](Tensor::cummax) function, which is more high-level and designed for public use.
+    /// For computing the cumulative maximum of elements along a dimension, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("cummax"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::cummax`")]
+    /// function, which is more high-level and designed for public use.
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
     /// Element-wise equality between two tensors.
     ///
@@ -499,7 +542,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem)
+    /// For element-wise equality between two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("equal_elem"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::equal_elem`")]
     /// function, which is more high-level and designed for public use.
     fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
@@ -521,7 +566,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise non-equality between two tensors, users should prefer the [Tensor::not_equal_elem](Tensor::not_equal_elem)
+    /// For element-wise non-equality between two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("not_equal_elem"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::not_equal_elem`")]
     /// function, which is more high-level and designed for public use.
     fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
@@ -544,8 +591,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise greater than comparison between two tensors, users should prefer the [Tensor::greater](Tensor::greater) function,
-    /// which is more high-level and designed for public use.
+    /// For element-wise greater than comparison between two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("greater"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::greater`")]
+    /// function, which is more high-level and designed for public use.
     fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than comparison between a tensor and a scalar.
@@ -567,8 +616,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise greater than comparison between a tensor and a scalar, users should prefer
-    /// the [Tensor::greater_elem](Tensor::greater_elem) function, which is more high-level and designed for public use.
+    /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("greater_elem"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::greater_elem`")]
+    /// function, which is more high-level and designed for public use.
     fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than or equal comparison between two tensors.
@@ -590,8 +641,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise greater than or equal comparison between two tensors, users should prefer
-    /// the [Tensor::greater_equal](Tensor::greater_equal) function, which is more high-level and designed for public use.
+    /// For element-wise greater than or equal comparison between two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("greater_equal"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::greater_equal`")]
+    /// function, which is more high-level and designed for public use.
     fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than or equal comparison between a tensor and a scalar.
@@ -613,8 +666,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer
-    /// the [Tensor::greater_equal_elem](Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
+    /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("greater_equal_elem"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::greater_equal_elem`")]
+    /// function, which is more high-level and designed for public use.
     fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than comparison between two tensors.
@@ -636,8 +691,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise less than comparison between two tensors, users should prefer the [Tensor::lower](Tensor::lower) function,
-    /// which is more high-level and designed for public use.
+    /// For element-wise less than comparison between two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("lower"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::lower`")]
+    /// function, which is more high-level and designed for public use.
     fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than comparison between a tensor and a scalar.
@@ -659,8 +716,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise less than comparison between a tensor and a scalar, users should prefer
-    /// the [Tensor::lower_elem](Tensor::lower_elem) function, which is more high-level and designed for public use.
+    /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("lower_elem"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::lower_elem`")]
+    /// function, which is more high-level and designed for public use.
     fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than or equal comparison between two tensors.
@@ -682,8 +741,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise less than or equal comparison between two tensors, users should prefer
-    /// the [Tensor::lower_equal](Tensor::lower_equal) function, which is more high-level and designed for public use.
+    /// For element-wise less than or equal comparison between two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("lower_equal"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::lower_equal`")]
+    /// function, which is more high-level and designed for public use.
     fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than or equal comparison between a tensor and a scalar.
@@ -705,8 +766,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer
-    /// the [Tensor::lower_equal_elem](Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
+    /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("lower_equal_elem"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::lower_equal_elem`")]
+    /// function, which is more high-level and designed for public use.
     fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Selects elements from a tensor based on a boolean mask.
@@ -730,7 +793,9 @@ where
     /// or use this function directly.
     ///
     /// For selecting elements from a tensor based on a boolean mask, users should prefer the
-    /// [Tensor::mask_where](Tensor::mask_where) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("mask_where"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::mask_where`")]
+    /// function, which is more high-level and designed for public use.
     fn mask_where(
         tensor: Self::Primitive,
         mask: B::BoolTensorPrimitive,
@@ -759,7 +824,9 @@ where
     /// or use this function directly.
     ///
     /// For filling elements of a tensor based on a boolean mask, users should prefer the
-    /// [Tensor::mask_fill](Tensor::mask_fill) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("mask_fill"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::mask_fill`")]
+    /// function, which is more high-level and designed for public use.
     fn mask_fill(
         tensor: Self::Primitive,
         mask: B::BoolTensorPrimitive,
@@ -786,7 +853,9 @@ where
     /// or use this function directly.
     ///
     /// For gathering elements from a tensor along an axis, users should prefer the
-    /// [Tensor::gather](Tensor::gather) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("gather"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::gather`")]
+    /// function, which is more high-level and designed for public use.
     fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
 
     /// Scatters elements into a tensor along an axis.
@@ -811,8 +880,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For scattering elements into a tensor along an axis, users should prefer the [Tensor::scatter](Tensor::scatter) function,
-    /// which is more high-level and designed for public use.
+    /// For scattering elements into a tensor along an axis, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("scatter"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::scatter`")]
+    /// function, which is more high-level and designed for public use.
     fn scatter(
         dim: usize,
         tensor: Self::Primitive,
@@ -839,7 +910,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::argmax](Tensor::argmax) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("argmax"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::argmax`")]
+    /// function, which is more high-level and designed for public use.
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
@@ -861,7 +934,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::argmin](Tensor::argmin) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("argmin"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::argmin`")]
+    /// function, which is more high-level and designed for public use.
     fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -881,7 +956,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::max](Tensor::max) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("max"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::max`")]
+    /// function, which is more high-level and designed for public use.
     fn max(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -903,7 +980,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::max_dim](Tensor::max_dim) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("max_dim"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::max_dim`")]
+    /// function, which is more high-level and designed for public use.
     fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -926,7 +1005,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::max_dim_with_indices](Tensor::max_dim_with_indices) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("max_dim_with_indices"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::max_dim_with_indices`")]
+    /// function, which is more high-level and designed for public use.
     fn max_dim_with_indices(tensor: Self::Primitive, dim: usize)
     -> (Self::Primitive, IntTensor<B>);
 
@@ -947,7 +1028,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the maximum absolute elements of a tensor, users should prefer the
-    /// [Tensor::max_abs](Tensor::max_abs) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("max_abs"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::max_abs`")]
+    /// function, which is more high-level and designed for public use.
     fn max_abs(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -969,7 +1052,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::max_abs_dim](Tensor::max_abs_dim) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("max_abs_dim"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::max_abs_dim`")]
+    /// function, which is more high-level and designed for public use.
     fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the minimum elements of a tensor along an axis.
@@ -989,7 +1074,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::min](Tensor::min) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("min"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::min`")]
+    /// function, which is more high-level and designed for public use.
     fn min(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the minimum elements of a tensor along an axis.
@@ -1011,7 +1098,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::min_dim](Tensor::min_dim) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("min_dim"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::min_dim`")]
+    /// function, which is more high-level and designed for public use.
     fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the minimum elements and indices of a tensor along an axis.
@@ -1033,7 +1122,9 @@ where
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::min_dim_with_indices](Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("min_dim_with_indices"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::min_dim_with_indices`")]
+    /// function, which is more high-level and designed for public use.
     fn min_dim_with_indices(tensor: Self::Primitive, dim: usize)
     -> (Self::Primitive, IntTensor<B>);
 
@@ -1054,7 +1145,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users.
     ///
     /// For clamping a tensor between the given min and max values, users should prefer the
-    /// [Tensor::clamp](Tensor::clamp) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("clamp"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::clamp`")]
+    /// function, which is more high-level and designed for public use.
     fn clamp(tensor: Self::Primitive, min: Self::Elem, max: Self::Elem) -> Self::Primitive;
 
     /// Clamps a tensor under a minimum value.
@@ -1074,7 +1167,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users.
     ///
     /// For clamping a tensor under a minimum value, users should prefer the
-    /// [Tensor::clamp_min](Tensor::clamp_min) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_min"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::clamp_min`")]
+    /// function, which is more high-level and designed for public use.
     fn clamp_min(tensor: Self::Primitive, min: Self::Elem) -> Self::Primitive;
 
     /// Clamps a tensor over a maximum value.
@@ -1094,7 +1189,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users.
     ///
     /// For clamping a tensor over a maximum value, users should prefer the
-    /// [Tensor::clamp_max](Tensor::clamp_max) function, which is more high-level and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_max"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::clamp_max`")]
+    /// function, which is more high-level and designed for public use.
     fn clamp_max(tensor: Self::Primitive, max: Self::Elem) -> Self::Primitive;
 
     /// Calculate absolute value on all elements of a tensor
@@ -1113,8 +1210,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
-    /// which is more high-level and designed for public use.
+    /// For calculating abs of the elements of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("abs"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::abs`")]
+    /// function, which is more high-level and designed for public use.
     fn abs(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a float tensor
@@ -1163,8 +1262,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the [Tensor::random](Tensor::random) function,
-    /// which is more high-level and designed for public use.
+    /// Users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("random"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::random`")]
+    /// function, which is more high-level and designed for public use.
     fn random(shape: Shape, distribution: Distribution, device: &B::Device) -> Self::Primitive;
 
     /// Sort the elements of the input `tensor` by value along a given dimension.
@@ -1186,8 +1287,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the [Tensor::sort](Tensor::sort) function,
-    /// which is more high-level and designed for public use.
+    /// Users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sort"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sort`")]
+    /// function, which is more high-level and designed for public use.
     fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive;
 
     /// Sort the elements of the input `tensor` by value along a given dimension.
@@ -1211,8 +1314,9 @@ where
     /// or use this function directly.
     ///
     /// For sorting the elements of a tensor, users should prefer the
-    /// [Tensor::sort_with_indices](Tensor::sort_with_indices) function, which is more high-level
-    /// and designed for public use.
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sort_with_indices"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sort_with_indices`")]
+    /// function, which is more high-level and designed for public use.
     fn sort_with_indices(
         tensor: Self::Primitive,
         dim: usize,
@@ -1238,8 +1342,10 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the [Tensor::argsort](Tensor::argsort) function,
-    /// which is more high-level and designed for public use.
+    /// Users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("argsort"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::argsort`")]
+    /// function, which is more high-level and designed for public use.
     fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B>;
 
     /// Applies the matrix multiplication operation.

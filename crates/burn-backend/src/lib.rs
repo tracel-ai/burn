@@ -23,12 +23,6 @@ pub use backend::*;
 /// Backend tensor primitives and operations.
 pub mod tensor;
 
-// // Re-exported types
-// pub use burn_std::{
-//     DType, FloatDType, IntDType, s,
-//     tensor::{indexing::*, shape::*, slice::*},
-// };
-
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {
     use crate::backend::DeviceOps;
@@ -59,4 +53,35 @@ mod cube_hip {
     use cubecl::hip::AmdDevice;
 
     impl DeviceOps for AmdDevice {}
+}
+
+/// Convenience macro to link to the `burn-tensor` docs for this crate version.
+///
+/// Usage:
+/// ```rust
+/// doc_tensor!();        // Links to `Tensor` struct
+/// doc_tensor!("zeros"); // Links to `Tensor::zeros` method
+/// ```
+#[macro_export]
+macro_rules! doc_tensor {
+    () => {
+        concat!(
+            "[`Tensor`](https://docs.rs/burn-tensor/",
+            env!("CARGO_PKG_VERSION"),
+            "/burn_tensor/struct.Tensor.html)"
+        )
+    };
+
+    ($method:literal) => {
+        concat!(
+            "[`Tensor::",
+            $method,
+            "`](",
+            "https://docs.rs/burn-tensor/",
+            env!("CARGO_PKG_VERSION"),
+            "/burn_tensor/struct.Tensor.html#method.",
+            $method,
+            ")"
+        )
+    };
 }

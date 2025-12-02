@@ -8,7 +8,9 @@ use alloc::vec::Vec;
 use burn_std::{IntDType, Shape, Slice};
 use core::ops::Range;
 
-/// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
+/// Int Tensor API for basic and numeric operations, see
+#[cfg_attr(doc, doc = crate::doc_tensor!())]
+#[cfg_attr(not(doc), doc = "`Tensor`")]
 /// for documentation on each function.
 pub trait IntTensorOps<B: Backend> {
     /// Creates a new int tensor.
