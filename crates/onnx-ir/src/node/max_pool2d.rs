@@ -129,7 +129,16 @@ impl NodeProcessor for MaxPool2dProcessor {
                         });
                     }
                 }
-                "ceil_mode" => {}
+                "ceil_mode" => {
+                    // ceil_mode support requires opset 10+
+                    let ceil_mode = value.clone().into_i64();
+                    if ceil_mode != 0 && opset < 10 {
+                        return Err(ProcessError::Custom(format!(
+                            "MaxPool: ceil_mode requires opset 10+, got opset {}",
+                            opset
+                        )));
+                    }
+                }
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -347,5 +356,44 @@ mod tests {
         assert_eq!(config.dilation, [1, 1]);
         assert!(config.ceil_mode);
         assert!(matches!(config.padding, PaddingConfig2d::Valid));
+    }
+
+    #[test]
+    fn test_max_pool2d_ceil_mode_opset_validation() {
+        // Test that ceil_mode=1 with opset < 10 is rejected
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            1,
+            None,
+        );
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 9, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        if let Err(ProcessError::Custom(msg)) = result {
+            assert!(msg.contains("ceil_mode requires opset 10+"));
+        }
+    }
+
+    #[test]
+    fn test_max_pool2d_ceil_mode_zero_accepted_old_opset() {
+        // Test that ceil_mode=0 is accepted even with old opset
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            0,
+            None,
+        );
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 1, &prefs);
+        assert!(result.is_ok());
     }
 }

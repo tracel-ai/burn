@@ -77,7 +77,17 @@ impl NodeProcessor for AvgPool1dProcessor {
         // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "kernel_shape" | "strides" | "pads" | "count_include_pad" | "ceil_mode" => {}
+                "kernel_shape" | "strides" | "pads" | "count_include_pad" => {}
+                "ceil_mode" => {
+                    // ceil_mode support requires opset 19+
+                    let ceil_mode = value.clone().into_i64();
+                    if ceil_mode != 0 && opset < 19 {
+                        return Err(ProcessError::Custom(format!(
+                            "AveragePool: ceil_mode requires opset 19+, got opset {}",
+                            opset
+                        )));
+                    }
+                }
                 "dilations" => {
                     // Dilations support requires opset 10+
                     let dilations = value.clone().into_i64s();
@@ -276,8 +286,9 @@ mod tests {
         let mut node = node;
         let processor = AvgPool1dProcessor;
         let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
+        // ceil_mode requires opset 19+
+        let config = processor.extract_config(&node, 19).unwrap();
+        processor.infer_types(&mut node, 19, &prefs).unwrap();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -296,5 +307,30 @@ mod tests {
         let result = crate::processor::validate_node_spec(&node, 10, &spec);
         // Should fail because minimum opset is 11
         assert!(matches!(result, Err(ProcessError::UnsupportedOpset { .. })));
+    }
+
+    #[test]
+    fn test_avg_pool1d_ceil_mode_opset_validation() {
+        // Test that ceil_mode=1 with opset < 19 is rejected
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 1, None);
+        let mut node = node;
+        let processor = AvgPool1dProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 18, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        if let Err(ProcessError::Custom(msg)) = result {
+            assert!(msg.contains("ceil_mode requires opset 19+"));
+        }
+    }
+
+    #[test]
+    fn test_avg_pool1d_ceil_mode_zero_accepted_old_opset() {
+        // Test that ceil_mode=0 is accepted even with old opset
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 0, None);
+        let mut node = node;
+        let processor = AvgPool1dProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 11, &prefs);
+        assert!(result.is_ok());
     }
 }
