@@ -34,6 +34,7 @@ num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }

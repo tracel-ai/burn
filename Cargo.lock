@@ -674,6 +674,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_distr",
  "serde",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1169,7 +1170,6 @@ dependencies = [
  "num-traits",
  "paste",
  "serde",
- "thiserror 2.0.17",
 ]
 
 [[package]]
