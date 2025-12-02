@@ -58,10 +58,10 @@ pub enum RemoteSendError {
 impl RemoteSender {
     /// Generate a new unique (for this [`RemoteSender`] [`TensorId`].
     pub(crate) fn new_tensor_id(&self) -> TensorId {
-        let val = self
-            .tensor_id_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        TensorId::new(val)
+        TensorId::new(
+            self.tensor_id_counter
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        )
     }
 
     /// Give the next operation sequence number.
@@ -90,15 +90,14 @@ impl RemoteSender {
         async move {
             let (tx, rx) = async_channel::bounded(1);
 
-            match sender
+            if let Err(e) = sender
                 .send(ClientRequest::WithSyncCallback(
                     Task::Compute(task, ConnectionId::new(position, stream_id)),
                     tx,
                 ))
                 .await
             {
-                Err(e) => return Err(RemoteSendError::SendError(e)),
-                Ok(_) => {}
+                return Err(RemoteSendError::SendError(e));
             }
 
             match rx.recv().await {
