@@ -131,7 +131,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn bool_select_assign(
+    fn bool_select_add(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,

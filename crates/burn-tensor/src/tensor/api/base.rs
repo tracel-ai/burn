@@ -16,6 +16,7 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
+use crate::IndexingUpdateOp;
 use crate::{AsIndex, Slice, SliceArg, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, TensorMetadata,
@@ -1633,6 +1634,7 @@ where
     /// * `dim` - The dimension along which to select. Supports negative indexing.
     /// * `indices` - The indices to select from the tensor.
     /// * `values` - The values to assign to the selected indices.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Example
     ///
@@ -1652,6 +1654,7 @@ where
         dim: impl AsIndex,
         indices: Tensor<B, 1, Int>,
         values: Tensor<B, D, K>,
+        update: IndexingUpdateOp,
     ) -> Self {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::select_assign::<D>(
@@ -1665,6 +1668,7 @@ where
             dim,
             indices.primitive,
             values.primitive,
+            update,
         ))
     }
 

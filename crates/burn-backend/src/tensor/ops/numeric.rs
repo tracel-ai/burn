@@ -3,7 +3,7 @@ use burn_std::Shape;
 use crate::{
     Backend, Distribution,
     element::{Element, ElementConversion},
-    tensor::{BasicOps, IntTensor},
+    tensor::{BasicOps, IndexingUpdateOp, IntTensor},
 };
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -866,6 +866,7 @@ where
     /// * `tensor` - The tensor to scatter elements into.
     /// * `indices` - The indices of the elements to scatter.
     /// * `values` - The values to scatter into the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Returns
     ///
@@ -889,6 +890,7 @@ where
         tensor: Self::Primitive,
         indices: IntTensor<B>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.

@@ -5,7 +5,7 @@ use crate::{
     Backend, Distribution, ExecutionError, TensorData, TensorPrimitive,
     element::ElementConversion,
     ops::TransactionPrimitive,
-    tensor::{BasicOps, Device, Float, IntTensor, Numeric},
+    tensor::{BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric},
 };
 
 macro_rules! q_bin_ops {
@@ -121,14 +121,17 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         indices: IntTensor<B>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
         // Select assign is ambiguous for QFloat
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices,
-            values.tensor(),
-        ))
+        match update {
+            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_select_add(
+                tensor.tensor(),
+                dim,
+                indices,
+                values.tensor(),
+            )),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -467,13 +470,16 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive,
         indices: IntTensor<B>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_scatter(
-            dim,
-            tensor.tensor(),
-            indices,
-            values.tensor(),
-        ))
+        match update {
+            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_scatter_add(
+                dim,
+                tensor.tensor(),
+                indices,
+                values.tensor(),
+            )),
+        }
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {

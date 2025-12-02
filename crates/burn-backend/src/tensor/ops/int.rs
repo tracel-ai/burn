@@ -5,7 +5,7 @@ use crate::{
     Backend, Distribution, ExecutionError, TensorData,
     element::ElementConversion,
     ops::TransactionPrimitive,
-    tensor::{BasicOps, BoolTensor, Device, Int, IntTensor, Numeric},
+    tensor::{BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric},
 };
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -68,8 +68,11 @@ impl<B: Backend> BasicOps<B> for Int {
         dim: usize,
         indices: IntTensor<B>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
-        B::int_select_assign(tensor, dim, indices, values)
+        match update {
+            IndexingUpdateOp::Add => B::int_select_add(tensor, dim, indices, values),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -284,8 +287,11 @@ impl<B: Backend> Numeric<B> for Int {
         tensor: Self::Primitive,
         indices: B::IntTensorPrimitive,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
-        B::int_scatter(dim, tensor, indices, values)
+        match update {
+            IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
+        }
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {

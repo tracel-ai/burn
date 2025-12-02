@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
+use crate::IndexingUpdateOp;
 use crate::canonicalize_dim;
 use crate::{
     AsIndex, Bool, Distribution, Element, ElementConversion, Int, Shape, Tensor, backend::Backend,
@@ -1051,6 +1052,12 @@ where
     /// `input[i, indices[i, j, k], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
     ///
+    /// # Arguments
+    /// * `dim` - The axis along which to scatter elements.
+    /// * `indices` - The indices of the elements to scatter.
+    /// * `values` - The values to scatter into the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
+    ///
     /// # Notes
     ///
     /// The index tensor should have the same shape as the original tensor except for the specified
@@ -1061,7 +1068,13 @@ where
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn scatter(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
+    pub fn scatter(
+        self,
+        dim: usize,
+        indices: Tensor<B, D, Int>,
+        values: Self,
+        update: IndexingUpdateOp,
+    ) -> Self {
         check!(TensorCheck::scatter::<D>(
             dim,
             &self.shape(),
@@ -1074,6 +1087,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
+            update,
         ))
     }
 
@@ -2288,7 +2302,12 @@ where
             - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
-        output.scatter(axis as usize, indices_unsqueezed, scatter_on_values)
+        output.scatter(
+            axis as usize,
+            indices_unsqueezed,
+            scatter_on_values,
+            IndexingUpdateOp::Add,
+        )
     }
 
     /// Applies the matrix multiplication operation.
@@ -2352,12 +2371,11 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn eye(size: usize, device: &B::Device) -> Self {
-        let dtype = K::Elem::dtype();
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
-        let ones = K::ones([1, size].into(), device, dtype);
-        let zeros = K::zeros([size, size].into(), device, dtype);
+        let ones = Self::ones([1, size], device);
+        let zeros = Self::zeros([size, size], device);
 
-        Self::new(K::scatter(0, zeros, indices.primitive, ones))
+        zeros.scatter(0, indices, ones, IndexingUpdateOp::Add)
     }
 }
 

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{IndexingUpdateOp, Int, Tensor, TensorData};
 
     #[test]
     fn test_gather_grad() {
@@ -49,7 +49,9 @@ mod tests {
         );
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().scatter(1, indices, values.clone());
+        let tensor_3 = tensor_1
+            .clone()
+            .scatter(1, indices, values.clone(), IndexingUpdateOp::Add);
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();
@@ -67,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scatter_grad_partial_indices() {
+    fn test_scatter_add_grad_partial_indices() {
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(
             TensorData::from([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]),
@@ -87,7 +89,9 @@ mod tests {
         );
 
         let tensor_3 = tensor_1.clone().mul(tensor_2);
-        let tensor_4 = tensor_3.clone().scatter(1, indices, values.clone());
+        let tensor_4 = tensor_3
+            .clone()
+            .scatter(1, indices, values.clone(), IndexingUpdateOp::Add);
 
         let grads = tensor_4.backward();
 

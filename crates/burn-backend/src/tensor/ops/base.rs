@@ -5,7 +5,7 @@ use crate::{
     Backend, ExecutionError, TensorData, TensorMetadata,
     element::{Element, ElementConversion},
     ops::TransactionPrimitive,
-    tensor::{IntTensor, TensorKind},
+    tensor::{IndexingUpdateOp, IntTensor, TensorKind},
 };
 
 /// Trait that list all operations that can be applied on all tensors.
@@ -334,6 +334,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// * `dim` - The axis along which to assign elements.
     /// * `indices` - The indices of the elements to assign.
     /// * `values` - The values to assign to the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Returns
     ///
@@ -357,6 +358,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         dim: usize,
         indices: IntTensor<B>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.

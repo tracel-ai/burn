@@ -5,7 +5,7 @@ use crate::{
     Backend, ExecutionError, TensorData,
     element::{Element, ElementConversion},
     ops::TransactionPrimitive,
-    tensor::{BasicOps, Bool, Device, IntTensor},
+    tensor::{BasicOps, Bool, Device, IndexingUpdateOp, IntTensor},
 };
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -84,8 +84,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         dim: usize,
         indices: IntTensor<B>,
         values: Self::Primitive,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
-        B::bool_select_assign(tensor, dim, indices, values)
+        match update {
+            IndexingUpdateOp::Add => B::bool_select_add(tensor, dim, indices, values),
+        }
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
