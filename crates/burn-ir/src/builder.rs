@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    DType, Distribution, Shape, Slice, IndexingUpdateOp, calculate_matmul_output,
+    DType, Distribution, IndexingUpdateOp, Shape, Slice, calculate_matmul_output,
     ops::{
         conv::{
             calculate_conv_output_shape, calculate_conv_transpose_output_shape,

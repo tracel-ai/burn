@@ -12,7 +12,7 @@ use burn_ir::{
 };
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
 use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, IndexingUpdateOp,
+    Device, Distribution, Element, FloatDType, IndexingUpdateOp, Shape, Slice, TensorData,
 };
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
