@@ -1,4 +1,5 @@
 use burn_core as burn;
+use burn_core::tensor::IndexingUpdateOp;
 
 use alloc::string::ToString;
 use alloc::vec;
@@ -191,10 +192,11 @@ impl<B: Backend> CrossEntropyLoss<B> {
     ) -> Tensor<B, 2> {
         let [batch_size, nr_classes] = shape;
         let device = &targets.device();
-        let targets_matrix = Tensor::<B, 2>::zeros(shape, device).scatter_add(
+        let targets_matrix = Tensor::<B, 2>::zeros(shape, device).scatter(
             1,
             targets.reshape([batch_size, 1]),
             Tensor::ones([batch_size, 1], device),
+            IndexingUpdateOp::Add,
         );
         targets_matrix * (1. - alpha) + alpha / nr_classes as f32
     }

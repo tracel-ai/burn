@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, UpdateComputation,
+    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, IndexingUpdateOp,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
 use std::marker::PhantomData;
@@ -669,7 +669,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            UpdateComputation::Add,
+            IndexingUpdateOp::Add,
             || client.create_empty_handle(),
         );
 
@@ -755,7 +755,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            UpdateComputation::Add,
+            IndexingUpdateOp::Add,
             || client.create_empty_handle(),
         );
 

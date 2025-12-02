@@ -11,7 +11,7 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
-use crate::{TensorPrimitive, UpdateComputation};
+use crate::{IndexingUpdateOp, TensorPrimitive};
 
 macro_rules! q_bin_ops {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
@@ -1071,32 +1071,11 @@ where
     /// `input[i, indices[i, j, k], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
     ///
-    /// # Notes
-    ///
-    /// The index tensor should have the same shape as the original tensor except for the specified
-    /// dimension. The value and index tensors should have the same shape.
-    ///
-    /// Other references to the input tensor will not be modified by this operation.
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    #[deprecated(
-        since = "0.20.0",
-        note = "In a future release, `scatter` will require an update mode.\nUse `scatter_add` instead for the current additive behavior."
-    )]
-    pub fn scatter(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
-        self.scatter_add(dim, indices, values)
-    }
-
-    /// Assign the gathered elements corresponding to the given indices along the specified dimension
-    /// from the value tensor to the original tensor using sum reduction.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `input[indices[i, j, k], j, k] += values[i, j, k]; // dim = 0`
-    /// `input[i, indices[i, j, k], k] += values[i, j, k]; // dim = 1`
-    /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
+    /// # Arguments
+    /// * `dim` - The axis along which to scatter elements.
+    /// * `indices` - The indices of the elements to scatter.
+    /// * `values` - The values to scatter into the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Notes
     ///
@@ -1108,7 +1087,13 @@ where
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn scatter_add(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
+    pub fn scatter(
+        self,
+        dim: usize,
+        indices: Tensor<B, D, Int>,
+        values: Self,
+        update: IndexingUpdateOp,
+    ) -> Self {
         check!(TensorCheck::scatter::<D>(
             dim,
             &self.shape(),
@@ -1121,7 +1106,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            UpdateComputation::Add,
+            update,
         ))
     }
 
@@ -2336,7 +2321,12 @@ where
             - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
-        output.scatter_add(axis as usize, indices_unsqueezed, scatter_on_values)
+        output.scatter(
+            axis as usize,
+            indices_unsqueezed,
+            scatter_on_values,
+            IndexingUpdateOp::Add,
+        )
     }
 
     /// Applies the matrix multiplication operation.
@@ -2404,7 +2394,7 @@ where
         let ones = Self::ones([1, size], device);
         let zeros = Self::zeros([size, size], device);
 
-        zeros.scatter_add(0, indices, ones)
+        zeros.scatter(0, indices, ones, IndexingUpdateOp::Add)
     }
 }
 
@@ -3203,7 +3193,7 @@ where
     /// * `tensor` - The tensor to scatter elements into.
     /// * `indices` - The indices of the elements to scatter.
     /// * `values` - The values to scatter into the tensor.
-    /// * `update` - The update computation to perform for the operation.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Returns
     ///
@@ -3225,7 +3215,7 @@ where
         tensor: Self::Primitive,
         indices: B::IntTensorPrimitive,
         values: Self::Primitive,
-        update: UpdateComputation,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
@@ -3805,10 +3795,10 @@ impl<B: Backend> Numeric<B> for Int {
         tensor: Self::Primitive,
         indices: B::IntTensorPrimitive,
         values: Self::Primitive,
-        update: UpdateComputation,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
         match update {
-            UpdateComputation::Add => B::int_scatter_add(dim, tensor, indices, values),
+            IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
         }
     }
 
@@ -4150,10 +4140,10 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive,
         indices: B::IntTensorPrimitive,
         values: Self::Primitive,
-        update: UpdateComputation,
+        update: IndexingUpdateOp,
     ) -> Self::Primitive {
         match update {
-            UpdateComputation::Add => TensorPrimitive::Float(B::float_scatter_add(
+            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_scatter_add(
                 dim,
                 tensor.tensor(),
                 indices,

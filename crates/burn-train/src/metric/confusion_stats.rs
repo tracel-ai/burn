@@ -1,5 +1,8 @@
 use super::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule};
-use burn_core::prelude::{Backend, Bool, Int, Tensor};
+use burn_core::{
+    prelude::{Backend, Bool, Int, Tensor},
+    tensor::IndexingUpdateOp,
+};
 use std::fmt::{self, Debug};
 
 /// Input for confusion statistics error types.
@@ -63,7 +66,8 @@ impl<B: Backend> ConfusionStats<B> {
                         .argsort_descending(1)
                         .narrow(1, 0, top_k.get());
                 let values = indexes.ones_like().float();
-                mask.scatter_add(1, indexes, values).bool()
+                mask.scatter(1, indexes, values, IndexingUpdateOp::Add)
+                    .bool()
             }
         };
         Self {

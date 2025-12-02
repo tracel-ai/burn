@@ -1,8 +1,8 @@
-#[burn_tensor_testgen::testgen(select_add)]
+#[burn_tensor_testgen::testgen(select_assign)]
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Int, Tensor, backend::Backend};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{IndexingUpdateOp, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -50,8 +50,8 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data(), &Default::default());
 
-        let actual = tensor.select_add(dim, indices, value);
-        let expected = tensor_ref.select_add(dim, indices_ref, value_ref);
+        let actual = tensor.select_assign(dim, indices, value, IndexingUpdateOp::Add);
+        let expected = tensor_ref.select_assign(dim, indices_ref, value_ref, IndexingUpdateOp::Add);
 
         expected
             .into_data()

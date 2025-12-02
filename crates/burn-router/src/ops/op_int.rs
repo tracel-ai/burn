@@ -12,7 +12,7 @@ use burn_ir::{
 };
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps};
 use burn_tensor::{
-    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, UpdateComputation,
+    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, IndexingUpdateOp,
 };
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
@@ -171,7 +171,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            UpdateComputation::Add,
+            IndexingUpdateOp::Add,
             || client.create_empty_handle(),
         );
 
@@ -213,7 +213,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            UpdateComputation::Add,
+            IndexingUpdateOp::Add,
             || client.create_empty_handle(),
         );
 

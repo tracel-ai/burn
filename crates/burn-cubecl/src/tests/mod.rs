@@ -22,7 +22,7 @@ mod reduce;
 mod repeat_dim;
 mod scatter;
 mod select;
-mod select_add;
+mod select_assign;
 mod slice;
 mod slice_assign;
 mod unary;
@@ -60,7 +60,7 @@ macro_rules! testgen_all {
                 burn_cubecl::testgen_scatter!();
 
                 burn_cubecl::testgen_select!();
-                burn_cubecl::testgen_select_add!();
+                burn_cubecl::testgen_select_assign!();
 
                 burn_cubecl::testgen_slice!();
                 burn_cubecl::testgen_slice_assign!();

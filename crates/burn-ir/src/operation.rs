@@ -1,4 +1,4 @@
-use burn_tensor::UpdateComputation;
+use burn_tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -805,7 +805,7 @@ pub struct ScatterOpIr {
     pub dim: usize,
     pub indices: TensorIr,
     pub value: TensorIr,
-    pub update: UpdateComputation,
+    pub update: IndexingUpdateOp,
     pub out: TensorIr,
 }
 
@@ -825,7 +825,7 @@ pub struct SelectAssignOpIr {
     pub dim: usize,
     pub indices: TensorIr,
     pub value: TensorIr,
-    pub update: UpdateComputation,
+    pub update: IndexingUpdateOp,
     pub out: TensorIr,
 }
 

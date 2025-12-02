@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_select)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{IndexingUpdateOp, Int, Tensor, TensorData};
 
     #[test]
     fn test_select_grad() {
@@ -45,7 +45,10 @@ mod tests {
             Tensor::<TestAutodiffBackend, 1, Int>::from_data(TensorData::from([1, 0]), &device);
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().select_add(0, indices, values.clone());
+        let tensor_3 =
+            tensor_1
+                .clone()
+                .select_assign(0, indices, values.clone(), IndexingUpdateOp::Add);
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();
@@ -70,7 +73,9 @@ mod tests {
         let x: Tensor<TestAutodiffBackend, 2> = Tensor::ones([1, 1], &device).require_grad();
         let y = Tensor::ones([2, 1], &device).require_grad();
 
-        let w = y.clone().select_add(0, indices, x.clone());
+        let w = y
+            .clone()
+            .select_assign(0, indices, x.clone(), IndexingUpdateOp::Add);
         let w = w.matmul(y.clone().transpose());
 
         let grads = w.backward();

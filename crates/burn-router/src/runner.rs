@@ -455,7 +455,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::UpdateComputation::Add => {
+                        burn_tensor::IndexingUpdateOp::Add => {
                             B::float_scatter_add(desc.dim, tensor, indices, value)
                         }
                     };
@@ -474,7 +474,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::UpdateComputation::Add => {
+                        burn_tensor::IndexingUpdateOp::Add => {
                             B::float_select_add(tensor, desc.dim, indices, value)
                         }
                     };
@@ -666,7 +666,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::UpdateComputation::Add => {
+                        burn_tensor::IndexingUpdateOp::Add => {
                             B::int_scatter_add(desc.dim, tensor, indices, value)
                         }
                     };
@@ -685,7 +685,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::UpdateComputation::Add => {
+                        burn_tensor::IndexingUpdateOp::Add => {
                             B::int_select_add(tensor, desc.dim, indices, value)
                         }
                     };

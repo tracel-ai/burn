@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{IndexingUpdateOp, Tensor, TensorData};
 
     #[test]
     fn should_gather_1d_dim0() {
@@ -138,7 +138,7 @@ mod tests {
         let values = TestTensor::from_floats([5.0, 4.0, 3.0], &device);
         let indices = TestTensorInt::from_ints([1, 0, 2], &device);
 
-        let output = tensor.scatter_add(0, indices, values);
+        let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
 
         output
             .into_data()
@@ -152,7 +152,7 @@ mod tests {
         let values = TestTensorInt::from_ints([5, 4, 3], &device);
         let indices = TestTensorInt::from_ints([1, 0, 2], &device);
 
-        let output = tensor.scatter_add(0, indices, values);
+        let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
 
         output
             .into_data()
@@ -166,7 +166,7 @@ mod tests {
         let values = TestTensor::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let indices = TestTensorInt::from_ints([[1, 0, 1], [1, 1, 0]], &device);
 
-        let output = tensor.scatter_add(0, indices, values);
+        let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
 
         output
             .into_data()
@@ -180,7 +180,7 @@ mod tests {
         let values = TestTensor::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let indices = TestTensorInt::from_ints([[1, 0, 2], [1, 2, 0]], &device);
 
-        let output = tensor.scatter_add(1, indices, values);
+        let output = tensor.scatter(1, indices, values, IndexingUpdateOp::Add);
 
         output
             .into_data()
@@ -207,7 +207,7 @@ mod tests {
         let indices =
             TestTensorInt::from_ints([[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [0, 1, 1]]], &device);
 
-        let output = tensor.scatter_add(1, indices, values);
+        let output = tensor.scatter(1, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([
             [[15.0, 14.0, 33.0], [15.0, 20.0, 5.0]],
             [[45.0, 26.0, 8.0], [9.0, 32.0, 54.0]],
@@ -223,7 +223,7 @@ mod tests {
         let values = TestTensor::from_floats([[1.0], [4.0]], &device);
         let indices = TestTensorInt::from_ints([[1], [2]], &device);
 
-        let output = tensor.scatter_add(1, indices, values);
+        let output = tensor.scatter(1, indices, values, IndexingUpdateOp::Add);
 
         output
             .into_data()
@@ -238,6 +238,6 @@ mod tests {
         let values = TestTensor::from_floats([5.0, 4.0], &device);
         let indices = TestTensorInt::from_ints([1, 0, 2], &device);
 
-        tensor.scatter_add(0, indices, values);
+        tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
     }
 }
