@@ -15,9 +15,9 @@ version.workspace = true
 [lints]
 workspace = true
 
-
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", default-features = false }
+onnx-ir-derive = { path = "../onnx-ir-derive", version = "=0.20.0-pre.4" }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }

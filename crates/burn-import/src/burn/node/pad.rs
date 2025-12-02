@@ -1,34 +1,23 @@
+use super::prelude::*;
 use std::str::FromStr;
 
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
-use burn::record::PrecisionSettings;
-use onnx_ir::node::pad::PadConfig;
-use proc_macro2::TokenStream;
-use quote::quote;
-
-#[derive(Debug, Clone, new)]
-pub struct PadNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub config: PadConfig,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pad::PadNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         // Extract static pads from the enum wrapper
         let pads_vec = match &self.config.pads {
-            onnx_ir::node::pad::PadInput::Static(pads) => pads,
-            onnx_ir::node::pad::PadInput::Runtime(_) => {
+            onnx_ir::pad::PadInput::Static(pads) => pads,
+            onnx_ir::pad::PadInput::Runtime(_) => {
                 panic!("Runtime pads are not supported in burn-import")
             }
         };
@@ -36,8 +25,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
 
         // Extract static constant value from the enum wrapper
         let constant_value_f32 = match &self.config.constant_value {
-            onnx_ir::node::pad::ConstantValueInput::Static(value) => value,
-            onnx_ir::node::pad::ConstantValueInput::Runtime(_) => {
+            onnx_ir::pad::ConstantValueInput::Static(value) => value,
+            onnx_ir::pad::ConstantValueInput::Runtime(_) => {
                 panic!("Runtime constant value is not supported in burn-import")
             }
         };
@@ -48,79 +37,50 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
             let #output = #input.pad((#(#pads),*), #constant_value);
         }
     }
-    fn into_node(self) -> Node<PS> {
-        Node::Pad(self)
-    }
-}
-
-impl OnnxIntoNode for PadNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Pad(n) = node else {
-            panic!("Expected Pad node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(input, output, n.config.clone())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::pad::{ConstantValueInput, PadConfig, PadInput, PadMode, PadNode, PadNodeBuilder};
 
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{pad::PadNode, test::assert_tokens},
-    };
-
-    #[test]
-    fn test_codegen_pad() {
-        use onnx_ir::node::pad::{ConstantValueInput, PadInput, PadMode};
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn create_pad_node(name: &str, pads: Vec<usize>, constant_value: f32) -> PadNode {
         let config = PadConfig {
-            pads: PadInput::Static(vec![1, 2, 3, 4]),
-            constant_value: ConstantValueInput::Static(-1.0),
+            pads: PadInput::Static(pads),
+            constant_value: ConstantValueInput::Static(constant_value),
             mode: PadMode::Constant,
         };
-        graph.register(PadNode::new(
-            TensorType::new_float("input", 2),
-            TensorType::new_float("output", 2),
-            config,
-        ));
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
 
-        let expected = quote! {
-            use burn::prelude::*;
+        PadNodeBuilder::new(name)
+            .input_tensor("input", 2, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
+    #[test]
+    fn test_pad_simple() {
+        let node = create_pad_node("pad1", vec![1, 1, 1, 1], 0.0);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.pad((1, 1, 1, 1), 0_f32);
+            output
+        }
+        ");
+    }
 
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.pad((1, 2, 3, 4), -1_f32);
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_pad_asymmetric() {
+        let node = create_pad_node("pad1", vec![0, 2, 1, 0], 5.5);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = input.pad((0, 2, 1, 0), 5.5_f32);
+            output
+        }
+        ");
     }
 }

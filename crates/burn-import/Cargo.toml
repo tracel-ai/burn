@@ -19,7 +19,7 @@ workspace = true
 
 [features]
 default = ["onnx", "pytorch", "safetensors"]
-onnx = ["burn-ndarray"]
+onnx = ["burn-ndarray", "onnx-ir"]
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 safetensors = [
     "burn/record-item-custom-serde",
@@ -29,12 +29,12 @@ safetensors = [
 ]
 
 [dependencies]
-burn = { path = "../burn", version = "=0.20.0-pre.3", default-features = false, features = [
+burn = { path = "../burn", version = "=0.20.0-pre.4", default-features = false, features = [
     "std",
 ] }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.3", default-features = false, optional = true }
-burn-store = { path = "../burn-store", version = "=0.20.0-pre.3", default-features = false, features = ["std", "pytorch"] }
-onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.3" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", default-features = false, optional = true }
+burn-store = { path = "../burn-store", version = "=0.20.0-pre.4", default-features = false, features = ["std", "pytorch"] }
+onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.4", optional = true }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
@@ -52,6 +52,7 @@ tracing-subscriber = { workspace = true }
 zip = { workspace = true, optional = true }
 
 [dev-dependencies]
+insta = { workspace = true }
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
 

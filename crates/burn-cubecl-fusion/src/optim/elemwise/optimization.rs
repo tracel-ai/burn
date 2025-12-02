@@ -74,7 +74,7 @@ pub struct ElemwiseRunner;
 
 impl<R: Runtime> Vectorization<R> for ElemwiseRunner {}
 impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
-    type Error = (); // No error possible
+    type Error = LaunchError; // No error possible
 
     fn run<'a>(
         &'a self,
@@ -104,7 +104,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
                 inputs,
                 outputs,
                 config.clone(),
-            );
+            )?;
         };
 
         Ok(())

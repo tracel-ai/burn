@@ -6,7 +6,7 @@ use crate::{
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
     Device, Element,
-    backend::{Backend, DeviceOps},
+    backend::{Backend, DeviceOps, SyncError},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -50,10 +50,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::seed(device, seed);
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device) -> Result<(), SyncError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         client.drain();
-        B::sync(device);
+        B::sync(device)
     }
 
     fn ad_enabled() -> bool {

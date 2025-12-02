@@ -1,10 +1,10 @@
-use burn_common::future::DynFut;
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
+use burn_std::future::DynFut;
 use burn_tensor::{
     Shape, TensorData,
-    backend::{DeviceId, DeviceOps},
+    backend::{DeviceId, DeviceOps, ExecutionError, SyncError},
 };
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
@@ -30,7 +30,7 @@ impl RunnerClient for RemoteClient {
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
-    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<TensorData> {
+    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
 
@@ -56,16 +56,16 @@ impl RunnerClient for RemoteClient {
         self.device.clone()
     }
 
-    fn sync(&self) {
+    fn sync(&self) -> Result<(), SyncError> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
 
         let runtime = self.runtime.clone();
 
         match runtime.block_on(fut) {
-            TaskResponseContent::SyncBackend => {}
+            TaskResponseContent::SyncBackend(result) => result,
             _ => panic!("Invalid message type"),
-        };
+        }
     }
 
     fn seed(&self, seed: u64) {
@@ -110,7 +110,7 @@ impl Default for RemoteDevice {
     }
 }
 
-impl burn_common::device::Device for RemoteDevice {
+impl burn_std::device::Device for RemoteDevice {
     fn from_id(_device_id: DeviceId) -> Self {
         todo!("Should keep the address as ints, host should be type, port should be index.")
     }

@@ -18,7 +18,8 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     CubeTensor::new(
         tensor.client,
@@ -45,7 +46,8 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     CubeTensor::new(
         tensor.client,
@@ -75,7 +77,8 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &tensor.shape,
                 scheme.num_quants() as u32,
                 DType::U32.into(),
-            );
+            )
+            .expect("Kernel to never fail");
         }
         // e2m1 is special because it has a native packed representation, `e2m1x2`.
         // It's internally stored as `u8` with a packing factor of 2.
@@ -87,7 +90,8 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &tensor.shape,
                 2,
                 DType::U8.into(),
-            );
+            )
+            .expect("Kernel to never fail");
         }
         QuantStore::Native => {
             cubecl::std::tensor::into_contiguous_ref(
@@ -95,7 +99,8 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
                 values.dtype.into(),
-            );
+            )
+            .expect("Kernel to never fail");
         }
     }
 
@@ -104,7 +109,8 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         &scales.as_handle_ref(),
         &out_scales.as_handle_ref(),
         scales.dtype.into(),
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }

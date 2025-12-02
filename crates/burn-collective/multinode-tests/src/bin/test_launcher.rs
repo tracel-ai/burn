@@ -15,7 +15,7 @@ use tokio_util::codec::LengthDelimitedCodec;
 use burn::{backend::NdArray, prelude::Backend, tensor::Tensor};
 use burn_collective::{AllReduceStrategy, ReduceOperation};
 use burn_collective_multinode_tests::shared::{NodeTest, NodeTestResult, TENSOR_RANK};
-use burn_common::rand::{SeedableRng, StdRng};
+use burn_std::rand::{SeedableRng, StdRng};
 use tokio::process::{Child, Command};
 
 #[derive(Clone)]

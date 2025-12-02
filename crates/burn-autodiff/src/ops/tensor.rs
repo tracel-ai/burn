@@ -24,6 +24,7 @@ use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
+use burn_tensor::{backend::ExecutionError, ops::unfold::calculate_unfold_windows};
 
 use super::maxmin::MaxMinDim;
 
@@ -64,7 +65,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AutodiffTensor::new(B::float_ones(shape, device, dtype))
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         B::float_into_data(tensor.primitive).await
     }
 
@@ -617,7 +618,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     ops.node,
                     grads,
                     |grad| B::float_cross(rhs.unwrap(), grad, dim),
-                    |grad| B::float_cross(lhs.unwrap(), grad, dim),
+                    |grad| B::float_cross(grad, lhs.unwrap(), dim),
                 );
             }
         }
@@ -2407,18 +2408,22 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend> Step for CatStep<B> {
             fn step(self: Box<Self>, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
                 let grad = grads.consume::<B>(&self.output);
-                let ranges: Vec<_> = grad.shape().iter().map(|v| 0..*v).collect();
-
-                let mut current_index = 0;
+                let ranges_template: Vec<_> = grad.shape().iter().map(|&v| 0..v).collect();
 
                 self.nodes
                     .into_iter()
                     .zip(self.dim_sizes)
-                    .filter_map(|(node, dim_size)| node.map(|node| (node, dim_size)))
-                    .for_each(|(node, dim_size)| {
-                        let mut ranges = ranges.clone();
-                        ranges[self.dim] = current_index..dim_size + current_index;
-                        current_index += dim_size;
+                    .scan(0, |offset, (node_opt, dim_size)| {
+                        let start = *offset;
+                        let end = start + dim_size;
+                        *offset = end;
+                        Some(node_opt.map(|node| (node, start, end)))
+                    })
+                    .flatten()
+                    .for_each(|(node, start, end)| {
+                        let mut ranges = ranges_template.clone();
+                        ranges[self.dim] = start..end;
+
                         let slices: Vec<burn_tensor::Slice> = ranges
                             .iter()
                             .map(|r| {
@@ -2861,7 +2866,37 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_cast(tensor.primitive, dtype))
+        #[derive(Debug)]
+        struct Cast;
+
+        impl<B: Backend> Backward<B, 1> for Cast {
+            type State = FloatDType;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let dtype = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_cast(grad, dtype)
+                });
+            }
+        }
+
+        match Cast
+            .prepare::<C>([tensor.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                tensor.dtype().into(),
+                B::float_cast(tensor.primitive, dtype),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cast(tensor.primitive, dtype)),
+        }
     }
 
     // TODO: Implement float_prod and float_sum
@@ -2873,7 +2908,84 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         size: usize,
         step: usize,
     ) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_unfold(tensor.primitive, dim, size, step))
+        #[derive(Debug)]
+        struct Unfold;
+
+        impl<B: Backend> Backward<B, 1> for Unfold {
+            type State = (Shape, usize, usize, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (shape_in, dim, size, step) = ops.state;
+                let windows = calculate_unfold_windows(shape_in[dim], size, step);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    let device = B::float_device(&grad);
+                    let mut grad_input =
+                        B::float_zeros(shape_in.clone(), &device, grad.dtype().into());
+
+                    if windows == 0 {
+                        return grad_input;
+                    }
+
+                    let ndims_in = shape_in.num_dims();
+                    let ndims_out = grad.shape().num_dims();
+
+                    let mut target_shape = shape_in.clone();
+                    target_shape[dim] = size;
+
+                    for window_idx in 0..windows {
+                        let mut slices_out = vec![burn_tensor::Slice::new(0, None, 1); ndims_out];
+                        let start = window_idx * step;
+                        let end = start + size;
+                        slices_out[dim] = burn_tensor::Slice::new(
+                            window_idx as isize,
+                            Some((window_idx + 1) as isize),
+                            1,
+                        );
+
+                        let window_grad = B::float_slice(grad.clone(), &slices_out);
+
+                        let last_axis = ndims_out - 1;
+                        let mut permutation: Vec<usize> = (0..dim).collect();
+                        permutation.push(last_axis);
+                        permutation.extend(dim + 1..last_axis);
+                        permutation.push(dim);
+
+                        let window_grad = B::float_permute(window_grad, &permutation);
+                        let window_grad = B::float_reshape(window_grad, target_shape.clone());
+
+                        let mut slices_in = vec![burn_tensor::Slice::new(0, None, 1); ndims_in];
+                        slices_in[dim] =
+                            burn_tensor::Slice::new(start as isize, Some(end as isize), 1);
+
+                        let current = B::float_slice(grad_input.clone(), &slices_in);
+                        let updated = B::float_add(current, window_grad);
+                        grad_input = B::float_slice_assign(grad_input, &slices_in, updated);
+                    }
+
+                    grad_input
+                });
+            }
+        }
+
+        match Unfold
+            .prepare::<C>([tensor.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.shape(), dim, size, step),
+                B::float_unfold(tensor.primitive, dim, size, step),
+            ),
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_unfold(tensor.primitive, dim, size, step))
+            }
+        }
     }
 }
 

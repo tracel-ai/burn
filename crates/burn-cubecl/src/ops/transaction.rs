@@ -1,7 +1,9 @@
 use burn_tensor::{
     DType, TensorData,
-    ops::{TransactionOps, TransactionPrimitiveResult},
+    backend::ExecutionError,
+    ops::{TransactionOps, TransactionPrimitiveData},
 };
+use cubecl::server::{Binding, CopyDescriptor};
 
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 
@@ -14,82 +16,127 @@ where
 {
     async fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
-    ) -> burn_tensor::ops::TransactionPrimitiveResult {
-        let mut bindings = Vec::new();
+    ) -> Result<burn_tensor::ops::TransactionPrimitiveData, ExecutionError> {
         let mut client = None;
 
         enum Kind {
-            Float(usize, Vec<usize>, DType),
-            Int(usize, Vec<usize>, DType),
-            Bool(usize, Vec<usize>, DType),
+            Float,
+            Int,
+            Bool,
+        }
+
+        #[derive(new)]
+        struct BindingData {
+            index: usize,
+            kind: Kind,
+            handle: Option<Binding>,
+            shape: Vec<usize>,
+            strides: Vec<usize>,
+            dtype: DType,
         }
 
         let mut num_bindings = 0;
 
         let mut kinds = Vec::new();
 
-        transaction.read_floats.into_iter().for_each(|t| {
+        for t in transaction.read_floats.into_iter() {
             if client.is_none() {
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Float(num_bindings, t.shape.into(), F::dtype()));
+            let t = crate::kernel::into_contiguous_aligned(t);
+            let binding = BindingData::new(
+                num_bindings,
+                Kind::Float,
+                Some(t.handle.binding()),
+                t.shape.into(),
+                t.strides,
+                t.dtype,
+            );
+
+            kinds.push(binding);
             num_bindings += 1;
-            bindings.push(t.handle)
-        });
-        transaction.read_ints.into_iter().for_each(|t| {
+        }
+        for t in transaction.read_ints.into_iter() {
             if client.is_none() {
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Int(num_bindings, t.shape.into(), I::dtype()));
+            let t = crate::kernel::into_contiguous_aligned(t);
+            let binding = BindingData::new(
+                num_bindings,
+                Kind::Int,
+                Some(t.handle.binding()),
+                t.shape.into(),
+                t.strides,
+                t.dtype,
+            );
+
+            kinds.push(binding);
             num_bindings += 1;
-            bindings.push(t.handle)
-        });
-        transaction.read_bools.into_iter().for_each(|t| {
+        }
+        for t in transaction.read_bools.into_iter() {
             if client.is_none() {
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Bool(num_bindings, t.shape.into(), BT::dtype()));
+            let t = crate::kernel::into_contiguous_aligned(t);
+            let binding = BindingData::new(
+                num_bindings,
+                Kind::Bool,
+                Some(t.handle.binding()),
+                t.shape.into(),
+                t.strides,
+                t.dtype,
+            );
+
+            kinds.push(binding);
             num_bindings += 1;
-            bindings.push(t.handle)
-        });
+        }
 
         let client = client.unwrap();
 
+        let bindings = kinds
+            .iter_mut()
+            .map(|b| {
+                CopyDescriptor::new(
+                    b.handle.take().unwrap(),
+                    &b.shape,
+                    &b.strides,
+                    b.dtype.size(),
+                )
+            })
+            .collect();
+
         let mut data: Vec<Option<_>> = client
-            .read_async(bindings)
+            .read_tensor_async(bindings)
             .await
+            .map_err(|err| ExecutionError::Generic {
+                context: format!("{err:?}"),
+            })?
             .into_iter()
             .map(Some)
             .collect::<Vec<Option<_>>>();
 
-        let mut result = TransactionPrimitiveResult::default();
+        let mut result = TransactionPrimitiveData::default();
 
-        for kind in kinds {
-            match kind {
-                Kind::Float(index, shape, dtype) => {
-                    let bytes = data.get_mut(index).unwrap().take().unwrap();
-                    result
-                        .read_floats
-                        .push(TensorData::from_bytes(bytes, shape, dtype));
+        for binding in kinds {
+            let bytes = data.get_mut(binding.index).unwrap().take().unwrap();
+            let t_data = TensorData::from_bytes(bytes, binding.shape, binding.dtype);
+
+            match binding.kind {
+                Kind::Float => {
+                    result.read_floats.push(t_data);
                 }
-                Kind::Int(index, shape, dtype) => {
-                    let bytes = data.get_mut(index).unwrap().take().unwrap();
-                    result
-                        .read_ints
-                        .push(TensorData::from_bytes(bytes, shape, dtype));
+                Kind::Int => {
+                    result.read_ints.push(t_data);
                 }
-                Kind::Bool(index, shape, dtype) => {
-                    let bytes = data.get_mut(index).unwrap().take().unwrap();
-                    result
-                        .read_bools
-                        .push(TensorData::from_bytes(bytes, shape, dtype));
+                Kind::Bool => {
+                    result.read_bools.push(t_data);
                 }
             }
         }
 
-        result
+        Ok(result)
     }
 }

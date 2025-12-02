@@ -3,7 +3,8 @@ use super::{
     repeat_dim::repeat_with_slice_assign,
 };
 use crate::{
-    Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data, backend::Backend,
+    Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data,
+    backend::{Backend, ExecutionError},
     tensor::Shape,
 };
 use alloc::vec::Vec;
@@ -57,7 +58,9 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn bool_into_data(
+        tensor: BoolTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -129,6 +132,11 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values for the given slices.
+    ///
+    /// # Note
+    ///
+    /// Empty slices (where start >= end) are handled at the high-level tensor API and will not
+    /// be passed to this method. Backend implementations do not need to handle empty slices.
     fn bool_slice(tensor: BoolTensor<B>, slices: &[crate::Slice]) -> BoolTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.
@@ -142,6 +150,12 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values set for the given ranges.
+    ///
+    /// # Note
+    ///
+    /// Empty slice assignments (where any slice range produces 0 elements) are handled at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty slice assignments.
     fn bool_slice_assign(
         tensor: BoolTensor<B>,
         slices: &[crate::Slice],
@@ -218,6 +232,12 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the tensors concatenated along the given dimension.
+    ///
+    /// # Note
+    ///
+    /// Empty tensors (where the concatenation dimension has size 0) are filtered out at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty tensors.
     fn bool_cat(tensors: Vec<BoolTensor<B>>, dim: usize) -> BoolTensor<B> {
         cat_with_slice_assign::<B, Bool>(tensors, dim)
     }
@@ -426,7 +446,9 @@ pub trait BoolTensorOps<B: Backend> {
             // Size of each output tensor is variable (= number of nonzero elements in the tensor).
             // Reading the data to count the number of truth values might cause sync but is required.
             let device = B::bool_device(&tensor);
-            let data = B::bool_into_data(tensor).await;
+            let data = B::bool_into_data(tensor)
+                .await
+                .expect("Can read the data without error");
             argwhere_data::<B>(data, &device)
         }
     }

@@ -325,7 +325,7 @@ impl TchTensor {
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
         let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
-        let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
+        let tensor = tensor.reshape(shape_tch.dims).to_kind(E::kind());
 
         Self::new(tensor)
     }
@@ -342,9 +342,9 @@ impl TchTensor {
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty<E: tch::kind::Element>(shape: Shape, device: LibTorchDevice) -> Self {
+    pub fn empty<E: TchElement>(shape: Shape, device: LibTorchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
-        let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
+        let tensor = tch::Tensor::empty(shape_tch.dims, (E::kind(), device.into()));
 
         Self::new(tensor)
     }

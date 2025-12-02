@@ -10,7 +10,6 @@ mod fmod;
 mod int;
 mod kind;
 mod numeric;
-mod slice;
 mod sort;
 mod take;
 mod transaction;
@@ -23,7 +22,6 @@ pub use cartesian_grid::cartesian_grid;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
 pub use kind::*;
 pub use numeric::*;
-pub use slice::*;
 pub use sort::{argsort, sort, sort_with_indices};
 pub use transaction::*;
 

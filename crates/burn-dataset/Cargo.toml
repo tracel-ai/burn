@@ -20,9 +20,10 @@ builtin-sources = ["vision", "dep:tar", "nlp"]
 default = ["sqlite-bundled"]
 doc = ["default"]
 fake = ["dep:fake"]
+network = ["dep:burn-std"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
-vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
+vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
 nlp = ["dep:zip", "dep:encoding_rs"]
 # internal
 __sqlite-shared = [
@@ -35,7 +36,7 @@ __sqlite-shared = [
 dataframe = ["dep:polars", "dep:planus"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "=0.20.0-pre.3", optional = true, features = [
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.4", optional = true, features = [
     "network",
 ] }
 csv = { workspace = true }
@@ -64,6 +65,7 @@ strum = { workspace = true }
 tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+
 
 [dev-dependencies]
 fake = { workspace = true }

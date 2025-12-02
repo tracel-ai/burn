@@ -78,14 +78,10 @@ mod tests {
             Tensor::<TestBackend, 1, burn::tensor::Int>::from_data([input_value], &device);
 
         // The roundtrip should preserve the value
-        let output_tensor = model.forward(input_tensor.clone());
+        // Note: The output is a Shape type [i64; 1], not a Tensor
+        let output_shape = model.forward(input_tensor.clone());
 
         // Verify the value is preserved through the squeeze/unsqueeze roundtrip
-        let input_data = input_tensor.to_data();
-        let output_data = output_tensor.to_data();
-        assert_eq!(
-            output_data.as_slice::<i64>().unwrap()[0],
-            input_data.as_slice::<i64>().unwrap()[0]
-        );
+        assert_eq!(output_shape[0], input_value);
     }
 }

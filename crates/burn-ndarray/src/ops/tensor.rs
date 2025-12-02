@@ -1,7 +1,8 @@
 // Language
 use alloc::vec::Vec;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::FloatTensor;
-use burn_tensor::ops::InterpolateMode;
+use burn_tensor::ops::GridSampleOptions;
 use burn_tensor::{TensorMetadata, cast::ToElement};
 
 // Current crate
@@ -75,8 +76,8 @@ where
         tensor
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
-        tensor.into_data()
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
+        Ok(tensor.into_data())
     }
 
     fn float_device(_tensor: &FloatTensor<Self>) -> NdArrayDevice {
@@ -514,10 +515,10 @@ where
     fn float_grid_sample_2d(
         tensor: FloatTensor<Self>,
         grid: FloatTensor<Self>,
-        method: InterpolateMode,
+        options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_2d(
-            tensor, grid, method
+            tensor, grid, options
         ))
     }
 

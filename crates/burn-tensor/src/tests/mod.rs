@@ -192,6 +192,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_module_bilinear_interpolate!();
         burn_tensor::testgen_module_bicubic_interpolate!();
         burn_tensor::testgen_module_linear!();
+        burn_tensor::testgen_module_attention!();
 
         // test ops
         burn_tensor::testgen_gather_scatter!();
@@ -289,6 +290,9 @@ macro_rules! testgen_with_float_param {
 
         // test padding
         burn_tensor::testgen_padding!();
+
+        // test transaction
+        burn_tensor::testgen_transaction!();
     };
 }
 
@@ -407,7 +411,7 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
-    use cubecl_quant::scheme::QuantLevel;
+    use crate::quantization::QuantLevel;
 
     use crate::{
         Tensor, TensorData,

@@ -22,9 +22,11 @@
 //!
 //! ### RandomUniform
 //! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, DType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, DType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -55,7 +57,7 @@ pub enum RandomConfig {
 }
 
 /// Node representation for RandomNormal operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomNormalNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -64,7 +66,7 @@ pub struct RandomNormalNode {
 }
 
 /// Node representation for RandomUniform operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct RandomUniformNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -88,7 +90,7 @@ impl NodeProcessor for RandomProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -158,11 +160,7 @@ impl NodeProcessor for RandomProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let shape = node
             .attrs
             .get("shape")
@@ -209,7 +207,7 @@ impl NodeProcessor for RandomProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -238,7 +236,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
     use crate::protos::tensor_proto::DataType;
 
-    fn create_test_node(dtype: i32, shape: Vec<i64>) -> NodeBuilder {
+    fn create_test_node(dtype: i32, shape: Vec<i64>) -> RawNode {
         TestNodeBuilder::new(NodeType::RandomNormal, "test_random")
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
             .attr_int("dtype", dtype as i64)

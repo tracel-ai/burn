@@ -1,81 +1,51 @@
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-use burn::record::PrecisionSettings;
+impl<PS: PrecisionSettings> NodeCodegen<PS>
+    for onnx_ir::node::global_avg_pool::GlobalAveragePoolNode
+{
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
+    }
 
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
+    }
 
-/// GlobalAvgPoolNode is a node that performs a global average pooling operation.
-///
-/// The node is implemented using the AdaptiveAvgPool1d or AdaptiveAvgPool2d module
-/// depending on the input dimension. AdaptiveAvgPool with output size 1 or size (1,1)
-/// is equivalent to global average pooling.
-#[derive(Debug, Clone)]
-pub struct GlobalAvgPoolNode {
-    pub field: OtherType,
-    pub input: TensorType,
-    pub output: TensorType,
-}
-
-impl GlobalAvgPoolNode {
-    pub fn new<S: AsRef<str>>(name: S, input: TensorType, output: TensorType) -> Self {
-        // Depending on the input dimension, we need to use a different type nn module
-        let field_type = match input.rank {
-            3 => quote! {
-                AdaptiveAvgPool1d
-            },
-            4 => quote! {
-                AdaptiveAvgPool2d
-            },
-            dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
+    fn field(&self) -> Option<Field> {
+        // Determine field type based on input dimension
+        let input = self.inputs.first().unwrap();
+        let rank = match &input.ty {
+            ArgType::Tensor(t) => t.rank,
+            _ => panic!("Expected tensor input for GlobalAvgPool"),
         };
 
-        Self {
-            field: OtherType::new(name, field_type),
-            input,
-            output,
-        }
-    }
-}
+        let name = Ident::new(&self.name, Span::call_site());
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
-    }
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
-    }
-    fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
-    }
-
-    fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
-
-        let tokens = match self.input.rank {
-            3 => {
+        let (field_type, init_tokens) = match rank {
+            3 => (
+                quote! { AdaptiveAvgPool1d },
                 quote! {
                     let #name = AdaptiveAvgPool1dConfig::new(1)
                         .init();
-                }
-            }
-            4 => {
+                },
+            ),
+            4 => (
+                quote! { AdaptiveAvgPool2d },
                 quote! {
-                    let #name = AdaptiveAvgPool2dConfig::new([1,1])
+                    let #name = AdaptiveAvgPool2dConfig::new([1, 1])
                         .init();
-                }
-            }
+                },
+            ),
             dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
         };
 
-        Some(tokens)
+        Some(Field::new(self.name.clone(), field_type, init_tokens))
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
-        let field = &self.field.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let field = Ident::new(&self.name, Span::call_site());
 
         quote! {
             let #output = self.#field.forward(#input);
@@ -83,7 +53,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        match self.input.rank {
+        let input = self.inputs.first().unwrap();
+        let rank = input.ty.rank();
+
+        match rank {
             3 => {
                 imports.register("burn::nn::pool::AdaptiveAvgPool1d");
                 imports.register("burn::nn::pool::AdaptiveAvgPool1dConfig");
@@ -95,140 +68,74 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
             dim => panic!("Unsupported input dim ({dim}) for GlobalAvgPoolNode"),
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::GlobalAveragePool(self)
-    }
-
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        S::serialize_none(serializer)
-    }
-}
-
-impl OnnxIntoNode for GlobalAvgPoolNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::GlobalAveragePool(n) = node else {
-            panic!("Expected GlobalAveragePool node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-        Self::new(n.name, input, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{global_avg_pool::GlobalAvgPoolNode, test::assert_tokens},
-    };
-    use burn::record::FullPrecisionSettings;
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::global_avg_pool::{GlobalAveragePoolNode, GlobalAveragePoolNodeBuilder};
 
-    #[test]
-    fn test_codegen_2d() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn create_global_avg_pool_node_3d(name: &str) -> GlobalAveragePoolNode {
+        GlobalAveragePoolNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .build()
+    }
 
-        graph.register(GlobalAvgPoolNode::new(
-            "global_avg_pool1",
-            TensorType::new_float("input", 4),
-            TensorType::new_float("output", 4),
-        ));
-
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::nn::pool::AdaptiveAvgPool2d;
-            use burn::nn::pool::AdaptiveAvgPool2dConfig;
-
-            #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
-                global_avg_pool1: AdaptiveAvgPool2d,
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    let global_avg_pool1 = AdaptiveAvgPool2dConfig::new([1, 1])
-                        .init();
-
-                    Self {
-                        global_avg_pool1,
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.global_avg_pool1.forward(input);
-
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn create_global_avg_pool_node_4d(name: &str) -> GlobalAveragePoolNode {
+        GlobalAveragePoolNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .build()
     }
 
     #[test]
-    fn test_codegen_1d() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_global_avg_pool_forward_3d() {
+        let node = create_global_avg_pool_node_3d("pool1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = self.pool1.forward(input);
+            output
+        }
+        ");
+    }
 
-        graph.register(GlobalAvgPoolNode::new(
-            "global_avg_pool1",
-            TensorType::new_float("input", 3),
-            TensorType::new_float("output", 3),
-        ));
+    #[test]
+    fn test_global_avg_pool_forward_4d() {
+        let node = create_global_avg_pool_node_4d("pool1");
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = self.pool1.forward(input);
+            output
+        }
+        ");
+    }
 
-        graph.register_input_output(
-            vec!["input".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
+    #[test]
+    fn test_global_avg_pool_forward_with_clone_3d() {
+        let node = create_global_avg_pool_node_3d("pool1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = self.pool1.forward(input.clone());
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
-            use burn::nn::pool::AdaptiveAvgPool1d;
-            use burn::nn::pool::AdaptiveAvgPool1dConfig;
-
-            #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
-                global_avg_pool1: AdaptiveAvgPool1d,
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    let global_avg_pool1 = AdaptiveAvgPool1dConfig::new(1)
-                        .init();
-
-                    Self {
-                        global_avg_pool1,
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-                    let output = self.global_avg_pool1.forward(input);
-
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_global_avg_pool_forward_with_clone_4d() {
+        let node = create_global_avg_pool_node_4d("pool1");
+        let code = codegen_forward_with_clone(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = self.pool1.forward(input.clone());
+            output
+        }
+        ");
     }
 }

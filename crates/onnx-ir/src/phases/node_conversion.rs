@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, AttributeValue, NodeBuilder, NodeType, TensorData, TensorDataExt},
+    ir::{ArgType, AttributeValue, NodeType, RawNode, TensorData, TensorDataExt},
     pipeline::OnnxIrError,
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
@@ -159,7 +159,7 @@ fn convert_nodes_impl(
 }
 
 /// Extract constant data from node attributes and move to tensor store
-fn extract_constant_from_attributes(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>>) {
+fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
     let keys = [
         "value",
         "value_float",
@@ -201,12 +201,15 @@ fn extract_constant_from_attributes(node: &mut NodeBuilder, state_rc: &Rc<RefCel
             };
 
             // Create input with Static value
-            node.inputs.push(crate::ir::Argument {
+            let mut input_arg = crate::ir::Argument {
                 name: String::new(),
                 ty: ty.clone(),
                 value_source: crate::ir::ValueSource::Static(data_id),
-                value_store: Some(state_rc.clone()),
-            });
+                value_store: None,
+            };
+            let value_store = state_rc.borrow().build_value_store();
+            input_arg.set_value_store(value_store);
+            node.inputs.push(input_arg);
 
             // Set output type and value_source
             if !node.outputs.is_empty() {
@@ -221,18 +224,19 @@ fn extract_constant_from_attributes(node: &mut NodeBuilder, state_rc: &Rc<RefCel
 }
 
 /// Attach value_store references to all node arguments
-fn attach_value_stores(node: &mut NodeBuilder, state_rc: &Rc<RefCell<GraphState>>) {
+fn attach_value_stores(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
+    let value_store = state_rc.borrow().build_value_store();
     for arg in &mut node.inputs {
-        arg.value_store = Some(state_rc.clone());
+        arg.set_value_store(value_store.clone());
     }
     for arg in &mut node.outputs {
-        arg.value_store = Some(state_rc.clone());
+        arg.set_value_store(value_store.clone());
     }
 }
 
 /// Rename node with type-based counter
 fn rename_node(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     counters: &mut HashMap<NodeType, usize>,
     name_registry: Option<&crate::graph_state::NameRegistry>,
 ) {
@@ -259,7 +263,7 @@ fn rename_node(
 }
 
 /// Remap node type using kernel shape
-fn remap_node_with_kernel_shape<F>(node: &mut NodeBuilder, new_node_type: F)
+fn remap_node_with_kernel_shape<F>(node: &mut RawNode, new_node_type: F)
 where
     F: FnOnce(usize) -> NodeType,
 {
@@ -281,7 +285,7 @@ where
 }
 
 /// Remap node type to a more specific one
-fn remap_node_type(node: &mut NodeBuilder) {
+fn remap_node_type(node: &mut RawNode) {
     match node.node_type {
         NodeType::Conv => remap_node_with_kernel_shape(node, |spatial_dims| match spatial_dims {
             1 => NodeType::Conv1d,
@@ -317,13 +321,13 @@ fn remap_node_type(node: &mut NodeBuilder) {
 
 /// Coalesce adjacent nodes into a single node (Gemm→Linear, MatMul+Add→Linear)
 fn coalesce(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
     graph_data: &mut GraphState,
 ) {
     #[allow(clippy::single_match)]
     match node.node_type {
-        NodeType::Gemm => convert_gemm_to_linear(node, graph_data),
+        NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
             convert_matmul_to_linear(node, nodes_iter, graph_data);
         }
@@ -332,7 +336,11 @@ fn coalesce(
 }
 
 /// Convert Gemm to Linear (when alpha=1, beta=1, transB=1)
-fn convert_gemm_to_linear(node: &mut NodeBuilder, graph_data: &mut GraphState) {
+///
+/// Note: The weight tensor is kept in its original ONNX layout [out_features, in_features].
+/// The burn-import layer is responsible for transposing the weights to Burn's expected
+/// layout [in_features, out_features] during code generation.
+fn convert_gemm_to_linear(node: &mut RawNode) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -355,9 +363,9 @@ fn convert_gemm_to_linear(node: &mut NodeBuilder, graph_data: &mut GraphState) {
         node.attrs.remove("alpha");
         node.attrs.remove("beta");
         node.attrs.remove("transB");
-
-        // Transpose the weights
-        transpose_linear_node_weights(node, graph_data);
+        // Mark that weights need transposition (Gemm layout is [out, in])
+        node.attrs
+            .insert("transpose_weight".to_string(), AttributeValue::Int64(1));
     } else {
         log::debug!(
             "Keeping Gemm node {} (alpha={:?}, beta={:?}, transB={:?} don't match Linear pattern)",
@@ -369,90 +377,9 @@ fn convert_gemm_to_linear(node: &mut NodeBuilder, graph_data: &mut GraphState) {
     }
 }
 
-/// Transpose linear weights (required for Gemm → Linear conversion)
-fn transpose_linear_node_weights(node: &mut NodeBuilder, graph_data: &mut GraphState) {
-    assert!(
-        node.inputs.len() > 1,
-        "Linear node must have at least 2 input"
-    );
-
-    assert!(
-        graph_data.has_value(&node.inputs[1].name),
-        "Input must have a value"
-    );
-
-    // Get the data_id - either directly from Static input, or lookup from Constant input
-    let data_id = match &node.inputs[1].value_source {
-        crate::ir::ValueSource::Static(id) => {
-            // Static input with embedded data_id
-            *id
-        }
-        crate::ir::ValueSource::Constant => {
-            // Constant input - lookup the constant node to get data_id
-            graph_data
-                .get_constant_data_id_by_output(&node.inputs[1].name)
-                .expect("Constant input must have data_id in constant node")
-        }
-        _ => panic!("Weight input must be either Static or Constant"),
-    };
-
-    let tensor_data = graph_data
-        .get_tensor_data(data_id)
-        .expect("Weight must have tensor data in central store")
-        .clone();
-
-    let shape = tensor_data.shape.clone();
-
-    assert_eq!(shape.len(), 2, "Weight must be a 2D tensor");
-
-    let new_shape = vec![shape[1], shape[0]];
-
-    let new_tensor_data = match tensor_data.elem_type() {
-        crate::ir::DType::F32 => {
-            let data: Vec<f32> = tensor_data.to_vec().unwrap();
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            TensorData::new(data_t, new_shape)
-        }
-        crate::ir::DType::F64 => {
-            let data: Vec<f64> = tensor_data.to_vec().unwrap();
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            TensorData::new(data_t, new_shape)
-        }
-        crate::ir::DType::F16 => {
-            let data: Vec<half::f16> = tensor_data.to_vec().unwrap();
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            TensorData::new(data_t, new_shape)
-        }
-        _ => panic!("Only float types are supported for Linear node"),
-    };
-
-    // Update the central store with the transposed weights
-    if let Some(stored_data) = graph_data.get_tensor_data_mut(data_id) {
-        *stored_data = new_tensor_data;
-    }
-
-    // Embed the data_id in the input for downstream use (lift_constants may not have run yet)
-    node.inputs[1].value_source = crate::ir::ValueSource::Static(data_id);
-    node.inputs[1].name.clear(); // Static values are accessed by ID, not name
-}
-
-fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {
-    assert_eq!(matrix.len(), rows * cols, "Matrix must be flattened");
-
-    let mut transposed: Vec<T> = vec![matrix[0]; matrix.len()];
-
-    for i in 0..rows {
-        for j in 0..cols {
-            transposed[j * rows + i] = matrix[i * cols + j];
-        }
-    }
-
-    transposed
-}
-
 /// Convert MatMul to Linear, fusing the following Add node as bias if present
 fn convert_matmul_to_linear(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
     graph_data: &mut GraphState,
 ) {
@@ -495,8 +422,8 @@ fn convert_matmul_to_linear(
 
 /// Check if the peeked node is an Add with bias for the current MatMul
 fn is_add_node_with_bias(
-    peek_node: &NodeBuilder,
-    current_node: &NodeBuilder,
+    peek_node: &RawNode,
+    current_node: &RawNode,
     graph_data: &GraphState,
 ) -> bool {
     // Check structural requirements first
@@ -512,7 +439,7 @@ fn is_add_node_with_bias(
 }
 
 /// Merge the Add node's bias into the MatMul node
-fn convert_and_remove_add_node(bias_node: &NodeBuilder, current_node: &mut NodeBuilder) {
+fn convert_and_remove_add_node(bias_node: &RawNode, current_node: &mut RawNode) {
     // The bias is whichever input is NOT the matmul output
     let bias_input = if bias_node.inputs[0].name == current_node.outputs[0].name {
         bias_node.inputs[1].clone()
@@ -532,7 +459,7 @@ fn convert_and_remove_add_node(bias_node: &NodeBuilder, current_node: &mut NodeB
 /// When onnx-ir processes nodes, it renames outputs (e.g., var2 -> add3_out1).
 /// Subgraph inputs reference original ONNX names, so we need to update them
 /// to use the renamed names from the parent scope.
-fn update_subgraph_inputs(node: &mut NodeBuilder, graph_state: &GraphState) {
+fn update_subgraph_inputs(node: &mut RawNode, graph_state: &GraphState) {
     // Get the node_output_map which maps original ONNX names to (node_idx, output_idx)
     let node_output_map = graph_state.node_output_map();
 

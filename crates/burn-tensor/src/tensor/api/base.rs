@@ -1,27 +1,16 @@
 #![allow(clippy::single_range_in_vec_init)]
-
-use alloc::vec::Vec;
-
-use alloc::format;
-use alloc::string::String;
-use alloc::vec;
-
-use burn_common::stub::RwLock;
-use core::future::Future;
-use core::iter::repeat;
-use core::{fmt::Debug, ops::Range};
-use serde::{Deserialize, Deserializer};
-
-use serde::{Serialize, Serializer};
-
-use super::{Slice, SliceArg, TensorMetadata, Transaction};
-use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
+use crate::backend::ExecutionError;
+use crate::{AsIndex, Slice, SliceArg, TensorMetadata, Transaction, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
 use crate::{DType, Element, IndexingUpdateOp, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
+use alloc::{format, string::String, vec, vec::Vec};
+use burn_std::stub::RwLock;
+use core::{fmt::Debug, future::Future, iter::repeat, ops::Range};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -1341,6 +1330,17 @@ where
         // Validate slices
         check!(TensorCheck::slice::<D, D2>(&shape, &slices));
 
+        // Calculate output shape and check for empty slices
+        let mut output_dims = shape.dims.clone();
+        for (dim, slice) in slices.iter().enumerate() {
+            output_dims[dim] = slice.output_size(shape.dims[dim]);
+        }
+
+        // Return empty tensor if any dimension is 0 (empty slice)
+        if output_dims.contains(&0) {
+            return Self::empty(output_dims, &self.device());
+        }
+
         // Use the slice method that supports steps
         Self::new(K::slice(self.primitive, &slices))
     }
@@ -1416,6 +1416,17 @@ where
     {
         let shape = self.shape();
         let slices = slices.into_slices(shape.clone());
+
+        // Check if any slice produces 0 elements (empty assignment).
+        // Empty assignments are no-ops and would cause issues in backend implementations.
+        let is_empty_assignment = slices
+            .iter()
+            .enumerate()
+            .any(|(i, slice)| slice.output_size(shape.dims[i]) == 0);
+
+        if is_empty_assignment {
+            return self;
+        }
 
         check!(TensorCheck::slice_assign::<D, D2>(
             &shape,
@@ -1656,6 +1667,20 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
+        self.try_into_data().expect(
+            "Error while reading data: use `try_into_data` instead to catch the error at runtime",
+        )
+    }
+
+    /// Converts the data of the current tensor and returns any error that might have occurred since the
+    /// last time the device was synchronized.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
+    pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
         crate::try_read_sync(self.into_data_async()).expect(
             "Failed to read tensor data synchronously.
         This can happen on platforms that don't support blocking futures like WASM.
@@ -1675,12 +1700,12 @@ where
     }
 
     /// Returns the data of the current tensor.
-    pub async fn into_data_async(self) -> TensorData {
+    pub async fn into_data_async(self) -> Result<TensorData, ExecutionError> {
         K::into_data_async(self.primitive).await
     }
 
     /// Returns the data of the current tensor.
-    pub async fn to_data_async(&self) -> TensorData {
+    pub async fn to_data_async(&self) -> Result<TensorData, ExecutionError> {
         self.clone().into_data_async().await
     }
 
@@ -1873,10 +1898,27 @@ where
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
         check!(TensorCheck::cat(&tensors, dim));
 
-        Self::new(K::cat(
-            tensors.into_iter().map(|vector| vector.primitive).collect(),
-            dim,
-        ))
+        // Filter out tensors with size 0 along the concatenation dimension.
+        // Empty tensors don't contribute to the output and would cause issues
+        // in backend implementations (e.g., division by zero in slice_assign).
+        // Safety: TensorCheck::cat ensures tensors is non-empty
+        let first_tensor = tensors.first().unwrap();
+        let device = first_tensor.device();
+        let mut shape = first_tensor.shape();
+
+        let non_empty_primitives: Vec<_> = tensors
+            .into_iter()
+            .filter(|t| t.shape().dims[dim] > 0)
+            .map(|t| t.primitive)
+            .collect();
+
+        // If all tensors were empty, return an empty tensor with size 0 on concat dim
+        if non_empty_primitives.is_empty() {
+            shape.dims[dim] = 0;
+            return Self::empty(shape, &device);
+        }
+
+        Self::new(K::cat(non_empty_primitives, dim))
     }
 
     /// Concatenates all tensors into a new one along a new dimension.
@@ -2329,6 +2371,26 @@ where
     /// }
     /// ```
     pub fn into_scalar(self) -> K::Elem {
+        crate::try_read_sync(self.into_scalar_async())
+            .expect(
+            "Failed to read tensor data synchronously. This can happen on platforms
+            that don't support blocking futures like WASM. Try into_scalar_async instead.",
+            )
+            .expect("Error while reading data: use `try_into_scalar` instead to catch the error at runtime")
+    }
+
+    /// Convert the tensor into a scalar and returns any error that might have occurred since the
+    /// last time the device was synchronized.
+    ///
+    /// # Panics
+    ///
+    /// - If the tensor doesn't have one element.
+    /// - If the backend fails to read the tensor data synchronously.
+    ///
+    /// # Returns
+    ///
+    /// The scalar value of the tensor.
+    pub fn try_into_scalar(self) -> Result<K::Elem, ExecutionError> {
         crate::try_read_sync(self.into_scalar_async()).expect(
             "Failed to read tensor data synchronously. This can happen on platforms
             that don't support blocking futures like WASM. Try into_scalar_async instead.",
@@ -2340,10 +2402,10 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    pub async fn into_scalar_async(self) -> K::Elem {
+    pub async fn into_scalar_async(self) -> Result<K::Elem, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
 
-        self.into_data_async().await.iter().next().unwrap()
+        Ok(self.into_data_async().await?.iter().next().unwrap())
     }
 
     /// Broadcast the tensor to the given shape.
@@ -2531,10 +2593,9 @@ where
             let range: [Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-            let data =
-                burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
+            let data = burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
 
-            if let Some(data) = data {
+            if let Some(Ok(data)) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
                     (Some(p), "Float") => acc.push_str(&format!("{elem:.p$}")),
@@ -3141,7 +3202,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
     #[allow(clippy::wrong_self_convention)]
-    fn into_data_async(tensor: Self::Primitive) -> impl Future<Output = TensorData> + Send;
+    fn into_data_async(
+        tensor: Self::Primitive,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Read the data from the tensor using a transaction.
     ///
@@ -3517,7 +3580,7 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
             TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
@@ -3700,7 +3763,7 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
         B::int_into_data(tensor).await
     }
 
@@ -3856,7 +3919,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
         B::bool_into_data(tensor).await
     }
 
@@ -4096,13 +4159,8 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for Shape {
         self
     }
 }
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
-    fn into_shape(self, _shape: &Shape) -> Shape {
-        Shape::from(self)
-    }
-}
 
-impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E; D2] {
+impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E; D2] {
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
     fn into_shape(self, shape: &Shape) -> Shape {
         if self.len() < shape.num_dims() {
@@ -4114,7 +4172,7 @@ impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E;
             .iter()
             .rev()
             .map(|x| {
-                let primitive = x.to_i64();
+                let primitive = x.index();
                 if primitive < -1 || primitive == 0 {
                     panic!("Broadcast arguments must be positive or -1");
                 }

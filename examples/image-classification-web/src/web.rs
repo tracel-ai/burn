@@ -158,6 +158,7 @@ impl<B: Backend> Model<B> {
         probabilities
             .into_data_async()
             .await
+            .unwrap()
             .convert::<f32>()
             .to_vec()
             .unwrap()

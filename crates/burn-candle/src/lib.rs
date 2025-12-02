@@ -99,6 +99,7 @@ mod tests {
     burn_tensor::testgen_round!();
     burn_tensor::testgen_floor!();
     burn_tensor::testgen_ceil!();
+    burn_tensor::testgen_grid_sample!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //

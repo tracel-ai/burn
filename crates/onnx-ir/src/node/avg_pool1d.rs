@@ -9,9 +9,12 @@
 //! - **Opset 10**: Added dilations attribute support
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
 //! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Node, RawNode, TensorType};
 use crate::node::padding::padding_config_1d;
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
@@ -20,7 +23,7 @@ use crate::processor::{
 use super::padding::PaddingConfig1d;
 
 /// Configuration for AvgPool1d operations extracted from ONNX nodes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct AvgPool1dConfig {
     /// Kernel size
     pub kernel_size: usize,
@@ -34,32 +37,8 @@ pub struct AvgPool1dConfig {
     pub dilation: usize,
 }
 
-impl AvgPool1dConfig {
-    /// Create a new AvgPool1dConfig
-    pub fn new(
-        kernel_size: usize,
-        stride: usize,
-        padding: PaddingConfig1d,
-        count_include_pad: bool,
-    ) -> Self {
-        Self {
-            kernel_size,
-            stride,
-            padding,
-            count_include_pad,
-            dilation: 1,
-        }
-    }
-
-    /// Set the dilation
-    pub fn with_dilation(mut self, dilation: usize) -> Self {
-        self.dilation = dilation;
-        self
-    }
-}
-
 /// Node representation for AveragePool1d operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct AveragePool1dNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -83,7 +62,7 @@ impl NodeProcessor for AvgPool1dProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -156,11 +135,7 @@ impl NodeProcessor for AvgPool1dProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];
@@ -180,18 +155,18 @@ impl NodeProcessor for AvgPool1dProcessor {
 
         let padding = padding_config_1d(&pads);
 
-        let config = AvgPool1dConfig {
-            kernel_size: kernel_shape[0] as usize,
-            stride: strides[0] as usize,
+        let config = AvgPool1dConfig::new(
+            kernel_shape[0] as usize,
+            strides[0] as usize,
             padding,
-            count_include_pad: count_include_pad == 1,
-            dilation: dilations[0] as usize,
-        };
+            count_include_pad == 1,
+            dilations[0] as usize,
+        );
 
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -218,7 +193,7 @@ mod tests {
         count_include_pad: i64,
         ceil_mode: i64,
         dilations: Option<Vec<i64>>,
-    ) -> NodeBuilder {
+    ) -> RawNode {
         let mut builder = TestNodeBuilder::new(NodeType::AveragePool1d, "test_avgpool1d")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)

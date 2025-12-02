@@ -7,7 +7,8 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, IndexingUpdateOp,
+    Device, Distribution, Element, FloatDType, IndexingUpdateOp, Shape, Slice, TensorData,
+    backend::ExecutionError,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
 use std::marker::PhantomData;
@@ -156,7 +157,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
+    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
     }
 

@@ -57,10 +57,10 @@ where
                         runner.register_op(*op);
                     }
                     ProcessorTask::Sync(id, callback) => {
-                        runner.sync();
+                        let result = runner.sync();
                         callback
                             .send(TaskResponse {
-                                content: TaskResponseContent::SyncBackend,
+                                content: TaskResponseContent::SyncBackend(result),
                                 id,
                             })
                             .await
@@ -87,7 +87,9 @@ where
                     } => {
                         log::info!("Exposing tensor: (id: {transfer_id:?})");
                         let data = runner.read_tensor(tensor).await;
-                        data_service.expose_data(data, count, transfer_id).await;
+                        data_service
+                            .expose_data(data.unwrap(), count, transfer_id)
+                            .await;
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
                         let tensor = runner.read_tensor(tensor).await;
@@ -101,9 +103,9 @@ where
                     }
                     ProcessorTask::Close => {
                         let device = runner.device();
-                        runner.sync();
+                        runner.sync().unwrap();
                         core::mem::drop(runner);
-                        B::sync(&device);
+                        B::sync(&device).unwrap();
                         break;
                     }
                     ProcessorTask::Seed(seed) => runner.seed(seed),

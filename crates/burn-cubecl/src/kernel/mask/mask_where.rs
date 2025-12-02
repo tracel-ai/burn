@@ -80,7 +80,8 @@ pub fn mask_where<R: CubeRuntime>(
         linear_view_ref(&mask, &output, line_size),
         out,
         [output.dtype.into(), dtype_bool.into()],
-    );
+    )
+    .expect("Kernel to never fail");
 
     output
 }

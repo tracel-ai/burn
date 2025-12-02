@@ -11,5 +11,5 @@ pub mod dataset {
 /// Network module.
 #[cfg(feature = "network")]
 pub mod network {
-    pub use burn_common::network::*;
+    pub use burn_std::network::*;
 }

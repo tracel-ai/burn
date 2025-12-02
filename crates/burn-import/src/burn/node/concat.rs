@@ -1,63 +1,43 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, ToTokens, Type};
+use super::prelude::*;
 
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
-
-#[derive(Debug, Clone, new)]
-pub struct ConcatNode {
-    pub inputs: Vec<Type>,
-    pub output: Type,
-    pub dim: usize,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::concat::ConcatNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        self.inputs.clone()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        match &self.output {
-            Type::Tensor(output_tensor) => {
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let output = arg_to_ident(self.outputs.first().unwrap());
+        let dim = self.config.axis.to_tokens();
+
+        // Determine if this is tensor or shape concatenation based on output type
+        match &self.outputs.first().unwrap().ty {
+            ArgType::Tensor(_) => {
                 // Tensor concatenation
-                let dim = self.dim.to_tokens();
-                let inputs = self.inputs.iter().map(|t| match t {
-                    Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-                    _ => panic!("Expected tensor input for tensor concatenation"),
-                });
-
-                let output = &output_tensor.name;
+                let inputs = self.inputs.iter().map(|arg| scope.arg(arg));
 
                 quote! {
                     let #output = burn::tensor::Tensor::cat([#(#inputs),*].into(), #dim);
                 }
             }
-            Type::Shape(shape_type) => {
+            ArgType::Shape(shape) => {
                 // Shape concatenation - shapes are 1D so concat is always on axis 0
-                if self.dim != 0 {
+                if self.config.axis != 0 {
                     panic!(
                         "Shape concatenation only supports dim=0, got dim={}",
-                        self.dim
+                        self.config.axis
                     );
                 }
-                let output = &shape_type.name;
-                let output_rank = shape_type.rank;
+                let output_rank = shape;
 
                 // Generate code to concatenate shape arrays
                 let mut shape_parts = Vec::new();
                 for input in &self.inputs {
-                    match input {
-                        Type::Shape(shape) => {
-                            let input_name = &shape.name;
-                            shape_parts.push(quote! { &#input_name[..] });
-                        }
-                        _ => panic!("Expected shape input for shape concatenation"),
-                    }
+                    let input_name = arg_to_ident(input);
+                    shape_parts.push(quote! { &#input_name[..] });
                 }
 
                 quote! {
@@ -67,147 +47,55 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
             _ => panic!("Concat only supports Tensor or Shape outputs"),
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Concat(self)
-    }
-}
-
-impl OnnxIntoNode for ConcatNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Concat(n) = node else {
-            panic!("Expected Concat node");
-        };
-        let inputs: Vec<Type> = n.inputs.iter().map(Type::from).collect();
-        let output = Type::from(n.outputs.first().unwrap());
-        let dim = n.config.axis;
-        Self::new(inputs, output, dim)
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::concat::{ConcatConfig, ConcatNode, ConcatNodeBuilder};
 
-    use burn::record::FullPrecisionSettings;
+    fn create_concat_node(name: &str, num_inputs: usize, axis: usize) -> ConcatNode {
+        let config = ConcatConfig { axis };
+        let mut builder = ConcatNodeBuilder::new(name);
 
-    use super::*;
-    use crate::burn::{
-        TensorType, Type,
-        graph::BurnGraph,
-        node::{concat::ConcatNode, test::assert_tokens},
-    };
+        for i in 0..num_inputs {
+            builder = builder.input_tensor(&format!("input{}", i), 2, DType::F32);
+        }
 
-    #[test]
-    fn test_codegen_concat_tensors() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ConcatNode::new(
-            vec![
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ],
-            Type::Tensor(TensorType::new_float("tensor3", 4)),
-            1,
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(
-                    &self,
-                    tensor1: Tensor<B, 4>,
-                    tensor2: Tensor<B, 4>
-                ) -> Tensor<B, 4> {
-                    let tensor3 = burn::tensor::Tensor::cat([tensor1, tensor2].into(), 1);
-
-                    tensor3
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+        builder
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build()
     }
 
     #[test]
-    fn test_codegen_concat_shapes() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_concat_two_tensors() {
+        let node = create_concat_node("concat1", 2, 0);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input0: Tensor<B, 2>, input1: Tensor<B, 2>) -> Tensor<B, 2> {
+            let output = burn::tensor::Tensor::cat([input0, input1].into(), 0);
+            output
+        }
+        ");
+    }
 
-        graph.register(ConcatNode::new(
-            vec![
-                Type::Shape(crate::burn::ShapeType::new("shape1", 2)),
-                Type::Shape(crate::burn::ShapeType::new("shape2", 3)),
-                Type::Shape(crate::burn::ShapeType::new("shape3", 1)),
-            ],
-            Type::Shape(crate::burn::ShapeType::new("output_shape", 6)),
-            0,
-        ));
-
-        graph.register_input_output(
-            vec![
-                "shape1".to_string(),
-                "shape2".to_string(),
-                "shape3".to_string(),
-            ],
-            vec!["output_shape".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(
-                    &self,
-                    shape1: [i64; 2],
-                    shape2: [i64; 3],
-                    shape3: [i64; 1]
-                ) -> [i64; 6] {
-                    let output_shape: [i64; 6usize] = [&shape1[..], &shape2[..], &shape3[..]].concat().try_into().unwrap();
-
-                    output_shape
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_concat_three_tensors() {
+        let node = create_concat_node("concat1", 3, 1);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            input0: Tensor<B, 2>,
+            input1: Tensor<B, 2>,
+            input2: Tensor<B, 2>,
+        ) -> Tensor<B, 2> {
+            let output = burn::tensor::Tensor::cat([input0, input1, input2].into(), 1);
+            output
+        }
+        ");
     }
 }

@@ -10,20 +10,23 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, OnnxGraph, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for If operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
 }
 
 /// Node representation for If operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct IfNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -48,7 +51,7 @@ impl NodeProcessor for IfProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -62,7 +65,7 @@ impl NodeProcessor for IfProcessor {
         }
 
         match condition {
-            ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid scalar bool condition
             }
             _ => {
@@ -123,11 +126,7 @@ impl NodeProcessor for IfProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
         let then_attr = node
             .attrs
@@ -147,11 +146,15 @@ impl NodeProcessor for IfProcessor {
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
                 let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                let value_store = builder
+                    .graph_state
+                    .as_ref()
+                    .map(|gs| gs.borrow().build_value_store());
                 crate::ir::OnnxGraph {
                     nodes,
                     inputs: std::mem::take(&mut builder.inputs),
                     outputs: std::mem::take(&mut builder.outputs),
-                    _graph_data: builder._graph_data.clone(),
+                    value_store,
                 }
             }
             _ => {
@@ -166,11 +169,15 @@ impl NodeProcessor for IfProcessor {
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
                 let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                let value_store = builder
+                    .graph_state
+                    .as_ref()
+                    .map(|gs| gs.borrow().build_value_store());
                 crate::ir::OnnxGraph {
                     nodes,
                     inputs: std::mem::take(&mut builder.inputs),
                     outputs: std::mem::take(&mut builder.outputs),
-                    _graph_data: builder._graph_data.clone(),
+                    value_store,
                 }
             }
             _ => {
@@ -186,7 +193,7 @@ impl NodeProcessor for IfProcessor {
         })
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -203,6 +210,7 @@ impl NodeProcessor for IfProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DType;
     use crate::ir::AttributeValue;
     use crate::ir::{Argument, NodeType, OnnxGraph, TensorType};
     use crate::node::test_utils::TestNodeBuilder;
@@ -222,7 +230,7 @@ mod tests {
                 value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
-            _graph_data: None,
+            value_store: None,
         }
     }
 

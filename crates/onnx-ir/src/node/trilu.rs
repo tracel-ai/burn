@@ -18,13 +18,16 @@
 //!   - Positive k: Retains lower triangle including main diagonal and k diagonals above it
 //!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, TensorDataExt};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, TensorDataExt};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for the Trilu operation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, new)]
 pub struct TriluConfig {
     /// Whether to return the upper triangular matrix.
     pub upper: bool,
@@ -33,19 +36,12 @@ pub struct TriluConfig {
 }
 
 /// Node representation for Trilu operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct TriluNode {
     pub name: String,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
     pub config: TriluConfig,
-}
-
-impl TriluConfig {
-    /// Creates a TriluConfig from the node attributes and inputs.
-    pub fn new(upper: bool, diagonal: i64) -> Self {
-        Self { upper, diagonal }
-    }
 }
 
 pub(crate) struct TriluProcessor;
@@ -62,7 +58,7 @@ impl NodeProcessor for TriluProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift diagonal input (input[1]) if present
         // FIXME: This should check if the input is constant before attempting to lift,
         // similar to other processors. Currently it lifts unconditionally if present.
@@ -76,7 +72,7 @@ impl NodeProcessor for TriluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -100,11 +96,7 @@ impl NodeProcessor for TriluProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let mut upper = true;
         let mut diagonal = 0;
         for (key, value) in node.attrs.iter() {
@@ -143,7 +135,7 @@ impl NodeProcessor for TriluProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

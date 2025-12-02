@@ -1,38 +1,58 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
+use crate::burn::TensorKind;
 
-#[derive(Debug, Clone, new)]
-pub struct OneHotNode {
-    pub input: TensorType,
-    pub output: TensorType,
-    pub num_classes: usize,
-    pub values: [f32; 2],
-    pub axis: i64,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::one_hot::OneHotNode {
+    fn inputs(&self) -> &[Argument] {
+        // Only the first input (indices) is a dynamic tensor
+        // depth and values are either static or runtime inputs
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let num_classes = &self.num_classes;
-        let on_value = &self.values[1];
-        let off_value = &self.values[0];
-        let axis = &self.axis;
-        let input_type = &self.input.kind;
-        let output_type = &self.output.kind; // use actual output type from ONNX model
-        match (input_type, output_type) {
+        // Extract num_classes from config.depth
+        let num_classes = match &self.config.depth {
+            onnx_ir::one_hot::OneHotDepthInput::Static(d) => quote! { #d },
+            onnx_ir::one_hot::OneHotDepthInput::Runtime(_) => {
+                panic!("OneHot with runtime depth is not supported in burn-import")
+            }
+        };
+
+        // Extract values from config.values
+        let (on_value, off_value) = match &self.config.values {
+            onnx_ir::one_hot::OneHotValuesInput::Static(v) => {
+                let off = v[0];
+                let on = v[1];
+                (quote! { #on }, quote! { #off })
+            }
+            onnx_ir::one_hot::OneHotValuesInput::Runtime(_) => {
+                panic!("OneHot with runtime values is not supported in burn-import")
+            }
+        };
+
+        let axis = self.config.axis;
+
+        // Determine input and output tensor kinds
+        let input_arg = self.inputs.first().unwrap();
+        let output_arg = self.outputs.first().unwrap();
+
+        let input_kind = match &input_arg.ty {
+            ArgType::Tensor(t) => TensorKind::from(t.dtype),
+            _ => panic!("Expected tensor input"),
+        };
+
+        let output_kind = match &output_arg.ty {
+            ArgType::Tensor(t) => TensorKind::from(t.dtype),
+            _ => panic!("Expected tensor output"),
+        };
+
+        match (input_kind, output_kind) {
             (TensorKind::Int, TensorKind::Int) | (TensorKind::Float, TensorKind::Float) => {
                 quote! {
                     let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis);
@@ -56,97 +76,138 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
             (TensorKind::Bool, _) => panic!("Input should be numeric"),
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::OneHot(self)
-    }
-}
-
-impl OnnxIntoNode for OneHotNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::OneHot(n) = node else {
-            panic!("Expected OneHot node");
-        };
-        let input = TensorType::from(n.inputs.first().unwrap());
-        let output = TensorType::from(n.outputs.first().unwrap());
-
-        // Extract num_classes from config.depth
-        let num_classes = match n.config.depth {
-            onnx_ir::node::one_hot::OneHotDepthInput::Static(d) => d,
-            onnx_ir::node::one_hot::OneHotDepthInput::Runtime(_) => {
-                panic!("OneHot with runtime depth is not supported in burn-import")
-            }
-        };
-
-        // Extract values from config.values
-        let values = match n.config.values {
-            onnx_ir::node::one_hot::OneHotValuesInput::Static(v) => v,
-            onnx_ir::node::one_hot::OneHotValuesInput::Runtime(_) => {
-                panic!("OneHot with runtime values is not supported in burn-import")
-            }
-        };
-
-        let axis = n.config.axis;
-        Self::new(input, output, num_classes, values, axis)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{one_hot::OneHotNode, test::assert_tokens},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::one_hot::{OneHotConfig, OneHotDepthInput, OneHotNodeBuilder, OneHotValuesInput};
 
     #[test]
-    fn test_codegen_nodes() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(OneHotNode::new(
-            TensorType::new_float("tensor1", 1),
-            TensorType::new_float("tensor2", 2),
-            3,
-            [0., 1.],
+    fn test_one_hot() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(10),
+            OneHotValuesInput::Static([0.0, 1.0]),
             -1,
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-            &[],
-            &[],
         );
+        let node = OneHotNodeBuilder::new("onehot1")
+            .input_tensor("indices", 1, DType::I32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1, Int>) -> Tensor<B, 2> {
+            let output = indices.one_hot_fill(10usize, 1f32, 0f32, -1i64).float();
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
+    #[test]
+    fn test_one_hot_int_to_int() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            -1,
+        );
+        let node = OneHotNodeBuilder::new("onehot2")
+            .input_tensor("indices", 1, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1, Int>) -> Tensor<B, 2, Int> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64);
+            output
+        }
+        ");
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
+    #[test]
+    fn test_one_hot_float_to_float() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            0,
+        );
+        let node = OneHotNodeBuilder::new("onehot3")
+            .input_tensor("indices", 1, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1>) -> Tensor<B, 2> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64);
+            output
+        }
+        ");
+    }
 
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1
-                        .one_hot_fill(3usize, 1f32, 0f32, -1i64);
-                    tensor2
-                }
-            }
-        };
+    #[test]
+    fn test_one_hot_float_to_int() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            0,
+        );
+        let node = OneHotNodeBuilder::new("onehot4")
+            .input_tensor("indices", 1, DType::F32)
+            .output_tensor("output", 2, DType::I32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1>) -> Tensor<B, 2, Int> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).int();
+            output
+        }
+        ");
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_one_hot_int_to_bool() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            -1,
+        );
+        let node = OneHotNodeBuilder::new("onehot5")
+            .input_tensor("indices", 1, DType::I32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1, Int>) -> Tensor<B, 2, Bool> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, -1i64).bool();
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_one_hot_float_to_bool() {
+        let config = OneHotConfig::new(
+            OneHotDepthInput::Static(5),
+            OneHotValuesInput::Static([0.0, 1.0]),
+            0,
+        );
+        let node = OneHotNodeBuilder::new("onehot6")
+            .input_tensor("indices", 1, DType::F32)
+            .output_tensor("output", 2, DType::Bool)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, indices: Tensor<B, 1>) -> Tensor<B, 2, Bool> {
+            let output = indices.one_hot_fill(5usize, 1f32, 0f32, 0i64).bool();
+            output
+        }
+        ");
     }
 }

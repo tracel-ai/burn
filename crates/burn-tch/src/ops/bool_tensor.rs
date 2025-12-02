@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::IntTensor;
 use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
 
@@ -15,11 +16,11 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::repeat_dim(tensor, dim, times)
     }
 
-    async fn bool_into_data(tensor: TchTensor) -> TensorData {
+    async fn bool_into_data(tensor: TchTensor) -> Result<TensorData, ExecutionError> {
         let shape = tensor.shape();
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
-        TensorData::new(values.unwrap(), shape)
+        Ok(TensorData::new(values.unwrap(), shape))
     }
 
     fn bool_to_device(tensor: TchTensor, device: &LibTorchDevice) -> TchTensor {
@@ -114,7 +115,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     }
 
     fn bool_into_float(tensor: TchTensor) -> TchTensor {
-        let tensor = tensor.tensor.to_kind(E::KIND);
+        let tensor = tensor.tensor.to_kind(E::kind());
         TchTensor::new(tensor)
     }
 

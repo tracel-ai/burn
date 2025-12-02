@@ -18,7 +18,10 @@
 //! Should reject non-integer types like float for indices/depth inputs.
 //! Location: infer_types method after validate_input_count
 
-use crate::ir::{ArgType, Argument, Node, NodeBuilder, RuntimeInputRef, TensorDataExt, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -42,7 +45,7 @@ pub enum OneHotValuesInput {
 }
 
 /// Configuration for OneHot operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct OneHotConfig {
     pub depth: OneHotDepthInput,
     pub values: OneHotValuesInput,
@@ -50,7 +53,7 @@ pub struct OneHotConfig {
 }
 
 /// Node representation for OneHot operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct OneHotNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -59,7 +62,7 @@ pub struct OneHotNode {
 }
 
 /// Update output rank for OneHot (input rank + 1).
-pub(crate) fn one_hot_output_shape(node: &mut NodeBuilder) -> Result<(), ProcessError> {
+pub(crate) fn one_hot_output_shape(node: &mut RawNode) -> Result<(), ProcessError> {
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => {
@@ -95,7 +98,7 @@ impl NodeProcessor for OneHotProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift depth (input 1) and values (input 2)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -109,7 +112,7 @@ impl NodeProcessor for OneHotProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -144,11 +147,7 @@ impl NodeProcessor for OneHotProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let depth = match node.inputs[1].value() {
             None => {
                 // Runtime input - no static value available
@@ -196,7 +195,7 @@ impl NodeProcessor for OneHotProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

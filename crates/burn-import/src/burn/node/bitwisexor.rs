@@ -1,148 +1,170 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorKind, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct BitwiseXorNode {
-    pub inputs: Vec<Type>,
-    pub output: Type,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseXorNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwisexor::BitwiseXorNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn input_types(&self) -> Vec<Type> {
-        self.inputs.clone()
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let lhs = self.inputs.first().unwrap();
+        let rhs = self.inputs.get(1).unwrap();
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
-        let operation = match (&self.inputs[0], &self.inputs[1]) {
-            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
-                quote! { #lhs.bitwise_xor(#rhs) }
+        let lhs_value = scope.arg(lhs);
+
+        let rhs_value = scope.arg(rhs);
+
+        let function = match (&lhs.ty, &rhs.ty) {
+            (ArgType::Tensor(lhs_tensor), ArgType::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+
+                if lhs_rank == rhs_rank {
+                    quote! { #lhs_value.bitwise_xor(#rhs_value) }
+                } else if lhs_rank > rhs_rank {
+                    let num_dims = lhs_rank - rhs_rank;
+                    let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                    quote! { #lhs_value.bitwise_xor(#rhs_value.unsqueeze_dims(&[#(#dims),*])) }
+                } else {
+                    let num_dims = rhs_rank - lhs_rank;
+                    let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                    quote! { #lhs_value.unsqueeze_dims(&[#(#dims),*]).bitwise_xor(#rhs_value) }
+                }
             }
-            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar)) => {
-                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
-                let rhs = &rhs_scalar.name;
-                quote! { #lhs.bitwise_xor_scalar(#rhs.elem()) }
+            (ArgType::Tensor(_), ArgType::Scalar(_)) => {
+                quote! { #lhs_value.bitwise_xor_scalar((#rhs_value as i64).elem()) }
             }
-            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor)) => {
-                let lhs = &lhs_scalar.name;
-                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
-                // Bitwise XOR is commutative, so we can swap the order
-                quote! { #rhs.bitwise_xor_scalar(#lhs.elem()) }
+            (ArgType::Scalar(_), ArgType::Tensor(_)) => {
+                quote! { #rhs_value.bitwise_xor_scalar((#lhs_value as i64).elem()) }
             }
-            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
-                let lhs = &lhs_scalar.name;
-                let rhs = &rhs_scalar.name;
-                quote! { #lhs ^ #rhs }
+            (ArgType::Scalar(_), ArgType::Scalar(_)) => {
+                quote! { #lhs_value ^ #rhs_value }
             }
-            _ => panic!("BitwiseXorNode only supports tensor and scalar inputs"),
+            _ => panic!("BitwiseXor operation requires tensor or scalar inputs"),
         };
 
         quote! {
-            let #output = #operation;
+            let #output = #function;
         }
-    }
-
-    fn into_node(self) -> Node<PS> {
-        match &self.output {
-            Type::Tensor(tensor) => {
-                if tensor.kind != TensorKind::Int {
-                    panic!("BitwiseXorNode only supports Int tensor outputs");
-                }
-            }
-            Type::Scalar(scalar) => {
-                if !matches!(
-                    scalar.kind,
-                    crate::burn::ScalarKind::Int32 | crate::burn::ScalarKind::Int64
-                ) {
-                    panic!("BitwiseXorNode only supports Int scalar outputs");
-                }
-            }
-            _ => panic!("BitwiseXorNode only supports tensor and scalar outputs"),
-        }
-        Node::BitwiseXor(self)
-    }
-}
-
-impl OnnxIntoNode for BitwiseXorNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::BitwiseXor(n) = node else {
-            panic!("Expected BitwiseXor node");
-        };
-        let inputs = n.inputs.iter().map(Type::from).collect();
-        let output = Type::from(n.outputs.first().unwrap());
-        Self::new(inputs, output)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        TensorType,
-        graph::BurnGraph,
-        node::{bitwisexor::BitwiseXorNode, test::assert_tokens},
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::node::bitwisexor::BitwiseXorNodeBuilder;
 
     #[test]
-    fn test_codegen_bitwise_xor() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_bitwisexor_tensor() {
+        let node = BitwiseXorNodeBuilder::new("xor1")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_xor(rhs);
+            output
+        }
+        ");
+    }
 
-        graph.register(BitwiseXorNode {
-            inputs: vec![
-                Type::Tensor(TensorType::new_int("input1", 2)),
-                Type::Tensor(TensorType::new_int("input2", 2)),
-            ],
-            output: Type::Tensor(TensorType::new_int("output", 2)),
-        });
-        graph.register_input_output(
-            vec!["input1".to_string(), "input2".to_string()],
-            vec!["output".to_string()],
-            &[],
-            &[],
-        );
+    #[test]
+    fn test_bitwisexor_scalar() {
+        let node = BitwiseXorNodeBuilder::new("xor2")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: Tensor<B, 2, Int>, rhs: i32) -> Tensor<B, 2, Int> {
+            let output = lhs.bitwise_xor_scalar((rhs as i64).elem());
+            output
+        }
+        ");
+    }
 
-        let expected = quote! {
-            use burn::prelude::*;
+    #[test]
+    fn test_bitwisexor_scalar_tensor() {
+        let node = BitwiseXorNodeBuilder::new("xor3")
+            .input_scalar("lhs", DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 2, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+            let output = rhs.bitwise_xor_scalar((lhs as i64).elem());
+            output
+        }
+        ");
+    }
 
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
+    #[test]
+    fn test_bitwisexor_scalar_scalar() {
+        let node = BitwiseXorNodeBuilder::new("xor4")
+            .input_scalar("lhs", DType::I32)
+            .input_scalar("rhs", DType::I32)
+            .output_scalar("output", DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, lhs: i32, rhs: i32) -> i32 {
+            let output = lhs ^ rhs;
+            output
+        }
+        ");
+    }
 
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
+    #[test]
+    fn test_bitwisexor_broadcast_lhs_higher() {
+        let node = BitwiseXorNodeBuilder::new("xor5")
+            .input_tensor("lhs", 3, DType::I32)
+            .input_tensor("rhs", 2, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 3, Int>,
+            rhs: Tensor<B, 2, Int>,
+        ) -> Tensor<B, 3, Int> {
+            let output = lhs.bitwise_xor(rhs.unsqueeze_dims(&[0isize]));
+            output
+        }
+        ");
+    }
 
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(
-                    &self,
-                    input1: Tensor<B, 2, Int>,
-                    input2: Tensor<B, 2, Int>
-                ) -> Tensor<B, 2, Int> {
-                    let output = input1.bitwise_xor(input2);
-                    output
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    #[test]
+    fn test_bitwisexor_broadcast_rhs_higher() {
+        let node = BitwiseXorNodeBuilder::new("xor6")
+            .input_tensor("lhs", 2, DType::I32)
+            .input_tensor("rhs", 3, DType::I32)
+            .output_tensor("output", 3, DType::I32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            lhs: Tensor<B, 2, Int>,
+            rhs: Tensor<B, 3, Int>,
+        ) -> Tensor<B, 3, Int> {
+            let output = lhs.unsqueeze_dims(&[0isize]).bitwise_xor(rhs);
+            output
+        }
+        ");
     }
 }

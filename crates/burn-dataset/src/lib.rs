@@ -28,6 +28,12 @@ pub mod vision;
 #[cfg(feature = "nlp")]
 pub mod nlp;
 
+/// Network dataset utilities.
+#[cfg(feature = "network")]
+pub mod network {
+    pub use burn_std::network::*;
+}
+
 mod dataset;
 pub use dataset::*;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]

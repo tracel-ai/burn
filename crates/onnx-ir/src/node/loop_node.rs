@@ -10,7 +10,10 @@
 //! - **Opset 13**: Clarified scoping rules
 //! - **Opset 16**: Further refinements
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, OnnxGraph};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, DType, Node, OnnxGraph, RawNode};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Helper function to transform type for scan output concatenation
@@ -45,13 +48,13 @@ fn add_concat_dimension(ty: ArgType) -> ArgType {
 }
 
 /// Configuration for Loop operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct LoopConfig {
     pub body: OnnxGraph,
 }
 
 /// Node representation for Loop operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct LoopNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -67,7 +70,7 @@ impl NodeProcessor for LoopProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -114,7 +117,7 @@ impl NodeProcessor for LoopProcessor {
                 });
             }
             match cond_type {
-                ArgType::Scalar(dtype) if *dtype == DType::Bool => {
+                ArgType::Scalar(dtype) if dtype.is_bool() => {
                     // Valid scalar bool
                 }
                 _ => {
@@ -150,7 +153,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_in_type {
-            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid
             }
             _ => {
@@ -177,7 +180,7 @@ impl NodeProcessor for LoopProcessor {
             });
         }
         match cond_out_type {
-            ArgType::Scalar(dtype) if dtype == &DType::Bool => {
+            ArgType::Scalar(dtype) if dtype.is_bool() => {
                 // Valid
             }
             _ => {
@@ -243,11 +246,7 @@ impl NodeProcessor for LoopProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
         let body_attr = node
             .attrs
@@ -261,11 +260,15 @@ impl NodeProcessor for LoopProcessor {
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
                 let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                let value_store = builder
+                    .graph_state
+                    .as_ref()
+                    .map(|gs| gs.borrow().build_value_store());
                 crate::ir::OnnxGraph {
                     nodes,
                     inputs: std::mem::take(&mut builder.inputs),
                     outputs: std::mem::take(&mut builder.outputs),
-                    _graph_data: builder._graph_data.clone(),
+                    value_store,
                 }
             }
             _ => {
@@ -278,7 +281,7 @@ impl NodeProcessor for LoopProcessor {
         Ok(LoopConfig { body })
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");
@@ -350,7 +353,7 @@ mod tests {
                     value_store: None,
                 },
             ],
-            _graph_data: None,
+            value_store: None,
         }
     }
 

@@ -10,15 +10,18 @@
 //! - **Opset 9-13**: Removed consumed_inputs attribute
 //! - **Opset 14-15**: Added training_mode attribute, expanded type support
 //! - **Opset 15+**: Current version with full training mode support
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
 use crate::ir::Argument;
 
-use crate::ir::{ArgType, Node, NodeBuilder, TensorType};
+use crate::ir::{ArgType, Node, RawNode, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 
 /// Configuration for BatchNorm operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct BatchNormConfig {
     /// Number of features (channels)
     pub num_features: usize,
@@ -28,19 +31,8 @@ pub struct BatchNormConfig {
     pub momentum: f64,
 }
 
-impl BatchNormConfig {
-    /// Create a new BatchNormConfig
-    pub fn new(num_features: usize, epsilon: f64, momentum: f64) -> Self {
-        Self {
-            num_features,
-            epsilon,
-            momentum,
-        }
-    }
-}
-
 /// Node representation for BatchNormalization operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct BatchNormalizationNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -62,7 +54,7 @@ impl NodeProcessor for BatchNormProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift scale (input[1]), bias (input[2]), mean (input[3]), and variance (input[4])
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -82,7 +74,7 @@ impl NodeProcessor for BatchNormProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -116,11 +108,7 @@ impl NodeProcessor for BatchNormProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         let weight_tensor = node.inputs[1].value().ok_or_else(|| {
             ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
         })?;
@@ -143,7 +131,7 @@ impl NodeProcessor for BatchNormProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

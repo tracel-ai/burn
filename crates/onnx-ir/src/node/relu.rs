@@ -14,13 +14,14 @@
 //! - **Opset 13**: Expanded type support
 //! - **Opset 14+**: Added bfloat16 support
 
-use crate::ir::{Argument, Node, NodeBuilder};
+use crate::ir::{Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+use onnx_ir_derive::NodeBuilder;
 
 /// Node representation for Relu operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct ReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -43,7 +44,7 @@ impl NodeProcessor for ReluProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -79,7 +80,7 @@ impl NodeProcessor for ReluProcessor {
         Ok(())
     }
 
-    fn build_node(&self, builder: NodeBuilder, _opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
         Node::Relu(ReluNode {
             name: builder.name,
             inputs: builder.inputs,
@@ -95,7 +96,7 @@ mod tests {
     use crate::node::test_utils::TestNodeBuilder;
     use burn_tensor::DType;
 
-    fn create_test_node() -> NodeBuilder {
+    fn create_test_node() -> RawNode {
         TestNodeBuilder::new(NodeType::Relu, "test_relu")
             .input_tensor_f32("X", 4, Some(vec![1, 3, 224, 224]))
             .output_tensor_f32("Y", 0, None) // Rank will be inferred

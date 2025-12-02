@@ -818,22 +818,9 @@ impl TensorCheck {
                     );
             }
 
-            let range = slice.to_range(d_tensor);
-
-            if range.start >= range.end {
-                check = check.register(
-                    "Slice",
-                    TensorError::new(
-                        "The provided slice has a range where the start index is bigger or \
-                         equal to its end.",
-                    )
-                    .details(format!(
-                        "The range at dimension '{}' starts at '{}' and is greater or equal to \
-                         its end '{}'. Tensor shape {:?}.",
-                        i, range.start, range.end, shape.dims,
-                    )),
-                );
-            }
+            // Empty slices (start >= end) are allowed and produce a tensor with size 0
+            // in that dimension. This matches PyTorch behavior and is required for ONNX
+            // compatibility where dynamic slice ranges may become empty at runtime.
 
             if slice.step() == 0 {
                 check = check.register(
@@ -915,19 +902,8 @@ impl TensorCheck {
                 );
             }
 
-            if range.start >= range.end && slice.step > 0 {
-                check = check.register(
-                    "Slice Assign",
-                    TensorError::new(
-                        "The provided slice has a range where the start index is bigger or \
-                         equal to its end with positive step.",
-                    )
-                    .details(format!(
-                        "The range start ({}) must be smaller than its end ({}) for positive step ({}) at dimension {}",
-                        range.start, range.end, slice.step, i
-                    )),
-                );
-            }
+            // Note: Empty slices (start >= end with positive step) are handled at the API level
+            // by returning the original tensor unchanged, so we don't check for them here.
         }
 
         check

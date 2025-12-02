@@ -1,105 +1,43 @@
-use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{ScalarType, Scope, TensorType, Type};
-use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
-use quote::quote;
+use super::prelude::*;
 
-#[derive(Debug, Clone, new)]
-pub struct SizeNode {
-    pub input: TensorType,
-    pub output: ScalarType,
-}
-
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SizeNode {
-    fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::size::SizeNode {
+    fn inputs(&self) -> &[Argument] {
+        &self.inputs
     }
 
-    fn output_types(&self) -> Vec<Type> {
-        vec![Type::Scalar(self.output.clone())]
+    fn outputs(&self) -> &[Argument] {
+        &self.outputs
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
+    fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
+        let input = scope.arg(self.inputs.first().unwrap());
+        let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
             let #output = #input.shape.num_elements();
         }
     }
-
-    fn into_node(self) -> Node<PS> {
-        Node::Size(self)
-    }
-}
-
-impl OnnxIntoNode for SizeNode {
-    fn from_onnx(node: onnx_ir::Node) -> Self {
-        let onnx_ir::Node::Size(n) = node else {
-            panic!("Expected Size node");
-        };
-        let input = match Type::from(n.inputs.first().unwrap()) {
-            Type::Tensor(t) => t,
-            _ => panic!("Size expects tensor input"),
-        };
-        let output = match Type::from(n.outputs.first().unwrap()) {
-            Type::Scalar(s) => s,
-            _ => panic!("Size expects scalar output"),
-        };
-        Self::new(input, output)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
-
-    use super::*;
-    use crate::burn::{
-        ScalarKind, ScalarType, TensorType, graph::BurnGraph, node::test::assert_tokens,
-    };
+    use super::super::test_helpers::*;
+    use burn::tensor::DType;
+    use insta::assert_snapshot;
+    use onnx_ir::size::SizeNodeBuilder;
 
     #[test]
-    fn test_codegen_size() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(SizeNode::new(
-            TensorType::new_float("tensor1", 4),
-            ScalarType::new("scalar1", ScalarKind::Int64),
-        ));
-
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["scalar1".to_string()],
-            &[],
-            &[],
-        );
-
-        let expected = quote! {
-            use burn::prelude::*;
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-                device: burn::module::Ignored<B::Device>,
-            }
-
-            impl<B: Backend> Model<B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device.clone()),
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> i64 {
-                    let scalar1 = tensor1.shape.num_elements();
-                    scalar1
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_size_forward() {
+        let node = SizeNodeBuilder::new("size1")
+            .input_tensor("input", 2, DType::F32)
+            .output_scalar("output", DType::I64)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>) -> i64 {
+            let output = input.shape.num_elements();
+            output
+        }
+        ");
     }
 }

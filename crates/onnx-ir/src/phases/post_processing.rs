@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{Argument, NodeBuilder, NodeType},
+    ir::{Argument, NodeType, RawNode},
     processor::get_processor_registry,
     proto_conversion::MIN_OPSET_VERSION,
 };
@@ -76,7 +76,7 @@ fn rewire_subgraph(
 
 /// Rewire subgraphs within a single node (recursive helper)
 fn rewire_node_subgraphs(
-    node: &mut NodeBuilder,
+    node: &mut RawNode,
     rewire_map: &HashMap<String, String>,
     output_arg_map: &HashMap<String, Argument>,
 ) {
@@ -115,7 +115,7 @@ fn rewire_node_subgraphs(
 
 /// Analyze which Identity nodes can be removed and create rewiring map
 fn plan_identity_elimination(
-    nodes: &[NodeBuilder],
+    nodes: &[RawNode],
     node_output_map: &HashMap<String, (usize, usize)>,
 ) -> IdentityEliminationPlan {
     let mut rewire_map = HashMap::new();
@@ -174,7 +174,7 @@ fn plan_identity_elimination(
 /// 2. Updates graph outputs to bypass removed Identity nodes
 /// 3. Filters out removed nodes
 fn apply_identity_elimination(
-    nodes: &mut Vec<NodeBuilder>,
+    nodes: &mut Vec<RawNode>,
     outputs: &mut [Argument],
     plan: IdentityEliminationPlan,
 ) {
@@ -250,22 +250,20 @@ fn apply_identity_elimination(
 /// Returns (nodes, inputs, outputs) tuple ready for finalization
 pub(crate) fn post_process(
     state_rc: &Rc<RefCell<GraphState>>,
-) -> (Vec<NodeBuilder>, Vec<Argument>, Vec<Argument>) {
-    // Extract graph data while preserving tensor_store and node_output_map
+) -> (Vec<RawNode>, Vec<Argument>, Vec<Argument>) {
+    // Extract graph data while preserving tensor_store, constant_map, and node_output_map
     let (mut nodes, inputs, mut outputs, node_output_map) = {
         let mut state = state_rc.borrow_mut();
-        let tensor_data_clone = state.tensor_store.clone_data();
-        let next_tensor_id = state.tensor_store.next_id();
 
-        // Clone node_output_map BEFORE consuming the state
+        // Clone Rc references BEFORE consuming - these are cheap Rc clones, not data clones
+        let tensor_store_rc = state.tensor_store.clone();
+        let constant_map_rc = state.constant_map_rc();
         let node_output_map = state.node_output_map().clone();
 
         let result = std::mem::replace(&mut *state, GraphState::new(&[], &[], &[], &[])).consume();
 
-        // Restore tensor_store for .value() access
-        state
-            .tensor_store
-            .restore_data(tensor_data_clone, next_tensor_id);
+        // Restore the Rc references to the new empty GraphState (no data copying)
+        state.restore_stores(tensor_store_rc, constant_map_rc);
         (result.0, result.1, result.2, node_output_map)
     };
 
@@ -281,12 +279,13 @@ pub(crate) fn post_process(
     {
         let mut state = state_rc.borrow_mut();
         state.processed_nodes = nodes.clone();
+        let value_store = state.build_value_store();
         drop(state);
 
         // Re-attach value_store and lift constants
         for node in &mut nodes {
             for arg in &mut node.inputs {
-                arg.value_store = Some(state_rc.clone());
+                arg.set_value_store(value_store.clone());
             }
 
             let registry = get_processor_registry();
@@ -311,10 +310,10 @@ pub(crate) fn post_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, DType, NodeBuilder, NodeType, TensorType};
+    use crate::ir::{ArgType, Argument, DType, NodeType, RawNode, TensorType};
 
-    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> NodeBuilder {
-        NodeBuilder {
+    fn create_identity_node(name: &str, input_name: &str, output_name: &str) -> RawNode {
+        RawNode {
             node_type: NodeType::Identity,
             name: name.to_string(),
             inputs: vec![Argument {
@@ -341,8 +340,8 @@ mod tests {
         }
     }
 
-    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> NodeBuilder {
-        NodeBuilder {
+    fn create_add_node(name: &str, input1: &str, input2: &str, output: &str) -> RawNode {
+        RawNode {
             node_type: NodeType::Add,
             name: name.to_string(),
             inputs: vec![

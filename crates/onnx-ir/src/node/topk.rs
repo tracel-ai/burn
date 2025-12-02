@@ -19,7 +19,10 @@
 //! - **T** (Opset 11+): All numeric tensor types (float16, float, double, int8-64, uint8-64)
 //! - **I**: tensor(int64) for indices output
 
-use crate::ir::{ArgType, Argument, DType, Node, NodeBuilder, RuntimeInputRef, TensorType};
+use derive_new::new;
+use onnx_ir_derive::NodeBuilder;
+
+use crate::ir::{ArgType, Argument, DType, Node, RawNode, RuntimeInputRef, TensorType};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
@@ -40,7 +43,7 @@ impl Default for TopKInput {
 }
 
 /// Configuration for the TopK operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TopKConfig {
     /// The axis along which to perform the top-k selection.
     pub axis: usize,
@@ -49,7 +52,7 @@ pub struct TopKConfig {
 }
 
 /// Node representation for TopK operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeBuilder)]
 pub struct TopKNode {
     pub name: String,
     pub inputs: Vec<Argument>,
@@ -71,7 +74,7 @@ impl NodeProcessor for TopKProcessor {
         }
     }
 
-    fn lift_constants(&self, node: &mut NodeBuilder, _opset: usize) -> Result<(), ProcessError> {
+    fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
         // Lift K input (input[1]) if present
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
@@ -82,7 +85,7 @@ impl NodeProcessor for TopKProcessor {
 
     fn infer_types(
         &self,
-        node: &mut NodeBuilder,
+        node: &mut RawNode,
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
@@ -138,11 +141,7 @@ impl NodeProcessor for TopKProcessor {
         Ok(())
     }
 
-    fn extract_config(
-        &self,
-        node: &NodeBuilder,
-        _opset: usize,
-    ) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the shape of the input data tensor
         let data_tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor,
@@ -197,7 +196,7 @@ impl NodeProcessor for TopKProcessor {
         Ok(config)
     }
 
-    fn build_node(&self, builder: NodeBuilder, opset: usize) -> Node {
+    fn build_node(&self, builder: RawNode, opset: usize) -> Node {
         let config = self
             .extract_config(&builder, opset)
             .expect("Config extraction failed");

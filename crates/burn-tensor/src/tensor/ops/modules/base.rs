@@ -1,5 +1,6 @@
 use super::{conv, pool};
 use crate::ops::unfold::unfold4d_using_conv2d;
+use crate::ops::{BoolTensor, attention};
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
@@ -248,6 +249,67 @@ pub enum InterpolateMode {
 pub struct InterpolateOptions {
     /// Algorithm used for upsampling.
     pub mode: InterpolateMode,
+}
+
+/// Padding mode for grid sampling when coordinates are out of bounds.
+///
+/// Matches PyTorch's `padding_mode` parameter in `grid_sample`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
+pub enum GridSamplePaddingMode {
+    /// Fill with zeros for out-of-bounds coordinates.
+    #[default]
+    Zeros,
+    /// Clamp coordinates to the border (use nearest edge value).
+    Border,
+    /// Reflect coordinates at the boundary.
+    Reflection,
+}
+
+/// Options for grid sampling operations.
+#[derive(Debug, Clone)]
+pub struct GridSampleOptions {
+    /// Interpolation mode (bilinear, nearest, or bicubic).
+    pub mode: InterpolateMode,
+    /// Padding mode for out-of-bounds coordinates.
+    pub padding_mode: GridSamplePaddingMode,
+    /// If `true`, grid values of -1 and 1 correspond to the corner pixels.
+    /// If `false`, they correspond to the corner points of the corner pixels
+    /// (i.e., -1 maps to -0.5 and 1 maps to size - 0.5 in pixel coordinates).
+    pub align_corners: bool,
+}
+
+impl Default for GridSampleOptions {
+    fn default() -> Self {
+        Self {
+            mode: InterpolateMode::Bilinear,
+            padding_mode: GridSamplePaddingMode::Zeros,
+            align_corners: false,
+        }
+    }
+}
+
+impl GridSampleOptions {
+    /// Create new grid sample options with the given interpolation mode.
+    ///
+    /// Uses default values for padding_mode (Zeros) and align_corners (false).
+    pub fn new(mode: InterpolateMode) -> Self {
+        Self {
+            mode,
+            ..Default::default()
+        }
+    }
+
+    /// Set the padding mode.
+    pub fn with_padding_mode(mut self, padding_mode: GridSamplePaddingMode) -> Self {
+        self.padding_mode = padding_mode;
+        self
+    }
+
+    /// Set align_corners.
+    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
+        self.align_corners = align_corners;
+        self
+    }
 }
 
 /// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
@@ -787,6 +849,32 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
+
+    /// Computes scaled dot-product attention: softmax(QKᵗ / √d) · V,
+    /// optionally applying a mask to the attention scores.
+    ///
+    /// # Arguments
+    /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q,  head_dim]`
+    /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
+    /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
+    /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
+    ///   here `true` indicates positions to mask (i.e. set to -∞ before softmax).
+    ///
+    /// # Returns
+    /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
+    /// representing the attended context per head.
+    ///
+    /// # Note
+    /// This implementation does not support dropout and is intended for inference or
+    /// use cases where dropout is not needed.
+    fn attention(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        mask: Option<BoolTensor<B>>,
+    ) -> FloatTensor<B> {
+        attention::naive_attention::<B>(query, key, value, mask)
+    }
 }
 
 #[cfg(test)]

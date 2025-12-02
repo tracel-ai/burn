@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_sum_dim_1_reshape_maybe_fused() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
-        TestBackend::sync(&tensor.device());
+        TestBackend::sync(&tensor.device()).unwrap();
 
         let output = (tensor.reshape([3, 3]) + 2);
         let output = output.sum_dim(1);
@@ -320,7 +320,7 @@ mod tests {
     fn test_sum_dim_1_swap_dims_maybe_fused() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
         let tensor = tensor.reshape([3, 3]);
-        TestBackend::sync(&tensor.device());
+        TestBackend::sync(&tensor.device()).unwrap();
 
         let output = (tensor.swap_dims(0, 1) + 2);
         let output = output.sum_dim(1);
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn test_sum_dim_2_reshape_maybe_fused_broadcast() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
-        TestBackend::sync(&tensor.device());
+        TestBackend::sync(&tensor.device()).unwrap();
 
         let output = (tensor.reshape([1, 3, 3]) + 2);
         let output = output.sum_dim(2);
@@ -347,10 +347,10 @@ mod tests {
         let tensor_2 = TestTensorInt::arange(10..12, &Default::default()).float();
         let tensor_1 = tensor_1.reshape([1, 2, 4]);
         let tensor_2 = tensor_2.reshape([1, 2, 1]);
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
 
         let output = (tensor_1 + tensor_2.clone()).sum_dim(2) + tensor_2;
-        TestBackend::sync(&output.device());
+        TestBackend::sync(&output.device()).unwrap();
         let expected = TensorData::from([[[56.0], [77.0]]]);
 
         output.into_data().assert_eq(&expected, false);
@@ -366,7 +366,7 @@ mod tests {
 
         let tensor_2 = tensor_2.reshape([1, 4, 2]);
         let tensor_2 = tensor_2.swap_dims(1, 2);
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
 
         let output = (tensor_1 + tensor_2).sum_dim(2);
         let expected = TensorData::from([[[88.0], [96.0]]]);
@@ -386,7 +386,7 @@ mod tests {
 
         let tensor_2 = tensor_2.reshape([1, 4, 2]);
         let tensor_2 = tensor_2.swap_dims(1, 2);
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
 
         let output = (tensor_3 + tensor_1 + tensor_2).sum_dim(2);
         let expected = TensorData::from([[[222.0], [246.0]]]);
@@ -406,7 +406,7 @@ mod tests {
 
         let tensor_2 = tensor_2.reshape([1, 4, 2]);
         let tensor_2 = tensor_2.swap_dims(1, 2);
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
 
         let output = (tensor_3 + tensor_1 + tensor_2).sum_dim(1);
         let expected = TensorData::from([[[102.0, 112.0, 122.0, 132.0]]]);
@@ -425,12 +425,12 @@ mod tests {
 
         let tensor_2 = tensor_2.reshape([1, 2, 2, 2]);
 
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
         let sum = tensor_2.clone().sum_dim(0);
         let sum = sum.sum_dim(1);
         let sum = sum.sum_dim(2);
 
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
 
         let tmp = sum.clone() + 2;
         let output = (tensor_1 + tensor_2 + sum).sum_dim(1);
@@ -450,7 +450,7 @@ mod tests {
 
         let tensor_1 = tensor_1.reshape([4, 4]);
 
-        TestBackend::sync(&tensor_1.device());
+        TestBackend::sync(&tensor_1.device()).unwrap();
 
         let reshaped = tensor_1.reshape([1, 4, 4]);
         let tmp = reshaped + 5.0;

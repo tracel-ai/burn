@@ -1,6 +1,7 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::IntoDimension;
@@ -28,8 +29,8 @@ where
         NdArrayTensor::from_data(data)
     }
 
-    async fn bool_into_data(tensor: NdArrayTensor) -> TensorData {
-        tensor.into_data()
+    async fn bool_into_data(tensor: NdArrayTensor) -> Result<TensorData, ExecutionError> {
+        Ok(tensor.into_data())
     }
 
     fn bool_to_device(tensor: NdArrayTensor, _device: &NdArrayDevice) -> NdArrayTensor {
