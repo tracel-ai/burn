@@ -276,26 +276,30 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
 
         // Y output transformation
         // For unidirectional: unsqueeze at dim 1 to add num_directions=1
-        // For bidirectional: reshape [seq, batch, 2*hidden] -> [seq, batch, 2, hidden]
-        //                    then swap_dims(1, 2) -> [seq, 2, batch, hidden]
+        // For bidirectional: reshape to split the concatenated hidden states, then reorder dims
+        //   ONNX layout=0 (batch_first=false): Y is [seq, num_dirs, batch, hidden]
+        //   ONNX layout=1 (batch_first=true):  Y is [batch, seq, num_dirs, hidden]
         let y_output_expr = if is_bidirectional {
-            let batch_dim = if self.config.batch_first {
-                0usize
+            let batch_first = self.config.batch_first;
+            if batch_first {
+                // Burn output: [batch, seq, 2*hidden]
+                // Reshape to: [batch, seq, 2, hidden] - already matches ONNX layout=1
+                quote! {
+                    {
+                        let [batch_size, seq_len, _] = output_seq.dims();
+                        output_seq.reshape([batch_size, seq_len, 2, #hidden_size])
+                    }
+                }
             } else {
-                1usize
-            };
-            let seq_dim = if self.config.batch_first {
-                1usize
-            } else {
-                0usize
-            };
-            quote! {
-                {
-                    // Reshape [seq, batch, 2*hidden] -> [seq, batch, 2, hidden]
-                    let [seq_len, batch_size, _] = output_seq.dims();
-                    let reshaped = output_seq.reshape([seq_len, batch_size, 2, #hidden_size]);
-                    // Transpose to [seq, 2, batch, hidden] by swapping batch and num_directions
-                    reshaped.swap_dims(#seq_dim + 1, #batch_dim + 1)
+                // Burn output: [seq, batch, 2*hidden]
+                // Reshape to: [seq, batch, 2, hidden]
+                // Then swap dims 1 and 2 to get: [seq, 2, batch, hidden] for ONNX layout=0
+                quote! {
+                    {
+                        let [seq_len, batch_size, _] = output_seq.dims();
+                        let reshaped = output_seq.reshape([seq_len, batch_size, 2, #hidden_size]);
+                        reshaped.swap_dims(1, 2)
+                    }
                 }
             }
         } else {
@@ -626,7 +630,7 @@ mod tests {
                     {
                         let [seq_len, batch_size, _] = output_seq.dims();
                         let reshaped = output_seq.reshape([seq_len, batch_size, 2, 8usize]);
-                        reshaped.swap_dims(0usize + 1, 1usize + 1)
+                        reshaped.swap_dims(1, 2)
                     },
                     final_state.hidden,
                     final_state.cell,
