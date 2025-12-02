@@ -430,7 +430,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The gathered elements.
     fn float_gather(dim: usize, tensor: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B>;
 
-    /// Scatter elements into a tensor.
+    /// Scatter elements into a tensor using sum reduction.
     ///
     /// # Arguments
     ///
@@ -442,7 +442,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the scattered elements.
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<B>,
         indices: IntTensor<B>,
@@ -463,7 +463,7 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_select(tensor: FloatTensor<B>, dim: usize, indices: IntTensor<B>) -> FloatTensor<B>;
 
     /// Assign the selected elements along the given dimension corresponding for the given indices
-    /// to the given value.
+    /// to the given value using sum reduction.
     ///
     /// # Arguments
     ///
@@ -475,7 +475,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<B>,
         dim: usize,
         indices: IntTensor<B>,

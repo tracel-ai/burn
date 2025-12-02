@@ -10,7 +10,7 @@ mod tests {
     use burn_tensor::activation::{
         gelu, log_sigmoid, log_softmax, mish, relu, sigmoid, silu, softmax, softplus, tanh,
     };
-    use burn_tensor::{Distribution, Tensor, TensorData};
+    use burn_tensor::{Distribution, IndexingUpdateOp, Tensor, TensorData};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -507,7 +507,7 @@ mod tests {
             ops_float: |tensor: TestTensor<2>, values: TestTensor<2>| {
                 let shape = tensor.shape();
                 let indices = TestTensorInt::ones(shape, &Default::default());
-                tensor.scatter(0, indices, values)
+                tensor.scatter(0, indices, values, IndexingUpdateOp::Add)
             }
         );
         clone_invariance_test!(
@@ -528,7 +528,7 @@ mod tests {
             ops_float: |tensor: TestTensor<2>, values: TestTensor<2>| {
                 let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
                 let values = values.select(0, indices.clone());
-                tensor.select_assign(0, indices, values)
+                tensor.select_assign(0, indices, values, IndexingUpdateOp::Add)
             }
         );
     }
@@ -749,7 +749,7 @@ mod tests {
             ops_int: |tensor: TestTensorInt<2>, values: TestTensorInt<2>| {
                 let shape = tensor.shape();
                 let indices = TestTensorInt::ones(shape, &Default::default());
-                tensor.scatter(0, indices, values)
+                tensor.scatter(0, indices, values, IndexingUpdateOp::Add)
             }
         );
         clone_invariance_test!(
@@ -770,7 +770,7 @@ mod tests {
             ops_int: |tensor: TestTensorInt<2>, values: TestTensorInt<2>| {
                 let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
                 let values = values.select(0, indices.clone());
-                tensor.select_assign(0, indices, values)
+                tensor.select_assign(0, indices, values, IndexingUpdateOp::Add)
             }
         );
     }
