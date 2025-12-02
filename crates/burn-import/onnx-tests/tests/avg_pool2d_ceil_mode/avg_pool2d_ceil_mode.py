@@ -51,7 +51,7 @@ def main():
     ]]], device=device)
 
     torch.onnx.export(model, test_input, file_name,
-                      verbose=False, opset_version=16)
+                      verbose=False, opset_version=19)
 
     print("Finished exporting model to {}".format(file_name))
 

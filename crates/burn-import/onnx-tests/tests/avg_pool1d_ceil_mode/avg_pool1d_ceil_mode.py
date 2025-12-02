@@ -44,7 +44,7 @@ def main():
     test_input = torch.tensor([[[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]], device=device)
 
     torch.onnx.export(model, test_input, file_name,
-                      verbose=False, opset_version=16)
+                      verbose=False, opset_version=19)
 
     print("Finished exporting model to {}".format(file_name))
 
