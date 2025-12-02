@@ -11,6 +11,8 @@ use std::{
 };
 
 #[cfg(feature = "autotune-checks")]
+use crate::CubeFusionHandle;
+#[cfg(feature = "autotune-checks")]
 use burn_tensor::TensorData;
 #[cfg(feature = "autotune-checks")]
 use std::collections::HashMap;
