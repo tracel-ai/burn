@@ -49,12 +49,10 @@ async fn main(_spawner: Spawner) {
     }
 }
 
-fn run_model<'a>(model: &Model<NdArray>, device: &BackendDevice, input: f32) -> Tensor<Backend, 2> {
+fn run_model(model: &Model<NdArray>, device: &BackendDevice, input: f32) -> Tensor<Backend, 2> {
     // Define the tensor
-    let input = Tensor::<Backend, 2>::from_floats([[input]], &device);
+    let input = Tensor::<Backend, 2>::from_floats([[input]], device);
 
     // Run the model on the input
-    let output = model.forward(input);
-
-    output
+    model.forward(input)
 }

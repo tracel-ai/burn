@@ -7,8 +7,8 @@ use crate::{
     },
 };
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
-    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    BoolTensor, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+    InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
@@ -194,5 +194,16 @@ where
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
         kernel::interpolate::interpolate_backward(x, grad, output_size, options)
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<BoolTensor<Self>>,
+    ) -> FloatTensor<Self> {
+        let out_dtype = query.dtype;
+        kernel::attention::flash_attention(query, key, value, mask, out_dtype)
+            .expect("Kernel to never fail")
     }
 }

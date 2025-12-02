@@ -166,7 +166,7 @@ pub trait IntTensorOps<B: Backend> {
     /// * `indices` - The indices.
     fn int_gather(dim: usize, tensor: IntTensor<B>, indices: IntTensor<B>) -> IntTensor<B>;
 
-    /// Scatter a given value to the tensor at the given indices.
+    /// Scatter a given value to the tensor at the given indices using sum reduction.
     ///
     /// # Arguments
     ///
@@ -178,7 +178,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values scattered.
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: IntTensor<B>,
         indices: IntTensor<B>,
@@ -199,7 +199,7 @@ pub trait IntTensorOps<B: Backend> {
     fn int_select(tensor: IntTensor<B>, dim: usize, indices: IntTensor<B>) -> IntTensor<B>;
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// to the given value.
+    /// to the given value using sum reduction.
     ///
     /// # Arguments
     ///
@@ -211,7 +211,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn int_select_assign(
+    fn int_select_add(
         tensor: IntTensor<B>,
         dim: usize,
         indices: IntTensor<B>,

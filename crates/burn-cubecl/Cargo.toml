@@ -65,6 +65,7 @@ burn-std = { path = "../burn-std", version = "=0.20.0-pre.4", default-features =
     "cubecl",
 ] }
 cubecl = { workspace = true, features = [
+    "attention",
     "matmul",
     "convolution",
     "reduce",

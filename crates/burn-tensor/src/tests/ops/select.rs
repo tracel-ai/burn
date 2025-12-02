@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(select)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData, backend::Backend};
+    use burn_tensor::{IndexingUpdateOp, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn should_select_1d() {
@@ -82,52 +82,52 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_1d() {
+    fn should_select_add_1d() {
         let device = Default::default();
         let tensor = TestTensor::<1>::from_data([0.0, 1.0, 2.0], &device);
         let values = TestTensor::from_data([5.0, 4.0, 3.0, 2.0, 1.0], &device);
         let indices = TestTensorInt::from_data(TensorData::from([1, 1, 0, 1, 2]), &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([3.0, 12.0, 3.0]);
 
         output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
-    fn should_select_assign_1d_int() {
+    fn should_select_add_1d_int() {
         let device = Default::default();
         let tensor = TestTensorInt::<1>::from_data([7, 8, 9], &device);
         let values = TestTensorInt::from_data([5, 4, 3, 2, 1], &device);
         let indices = TestTensorInt::from_data(TensorData::from([1, 1, 0, 1, 2]), &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([10, 19, 10]);
 
         output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
-    fn should_select_assign_2d_dim0() {
+    fn should_select_add_2d_dim0() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
         let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let indices = TestTensorInt::from_data(TensorData::from([1, 0]), &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([[4.0, 6.0, 8.0], [4.0, 6.0, 8.0]]);
 
         output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
-    fn should_select_assign_2d_dim1() {
+    fn should_select_add_2d_dim1() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
         let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let indices = TestTensorInt::from_data(TensorData::from([1, 0, 2]), &device);
 
-        let output = tensor.select_assign(1, indices, values);
+        let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([[2.0, 2.0, 5.0], [8.0, 8.0, 11.0]]);
 
         output.into_data().assert_eq(&expected, false);
@@ -166,13 +166,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn should_panic_select_assign_invalid_num_indices() {
+    fn should_panic_select_add_invalid_num_indices() {
         let device = Default::default();
         let tensor = TestTensorInt::<1>::from_data([0; 12], &device);
         let values = TestTensorInt::from_data([1; 12], &device);
         let indices = TestTensorInt::from_data(TensorData::from([1]), &device);
 
-        tensor.select_assign(0, indices, values);
+        tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
     }
 
     #[test]
@@ -203,15 +203,15 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_tensor() {
-        // Test that select_assign works for boolean tensors
+    fn should_select_add_bool_tensor() {
+        // Test that select_add works for boolean tensors
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
         let values = TestTensorBool::<1>::from_data([false, false], &device);
         let indices = TestTensorInt::from_data([0, 2], &device);
 
-        let output = tensor.select_assign(0, indices, values);
-        // Note: select_assign uses sum reduction, so:
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
+        // Note: select_add uses sum reduction, so:
         // index 0: true OR false = true
         // index 2: true OR false = true
         // index 1: false (unchanged)
@@ -221,14 +221,14 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_overlapping_indices() {
+    fn should_select_add_bool_overlapping_indices() {
         // Test accumulation behavior with overlapping indices
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([false, true], &device);
         let indices = TestTensorInt::from_data([0, 0], &device);
         let values = TestTensorBool::<1>::from_data([true, false], &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         // Index 0: false OR true OR false = true
         let expected = TensorData::from([true, true]);
 
@@ -236,28 +236,28 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_false_to_true_case() {
+    fn should_select_add_bool_false_to_true_case() {
         // Test false OR true = true
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([false], &device);
         let indices = TestTensorInt::from_data([0], &device);
         let values = TestTensorBool::<1>::from_data([true], &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([true]);
 
         output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
-    fn should_select_assign_bool_true_or_true_accumulation() {
+    fn should_select_add_bool_true_or_true_accumulation() {
         // Test multiple true accumulations
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false], &device);
         let indices = TestTensorInt::from_data([0, 0, 0], &device);
         let values = TestTensorBool::<1>::from_data([true, true, true], &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         let expected = TensorData::from([true, false]);
 
         output.into_data().assert_eq(&expected, false);
@@ -271,14 +271,15 @@ mod tests {
         let indices = TestTensorInt::from_data([0, 1, 0], &device);
         let values = TestTensorBool::<1>::from_data([false, true, true], &device);
 
-        let optimized_result = tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone());
+        let optimized_result =
+            tensor
+                .clone()
+                .select_assign(0, indices.clone(), values.clone(), IndexingUpdateOp::Add);
 
         // Manual default implementation logic
         let int_tensor = tensor.int();
         let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
+        let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
         let default_result = assigned.greater_elem(0);
 
         optimized_result
@@ -287,20 +288,21 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_overlapping_indices_vs_default() {
+    fn should_select_add_bool_overlapping_indices_vs_default() {
         // Test overlapping indices against default implementation
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([false, true], &device);
         let indices = TestTensorInt::from_data([0, 0], &device);
         let values = TestTensorBool::<1>::from_data([true, false], &device);
 
-        let optimized_result = tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone());
+        let optimized_result =
+            tensor
+                .clone()
+                .select_assign(0, indices.clone(), values.clone(), IndexingUpdateOp::Add);
 
         let int_tensor = tensor.int();
         let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
+        let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
         let default_result = assigned.greater_elem(0);
 
         optimized_result
@@ -309,20 +311,21 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_true_or_true_accumulation_vs_default() {
+    fn should_select_add_bool_true_or_true_accumulation_vs_default() {
         // Test multiple true accumulations against default implementation
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false], &device);
         let indices = TestTensorInt::from_data([0, 0, 0], &device);
         let values = TestTensorBool::<1>::from_data([true, true, true], &device);
 
-        let optimized_result = tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone());
+        let optimized_result =
+            tensor
+                .clone()
+                .select_assign(0, indices.clone(), values.clone(), IndexingUpdateOp::Add);
 
         let int_tensor = tensor.int();
         let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
+        let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
         let default_result = assigned.greater_elem(0);
 
         optimized_result
@@ -331,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_false_to_true_case_vs_default() {
+    fn should_select_add_bool_false_to_true_case_vs_default() {
         // Test false OR true case against default implementation
         use burn_tensor::backend::Backend;
 
@@ -340,13 +343,14 @@ mod tests {
         let indices = TestTensorInt::from_data([0], &device);
         let values = TestTensorBool::<1>::from_data([true], &device);
 
-        let optimized_result = tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone());
+        let optimized_result =
+            tensor
+                .clone()
+                .select_assign(0, indices.clone(), values.clone(), IndexingUpdateOp::Add);
 
         let int_tensor = tensor.int();
         let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
+        let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
         let default_result = assigned.greater_elem(0);
 
         optimized_result
@@ -355,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_tensor_vs_default() {
+    fn should_select_add_bool_tensor_vs_default() {
         // Test existing basic case against default implementation
         use burn_tensor::backend::Backend;
 
@@ -364,13 +368,14 @@ mod tests {
         let indices = TestTensorInt::from_data([0, 2], &device);
         let values = TestTensorBool::<1>::from_data([false, false], &device);
 
-        let optimized_result = tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone());
+        let optimized_result =
+            tensor
+                .clone()
+                .select_assign(0, indices.clone(), values.clone(), IndexingUpdateOp::Add);
 
         let int_tensor = tensor.int();
         let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
+        let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
         let default_result = assigned.greater_elem(0);
 
         optimized_result
@@ -387,7 +392,7 @@ mod tests {
         let indices = TestTensorInt::from_data([0], &device);
         let values = TestTensorBool::<1>::from_data([false], &device);
 
-        let output = tensor.select_assign(0, indices, values);
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         let replacement_expected = TensorData::from([false]);
 
         output.into_data().assert_eq(&replacement_expected, false);
@@ -405,7 +410,7 @@ mod tests {
 
         let int_tensor = tensor.int();
         let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
+        let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
         let default_result = assigned.greater_elem(0);
         let replacement_expected = TensorData::from([false]);
 
@@ -432,18 +437,21 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_with_negative_dim_2d() {
-        // Test select_assign with negative dimension on 2D tensor
+    fn should_select_add_with_negative_dim_2d() {
+        // Test select_add with negative dimension on 2D tensor
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
         let values = TestTensor::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
         let indices = TestTensorInt::from_data([0, 2], &device);
 
         // Using -1 should refer to the last dimension (dim 1)
-        let output_neg = tensor
-            .clone()
-            .select_assign(-1, indices.clone(), values.clone());
-        let output_pos = tensor.select_assign(1, indices, values);
+        let output_neg = tensor.clone().select_assign(
+            -1,
+            indices.clone(),
+            values.clone(),
+            IndexingUpdateOp::Add,
+        );
+        let output_pos = tensor.select_assign(1, indices, values, IndexingUpdateOp::Add);
 
         output_neg
             .into_data()
@@ -463,13 +471,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn should_panic_select_assign_negative_dim_out_of_bounds() {
+    fn should_panic_select_add_negative_dim_out_of_bounds() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
         let values = TestTensor::from_data([[5.0], [6.0]], &device);
         let indices = TestTensorInt::from_data([0], &device);
 
         // This should panic because -3 is out of bounds for a 2D tensor
-        tensor.select_assign(-3, indices, values);
+        tensor.select_assign(-3, indices, values, IndexingUpdateOp::Add);
     }
 }

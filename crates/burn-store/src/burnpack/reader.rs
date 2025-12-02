@@ -3,6 +3,7 @@ use super::base::MAX_FILE_SIZE;
 use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
     MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
+    aligned_data_section_start,
 };
 use crate::TensorSnapshot;
 use alloc::format;
@@ -239,7 +240,7 @@ impl BurnpackReader {
         Ok(Self {
             metadata,
             storage: StorageBackend::Memory(Rc::new(bytes)),
-            data_offset: metadata_end,
+            data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
@@ -357,7 +358,7 @@ impl BurnpackReader {
         Ok(Self {
             metadata,
             storage: StorageBackend::Mmap(Rc::new(mmap)),
-            data_offset: metadata_end,
+            data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
@@ -488,7 +489,7 @@ impl BurnpackReader {
             storage: StorageBackend::FileBuffered {
                 file: Rc::new(RefCell::new(file)),
             },
-            data_offset: metadata_end,
+            data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
