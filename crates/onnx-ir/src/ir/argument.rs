@@ -4,11 +4,12 @@
 //! including their types, data sources, and metadata.
 
 use core::fmt;
-use std::{cell::RefCell, fmt::Formatter, rc::Rc};
+use std::fmt::Formatter;
 
 use burn_tensor::DType;
 
 use super::tensor_data_ext::TensorData;
+use crate::tensor_store::ValueStore;
 
 pub type Rank = usize;
 pub type Shape = Vec<usize>;
@@ -42,8 +43,9 @@ pub struct Argument {
     /// For Static values, contains the tensor data ID directly
     pub value_source: ValueSource,
 
-    /// Reference to the value store for lazy constant lookup and type expectations
-    pub(crate) value_store: Option<Rc<RefCell<crate::graph_state::GraphState>>>,
+    /// Reference to value storage for constant lookup
+    /// This is an Rc-wrapped immutable store - no RefCell needed since we only read
+    pub(crate) value_store: Option<ValueStore>,
 }
 
 impl fmt::Debug for Argument {
@@ -186,24 +188,20 @@ impl Argument {
 
         match &self.value_source {
             // Static: data is embedded directly
-            ValueSource::Static(data_id) => store.borrow().get_tensor_data(*data_id).cloned(),
+            ValueSource::Static(data_id) => store.get_tensor_data(*data_id).cloned(),
             // Constant: look up the constant node by output name
             ValueSource::Constant => {
-                let data_id = store.borrow().get_constant_data_id_by_output(&self.name)?;
-                store.borrow().get_tensor_data(data_id).cloned()
+                let data_id = store.get_constant_data_id(&self.name)?;
+                store.get_tensor_data(data_id).cloned()
             }
             // Dynamic/Optional: no constant data
             ValueSource::Dynamic | ValueSource::Optional => None,
         }
     }
 
-    /// Set the value store (for testing)
-    #[doc(hidden)]
-    pub fn set_value_store(
-        &mut self,
-        value_store: Option<std::rc::Rc<std::cell::RefCell<crate::graph_state::GraphState>>>,
-    ) {
-        self.value_store = value_store;
+    /// Set the value store
+    pub(crate) fn set_value_store(&mut self, store: ValueStore) {
+        self.value_store = Some(store);
     }
 
     /// Check if this is a static constant (embedded value)
@@ -247,19 +245,13 @@ impl Argument {
             ProcessError::Custom("No value store available to look up constant".to_string())
         })?;
 
-        let data_id = {
-            let graph_data = store.borrow();
-
-            // Get the data_id from the constant node using the output name
-            graph_data
-                .get_constant_data_id_by_output(&self.name)
-                .ok_or_else(|| {
-                    ProcessError::Custom(format!(
-                        "Constant node not found or has no data_id for output name: {}",
-                        self.name
-                    ))
-                })?
-        };
+        // Get the data_id from the constant map using the output name
+        let data_id = store.get_constant_data_id(&self.name).ok_or_else(|| {
+            ProcessError::Custom(format!(
+                "Constant node not found or has no data_id for output name: {}",
+                self.name
+            ))
+        })?;
 
         // Embed the data_id in ValueSource::Static, clear the name
         // The name is cleared because Static values are accessed via data_id, not by name

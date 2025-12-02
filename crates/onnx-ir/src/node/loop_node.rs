@@ -260,11 +260,15 @@ impl NodeProcessor for LoopProcessor {
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
                 let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
+                let value_store = builder
+                    .graph_state
+                    .as_ref()
+                    .map(|gs| gs.borrow().build_value_store());
                 crate::ir::OnnxGraph {
                     nodes,
                     inputs: std::mem::take(&mut builder.inputs),
                     outputs: std::mem::take(&mut builder.outputs),
-                    _graph_data: builder._graph_data.clone(),
+                    value_store,
                 }
             }
             _ => {
@@ -349,7 +353,7 @@ mod tests {
                     value_store: None,
                 },
             ],
-            _graph_data: None,
+            value_store: None,
         }
     }
 

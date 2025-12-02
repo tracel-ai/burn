@@ -511,32 +511,29 @@ impl TestNodeBuilder {
     /// Build the node and register any constant inputs in GraphState.
     /// This is useful for tests that need constant values accessible via GraphState.
     ///
-    /// Note: After calling this method, the GraphState will be wrapped in Rc<RefCell<>>
+    /// Note: After calling this method, a ValueStore is built from the GraphState
     /// and attached to the node's arguments.
     pub(crate) fn build_with_graph_data(self, _opset: usize) -> RawNode {
-        use std::cell::RefCell;
-        use std::rc::Rc;
-
         // Create a new GraphState for this test
-        let mut graph_data = crate::graph_state::GraphState::new(&[], &[], &[], &[]);
+        let mut graph_state = crate::graph_state::GraphState::new(&[], &[], &[], &[]);
 
         // Register constants in GraphState before building the node
         for (input_name, tensor_data) in &self.constant_data {
-            graph_data.register_test_constant(input_name.clone(), tensor_data.clone());
+            graph_state.register_test_constant(input_name.clone(), tensor_data.clone());
         }
 
         // Build the node first
         let node = self.build();
 
-        // Wrap GraphState in Rc<RefCell<>> and attach to all arguments
-        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+        // Build ValueStore and attach to all arguments
+        let value_store = graph_state.build_value_store();
 
         let mut node = node;
         for arg in &mut node.inputs {
-            arg.value_store = Some(graph_data_rc.clone());
+            arg.set_value_store(value_store.clone());
         }
         for arg in &mut node.outputs {
-            arg.value_store = Some(graph_data_rc.clone());
+            arg.set_value_store(value_store.clone());
         }
 
         node

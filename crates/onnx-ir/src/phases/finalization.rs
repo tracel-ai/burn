@@ -29,7 +29,7 @@ pub(crate) fn finalize(
         nodes: std::mem::take(nodes),
         inputs,
         outputs: std::mem::take(outputs),
-        _graph_data: Some(state_rc),
+        graph_state: Some(state_rc),
     }
 }
 

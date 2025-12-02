@@ -19,6 +19,7 @@ default = ["std", "cubecl-common/default"]
 std = ["cubecl-common/std", "num-traits/std"]
 doc = ["default"]
 cubecl = ["dep:cubecl"]
+network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [dependencies]
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
@@ -31,6 +32,11 @@ cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
 ] }
 cubecl-quant = { workspace = true }
+
+# Network downloader
+indicatif = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

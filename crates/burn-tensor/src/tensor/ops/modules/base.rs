@@ -1,5 +1,6 @@
 use super::{conv, pool};
 use crate::ops::unfold::unfold4d_using_conv2d;
+use crate::ops::{BoolTensor, attention};
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
@@ -848,6 +849,32 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
+
+    /// Computes scaled dot-product attention: softmax(QKᵗ / √d) · V,
+    /// optionally applying a mask to the attention scores.
+    ///
+    /// # Arguments
+    /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q,  head_dim]`
+    /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
+    /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
+    /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
+    ///   here `true` indicates positions to mask (i.e. set to -∞ before softmax).
+    ///
+    /// # Returns
+    /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
+    /// representing the attended context per head.
+    ///
+    /// # Note
+    /// This implementation does not support dropout and is intended for inference or
+    /// use cases where dropout is not needed.
+    fn attention(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        mask: Option<BoolTensor<B>>,
+    ) -> FloatTensor<B> {
+        attention::naive_attention::<B>(query, key, value, mask)
+    }
 }
 
 #[cfg(test)]
