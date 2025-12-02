@@ -128,7 +128,7 @@ burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.4", optional = t
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
-portable-atomic = { workspace = true, features = ["unsafe-assume-single-core"] }
+portable-atomic = { workspace = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4" }
