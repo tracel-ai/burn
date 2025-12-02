@@ -336,24 +336,6 @@ impl NodeProcessor for LstmProcessor {
             ));
         }
 
-        // Log warning for unsupported attributes
-        for (key, _value) in node.attrs.iter() {
-            match key.as_str() {
-                "hidden_size" | "direction" | "layout" => {}
-                "activations" | "activation_alpha" | "activation_beta" => {
-                    // We only support default activations (Sigmoid, Tanh, Tanh)
-                    // Custom activations would require burn-nn changes
-                }
-                "clip" => {
-                    // Cell clipping is not supported
-                }
-                "input_forget" => {
-                    // Input-forget coupling is not supported
-                }
-                _ => {}
-            }
-        }
-
         Ok(())
     }
 
