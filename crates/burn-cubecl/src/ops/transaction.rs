@@ -112,7 +112,7 @@ where
             .read_tensor_async(bindings)
             .await
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err:?}"),
+                reason: format!("{err:?}"),
             })?
             .into_iter()
             .map(Some)

@@ -30,11 +30,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
             .tensor
             .flatten_all()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
             })?
             .to_vec1()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
             })?;
 
         let y = x.iter().map(|b| !matches!(b, 0)).collect();

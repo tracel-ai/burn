@@ -39,11 +39,11 @@ pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
             .tensor
             .flatten_all()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
             })?
             .to_vec1::<T>()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
             })?;
         Ok(TensorData::new(data, tensor.shape()))
     }

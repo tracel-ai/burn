@@ -6,7 +6,7 @@ use crate::{
 };
 use alloc::{format, string::String};
 use burn_tensor::{
-    backend::{AutodiffBackend, Backend, SyncError},
+    backend::{AutodiffBackend, Backend, ExecutionError},
     ops::{BoolTensor, IntTensor, QuantizedTensor},
 };
 use core::marker::PhantomData;
@@ -47,7 +47,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::seed(device, seed)
     }
 
-    fn sync(device: &B::Device) -> Result<(), SyncError> {
+    fn sync(device: &B::Device) -> Result<(), ExecutionError> {
         B::sync(device)
     }
 

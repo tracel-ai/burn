@@ -12,7 +12,7 @@ use burn_ir::{
 use burn_std::{future::DynFut, stub::Mutex};
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::{Backend, ExecutionError, SyncError},
+    backend::{Backend, ExecutionError},
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
@@ -1336,7 +1336,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         self.device.clone()
     }
 
-    fn sync(&self) -> Result<(), SyncError> {
+    fn sync(&self) -> Result<(), ExecutionError> {
         let device = self.device.clone();
         B::sync(&device)
     }
