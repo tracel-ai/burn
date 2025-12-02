@@ -106,10 +106,10 @@ mod tests {
 
         let output_floor = avg_pool1d(
             x.clone(),
-            3,     // kernel_size
-            2,     // stride
-            0,     // padding
-            true,  // count_include_pad
+            3,    // kernel_size
+            2,    // stride
+            0,    // padding
+            true, // count_include_pad
             false,
         );
 
