@@ -3,9 +3,9 @@ use core::f32;
 use num_traits::Float as _;
 
 use crate::{
-    ElementConversion, TensorMetadata,
-    backend::Backend,
-    ops::{BoolTensor, FloatTensor},
+    Backend, TensorMetadata,
+    element::ElementConversion,
+    tensor::{BoolTensor, FloatTensor},
 };
 
 /// Computes softmax(QKᵗ / √d) · V using separate kernels.
