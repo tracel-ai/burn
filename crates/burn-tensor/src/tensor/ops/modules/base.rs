@@ -683,8 +683,16 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<B> {
-        pool::avg_pool1d_from_2d::<B>(x, kernel_size, stride, padding, count_include_pad)
+        pool::avg_pool1d_from_2d::<B>(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+        )
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
     fn avg_pool1d_backward(
@@ -694,6 +702,7 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<B> {
         pool::avg_pool1d_backward_from_2d::<B>(
             x,
@@ -702,6 +711,7 @@ pub trait ModuleOps<B: Backend> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
         )
     }
     /// Two dimensional avg pooling.
@@ -715,6 +725,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
     fn avg_pool2d_backward(
@@ -724,6 +735,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Two dimensional adaptive avg pooling.
     ///
@@ -756,8 +768,9 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> FloatTensor<B> {
-        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding, dilation)
+        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding, dilation, ceil_mode)
     }
 
     /// One dimensional max pooling with indices.
@@ -771,16 +784,26 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> MaxPool1dWithIndices<B> {
-        pool::max_pool1d_with_indices_from_2d::<B>(x, kernel_size, stride, padding, dilation)
+        pool::max_pool1d_with_indices_from_2d::<B>(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+        )
     }
     /// Backward pass for the [max pooling 1d](ModuleOps::max_pool1d_with_indices) operation.
+    #[allow(clippy::too_many_arguments)]
     fn max_pool1d_with_indices_backward(
         x: FloatTensor<B>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         output_grad: FloatTensor<B>,
         indices: IntTensor<B>,
     ) -> MaxPool1dBackward<B> {
@@ -790,6 +813,7 @@ pub trait ModuleOps<B: Backend> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             output_grad,
             indices,
         )
@@ -806,6 +830,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<B>;
 
     /// Two dimensional max pooling with indices.
@@ -819,14 +844,17 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<B>;
     /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
+    #[allow(clippy::too_many_arguments)]
     fn max_pool2d_with_indices_backward(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: FloatTensor<B>,
         indices: IntTensor<B>,
     ) -> MaxPool2dBackward<B>;

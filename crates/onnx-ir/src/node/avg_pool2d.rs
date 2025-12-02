@@ -8,7 +8,7 @@
 //! - **Opset 7**: Initial AveragePool operator
 //! - **Opset 10**: Added dilations attribute support
 //! - **Opset 11**: Updated operator and added count_include_pad attribute
-//! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
+//! - **Opset 19**: Added ceil_mode attribute
 use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
@@ -33,6 +33,8 @@ pub struct AvgPool2dConfig {
     pub count_include_pad: bool,
     /// Dilation [height, width] (opset 10+)
     pub dilation: [usize; 2],
+    /// Whether to use ceil mode for output size calculation (opset 19+)
+    pub ceil_mode: bool,
 }
 
 /// Node representation for AveragePool2d operation
@@ -71,11 +73,9 @@ impl NodeProcessor for AvgPool2dProcessor {
         // TODO: Add test for asymmetric padding edge cases - padding is validated but edge cases may not be tested
 
         // Validate attributes before extracting config
-        let mut ceil_mode: i64 = 0;
-
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "kernel_shape" | "strides" | "pads" | "count_include_pad" => {}
+                "kernel_shape" | "strides" | "pads" | "count_include_pad" | "ceil_mode" => {}
                 "dilations" => {
                     // Dilations support requires opset 10+
                     let dilations = value.clone().into_i64s();
@@ -86,7 +86,6 @@ impl NodeProcessor for AvgPool2dProcessor {
                         )));
                     }
                 }
-                "ceil_mode" => ceil_mode = value.clone().into_i64(),
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
@@ -103,13 +102,6 @@ impl NodeProcessor for AvgPool2dProcessor {
                     });
                 }
             }
-        }
-
-        if ceil_mode == 1 {
-            return Err(ProcessError::InvalidAttribute {
-                name: "ceil_mode".to_string(),
-                reason: "ceil_mode is not supported".to_string(),
-            });
         }
 
         // Extract input tensor type
@@ -139,6 +131,7 @@ impl NodeProcessor for AvgPool2dProcessor {
         let mut pads = vec![0, 0, 0, 0];
         let mut count_include_pad: i64 = 0;
         let mut dilations = vec![1, 1];
+        let mut ceil_mode: i64 = 0;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -147,6 +140,7 @@ impl NodeProcessor for AvgPool2dProcessor {
                 "pads" => pads = value.clone().into_i64s(),
                 "count_include_pad" => count_include_pad = value.clone().into_i64(),
                 "dilations" => dilations = value.clone().into_i64s(),
+                "ceil_mode" => ceil_mode = value.clone().into_i64(),
                 _ => {}
             }
         }
@@ -159,6 +153,7 @@ impl NodeProcessor for AvgPool2dProcessor {
             padding,
             count_include_pad == 1,
             [dilations[0] as usize, dilations[1] as usize],
+            ceil_mode == 1,
         );
 
         Ok(config)
@@ -221,6 +216,7 @@ mod tests {
         assert_eq!(config.strides, [1, 1]);
         assert_eq!(config.dilation, [1, 1]);
         assert!(!config.count_include_pad);
+        assert!(!config.ceil_mode);
         assert!(matches!(config.padding, PaddingConfig2d::Valid));
     }
 
@@ -285,9 +281,15 @@ mod tests {
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
-        let _config = processor.extract_config(&node, 16).unwrap();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        assert_eq!(config.kernel_size, [3, 3]);
+        assert_eq!(config.strides, [1, 1]);
+        assert_eq!(config.dilation, [1, 1]);
+        assert!(!config.count_include_pad);
+        assert!(config.ceil_mode);
+        assert!(matches!(config.padding, PaddingConfig2d::Valid));
     }
 
     #[test]

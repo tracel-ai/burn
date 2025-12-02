@@ -14,6 +14,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool2d::MaxPool2dNo
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
+        let ceil_mode = self.config.ceil_mode;
 
         Some(Field::new(
             self.name.clone(),
@@ -25,6 +26,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool2d::MaxPool2dNo
                     .with_strides(#strides)
                     .with_padding(#padding)
                     .with_dilation(#dilation)
+                    .with_ceil_mode(#ceil_mode)
                     .init();
             },
         ))
@@ -56,7 +58,7 @@ mod tests {
     use onnx_ir::padding::PaddingConfig2d;
 
     fn create_max_pool2d_node(name: &str) -> MaxPool2dNode {
-        let config = MaxPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, [1, 1]);
+        let config = MaxPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, [1, 1], false);
 
         MaxPool2dNodeBuilder::new(name)
             .input_tensor("input", 4, DType::F32)

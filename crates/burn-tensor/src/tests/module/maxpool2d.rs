@@ -102,6 +102,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            false,
         );
 
         y.to_data()
@@ -144,6 +145,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            false,
         );
 
         y.to_data()
@@ -187,6 +189,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            false,
         );
 
         y.to_data()
@@ -227,6 +230,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            false,
         );
 
         y.to_data()
@@ -272,6 +276,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            false,
         );
 
         y.to_data()
@@ -321,10 +326,91 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            false,
         );
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         output_indices.into_data().assert_eq(&indices, false);
+    }
+
+    #[test]
+    fn test_max_pool2d_ceil_mode() {
+        // Test ceil_mode=true which produces larger output when input doesn't divide evenly by stride
+        // Using 1x1x6x6 with kernel 3x3, stride 2x2, padding 0:
+        // Floor mode: output = (6+0-1*(3-1)-1)/2+1 = 3/2+1 = 2 x 2
+        // Ceil mode: output = ceil(3/2)+1 = 2+1 = 3 x 3
+        let kernel_size_1 = 3;
+        let kernel_size_2 = 3;
+        let padding_1 = 0;
+        let padding_2 = 0;
+        let stride_1 = 2;
+        let stride_2 = 2;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
+
+        // Input (values 1-36 arranged row by row):
+        // col:    0  1  2  3  4  5
+        // row 0:  1  2  3  4  5  6
+        // row 1:  7  8  9  10 11 12
+        // row 2: 13 14 15 16 17 18
+        // row 3: 19 20 21 22 23 24
+        // row 4: 25 26 27 28 29 30
+        // row 5: 31 32 33 34 35 36
+        let x = TestTensor::from([[[
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0, 17.0, 18.0],
+            [19.0, 20.0, 21.0, 22.0, 23.0, 24.0],
+            [25.0, 26.0, 27.0, 28.0, 29.0, 30.0],
+            [31.0, 32.0, 33.0, 34.0, 35.0, 36.0],
+        ]]]);
+
+        // With ceil_mode=false (floor): output is 2x2
+        // (0,0): rows 0-2, cols 0-2 -> max(1,2,3,7,8,9,13,14,15) = 15
+        // (0,1): rows 0-2, cols 2-4 -> max(3,4,5,9,10,11,15,16,17) = 17
+        // (1,0): rows 2-4, cols 0-2 -> max(13,14,15,19,20,21,25,26,27) = 27
+        // (1,1): rows 2-4, cols 2-4 -> max(15,16,17,21,22,23,27,28,29) = 29
+        let y_floor = TestTensor::<4>::from([[[[15.0, 17.0], [27.0, 29.0]]]]);
+
+        let output_floor = max_pool2d(
+            x.clone(),
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+            [dilation_1, dilation_2],
+            false,
+        );
+
+        y_floor
+            .to_data()
+            .assert_approx_eq::<FT>(&output_floor.into_data(), Tolerance::default());
+
+        // With ceil_mode=true: output is 3x3
+        // Extra windows at edges use only available input values (padded with -inf for max pooling)
+        // (0,0): rows 0-2, cols 0-2 -> max = 15
+        // (0,1): rows 0-2, cols 2-4 -> max = 17
+        // (0,2): rows 0-2, cols 4-5 -> max(5,6,11,12,17,18) = 18
+        // (1,0): rows 2-4, cols 0-2 -> max = 27
+        // (1,1): rows 2-4, cols 2-4 -> max = 29
+        // (1,2): rows 2-4, cols 4-5 -> max(17,18,23,24,29,30) = 30
+        // (2,0): rows 4-5, cols 0-2 -> max(25,26,27,31,32,33) = 33
+        // (2,1): rows 4-5, cols 2-4 -> max(27,28,29,33,34,35) = 35
+        // (2,2): rows 4-5, cols 4-5 -> max(29,30,35,36) = 36
+        let y_ceil =
+            TestTensor::<4>::from([[[[15.0, 17.0, 18.0], [27.0, 29.0, 30.0], [33.0, 35.0, 36.0]]]]);
+
+        let output_ceil = max_pool2d(
+            x,
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+            [dilation_1, dilation_2],
+            true,
+        );
+
+        y_ceil
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ceil.into_data(), Tolerance::default());
     }
 }

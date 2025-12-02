@@ -14,6 +14,7 @@ pub fn calculate_pool_output_shape<const N: usize>(
     stride: &[usize; N],
     padding: &[usize; N],
     dilation: &[usize; N],
+    ceil_mode: bool,
 ) -> Result<Shape, ShapeError> {
     if in_shape.rank() != N + 2 {
         return Err(ShapeError::RankMismatch {
@@ -25,8 +26,14 @@ pub fn calculate_pool_output_shape<const N: usize>(
     let mut out_shape = in_shape.clone();
     // Spatial dims
     for (i, size_i) in out_shape[2..].iter_mut().enumerate() {
-        *size_i =
-            calculate_pool_output_size(kernel_size[i], stride[i], padding[i], dilation[i], *size_i);
+        *size_i = calculate_pool_output_size(
+            kernel_size[i],
+            stride[i],
+            padding[i],
+            dilation[i],
+            *size_i,
+            ceil_mode,
+        );
     }
 
     Ok(out_shape)
@@ -171,14 +178,32 @@ pub fn calculate_conv_transpose_output_size(
 }
 
 /// Calculate the expected output size when doing a pooling operation.
+///
+/// # Arguments
+///
+/// * `kernel_size` - Size of the pooling kernel
+/// * `stride` - Stride of the pooling operation
+/// * `padding` - Padding applied to input
+/// * `dilation` - Dilation of the pooling kernel
+/// * `size_in` - Input size (height or width)
+/// * `ceil_mode` - If true, use ceiling instead of floor for output size calculation.
+///   This allows the last pooling window to go out-of-bounds if needed.
 pub fn calculate_pool_output_size(
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
     size_in: usize,
+    ceil_mode: bool,
 ) -> usize {
-    ((size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride) + 1
+    let numerator = size_in + 2 * padding - dilation * (kernel_size - 1) - 1;
+    if ceil_mode {
+        // Ceiling division: (a + b - 1) / b
+        numerator.div_ceil(stride) + 1
+    } else {
+        // Floor division (default)
+        numerator / stride + 1
+    }
 }
 
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass, returning the gradient for `x`.

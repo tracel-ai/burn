@@ -12,8 +12,7 @@
 //! - **Opset 12**: Added support for int8, uint8 data types; clarified behavior with negative padding.
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at lines 93-94).
-//! The implementation does not support `ceil_mode=1` and only validates 1 output (not the optional
-//! Indices output, see FIXME at lines 99-100).
+//! Only validates 1 output (not the optional Indices output, see FIXME at lines 99-100).
 //!
 //! ## Missing Test Coverage
 //! - TODO: No test for dilation > 1 with opset < 11 - Should reject dilation in older opsets
@@ -44,6 +43,8 @@ pub struct MaxPool2dConfig {
     pub padding: PaddingConfig2d,
     /// Dilation [height, width]
     pub dilation: [usize; 2],
+    /// Whether to use ceil mode for output size calculation (opset 10+)
+    pub ceil_mode: bool,
 }
 
 /// Node representation for MaxPool2d operation
@@ -128,14 +129,7 @@ impl NodeProcessor for MaxPool2dProcessor {
                         });
                     }
                 }
-                "ceil_mode" => {
-                    if value.clone().into_i64() == 1 {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "ceil_mode".to_string(),
-                            reason: "ceil_mode is not supported".to_string(),
-                        });
-                    }
-                }
+                "ceil_mode" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -156,6 +150,7 @@ impl NodeProcessor for MaxPool2dProcessor {
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
         let mut dilations = vec![1, 1];
+        let mut ceil_mode: i64 = 0;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -163,8 +158,8 @@ impl NodeProcessor for MaxPool2dProcessor {
                 "strides" => strides = value.clone().into_i64s(),
                 "pads" => pads = value.clone().into_i64s(),
                 "dilations" => dilations = value.clone().into_i64s(),
+                "ceil_mode" => ceil_mode = value.clone().into_i64(),
                 "auto_pad" => {}
-                "ceil_mode" => {}
                 "storage_order" => {}
                 _ => {}
             }
@@ -177,6 +172,7 @@ impl NodeProcessor for MaxPool2dProcessor {
             [strides[0] as usize, strides[1] as usize],
             padding,
             [dilations[0] as usize, dilations[1] as usize],
+            ceil_mode == 1,
         );
 
         Ok(config)
@@ -243,6 +239,7 @@ mod tests {
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
         assert_eq!(config.dilation, [1, 1]);
+        assert!(!config.ceil_mode);
         assert!(matches!(config.padding, PaddingConfig2d::Valid));
     }
 
@@ -342,7 +339,13 @@ mod tests {
         let mut node = node;
         let processor = MaxPool2dProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        assert_eq!(config.kernel_size, [3, 3]);
+        assert_eq!(config.strides, [1, 1]);
+        assert_eq!(config.dilation, [1, 1]);
+        assert!(config.ceil_mode);
+        assert!(matches!(config.padding, PaddingConfig2d::Valid));
     }
 }

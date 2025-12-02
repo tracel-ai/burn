@@ -14,6 +14,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::avg_pool2d::Avera
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
         let count_include_pad = self.config.count_include_pad;
+        let ceil_mode = self.config.ceil_mode;
 
         Some(Field::new(
             self.name.clone(),
@@ -25,6 +26,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::avg_pool2d::Avera
                     .with_strides(#strides)
                     .with_padding(#padding)
                     .with_count_include_pad(#count_include_pad)
+                    .with_ceil_mode(#ceil_mode)
                     .init();
             },
         ))
@@ -56,7 +58,8 @@ mod tests {
     use onnx_ir::padding::PaddingConfig2d;
 
     fn create_avg_pool2d_node(name: &str) -> AveragePool2dNode {
-        let config = AvgPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, false, [1, 1]);
+        let config =
+            AvgPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, false, [1, 1], false);
 
         AveragePool2dNodeBuilder::new(name)
             .input_tensor("input", 4, DType::F32)

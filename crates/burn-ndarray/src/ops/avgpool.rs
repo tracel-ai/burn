@@ -3,6 +3,7 @@ use crate::{
 };
 
 use burn_tensor::ElementConversion;
+use burn_tensor::ops::conv::calculate_pool_output_size;
 use ndarray::Array4;
 
 pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
@@ -11,14 +12,29 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    ceil_mode: bool,
 ) -> SharedArray<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
     let [batch_size, channels, x_height, x_width] = x.shape().try_into().unwrap();
 
-    let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
-    let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
+    let out_height = calculate_pool_output_size(
+        kernel_height,
+        stride_height,
+        padding_height,
+        1,
+        x_height,
+        ceil_mode,
+    );
+    let out_width = calculate_pool_output_size(
+        kernel_width,
+        stride_width,
+        padding_width,
+        1,
+        x_width,
+        ceil_mode,
+    );
 
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), 0.elem());
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
@@ -76,6 +92,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    _ceil_mode: bool,
 ) -> SharedArray<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [stride_height, stride_width] = stride;

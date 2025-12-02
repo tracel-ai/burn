@@ -12,6 +12,7 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     count_include_pad: bool,
+    ceil_mode: bool,
 ) -> FloatTensor<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -22,6 +23,7 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
         [stride, 1],
         [padding, 0],
         count_include_pad,
+        ceil_mode,
     );
 
     let [batch_size, channels, length, _] = x.shape().dims();
@@ -36,6 +38,7 @@ pub(crate) fn avg_pool1d_backward_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     count_include_pad: bool,
+    ceil_mode: bool,
 ) -> FloatTensor<B> {
     let [batch_size, channels, length_in] = x.shape().dims();
     let [_, _, length_out] = grad.shape().dims();
@@ -50,6 +53,7 @@ pub(crate) fn avg_pool1d_backward_from_2d<B: Backend>(
         [stride, 1],
         [padding, 0],
         count_include_pad,
+        ceil_mode,
     );
 
     B::float_reshape(grad_x, Shape::from([batch_size, channels, length_in]))
@@ -90,6 +94,7 @@ pub(crate) fn max_pool1d_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil_mode: bool,
 ) -> FloatTensor<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -100,6 +105,7 @@ pub(crate) fn max_pool1d_from_2d<B: Backend>(
         [stride, 1],
         [padding, 0],
         [dilation, 1],
+        ceil_mode,
     );
 
     let [batch_size, channels, length, _] = x.shape().dims();
@@ -113,6 +119,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil_mode: bool,
 ) -> MaxPool1dWithIndices<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -123,6 +130,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
         [1, stride],
         [0, padding],
         [1, dilation],
+        ceil_mode,
     );
     let [batch_size, channels, _, length] = x.output.shape().dims();
     let output = B::float_reshape(x.output, Shape::from([batch_size, channels, length]));
@@ -130,12 +138,14 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
     MaxPool1dWithIndices::new(output, indices)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn max_pool1d_with_indices_backward_from_2d<B: Backend>(
     x: FloatTensor<B>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil_mode: bool,
     output_grad: FloatTensor<B>,
     indices: IntTensor<B>,
 ) -> MaxPool1dBackward<B> {
@@ -155,6 +165,7 @@ pub(crate) fn max_pool1d_with_indices_backward_from_2d<B: Backend>(
         [stride, 1],
         [padding, 0],
         [dilation, 1],
+        ceil_mode,
         grad_x,
         indices,
     )

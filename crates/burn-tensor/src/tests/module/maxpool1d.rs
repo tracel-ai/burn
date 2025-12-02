@@ -22,7 +22,7 @@ mod tests {
             [0.949, 0.949, 0.949, 0.789],
         ]]);
 
-        let output = max_pool1d(x, kernel_size, stride, padding, dilation);
+        let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
@@ -38,7 +38,7 @@ mod tests {
         let x = TestTensor::from([[[0.6309, 0.6112, 0.6998, 0.4708]]]);
         let y = TestTensor::<3>::from([[[0.6309, 0.6998]]]);
 
-        let output = max_pool1d(x, kernel_size, stride, padding, dilation);
+        let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
@@ -54,7 +54,7 @@ mod tests {
         let x = TestTensor::from([[[-0.6309, -0.6112, -0.6998, -0.4708]]]);
         let y = TestTensor::<3>::from([[[-0.6112, -0.6112, -0.4708, -0.4708]]]);
 
-        let output = max_pool1d(x, kernel_size, stride, padding, dilation);
+        let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
@@ -76,7 +76,7 @@ mod tests {
             [0.5474, 0.9490, 0.7890, 0.9490, 0.7890, 0.5537],
         ]]);
 
-        let output = max_pool1d(x, kernel_size, stride, padding, dilation);
+        let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
@@ -94,7 +94,7 @@ mod tests {
         let y = TestTensor::<3>::from([[[0.6386, 0.6386, 0.5742]]]);
 
         let (output, output_indices) =
-            max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
+            max_pool1d_with_indices(x, kernel_size, stride, padding, dilation, false);
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
@@ -113,10 +113,47 @@ mod tests {
         let y = TestTensor::<3>::from([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
 
         let (output, output_indices) =
-            max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
+            max_pool1d_with_indices(x, kernel_size, stride, padding, dilation, false);
 
         y.to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         output_indices.into_data().assert_eq(&indices, false);
+    }
+
+    #[test]
+    fn test_max_pool1d_ceil_mode() {
+        // Test ceil_mode=true produces larger output when input doesn't divide evenly by stride
+        // Input: 1x1x6, kernel: 3, stride: 2, padding: 0
+        // Floor mode: output = (6-3)/2+1 = 2 elements
+        // Ceil mode: output = ceil((6-3)/2)+1 = ceil(1.5)+1 = 3 elements
+        let kernel_size = 3;
+        let padding = 0;
+        let stride = 2;
+        let dilation = 1;
+
+        let x = TestTensor::from([[[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]]);
+
+        // With ceil_mode=false (floor): output is 2 elements
+        // Window 0: positions [0:3] -> max(1,2,3) = 3
+        // Window 1: positions [2:5] -> max(3,4,5) = 5
+        let y_floor = TestTensor::<3>::from([[[3.0, 5.0]]]);
+
+        let output_floor = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+
+        y_floor
+            .to_data()
+            .assert_approx_eq::<FT>(&output_floor.into_data(), Tolerance::default());
+
+        // With ceil_mode=true: output is 3 elements
+        // Window 0: positions [0:3] -> max(1,2,3) = 3
+        // Window 1: positions [2:5] -> max(3,4,5) = 5
+        // Window 2: positions [4:7] -> max(5,6) = 6 (partial window)
+        let y_ceil = TestTensor::<3>::from([[[3.0, 5.0, 6.0]]]);
+
+        let output_ceil = max_pool1d(x, kernel_size, stride, padding, dilation, true);
+
+        y_ceil
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ceil.into_data(), Tolerance::default());
     }
 }

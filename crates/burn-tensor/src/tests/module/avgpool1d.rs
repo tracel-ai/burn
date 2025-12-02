@@ -81,6 +81,7 @@ mod tests {
                 self.stride,
                 self.padding,
                 self.count_include_pad,
+                false,
             );
 
             y.to_data().assert_approx_eq::<FT>(
@@ -88,5 +89,52 @@ mod tests {
                 Tolerance::default().set_half_precision_relative(1e-3),
             );
         }
+    }
+
+    #[test]
+    fn test_avg_pool1d_ceil_mode() {
+        // Test ceil_mode=true produces larger output when input doesn't divide evenly by stride
+        // Input: 1x1x6 (values 0-5), kernel: 3, stride: 2, padding: 0
+        // Floor mode: output = (6-3)/2+1 = 2 elements
+        // Ceil mode: output = ceil((6-3)/2)+1 = ceil(1.5)+1 = 3 elements
+        let x = TestTensor::from([[[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]]);
+
+        // With ceil_mode=false (floor): output is 2 elements
+        // Window 0: avg(0,1,2) = 1
+        // Window 1: avg(2,3,4) = 3
+        let y_floor = TestTensor::<3>::from([[[1.0, 3.0]]]);
+
+        let output_floor = avg_pool1d(
+            x.clone(),
+            3,     // kernel_size
+            2,     // stride
+            0,     // padding
+            true,  // count_include_pad
+            false,
+        );
+
+        y_floor.to_data().assert_approx_eq::<FT>(
+            &output_floor.into_data(),
+            Tolerance::default().set_half_precision_relative(1e-3),
+        );
+
+        // With ceil_mode=true: output is 3 elements
+        // Window 0: avg(0,1,2) = 1
+        // Window 1: avg(2,3,4) = 3
+        // Window 2: avg(4,5) = 4.5 (partial window, count_include_pad=false divides by 2)
+        let y_ceil = TestTensor::<3>::from([[[1.0, 3.0, 4.5]]]);
+
+        let output_ceil = avg_pool1d(
+            x, 3,     // kernel_size
+            2,     // stride
+            0,     // padding
+            false, // count_include_pad=false to get correct average for partial window
+            true,
+        );
+
+        y_ceil.to_data().assert_approx_eq::<FT>(
+            &output_ceil.into_data(),
+            Tolerance::default().set_half_precision_relative(1e-3),
+        );
     }
 }

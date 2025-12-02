@@ -402,10 +402,18 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &[kernel_size], &[stride], &[padding], &[1]).unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &[kernel_size],
+        &[stride],
+        &[padding],
+        &[1],
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -416,7 +424,8 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -428,10 +437,18 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &[1, 1]).unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &kernel_size,
+        &stride,
+        &padding,
+        &[1, 1],
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -442,7 +459,8 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -455,10 +473,17 @@ impl_ir_create!(
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &[kernel_size], &[stride], &[padding], &[dilation])
-            .unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &[kernel_size],
+        &[stride],
+        &[padding],
+        &[dilation],
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -469,9 +494,17 @@ impl_ir_create!(
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &dilation).unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &kernel_size,
+        &stride,
+        &padding,
+        &dilation,
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -484,6 +517,7 @@ impl_ir_create!(
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -498,6 +532,7 @@ impl_ir_create!(
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -873,12 +908,14 @@ impl DeformConv2dBackwardOpIr {
 }
 
 impl MaxPool1dWithIndicesOpIr {
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         x: TensorIr,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         dtype_indices: DType,
         mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
@@ -888,6 +925,7 @@ impl MaxPool1dWithIndicesOpIr {
             &[stride],
             &[padding],
             &[dilation],
+            ceil_mode,
         )
         .unwrap();
         let out = TensorIr::uninit(new_id(), shape.clone(), x.dtype);
@@ -899,6 +937,7 @@ impl MaxPool1dWithIndicesOpIr {
             stride,
             padding,
             dilation,
+            ceil_mode,
             out,
             out_indices,
         }
@@ -906,18 +945,26 @@ impl MaxPool1dWithIndicesOpIr {
 }
 
 impl MaxPool2dWithIndicesOpIr {
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         x: TensorIr,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         dtype_indices: DType,
         mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
-        let shape =
-            calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &dilation)
-                .unwrap();
+        let shape = calculate_pool_output_shape(
+            &x.shape,
+            &kernel_size,
+            &stride,
+            &padding,
+            &dilation,
+            ceil_mode,
+        )
+        .unwrap();
         let out = TensorIr::uninit(new_id(), shape.clone(), x.dtype);
         let out_indices = TensorIr::uninit(new_id(), shape, dtype_indices);
 
@@ -927,6 +974,7 @@ impl MaxPool2dWithIndicesOpIr {
             stride,
             padding,
             dilation,
+            ceil_mode,
             out,
             out_indices,
         }
