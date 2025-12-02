@@ -5,6 +5,7 @@ use crate::{
     Candle, CandleDevice, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
+use burn_std::backtrace::BackTrace;
 use burn_tensor::{
     Distribution,
     backend::ExecutionError,
@@ -39,11 +40,13 @@ pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
             .tensor
             .flatten_all()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
+                backtrace: BackTrace::capture(),
             })?
             .to_vec1::<T>()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
+                backtrace: BackTrace::capture(),
             })?;
         Ok(TensorData::new(data, tensor.shape()))
     }
