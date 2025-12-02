@@ -33,6 +33,7 @@ use cubecl::matmul::{
         simple_unit::SimpleUnitAlgorithm,
         vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
     },
+    tune_key::MatmulElemType,
 };
 use cubecl::{
     client::ComputeClient,
@@ -359,9 +360,18 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let (lhs, rhs, out) = (
-            self.matmul.lhs.precision().into_type(),
-            self.matmul.rhs.precision().into_type(),
-            self.matmul.out.precision().into_type(),
+            MatmulElemType {
+                dtype: self.matmul.lhs.precision().into_type(),
+                quantized: false,
+            },
+            MatmulElemType {
+                dtype: self.matmul.rhs.precision().into_type(),
+                quantized: false,
+            },
+            MatmulElemType {
+                dtype: self.matmul.out.precision().into_type(),
+                quantized: false,
+            },
         );
         let dtypes = MatmulElems::from_globals(lhs, rhs, out);
         self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)
@@ -469,6 +479,8 @@ impl FusedMatmulLaunch<'_> {
                 true => components::MatrixLayout::ColMajor,
                 false => components::MatrixLayout::RowMajor,
             },
+            lhs_strides,
+            rhs_strides,
         };
 
         match self.selector {
