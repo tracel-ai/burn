@@ -7,10 +7,10 @@
 //! - Sparse-Ready (quiet_softmax)
 //! - KV Caching for Streaming Inference
 
-use burn_core as burn;
-use num_traits::Float;
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig};
+use burn_core as burn;
+use num_traits::Float;
 
 use burn::{
     config::Config,
