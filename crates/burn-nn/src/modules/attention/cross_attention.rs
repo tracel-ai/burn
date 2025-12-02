@@ -1,4 +1,4 @@
-//! Cross-Attention Module for Burn (Production Grade)
+//! Cross-Attention Module for Burn
 //!
 //! Features:
 //! - Asymmetric Input Shapes (Query vs Context)
@@ -7,6 +7,7 @@
 //! - Sparse-Ready (quiet_softmax)
 //! - KV Caching for Streaming Inference
 
+use crate::cache::TensorCache;
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig};
 use burn_core as burn;
@@ -69,6 +70,32 @@ pub struct CrossAttention<B: Backend> {
     scale: f64,
     min_float: f64,
     quiet_softmax: bool,
+}
+
+/// Cache for the [Cross Attention](CrossAttention) layer.
+///
+/// To be used during inference when context is constant.
+pub struct CrossAttentionCache<B: Backend> {
+    /// Cached key tensor.
+    pub k: TensorCache<B, 4>,
+    /// Cached value tensor.
+    pub v: TensorCache<B, 4>,
+}
+
+impl<B: Backend> CrossAttentionCache<B> {
+    /// Create a new empty cache.
+    pub fn new() -> Self {
+        Self {
+            k: TensorCache::empty(),
+            v: TensorCache::empty(),
+        }
+    }
+}
+
+impl<B: Backend> Default for CrossAttentionCache<B> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CrossAttentionConfig {
@@ -155,6 +182,100 @@ impl<B: Backend> CrossAttention<B> {
         let v = v
             .reshape([batch, l_k, self.n_heads_kv, self.d_head])
             .swap_dims(1, 2);
+
+        // 3. GQA Expansion
+        // ADVICE: Handle GQA by repeating KV heads to match Query heads
+        let (k, v) = if self.n_heads != self.n_heads_kv {
+            let n_rep = self.n_heads / self.n_heads_kv;
+            (self.repeat_kv(k, n_rep), self.repeat_kv(v, n_rep))
+        } else {
+            (k, v)
+        };
+
+        // 4. Score Calculation
+        let scores = q.matmul(k.transpose()) * self.scale;
+
+        // 5. Masking
+        // ADVICE: Use min_float for F16/FP8 safety
+        let scores = if let Some(mask) = mask {
+            let mask = mask.reshape([batch, 1, 1, l_k]);
+            scores.mask_fill(mask, self.min_float)
+        } else {
+            scores
+        };
+
+        // 6. Softmax
+        // ADVICE: Optional Quiet Softmax for sparse networks
+        let weights = if self.quiet_softmax {
+            quiet_softmax(scores, 3)
+        } else {
+            softmax(scores, 3)
+        };
+
+        let weights = self.dropout.forward(weights);
+
+        // 7. Aggregate & Output
+        let output = weights.matmul(v);
+        let output = output
+            .swap_dims(1, 2)
+            .reshape([batch, l_q, self.n_heads * self.d_head]);
+
+        self.output.forward(output)
+    }
+
+    /// Applies cross-attention to query using context as key and value.
+    ///
+    /// This method uses a cache to avoid recomputing key and value tensors when the context is the same.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - Query tensor of shape `[batch, seq_len_query, d_model]`.
+    /// * `context` - Context tensor of shape `[batch, seq_len_context, d_context]`.
+    /// * `mask` - Optional attention mask of shape `[batch, seq_len_context]` where `true` indicates positions to mask.
+    /// * `cache` - The cache to use.
+    ///
+    /// # Returns
+    ///
+    /// Output tensor of shape `[batch, seq_len_query, d_model]`.
+    pub fn forward_cache(
+        &self,
+        query: Tensor<B, 3>,
+        context: Tensor<B, 3>,
+        mask: Option<Tensor<B, 2, Bool>>,
+        cache: &mut CrossAttentionCache<B>,
+    ) -> Tensor<B, 3> {
+        let [batch, l_q, _] = query.dims();
+
+        // 1. Projections
+        let q = self.query.forward(query);
+
+        let k_compute = |context: Tensor<B, 3>| {
+            let [batch, l_k, _] = context.dims();
+            self.key
+                .forward(context)
+                .reshape([batch, l_k, self.n_heads_kv, self.d_head])
+                .swap_dims(1, 2)
+        };
+        let v_compute = |context: Tensor<B, 3>| {
+            let [batch, l_k, _] = context.dims();
+            self.value
+                .forward(context)
+                .reshape([batch, l_k, self.n_heads_kv, self.d_head])
+                .swap_dims(1, 2)
+        };
+
+        let k = cache.k.forward_full(context.clone(), k_compute);
+        let v = cache.v.forward_full(context, v_compute);
+
+        let [_, _, l_k, _] = k.dims();
+
+        // 2. Reshape Heads
+        // Q: [Batch, Heads, L_q, D_head]
+        let q = q
+            .reshape([batch, l_q, self.n_heads, self.d_head])
+            .swap_dims(1, 2);
+
+        // K, V are already in their correct shape from k_compute and v_compute
 
         // 3. GQA Expansion
         // ADVICE: Handle GQA by repeating KV heads to match Query heads
@@ -428,5 +549,69 @@ mod tests {
             quiet_softmax: false,
         };
         config.init::<TestBackend>(&device);
+    }
+
+    #[test]
+    fn test_cross_attention_cache() {
+        let [
+            batch_size,
+            seq_len_query,
+            seq_len_context,
+            d_model,
+            d_context,
+            n_heads,
+            d_head,
+        ] = [3, 6, 8, 12, 16, 4, 3];
+        let device = Default::default();
+        let config = CrossAttentionConfig {
+            d_model,
+            d_context,
+            n_heads,
+            n_heads_kv: n_heads,
+            d_head,
+            dropout: 0.0, // No dropout for deterministic test
+            min_float: -1.0e4,
+            quiet_softmax: false,
+        };
+        let cross_attn = config.init::<TestBackend>(&device);
+
+        let query1 = Tensor::<TestBackend, 3>::random(
+            [batch_size, seq_len_query, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let context = Tensor::<TestBackend, 3>::random(
+            [batch_size, seq_len_context, d_context],
+            Distribution::Default,
+            &device,
+        );
+
+        // First forward pass, no cache
+        let output1 = cross_attn.forward(query1.clone(), context.clone(), None);
+
+        // Second forward pass with cache
+        let mut cache = CrossAttentionCache::new();
+        let output2 = cross_attn.forward_cache(query1.clone(), context.clone(), None, &mut cache);
+
+        // The two outputs should be identical
+        output1
+            .into_data()
+            .assert_approx_eq(&output2.into_data(), Tolerance::<f32>::default());
+
+        // Third forward pass with different query, but same context and cache
+        let query2 = Tensor::<TestBackend, 3>::random(
+            [batch_size, seq_len_query, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let output3 = cross_attn.forward_cache(query2.clone(), context.clone(), None, &mut cache);
+
+        // For control, do a forward pass without cache with query2
+        let output4 = cross_attn.forward(query2.clone(), context.clone(), None);
+
+        // output3 and output4 should be identical
+        output3
+            .into_data()
+            .assert_approx_eq(&output4.into_data(), Tolerance::<f32>::default());
     }
 }
