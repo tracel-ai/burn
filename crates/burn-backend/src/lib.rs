@@ -58,7 +58,8 @@ mod cube_hip {
 /// Convenience macro to link to the `burn-tensor` docs for this crate version.
 ///
 /// Usage:
-/// ```rust
+/// ```rust,ignore
+/// # use burn_backend::doc_tensor;
 /// doc_tensor!();        // Links to `Tensor` struct
 /// doc_tensor!("zeros"); // Links to `Tensor::zeros` method
 /// ```

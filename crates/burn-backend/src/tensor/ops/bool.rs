@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
