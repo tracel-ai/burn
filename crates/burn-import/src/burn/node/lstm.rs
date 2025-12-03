@@ -1,3 +1,23 @@
+//! ONNX LSTM node import implementation.
+//!
+//! ## Supported ONNX Features
+//!
+//! - Forward, reverse, and bidirectional directions
+//! - Batch-first and sequence-first layouts (`layout` attribute)
+//! - Initial hidden and cell states
+//! - Custom activations: Sigmoid, Tanh, Relu, HardSigmoid
+//! - Cell state clipping (`clip` attribute)
+//! - Input-forget gate coupling (`input_forget` attribute)
+//!
+//! ## Unsupported ONNX Features
+//!
+//! - **Peephole connections**: ONNX input `P` with shape `[num_directions, 3*hidden_size]` allows
+//!   gates to "peek" at the cell state. This is rarely used in modern models.
+//!
+//! - **Variable sequence lengths**: ONNX input `sequence_lens` with shape `[batch_size]` specifies
+//!   the actual length of each sequence in a batch. Currently, all sequences in a batch must have
+//!   the same length.
+
 use super::prelude::*;
 use burn::{
     module::{ConstantRecord, Param, ParamId},

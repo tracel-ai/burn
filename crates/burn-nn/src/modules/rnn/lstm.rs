@@ -9,8 +9,7 @@ use burn::tensor::backend::Backend;
 
 /// Activation functions available for LSTM gates and cell computations.
 ///
-/// These are the stateless activation functions commonly used in LSTM implementations,
-/// matching the ONNX LSTM specification's supported activations.
+/// These are the stateless activation functions commonly used in LSTM implementations.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum LstmActivation {
     /// Sigmoid activation
@@ -98,22 +97,6 @@ pub struct LstmConfig {
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
 ///
 /// Introduced in the paper: [Long Short-Term Memory](https://www.researchgate.net/publication/13853244).
-///
-/// ## ONNX Compatibility
-///
-/// This module supports most ONNX LSTM features. The following ONNX features are **not** implemented:
-///
-/// - **Peephole connections**: ONNX input `P` with shape `[num_directions, 3*hidden_size]` allows
-///   gates to "peek" at the cell state. This is rarely used in modern models.
-///   With peepholes, gate computations would be:
-///   - `i_t = sigmoid(W_i*x + R_i*h + P_i ⊙ c_{t-1})`
-///   - `f_t = sigmoid(W_f*x + R_f*h + P_f ⊙ c_{t-1})`
-///   - `o_t = sigmoid(W_o*x + R_o*h + P_o ⊙ c_t)`
-///
-/// - **Variable sequence lengths**: ONNX input `sequence_lens` with shape `[batch_size]` specifies
-///   the actual length of each sequence in a batch. This enables efficient processing of
-///   variable-length sequences without padding. Currently, all sequences in a batch must have
-///   the same length.
 ///
 /// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
@@ -371,11 +354,6 @@ pub struct BiLstmConfig {
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
 ///
 /// Introduced in the paper: [Framewise phoneme classification with bidirectional LSTM and other neural network architectures](https://www.cs.toronto.edu/~graves/ijcnn_2005.pdf).
-///
-/// ## ONNX Compatibility
-///
-/// See [Lstm] for details on ONNX compatibility. The same limitations apply:
-/// peephole connections and variable sequence lengths are not supported.
 ///
 /// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
