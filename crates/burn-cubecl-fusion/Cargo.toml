@@ -15,7 +15,12 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
+default = [
+    "autotune",
+    "std",
+    "cubecl/default",
+    "burn-fusion/default",
+]
 
 autotune = []
 autotune-checks = ["cubecl/autotune-checks"]
