@@ -10,6 +10,7 @@ mod fmod;
 mod int;
 mod kind;
 mod numeric;
+mod pad;
 mod sort;
 mod take;
 mod transaction;
