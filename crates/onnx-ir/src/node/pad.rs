@@ -10,7 +10,7 @@
 //! - **Opset 18**: Added optional constant_value input as alternative to attribute.
 //! - **Opset 19**: Added antialiasing support for edge mode (not supported in this implementation).
 //!
-//! **Implementation Note**: This implementation requires opset 11+ and only supports constant mode padding. The axes input (opset 13+) is explicitly rejected.
+//! **Implementation Note**: This implementation requires opset 11+ and supports constant, reflect, and edge mode padding. The axes input (opset 13+) is explicitly rejected.
 //!
 //! FIXME: Implementation only supports padding on the last 2 dimensions
 //! The validate_and_reorder_pads function (lines 286-309) enforces that only the last two dimensions
@@ -161,11 +161,8 @@ impl NodeProcessor for PadProcessor {
         // Should validate mode attribute early in infer_types for better error messages.
         // Location: After output count validation
 
-        // TODO: Missing test coverage for reflect and edge padding modes
-        // Implementation defines PadMode::Reflect and PadMode::Edge but explicitly rejects them
-        // in extract_config (line 167-174). Either implement these modes or remove enum variants.
-        // Tests only cover constant mode padding. Add tests: pad_reflect_mode, pad_edge_mode
-        // (expect error with current implementation)
+        // NOTE: Reflect and edge padding modes are now supported.
+        // Tests for these modes: test_pad_config_reflect_mode, test_pad_config_edge_mode
 
         // TODO: Missing test coverage for different data types
         // Tests only use f32 tensors. Spec supports all numeric types including int8, int16, etc.
@@ -205,17 +202,6 @@ impl NodeProcessor for PadProcessor {
                             reason: e,
                         }
                     })?;
-
-                    // Current implementation only supports constant mode
-                    if mode != PadMode::Constant {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "mode".to_string(),
-                            reason: format!(
-                                "only constant mode is supported, given mode is {}",
-                                mode.as_str()
-                            ),
-                        });
-                    }
                     return Ok(mode);
                 }
             }
@@ -699,12 +685,35 @@ mod tests {
     }
 
     #[test]
-    fn test_pad_config_unsupported_mode() {
+    fn test_pad_config_reflect_mode() {
         let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("reflect"), 2)
             .build_with_graph_data(16);
-        let node = node;
         let processor = PadProcessor;
-        let _prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        assert_eq!(config.mode, PadMode::Reflect);
+    }
+
+    #[test]
+    fn test_pad_config_edge_mode() {
+        let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("edge"), 2)
+            .build_with_graph_data(16);
+        let processor = PadProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
+        assert_eq!(config.mode, PadMode::Edge);
+    }
+
+    #[test]
+    fn test_pad_config_invalid_mode() {
+        let node = create_test_node(
+            Some(vec![0, 0, 1, 1]),
+            None,
+            None,
+            None,
+            Some("invalid_mode"),
+            2,
+        )
+        .build_with_graph_data(16);
+        let processor = PadProcessor;
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }

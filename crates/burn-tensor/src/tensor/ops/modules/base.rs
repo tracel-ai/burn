@@ -312,6 +312,50 @@ impl GridSampleOptions {
     }
 }
 
+/// Padding mode for tensor pad operations.
+///
+/// Defines how values are filled when padding a tensor beyond its original boundaries.
+///
+/// **Note**: Currently, padding is only supported on the last two dimensions of a tensor
+/// (typically height and width for image data in NCHW format).
+///
+/// # Modes
+///
+/// - [`Constant`](PadMode::Constant): Fill with a specified value (default: 0.0)
+/// - [`Reflect`](PadMode::Reflect): Mirror values at boundary, excluding edge (requires padding < dim_size)
+/// - [`Edge`](PadMode::Edge): Replicate boundary values
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum PadMode {
+    /// Fill padded regions with a constant value.
+    ///
+    /// # Example
+    /// For tensor `[1, 2, 3]` with padding 2 on the left and value 0:
+    /// Result: `[0, 0, 1, 2, 3]`
+    Constant(f32),
+
+    /// Reflect values at the boundary, excluding the edge value.
+    ///
+    /// Padding must be less than the dimension size (i.e., `padding < dim_size`).
+    ///
+    /// # Example
+    /// For tensor `[1, 2, 3, 4]` with padding 2 on the left:
+    /// Result: `[3, 2, 1, 2, 3, 4]` (reflects from index 1, not 0)
+    Reflect,
+
+    /// Replicate the edge values.
+    ///
+    /// # Example
+    /// For tensor `[1, 2, 3, 4]` with padding 2 on the left:
+    /// Result: `[1, 1, 1, 2, 3, 4]`
+    Edge,
+}
+
+impl Default for PadMode {
+    fn default() -> Self {
+        PadMode::Constant(0.0)
+    }
+}
+
 /// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
 #[derive(new)]
 pub struct InterpolateBackward<B: Backend> {
@@ -367,7 +411,7 @@ pub trait ModuleOps<B: Backend> {
             B::float_reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
         let grad = B::float_zeros(Shape::new([n_embeddings, d_model]), &device, dtype.into());
 
-        B::float_select_assign(grad, 0, indices, output_grad)
+        B::float_select_add(grad, 0, indices, output_grad)
     }
     /// One dimensional convolution.
     ///

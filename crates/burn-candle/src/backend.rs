@@ -1,12 +1,15 @@
 use std::marker::PhantomData;
 
+#[cfg(feature = "cuda")]
+use burn_std::backtrace::BackTrace;
 use burn_std::{
+    backtrace::BackTrace,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
 use burn_tensor::{
     Device,
-    backend::{Backend, DeviceId, DeviceOps, SyncError},
+    backend::{Backend, DeviceId, DeviceOps, ExecutionError},
     quantization::QTensorPrimitive,
 };
 use candle_core::{DeviceLocation, backend::BackendDevice};
@@ -232,24 +235,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         device.set_seed(seed);
     }
 
-    fn sync(device: &Device<Self>) -> Result<(), SyncError> {
+    fn sync(device: &Device<Self>) -> Result<(), ExecutionError> {
         let device: candle_core::Device = (device.clone()).into();
 
         match device {
             candle_core::Device::Cpu => (),
             candle_core::Device::Cuda(device) => {
                 #[cfg(feature = "cuda")]
-                device.synchronize().map_err(|err| SyncError::Generic {
-                    context: format!("Can't sync the cuda device: {err}"),
-                })?;
+                device
+                    .synchronize()
+                    .map_err(|err| ExecutionError::Generic {
+                        context: format!("Can't sync the cuda device: {err}"),
+                        backtrace: BackTrace::capture(),
+                    })?;
             }
             candle_core::Device::Metal(device) => {
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                return Err(SyncError::NotSupported {
-                    context:
+                return Err(ExecutionError::Generic {
+                    reason:
                         "Device synchronization unavailable with Metal device on Candle backend"
                             .into(),
+                    backtrace: BackTrace::capture(),
                 });
             }
         }

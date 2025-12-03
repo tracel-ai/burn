@@ -11,7 +11,9 @@ use burn_ir::{
     UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
-use burn_tensor::{Device, Distribution, Element, FloatDType, Shape, Slice, TensorData};
+use burn_tensor::{
+    Device, Distribution, Element, FloatDType, IndexingUpdateOp, Shape, Slice, TensorData,
+};
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -343,7 +345,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -355,6 +357,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             dim,
             indices.into_ir(),
             value.into_ir(),
+            IndexingUpdateOp::Add,
             || client.create_empty_handle(),
         );
 
@@ -384,7 +387,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -396,6 +399,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             dim,
             indices.into_ir(),
             value.into_ir(),
+            IndexingUpdateOp::Add,
             || client.create_empty_handle(),
         );
 

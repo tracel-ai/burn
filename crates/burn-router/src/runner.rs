@@ -12,7 +12,7 @@ use burn_ir::{
 use burn_std::{future::DynFut, stub::Mutex};
 use burn_tensor::{
     DType, Shape, TensorData,
-    backend::{Backend, ExecutionError, SyncError},
+    backend::{Backend, ExecutionError},
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
@@ -456,7 +456,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = B::float_scatter(desc.dim, tensor, indices, value);
+                    let output = match desc.update {
+                        burn_tensor::IndexingUpdateOp::Add => {
+                            B::float_scatter_add(desc.dim, tensor, indices, value)
+                        }
+                    };
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Select(desc) => {
@@ -471,7 +475,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = B::float_select_assign(tensor, desc.dim, indices, value);
+                    let output = match desc.update {
+                        burn_tensor::IndexingUpdateOp::Add => {
+                            B::float_select_add(tensor, desc.dim, indices, value)
+                        }
+                    };
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MaskWhere(desc) => {
@@ -659,7 +667,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = B::int_scatter(desc.dim, tensor, indices, value);
+                    let output = match desc.update {
+                        burn_tensor::IndexingUpdateOp::Add => {
+                            B::int_scatter_add(desc.dim, tensor, indices, value)
+                        }
+                    };
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Select(desc) => {
@@ -674,7 +686,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = B::int_select_assign(tensor, desc.dim, indices, value);
+                    let output = match desc.update {
+                        burn_tensor::IndexingUpdateOp::Add => {
+                            B::int_select_add(tensor, desc.dim, indices, value)
+                        }
+                    };
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MaskWhere(desc) => {
@@ -1336,7 +1352,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         self.device.clone()
     }
 
-    fn sync(&self) -> Result<(), SyncError> {
+    fn sync(&self) -> Result<(), ExecutionError> {
         let device = self.device.clone();
         B::sync(&device)
     }

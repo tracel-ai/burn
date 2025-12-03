@@ -1,5 +1,7 @@
 use alloc::string::String;
+use burn_std::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::tensor::Element;
 use crate::{TensorData, TensorMetadata};
@@ -121,7 +123,7 @@ pub trait Backend:
     fn seed(device: &Self::Device, seed: u64);
 
     /// Sync the backend, ensure that all computation are finished.
-    fn sync(_device: &Self::Device) -> Result<(), SyncError> {
+    fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -137,41 +139,33 @@ pub trait Backend:
     }
 }
 
-/// An error that can happened when syncing a backend.
-#[derive(Serialize, Deserialize, Debug)]
-pub enum SyncError {
-    /// A generic error happened while syncing.
-    Generic {
-        /// The details
-        context: String,
-    },
-    /// Syncing the device isn't supported.
-    NotSupported {
-        /// The details
-        context: String,
-    },
-}
-
 /// An error that can happen when syncing a device.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Error, Serialize, Deserialize)]
 pub enum ExecutionError {
-    /// A generic error happened while syncing.
+    /// A generic error happened during execution.
+    ///
+    /// The backtrace and context information should be included in the reason string.
+    #[error("An error happened during execution\nCaused by:\n  {reason}")]
+    WithContext {
+        /// The reason of the error.
+        reason: String,
+    },
+    /// A generic error happened during execution thrown in the Burn project.
+    ///
+    /// The full context isn't captured by the string alone.
+    #[error("An error happened during execution\nCaused by:\n  {reason}")]
     Generic {
-        /// The details
-        context: String,
+        /// The reason of the error.
+        reason: String,
+        /// The backtrace.
+        #[serde(skip)]
+        backtrace: BackTrace,
     },
 }
 
-impl core::fmt::Display for SyncError {
+impl core::fmt::Debug for ExecutionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            SyncError::Generic { context } => {
-                f.write_fmt(format_args!("An error happened while syncing: {}", context))
-            }
-            SyncError::NotSupported { context } => {
-                f.write_fmt(format_args!("Can't sync the device: {}", context))
-            }
-        }
+        f.write_fmt(format_args!("{self}"))
     }
 }
 

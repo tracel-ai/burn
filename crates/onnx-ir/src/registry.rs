@@ -600,6 +600,9 @@ impl ProcessorRegistry {
             Box::new(crate::node::scan_node::ScanProcessor),
         );
 
+        // Recurrent neural network operations
+        registry.register(NodeType::Lstm, Box::new(crate::node::lstm::LstmProcessor));
+
         registry
     }
 }
