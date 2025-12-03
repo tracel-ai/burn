@@ -29,35 +29,3 @@ pub use burn_std::stream_id::StreamId;
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{Bytes, bf16, f16};
-
-#[cfg(feature = "cubecl-wgpu")]
-mod cube_wgpu {
-    use crate::backend::DeviceOps;
-    use cubecl::wgpu::WgpuDevice;
-
-    impl DeviceOps for WgpuDevice {}
-}
-
-#[cfg(feature = "cubecl-cuda")]
-mod cube_cuda {
-    use crate::backend::DeviceOps;
-    use cubecl::cuda::CudaDevice;
-
-    impl DeviceOps for CudaDevice {}
-}
-
-#[cfg(all(feature = "cubecl-cpu", target_os = "linux"))]
-mod cube_cpu {
-    use crate::backend::DeviceOps;
-    use cubecl::cpu::CpuDevice;
-
-    impl DeviceOps for CpuDevice {}
-}
-
-#[cfg(feature = "cubecl-hip")]
-mod cube_hip {
-    use crate::backend::DeviceOps;
-    use cubecl::hip::AmdDevice;
-
-    impl DeviceOps for AmdDevice {}
-}

@@ -16,14 +16,14 @@ workspace = true
 
 [features]
 default = ["std"]
-cubecl = ["dep:cubecl", "burn-std/cubecl", "burn-backend/cubecl"]
-cubecl-cuda = ["cubecl", "cubecl/cuda"]
-cubecl-hip = ["cubecl", "cubecl/hip"]
-cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-cubecl-cpu = ["cubecl", "cubecl/cpu"]
+cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
+cubecl-cuda = ["burn-backend/cubecl-cuda"]
+cubecl-hip = ["burn-backend/cubecl-hip"]
+cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
+cubecl-cpu = ["burn-backend/cubecl-cpu"]
 doc = ["default"]
 experimental-named-tensor = []
-export_tests = ["burn-tensor-testgen", "cubecl"]
+export_tests = ["burn-tensor-testgen", "dep:cubecl"]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -36,7 +36,6 @@ burn-std = { path = "../burn-std", version = "0.20.0-pre.4", default-features = 
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.4", optional = true }
 burn-backend = { path = "../burn-backend", version = "0.20.0-pre.4", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
-thiserror = { workspace = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
@@ -53,5 +52,4 @@ paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
-# KaTeX header is copied to the crate root in the publish workflow
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]

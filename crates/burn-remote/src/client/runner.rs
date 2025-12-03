@@ -3,7 +3,7 @@ use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
-use burn_std::future::DynFut;
+use burn_std::{backtrace::BackTrace, future::DynFut};
 use burn_tensor::{
     Shape, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
@@ -59,14 +59,23 @@ impl RunnerClient for RemoteClient {
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
-    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+    fn read_tensor_async(
+        &self,
+        tensor: burn_ir::TensorIr,
+    ) -> DynFut<Result<TensorData, ExecutionError>> {
         // Important for ordering to call the creation of the future sync.
-        let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
+        let fut = self.sender.send_async(ComputeTask::ReadTensor(tensor));
 
         Box::pin(async move {
             match fut.await {
-                TaskResponseContent::ReadTensor(data) => data,
-                _ => panic!("Invalid message type"),
+                Ok(response) => match response {
+                    TaskResponseContent::ReadTensor(res) => res,
+                    _ => panic!("Invalid message type"),
+                },
+                Err(e) => Err(ExecutionError::Generic {
+                    reason: format!("Failed to sync: {:?}", e),
+                    backtrace: BackTrace::capture(),
+                }),
             }
         })
     }
@@ -87,13 +96,17 @@ impl RunnerClient for RemoteClient {
 
     fn sync(&self) -> Result<(), ExecutionError> {
         // Important for ordering to call the creation of the future sync.
-        let fut = self.sender.send_callback(ComputeTask::SyncBackend);
+        let fut = self.sender.send_async(ComputeTask::SyncBackend);
 
-        let runtime = self.runtime.clone();
-
-        match runtime.block_on(fut) {
-            TaskResponseContent::SyncBackend(result) => result,
-            _ => panic!("Invalid message type"),
+        match self.runtime.block_on(fut) {
+            Ok(response) => match response {
+                TaskResponseContent::SyncBackend(res) => res,
+                _ => panic!("Invalid message type"),
+            },
+            Err(e) => Err(ExecutionError::Generic {
+                reason: format!("Failed to sync: {:?}", e),
+                backtrace: BackTrace::capture(),
+            }),
         }
     }
 

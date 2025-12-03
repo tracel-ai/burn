@@ -43,7 +43,7 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 
     pub(crate) async fn into_data(self) -> Result<TensorData, ExecutionError> {
-        self.client.clone().read_tensor(self.into_ir()).await
+        self.client.clone().read_tensor_async(self.into_ir()).await
     }
 
     /// Get the ir for this tensor
