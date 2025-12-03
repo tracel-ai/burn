@@ -469,7 +469,9 @@ mod tests {
         expected_values
             .to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
-        output_indices.into_data().assert_eq(&expected_indices, false);
+        output_indices
+            .into_data()
+            .assert_eq(&expected_indices, false);
     }
 
     #[test]
@@ -529,6 +531,8 @@ mod tests {
         expected_values
             .to_data()
             .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
-        output_indices.into_data().assert_eq(&expected_indices, false);
+        output_indices
+            .into_data()
+            .assert_eq(&expected_indices, false);
     }
 }
