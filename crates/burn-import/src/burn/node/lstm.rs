@@ -20,26 +20,31 @@
 
 use super::prelude::*;
 use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::{BiLstmRecord, GateControllerRecord, LinearRecord, LstmActivation, LstmRecord},
+    module::{ConstantRecord, Module, Param, ParamId},
+    nn::{
+        BiLstmRecord, GateControllerRecord, LinearRecord, LstmRecord, Sigmoid, Tanh,
+        activation::{Activation, ActivationConfig},
+    },
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
 use onnx_ir::lstm::{LstmActivationFunction, LstmDirection};
 use serde::Serialize;
 
-/// Convert ONNX activation function to Burn LstmActivation.
+/// Convert ONNX activation function to Burn ActivationConfig.
 ///
 /// # Panics
 ///
 /// Panics if the ONNX activation function is not supported by burn-nn.
 /// Supported activations: Sigmoid, Tanh, Relu, HardSigmoid.
-fn to_burn_activation(onnx_activation: LstmActivationFunction) -> LstmActivation {
+fn to_burn_activation(onnx_activation: LstmActivationFunction) -> ActivationConfig {
     match onnx_activation {
-        LstmActivationFunction::Sigmoid => LstmActivation::Sigmoid,
-        LstmActivationFunction::Tanh => LstmActivation::Tanh,
-        LstmActivationFunction::Relu => LstmActivation::Relu,
-        LstmActivationFunction::HardSigmoid => LstmActivation::HardSigmoid,
+        LstmActivationFunction::Sigmoid => ActivationConfig::Sigmoid,
+        LstmActivationFunction::Tanh => ActivationConfig::Tanh,
+        LstmActivationFunction::Relu => ActivationConfig::Relu,
+        LstmActivationFunction::HardSigmoid => {
+            ActivationConfig::HardSigmoid(burn::nn::HardSigmoidConfig::new())
+        }
         unsupported => panic!(
             "LSTM activation '{:?}' is not supported by burn-nn. \
              Supported activations: Sigmoid, Tanh, Relu, HardSigmoid. \
@@ -49,13 +54,16 @@ fn to_burn_activation(onnx_activation: LstmActivationFunction) -> LstmActivation
     }
 }
 
-/// Convert LstmActivation to tokens for code generation
-fn activation_to_tokens(activation: LstmActivation) -> TokenStream {
+/// Convert ActivationConfig to tokens for code generation
+fn activation_to_tokens(activation: &ActivationConfig) -> TokenStream {
     match activation {
-        LstmActivation::Sigmoid => quote! { LstmActivation::Sigmoid },
-        LstmActivation::Tanh => quote! { LstmActivation::Tanh },
-        LstmActivation::Relu => quote! { LstmActivation::Relu },
-        LstmActivation::HardSigmoid => quote! { LstmActivation::HardSigmoid },
+        ActivationConfig::Sigmoid => quote! { ActivationConfig::Sigmoid },
+        ActivationConfig::Tanh => quote! { ActivationConfig::Tanh },
+        ActivationConfig::Relu => quote! { ActivationConfig::Relu },
+        ActivationConfig::HardSigmoid(_) => {
+            quote! { ActivationConfig::HardSigmoid(burn::nn::HardSigmoidConfig::new()) }
+        }
+        _ => panic!("Unsupported activation config for LSTM"),
     }
 }
 
@@ -81,9 +89,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
         let cell_act = to_burn_activation(self.config.cell_activation);
         let hidden_act = to_burn_activation(self.config.hidden_activation);
 
-        let gate_activation = activation_to_tokens(gate_act);
-        let cell_activation = activation_to_tokens(cell_act);
-        let hidden_activation = activation_to_tokens(hidden_act);
+        let gate_activation = activation_to_tokens(&gate_act);
+        let cell_activation = activation_to_tokens(&cell_act);
+        let hidden_activation = activation_to_tokens(&hidden_act);
 
         // Generate clip config if present
         let clip_config = if let Some(clip) = self.config.clip {
@@ -96,13 +104,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
         // Only add non-default activations to config
         let activations_config = {
             let mut tokens = quote! {};
-            if gate_act != LstmActivation::Sigmoid {
+            if !matches!(gate_act, ActivationConfig::Sigmoid) {
                 tokens = quote! { #tokens .with_gate_activation(#gate_activation) };
             }
-            if cell_act != LstmActivation::Tanh {
+            if !matches!(cell_act, ActivationConfig::Tanh) {
                 tokens = quote! { #tokens .with_cell_activation(#cell_activation) };
             }
-            if hidden_act != LstmActivation::Tanh {
+            if !matches!(hidden_act, ActivationConfig::Tanh) {
                 tokens = quote! { #tokens .with_hidden_activation(#hidden_activation) };
             }
             tokens
@@ -383,17 +391,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        // Check if we need to import LstmActivation (for non-default activations)
+        // Check if we need to import ActivationConfig (for non-default activations)
         let gate_act = to_burn_activation(self.config.gate_activation);
         let cell_act = to_burn_activation(self.config.cell_activation);
         let hidden_act = to_burn_activation(self.config.hidden_activation);
 
-        let needs_activation_import = gate_act != LstmActivation::Sigmoid
-            || cell_act != LstmActivation::Tanh
-            || hidden_act != LstmActivation::Tanh;
+        let needs_activation_import = !matches!(gate_act, ActivationConfig::Sigmoid)
+            || !matches!(cell_act, ActivationConfig::Tanh)
+            || !matches!(hidden_act, ActivationConfig::Tanh);
 
         if needs_activation_import {
-            imports.register("burn::nn::LstmActivation");
+            imports.register("burn::nn::ActivationConfig");
         }
 
         match self.config.direction {
@@ -534,10 +542,11 @@ fn create_lstm_record<PS: PrecisionSettings>(
         reverse: ConstantRecord::new(),
         clip: None,
         input_forget: ConstantRecord::new(),
-        // Ignored<T> has Record type ConstantRecord (same as raw constant types)
-        gate_activation: ConstantRecord::new(),
-        cell_activation: ConstantRecord::new(),
-        hidden_activation: ConstantRecord::new(),
+        // Create activation records using the default LSTM activations
+        // Sigmoid for gates, Tanh for cell/hidden
+        gate_activation: Activation::<SerializationBackend>::from(Sigmoid).into_record(),
+        cell_activation: Activation::<SerializationBackend>::from(Tanh).into_record(),
+        hidden_activation: Activation::<SerializationBackend>::from(Tanh).into_record(),
     }
 }
 
