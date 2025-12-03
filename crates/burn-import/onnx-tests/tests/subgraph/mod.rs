@@ -1,8 +1,18 @@
-// Tests for deeply nested subgraph operations
-// These tests verify that If, Loop, and Scan operators can be nested to multiple levels
+// Tests for subgraph operations
+//
+// This module tests:
+// 1. Deeply nested subgraphs (If, Loop, Scan nested to multiple levels)
+// 2. Outer-scope variable references (subgraphs referencing values from parent graph)
 
 use crate::include_models;
-include_models!(nested_if_loop_if, nested_if_loop_if_scan);
+include_models!(
+    nested_if_loop_if,
+    nested_if_loop_if_scan,
+    outer_scope_ref,
+    outer_scope_multi_var,
+    outer_scope_loop,
+    outer_scope_scan
+);
 
 #[cfg(test)]
 mod tests {
@@ -211,6 +221,214 @@ mod tests {
         let expected = TensorData::from([
             [-1.216191053390503, 4.044260025024414, -0.29102227091789246],
             [-1.0653469562530518, 1.8377434015274048, -3.959477663040161],
+        ]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    // ==========================================================================
+    // Outer-scope reference tests
+    //
+    // These test the DeferredGraph lazy building pattern where a subgraph
+    // references a value computed in the parent graph (not passed as explicit input).
+    //
+    // Pattern being tested:
+    //   x = input
+    //   y = Relu(x)           // y is computed in parent graph
+    //   z = If(condition) {
+    //       then_branch: Add(y, bias)   // References 'y' from parent scope
+    //       else_branch: Mul(y, scale)  // References 'y' from parent scope
+    //   }
+    // ==========================================================================
+
+    #[test]
+    fn test_outer_scope_ref_then_branch() {
+        // condition=True -> then branch -> Relu(x) + 10
+        let device = Default::default();
+        let model: outer_scope_ref::Model<TestBackend> = Default::default();
+
+        // Input with some negative values (to test Relu)
+        let x = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[-1.5_f32, 2.0, -0.5], [3.0, -2.0, 1.0]]),
+            &device,
+        );
+
+        let condition = true;
+        let output = model.forward(x, condition);
+
+        // y = Relu(x) = [[0, 2, 0], [3, 0, 1]]
+        // output = y + 10 = [[10, 12, 10], [13, 10, 11]]
+        let expected = TensorData::from([[10.0_f32, 12.0, 10.0], [13.0, 10.0, 11.0]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn test_outer_scope_ref_else_branch() {
+        // condition=False -> else branch -> Relu(x) * 2
+        let device = Default::default();
+        let model: outer_scope_ref::Model<TestBackend> = Default::default();
+
+        // Input with some negative values (to test Relu)
+        let x = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[-1.5_f32, 2.0, -0.5], [3.0, -2.0, 1.0]]),
+            &device,
+        );
+
+        let condition = false;
+        let output = model.forward(x, condition);
+
+        // y = Relu(x) = [[0, 2, 0], [3, 0, 1]]
+        // output = y * 2 = [[0, 4, 0], [6, 0, 2]]
+        let expected = TensorData::from([[0.0_f32, 4.0, 0.0], [6.0, 0.0, 2.0]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    // ==========================================================================
+    // Multi-variable outer-scope reference tests
+    //
+    // These test that multiple variables from parent scope are correctly passed
+    // to subgraphs. Pattern:
+    //   y1 = Relu(x)
+    //   y2 = Sigmoid(x)
+    //   y3 = Tanh(x)
+    //   z = If(condition) {
+    //       then: y1 + y2 + y3  // References 3 vars from parent
+    //       else: y1 * y2 * y3  // References 3 vars from parent
+    //   }
+    // ==========================================================================
+
+    #[test]
+    fn test_outer_scope_multi_var_then_branch() {
+        // condition=True -> then branch -> y1 + y2 + y3
+        let device = Default::default();
+        let model: outer_scope_multi_var::Model<TestBackend> = Default::default();
+
+        let x = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[-1.5_f32, 2.0, -0.5], [3.0, -2.0, 1.0]]),
+            &device,
+        );
+
+        let condition = true;
+        let output = model.forward(x, condition);
+
+        // y1 = Relu(x), y2 = Sigmoid(x), y3 = Tanh(x)
+        // output = y1 + y2 + y3
+        let expected = TensorData::from([
+            [-0.72272265_f32, 3.8448248, -0.08457646],
+            [4.947629, -0.8448247, 2.492653],
+        ]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn test_outer_scope_multi_var_else_branch() {
+        // condition=False -> else branch -> y1 * y2 * y3
+        let device = Default::default();
+        let model: outer_scope_multi_var::Model<TestBackend> = Default::default();
+
+        let x = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[-1.5_f32, 2.0, -0.5], [3.0, -2.0, 1.0]]),
+            &device,
+        );
+
+        let condition = false;
+        let output = model.forward(x, condition);
+
+        // y1 = Relu(x), y2 = Sigmoid(x), y3 = Tanh(x)
+        // output = y1 * y2 * y3
+        let expected = TensorData::from([[0.0_f32, 1.6982254, 0.0], [2.84359, 0.0, 0.55676997]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    // ==========================================================================
+    // Loop outer-scope reference test
+    //
+    // Pattern:
+    //   y = Relu(x)
+    //   z = Loop(3) {
+    //       body: accum = Add(accum, y)  // References y from parent
+    //   }
+    //   Result: 0 + y + y + y = 3*y
+    // ==========================================================================
+
+    #[test]
+    fn test_outer_scope_loop() {
+        let device = Default::default();
+        let model: outer_scope_loop::Model<TestBackend> = Default::default();
+
+        let x = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[-1.5_f32, 2.0, -0.5], [3.0, -2.0, 1.0]]),
+            &device,
+        );
+        let max_iter = 3i64;
+        let cond_init = true;
+        let accum_init = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.0_f32, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+            &device,
+        );
+
+        let output = model.forward(x, max_iter, cond_init, accum_init);
+
+        // y = Relu(x) = [[0, 2, 0], [3, 0, 1]]
+        // output = 0 + y + y + y = 3*y = [[0, 6, 0], [9, 0, 3]]
+        let expected = TensorData::from([[0.0_f32, 6.0, 0.0], [9.0, 0.0, 3.0]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    // ==========================================================================
+    // Scan outer-scope reference test
+    //
+    // Pattern:
+    //   y = Relu(x)           # Shape [3]
+    //   z = Scan(sequence) {  # sequence shape [4, 3]
+    //       body: scan_out = Add(elem, y)  // References y from parent
+    //   }
+    //   Result: each row of sequence + y
+    // ==========================================================================
+
+    #[test]
+    fn test_outer_scope_scan() {
+        let device = Default::default();
+        let model: outer_scope_scan::Model<TestBackend> = Default::default();
+
+        let x =
+            Tensor::<TestBackend, 1>::from_data(TensorData::from([-1.0_f32, 2.0, 0.5]), &device);
+        let sequence = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([
+                [1.0_f32, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0],
+                [10.0, 11.0, 12.0],
+            ]),
+            &device,
+        );
+
+        let output = model.forward(x, sequence);
+
+        // y = Relu(x) = [0, 2, 0.5]
+        // scan_out[i] = sequence[i] + y
+        let expected = TensorData::from([
+            [1.0_f32, 4.0, 3.5],
+            [4.0, 7.0, 6.5],
+            [7.0, 10.0, 9.5],
+            [10.0, 13.0, 12.5],
         ]);
 
         output
