@@ -85,18 +85,14 @@ pub(crate) enum AttributeValue {
     Tensors(Vec<TensorData>),
     /// Deferred graph attribute - raw GraphProto to be built during type inference
     DeferredGraph(DeferredGraph),
-    /// Multiple deferred graphs (for GRAPHS attributes, currently unused but reserved)
+    /// Multiple deferred graphs (for ONNX GRAPHS attributes)
     #[allow(dead_code)]
     DeferredGraphs(Vec<DeferredGraph>),
-    /// Graph attribute - holds OnnxGraphBuilder during post-processing
-    #[allow(dead_code)]
-    GraphBuilder(OnnxGraphBuilder),
-    /// Multiple graph attributes
-    #[allow(dead_code)]
-    GraphBuilders(Vec<OnnxGraphBuilder>),
     /// Final graph after conversion (used in final Node enum)
+    /// Note: Constructed via DeferredGraph::build_graph_with_outer_scope(), not directly
+    #[allow(dead_code)]
     Graph(OnnxGraph),
-    /// Final graphs after conversion (used in final Node enum)
+    /// Multiple final graphs (for ONNX GRAPHS attributes)
     #[allow(dead_code)]
     Graphs(Vec<OnnxGraph>),
 }

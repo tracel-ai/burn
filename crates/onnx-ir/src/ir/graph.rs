@@ -137,13 +137,7 @@ fn finalize_subgraph(graph: &mut OnnxGraph) {
     }
 }
 
-/// Convert a vector of RawNodes to Nodes, handling subgraphs recursively
-pub fn finalize_graph_nodes(builders: &mut Vec<RawNode>, opset: usize) -> Vec<Node> {
-    let taken_builders = std::mem::take(builders);
-    convert_builders_to_nodes(taken_builders, opset)
-}
-
-/// Convert a vector of RawNodes to Nodes, handling subgraphs recursively
+/// Convert a vector of RawNodes to Nodes
 fn convert_builders_to_nodes(builders: Vec<RawNode>, opset: usize) -> Vec<Node> {
     let registry = crate::processor::get_processor_registry();
 
@@ -152,75 +146,13 @@ fn convert_builders_to_nodes(builders: Vec<RawNode>, opset: usize) -> Vec<Node> 
         .map(|builder| {
             let processor = registry.get(&builder.node_type);
 
-            // For control flow nodes with subgraphs, we need to convert those subgraphs first
-            let builder = convert_subgraphs_in_attributes(builder, opset);
-
-            // Debug: log which node is being converted
             log::debug!(
                 "Converting node '{}' of type {:?}",
                 builder.name,
                 builder.node_type
             );
 
-            // Now build the node
             processor.build_node(builder, opset)
         })
         .collect()
-}
-
-/// Convert any subgraphs in node attributes from OnnxGraphBuilder to OnnxGraph
-fn convert_subgraphs_in_attributes(mut builder: RawNode, opset: usize) -> RawNode {
-    use crate::ir::AttributeValue;
-
-    for attr_value in builder.attrs.values_mut() {
-        match attr_value {
-            AttributeValue::GraphBuilder(subgraph_builder) => {
-                // Build value store from subgraph's GraphState
-                let value_store = subgraph_builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-
-                // Convert the subgraph's RawNodes to Nodes
-                let nodes =
-                    convert_builders_to_nodes(std::mem::take(&mut subgraph_builder.nodes), opset);
-
-                // Create a new OnnxGraph with converted nodes
-                *attr_value = AttributeValue::Graph(OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut subgraph_builder.inputs),
-                    outputs: std::mem::take(&mut subgraph_builder.outputs),
-                    value_store,
-                });
-            }
-            AttributeValue::GraphBuilders(subgraph_builders) => {
-                let converted_graphs: Vec<OnnxGraph> = subgraph_builders
-                    .iter_mut()
-                    .map(|subgraph_builder| {
-                        let value_store = subgraph_builder
-                            .graph_state
-                            .as_ref()
-                            .map(|gs| gs.borrow().build_value_store());
-
-                        let nodes = convert_builders_to_nodes(
-                            std::mem::take(&mut subgraph_builder.nodes),
-                            opset,
-                        );
-
-                        OnnxGraph {
-                            nodes,
-                            inputs: std::mem::take(&mut subgraph_builder.inputs),
-                            outputs: std::mem::take(&mut subgraph_builder.outputs),
-                            value_store,
-                        }
-                    })
-                    .collect();
-
-                *attr_value = AttributeValue::Graphs(converted_graphs);
-            }
-            _ => {}
-        }
-    }
-
-    builder
 }

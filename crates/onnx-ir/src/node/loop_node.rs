@@ -250,7 +250,7 @@ impl NodeProcessor for LoopProcessor {
         Ok(())
     }
 
-    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract body graph from attributes
         let body_attr = node
             .attrs
@@ -261,7 +261,7 @@ impl NodeProcessor for LoopProcessor {
         // Build outer scope types map from additional inputs (beyond ONNX inputs)
         let outer_scope = build_outer_scope_from_inputs(node);
 
-        // Handle DeferredGraph, Graph, and GraphBuilder
+        // Handle DeferredGraph and Graph
         let body = match body_attr {
             crate::ir::AttributeValue::DeferredGraph(deferred) => {
                 // Build the subgraph now with outer-scope types
@@ -276,23 +276,9 @@ impl NodeProcessor for LoopProcessor {
                     })?
             }
             crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
-            }
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected DeferredGraph, Graph, or GraphBuilder for body".to_string(),
+                    "Expected DeferredGraph or Graph for body".to_string(),
                 ));
             }
         };

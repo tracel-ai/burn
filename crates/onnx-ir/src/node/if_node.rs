@@ -126,7 +126,7 @@ impl NodeProcessor for IfProcessor {
         Ok(())
     }
 
-    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
         let then_attr = node
             .attrs
@@ -144,7 +144,7 @@ impl NodeProcessor for IfProcessor {
         // These are outer-scope references that were added during node conversion
         let outer_scope = build_outer_scope_from_inputs(node);
 
-        // Handle DeferredGraph, Graph, and GraphBuilder
+        // Handle DeferredGraph and Graph
         let then_branch = match then_attr {
             crate::ir::AttributeValue::DeferredGraph(deferred) => {
                 // Build the subgraph now with outer-scope types
@@ -159,23 +159,9 @@ impl NodeProcessor for IfProcessor {
                     })?
             }
             crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
-            }
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected DeferredGraph, Graph, or GraphBuilder for then_branch".to_string(),
+                    "Expected DeferredGraph or Graph for then_branch".to_string(),
                 ));
             }
         };
@@ -194,23 +180,9 @@ impl NodeProcessor for IfProcessor {
                     })?
             }
             crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
-            }
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected DeferredGraph, Graph, or GraphBuilder for else_branch".to_string(),
+                    "Expected DeferredGraph or Graph for else_branch".to_string(),
                 ));
             }
         };
