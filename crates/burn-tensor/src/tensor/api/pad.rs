@@ -1,8 +1,30 @@
 use alloc::vec::Vec;
+use core::ops::Range;
 
 use crate::{Element, ElementConversion, Tensor, backend::Backend, ops::PadMode};
 
 use super::Numeric;
+
+/// Helper to build a range array for slice_assign, selecting a portion of one dimension.
+fn build_slice_ranges<const D: usize>(
+    dims: [usize; D],
+    target_dim: usize,
+    start: usize,
+    len: usize,
+) -> [Range<usize>; D] {
+    dims.iter()
+        .enumerate()
+        .map(|(i, &size)| {
+            if i == target_dim {
+                start..start + len
+            } else {
+                0..size
+            }
+        })
+        .collect::<Vec<Range<usize>>>()
+        .try_into()
+        .unwrap()
+}
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -174,29 +196,35 @@ where
     let dims = tensor.dims();
     let dim_size = dims[dim];
 
-    let mut tensors_to_cat = Vec::new();
+    // Calculate output dimensions
+    let mut output_dims = dims;
+    output_dims[dim] += pad_before + pad_after;
 
-    // Create padding for the "before" side (e.g., top or left)
+    // Create output tensor and place original in the center
+    let output = Tensor::zeros(output_dims, &tensor.device());
+    let original_range = build_slice_ranges(output_dims, dim, pad_before, dim_size);
+    let mut output = output.slice_assign(original_range, tensor.clone());
+
+    // Assign reflected "before" padding (e.g., top or left)
     // Reflect excludes the edge, so we take indices [1..pad_before+1] and flip
     if pad_before > 0 {
         let before_slice = tensor.clone().narrow(dim, 1, pad_before);
         let before_flipped = before_slice.flip([dim as isize]);
-        tensors_to_cat.push(before_flipped);
+        let before_range = build_slice_ranges(output_dims, dim, 0, pad_before);
+        output = output.slice_assign(before_range, before_flipped);
     }
 
-    // Original tensor
-    tensors_to_cat.push(tensor.clone());
-
-    // Create padding for the "after" side (e.g., bottom or right)
+    // Assign reflected "after" padding (e.g., bottom or right)
     // Take indices [dim_size - pad_after - 1..dim_size - 1] and flip
     if pad_after > 0 {
         let start = dim_size - pad_after - 1;
         let after_slice = tensor.narrow(dim, start, pad_after);
         let after_flipped = after_slice.flip([dim as isize]);
-        tensors_to_cat.push(after_flipped);
+        let after_range = build_slice_ranges(output_dims, dim, pad_before + dim_size, pad_after);
+        output = output.slice_assign(after_range, after_flipped);
     }
 
-    Tensor::cat(tensors_to_cat, dim)
+    output
 }
 
 /// Pad by replicating edge values.
@@ -258,24 +286,30 @@ where
     let dims = tensor.dims();
     let dim_size = dims[dim];
 
-    let mut tensors_to_cat = Vec::new();
+    // Calculate output dimensions
+    let mut output_dims = dims;
+    output_dims[dim] += pad_before + pad_after;
 
-    // Create padding for the "before" side by repeating the first element
+    // Create output tensor and place original in the center
+    let output = Tensor::zeros(output_dims, &tensor.device());
+    let original_range = build_slice_ranges(output_dims, dim, pad_before, dim_size);
+    let mut output = output.slice_assign(original_range, tensor.clone());
+
+    // Assign "before" padding by repeating the first element
     if pad_before > 0 {
         let first_slice = tensor.clone().narrow(dim, 0, 1);
         let before_pad = first_slice.repeat_dim(dim, pad_before);
-        tensors_to_cat.push(before_pad);
+        let before_range = build_slice_ranges(output_dims, dim, 0, pad_before);
+        output = output.slice_assign(before_range, before_pad);
     }
 
-    // Original tensor
-    tensors_to_cat.push(tensor.clone());
-
-    // Create padding for the "after" side by repeating the last element
+    // Assign "after" padding by repeating the last element
     if pad_after > 0 {
         let last_slice = tensor.narrow(dim, dim_size - 1, 1);
         let after_pad = last_slice.repeat_dim(dim, pad_after);
-        tensors_to_cat.push(after_pad);
+        let after_range = build_slice_ranges(output_dims, dim, pad_before + dim_size, pad_after);
+        output = output.slice_assign(after_range, after_pad);
     }
 
-    Tensor::cat(tensors_to_cat, dim)
+    output
 }
