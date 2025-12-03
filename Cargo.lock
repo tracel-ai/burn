@@ -5590,9 +5590,12 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn-tensor",
  "bytemuck",
+ "bytes",
  "derive-new",
+ "divan",
  "half",
  "log",
+ "memmap2",
  "onnx-ir-derive",
  "pretty_assertions",
  "protobuf",
@@ -5601,6 +5604,7 @@ dependencies = [
  "rstest",
  "serde",
  "strum 0.27.2",
+ "tempfile",
 ]
 
 [[package]]

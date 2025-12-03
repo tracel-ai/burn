@@ -17,13 +17,15 @@ use std::path::PathBuf;
 /// Panics if the model file doesn't exist or parsing fails
 pub fn load_onnx(model_name: &str) -> onnx_ir::ir::OnnxGraph {
     let model_path = get_model_path(model_name);
-    onnx_ir::parse_onnx(&model_path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to parse ONNX model '{}': {}",
-            model_path.display(),
-            e
-        )
-    })
+    onnx_ir::OnnxGraphBuilder::new()
+        .parse_file(&model_path)
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to parse ONNX model '{}': {}",
+                model_path.display(),
+                e
+            )
+        })
 }
 
 /// Get the path to an ONNX model in the tests/fixtures directory
