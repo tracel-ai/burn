@@ -10,7 +10,7 @@ use burn::record::{
 
 use crate::{burn::graph::BurnGraph, format_tokens, logger::init_log};
 
-use onnx_ir::{ir::OnnxGraph, parse_onnx};
+use onnx_ir::{OnnxGraphBuilder, ir::OnnxGraph};
 
 pub use crate::burn::graph::RecordType;
 
@@ -414,7 +414,8 @@ impl ModelGen {
         log::debug!("Development mode: {:?}", self.development);
         log::debug!("Output file: {out_file:?}");
 
-        let graph = parse_onnx(input.as_ref())
+        let graph = OnnxGraphBuilder::new()
+            .parse_file(input)
             .unwrap_or_else(|e| panic!("Failed to parse ONNX file '{}': {}", input.display(), e));
 
         if self.development {

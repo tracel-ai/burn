@@ -113,11 +113,11 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+                fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
                     match self {
-                        Self::$DefaultBackend(runner) => runner.read_tensor(tensor),
+                        Self::$DefaultBackend(runner) => runner.read_tensor_async(tensor),
                         $(
-                            Self::$OtherBackend(runner) => runner.read_tensor(tensor),
+                            Self::$OtherBackend(runner) => runner.read_tensor_async(tensor),
                         )+
                     }
                 }

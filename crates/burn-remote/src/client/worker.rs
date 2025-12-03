@@ -5,6 +5,7 @@ use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 pub type CallbackSender = async_channel::Sender<TaskResponseContent>;
 
+#[derive(Debug)]
 pub enum ClientRequest {
     WithSyncCallback(Task, CallbackSender),
     WithoutCallback(Task),

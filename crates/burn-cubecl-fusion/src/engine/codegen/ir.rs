@@ -200,12 +200,6 @@ pub struct GlobalArgs {
     pub reshapes: Sequence<u32>,
 }
 
-impl GlobalArgsExpand {
-    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
-        self.clone()
-    }
-}
-
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
     fn default() -> Self {
         Self {
@@ -366,12 +360,6 @@ impl LocalArgs {
             ref_strides,
             ref_line_size,
         }
-    }
-}
-
-impl LocalArgsExpand {
-    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
-        self.clone()
     }
 }
 

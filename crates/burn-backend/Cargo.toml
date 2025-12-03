@@ -18,10 +18,15 @@ workspace = true
 default = ["std"]
 doc = ["default"]
 std = ["rand/std", "num-traits/std", "burn-std/std"]
-cubecl = ["burn-std/cubecl"]
+cubecl = ["dep:cubecl", "burn-std/cubecl"]
+cubecl-cuda = ["cubecl", "cubecl/cuda"]
+cubecl-hip = ["cubecl", "cubecl/hip"]
+cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
+cubecl-cpu = ["cubecl", "cubecl/cpu"]
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "0.20.0-pre.4", default-features = false }
+cubecl = { workspace = true, optional = true, default-features = false }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
@@ -29,6 +34,7 @@ num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }

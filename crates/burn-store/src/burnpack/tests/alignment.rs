@@ -34,7 +34,7 @@ fn test_aligned_data_section_start_is_always_aligned() {
 #[test]
 fn test_data_section_alignment() {
     // Create a tensor
-    let data = vec![1.0f32, 2.0, 3.0, 4.0];
+    let data = [1.0f32, 2.0, 3.0, 4.0];
     let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
     let snapshot = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(bytes, vec![4], DType::F32),
@@ -199,6 +199,7 @@ fn test_padding_bytes_are_zeros() {
 /// - f16/bf16/i16/u16: 2 bytes
 /// - i8/u8/bool: 1 byte
 #[test]
+#[allow(clippy::modulo_one)]
 fn test_alignment_covers_all_primitive_types() {
     // 256 must be divisible by all common alignments
     assert_eq!(
@@ -386,7 +387,7 @@ mod file_tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("aligned.bpk");
 
-        let f32_data = vec![1.0f32, 2.0, 3.0, 4.0];
+        let f32_data = [1.0f32, 2.0, 3.0, 4.0];
         let f32_bytes: Vec<u8> = f32_data.iter().flat_map(|f| f.to_le_bytes()).collect();
 
         let snapshot = TensorSnapshot::from_data(

@@ -1322,7 +1322,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         }
     }
 
-    fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
         let mut ctx = self.context.lock().unwrap();
 
         enum Output<B: Backend> {
