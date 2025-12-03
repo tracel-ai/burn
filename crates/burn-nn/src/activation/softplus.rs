@@ -61,6 +61,7 @@ impl Softplus {
 }
 
 #[cfg(test)]
+#[allow(clippy::approx_constant)]
 mod tests {
     use super::*;
     use crate::TestBackend;
@@ -85,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_softplus_with_beta() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device: burn_ndarray::NdArrayDevice = <TestBackend as Backend>::Device::default();
         let model: Softplus = SoftplusConfig::new().with_beta(2.0).init();
         let input = Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0, 1.0]]), &device);
         let out = model.forward(input);

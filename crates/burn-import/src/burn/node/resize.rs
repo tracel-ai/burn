@@ -183,7 +183,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
 }
 
 #[cfg(test)]
-#[cfg(test)]
 mod tests {
     use super::super::test_helpers::*;
     use insta::assert_snapshot;
