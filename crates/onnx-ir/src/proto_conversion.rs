@@ -430,7 +430,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> RawNode 
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
-    let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
+    let node_type = NodeType::from_str(&node.op_type).expect("Unknown node type");
 
     RawNode {
         node_type,

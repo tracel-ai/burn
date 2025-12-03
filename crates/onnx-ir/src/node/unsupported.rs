@@ -53,7 +53,6 @@ define_placeholder_node! {
     LpNormalizationNode,
     LpPoolNode,
     LrnNode,
-    LstmNode,
     MaxPoolNode,
     MaxRoiPoolNode,
     MaxUnpoolNode,
