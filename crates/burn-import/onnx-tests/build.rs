@@ -234,6 +234,8 @@ fn main() {
         .input("tests/or/or_scalar.onnx")
         .input("tests/or/or_broadcast.onnx")
         .input("tests/pad/pad.onnx")
+        .input("tests/pad/pad_reflect.onnx")
+        .input("tests/pad/pad_edge.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
         .input("tests/prelu/prelu.onnx")

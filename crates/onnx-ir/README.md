@@ -59,18 +59,25 @@ ONNX-IR exposes a clean public API with three main components:
 - **`ir`** module - Core IR types (`OnnxGraph`, `Node`, `Argument`, `TensorType`, `DType`, etc.)
 - **`node`** module - Node configurations for all supported operations (e.g., `SoftmaxConfig`,
   `Conv2dConfig`)
-- **`parse_onnx`** - Main parsing function and error types
+- **`OnnxGraphBuilder`** - Builder for parsing ONNX models from files, bytes, or readers
+- **`Error`** - Error type for parsing failures
 
 ## Usage
 
 ONNX-IR is typically used through the `burn-import` crate, but can also be used standalone:
 
 ```rust
-use onnx_ir::{parse_onnx, OnnxGraph, Node};
-use std::path::Path;
+use onnx_ir::{OnnxGraphBuilder, OnnxGraph, Node};
 
-// Parse an ONNX model into the IR
-let graph: OnnxGraph = parse_onnx(Path::new("path/to/model.onnx"));
+// Parse an ONNX model from file (uses mmap when available)
+let graph: OnnxGraph = OnnxGraphBuilder::new()
+    .parse_file("path/to/model.onnx")?;
+
+// Or parse from bytes
+let graph = OnnxGraphBuilder::new().parse_bytes(&model_bytes)?;
+
+// Or parse from a reader
+let graph = OnnxGraphBuilder::new().parse_reader(file)?;
 
 // Work with the IR - nodes are represented as an enum
 for node in &graph.nodes {
@@ -101,6 +108,23 @@ use onnx_ir::node::{SoftmaxConfig, Conv2dConfig};
 // Convert to another framework's representation
 // (This is typically done by burn-import or another conversion layer)
 ```
+
+## Memory-Mapped Loading
+
+By default, ONNX-IR uses memory-mapped file I/O (mmap) when loading models from files. This provides:
+
+- **Reduced memory usage**: Tensor data is read directly from the file on demand
+- **Faster startup**: No need to copy the entire file into memory upfront
+- **Lazy loading**: Data is only copied when actually accessed
+
+The `mmap` feature is enabled by default. To disable it:
+
+```toml
+[dependencies]
+onnx-ir = { version = "...", default-features = false }
+```
+
+When parsing from bytes or readers, the data is copied into memory (mmap only applies to file paths).
 
 ## ONNX Compatibility
 

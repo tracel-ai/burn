@@ -16,4 +16,4 @@ mod util;
 // Public API - only expose essentials
 pub use ir::*;
 pub use node::*;
-pub use pipeline::{OnnxIrError, parse_onnx};
+pub use pipeline::{Error, OnnxGraphBuilder};

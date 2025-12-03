@@ -1,3 +1,5 @@
+use super::{RemoteChannel, RemoteClient};
+use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
@@ -6,16 +8,43 @@ use burn_tensor::{
     Shape, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    marker::PhantomData,
-    str::FromStr,
-    sync::Mutex,
-};
+use std::sync::OnceLock;
+use std::{collections::HashMap, marker::PhantomData, str::FromStr, sync::Mutex};
 
-use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
+// TODO: we should work with the parsed structure of Address, not the string.
+static ADDRESS_REGISTRY: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
 
-use super::{RemoteChannel, RemoteClient};
+fn get_address_registry() -> &'static Mutex<HashMap<String, u32>> {
+    ADDRESS_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Map a string network address to a (local runtime) global unique u32.
+///
+/// Globally stable over the lifetime of the process, shared between threads,
+/// If the address has never been seen, a new id will be created.
+/// If the address has been seen, the previous id will be returned.
+pub fn address_to_id<S: AsRef<str>>(address: S) -> u32 {
+    let registry = get_address_registry();
+    let mut registry = registry.lock().unwrap();
+    let next_id = registry.len() as u32;
+    *registry
+        .entry(address.as_ref().to_string())
+        .or_insert_with(|| next_id)
+}
+
+/// Look up an address by id.
+///
+/// Returns the same address given ids by [`address_to_id`].
+pub fn id_to_address(id: u32) -> Option<String> {
+    let registry = get_address_registry();
+    let registry = registry.lock().unwrap();
+    for entry in registry.iter() {
+        if entry.1 == &id {
+            return Some(entry.0.clone());
+        }
+    }
+    None
+}
 
 // It is very important to block on any request made with the sender, since ordering is crucial
 // when registering operation or creating tensors.
@@ -81,17 +110,14 @@ impl RunnerClient for RemoteClient {
 /// The device contains the connection information of the server.
 pub struct RemoteDevice {
     pub(crate) address: Address,
-    // Unique ID generated from hash of the address
+    /// The id of the device in the local registry, see [`address_to_id`].
     pub(crate) id: u32,
 }
 
 impl RemoteDevice {
     /// Create a device from an url.
     pub fn new(address: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        address.hash(&mut hasher);
-        let id = hasher.finish() as u32;
-
+        let id = address_to_id(address);
         Self {
             address: Address::from_str(address).unwrap(),
             id,
@@ -111,8 +137,13 @@ impl Default for RemoteDevice {
 }
 
 impl burn_std::device::Device for RemoteDevice {
-    fn from_id(_device_id: DeviceId) -> Self {
-        todo!("Should keep the address as ints, host should be type, port should be index.")
+    fn from_id(device_id: DeviceId) -> Self {
+        if device_id.type_id != 0 {
+            panic!("Invalid device id: {device_id} (expected type 0)");
+        }
+        let address = id_to_address(device_id.index_id)
+            .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
+        Self::new(&address)
     }
 
     fn to_id(&self) -> DeviceId {
@@ -214,5 +245,31 @@ impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_address_to_id() {
+        let address1 = "ws://127.0.0.1:3000";
+        let address2 = "ws://127.0.0.1:3001";
+
+        let id1 = address_to_id(address1);
+        let id2 = address_to_id(address2);
+
+        assert_ne!(id1, id2);
+
+        assert_eq!(address_to_id(address1), id1);
+        assert_eq!(id_to_address(id1), Some(address1.to_string()));
+
+        assert_eq!(address_to_id(address2), id2);
+        assert_eq!(id_to_address(id2), Some(address2.to_string()));
+
+        let unused_id = u32::MAX;
+
+        assert_eq!(id_to_address(unused_id), None);
     }
 }
