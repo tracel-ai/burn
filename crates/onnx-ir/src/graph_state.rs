@@ -95,9 +95,10 @@ pub(crate) struct GraphState {
     value_info_map: HashMap<String, ArgType>,
     /// Optional shared name registry for ensuring unique names across subgraphs
     name_registry: Option<NameRegistry>,
-    /// Types for outer-scope references (from parent graph)
-    /// Used for subgraphs in If/Loop/Scan nodes
-    outer_scope_types: HashMap<String, ArgType>,
+    /// Arguments for outer-scope references (from parent graph)
+    /// Used for subgraphs in If/Loop/Scan nodes.
+    /// Stores full Argument to preserve constant values for LSTM weights etc.
+    outer_scope_types: HashMap<String, Argument>,
 }
 
 impl GraphState {
@@ -132,15 +133,16 @@ impl GraphState {
 
     /// Create new GraphState with optional shared name registry and outer scope types
     ///
-    /// The `outer_scope_types` map provides types for values that the graph references
-    /// from parent graphs (for subgraphs in If/Loop/Scan nodes).
+    /// The `outer_scope_types` map provides full Arguments for values that the graph
+    /// references from parent graphs (for subgraphs in If/Loop/Scan nodes).
+    /// Full Arguments are needed to preserve constant values for LSTM weights etc.
     pub(crate) fn new_with_registry_and_outer_scope(
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
         value_infos: &[ValueInfoProto],
         name_registry: Option<NameRegistry>,
-        outer_scope_types: HashMap<String, ArgType>,
+        outer_scope_types: HashMap<String, Argument>,
     ) -> Self {
         let mut tensor_store = TensorStore::new();
         let mut constant_map = HashMap::new();
@@ -196,42 +198,38 @@ impl GraphState {
                 graph_input_map.insert(x.name.clone(), graph_input_map.len());
 
                 // Try to convert from proto, but if no type is available (common for subgraph
-                // inputs that reference outer scope), use the outer scope type
+                // inputs that reference outer scope), use the outer scope argument
                 let arg = match Argument::try_from(x.clone()) {
                     Ok(arg) => arg,
                     Err(_) => {
                         // No type in proto - check outer scope
                         let sanitized = crate::proto_conversion::sanitize_name(&x.name);
-                        if let Some(ty) = outer_scope_types.get(&sanitized) {
+                        if let Some(outer_arg) = outer_scope_types.get(&sanitized) {
                             log::debug!(
-                                "Subgraph input '{}' has no type, using outer-scope type: {:?}",
+                                "Subgraph input '{}' has no type, using outer-scope arg: {:?}",
                                 x.name,
-                                ty
+                                outer_arg.ty
                             );
-                            Argument {
-                                name: sanitized,
-                                ty: ty.clone(),
-                                value_source: crate::ir::ValueSource::Dynamic,
-                                value_store: None,
-                            }
+                            // Clone the full argument to preserve value_source and value_store
+                            let mut arg = outer_arg.clone();
+                            arg.name = sanitized;
+                            arg
                         } else {
                             // Also try with original name
-                            if let Some(ty) = outer_scope_types.get(&x.name) {
+                            if let Some(outer_arg) = outer_scope_types.get(&x.name) {
                                 log::debug!(
-                                    "Subgraph input '{}' has no type, using outer-scope type (original name): {:?}",
+                                    "Subgraph input '{}' has no type, using outer-scope arg (original name): {:?}",
                                     x.name,
-                                    ty
+                                    outer_arg.ty
                                 );
-                                Argument {
-                                    name: sanitized,
-                                    ty: ty.clone(),
-                                    value_source: crate::ir::ValueSource::Dynamic,
-                                    value_store: None,
-                                }
+                                // Clone the full argument to preserve value_source and value_store
+                                let mut arg = outer_arg.clone();
+                                arg.name = sanitized;
+                                arg
                             } else {
                                 // No type info available - create unknown type
                                 log::warn!(
-                                    "Subgraph input '{}' has no type and no outer-scope type",
+                                    "Subgraph input '{}' has no type and no outer-scope arg",
                                     x.name
                                 );
                                 Argument::from_name(sanitized)
@@ -275,33 +273,37 @@ impl GraphState {
         else if let Some(&(node_idx, output_idx)) = self.node_output_map.get(proto_str) {
             self.processed_nodes[node_idx].outputs[output_idx].clone()
         }
-        // Check outer scope types (for subgraphs referencing parent graph values)
-        else if let Some(ty) = self.outer_scope_types.get(&sanitized) {
+        // Check outer scope arguments (for subgraphs referencing parent graph values)
+        // Clone the full Argument to preserve value_source and value_store (for constants)
+        else if let Some(outer_arg) = self.outer_scope_types.get(&sanitized) {
             log::debug!(
-                "Resolving outer-scope reference '{}' with type {:?}",
+                "Resolving outer-scope reference '{}' with type {:?}, value_source={:?}, has_store={}, original_name='{}'",
                 sanitized,
-                ty
+                outer_arg.ty,
+                outer_arg.value_source,
+                outer_arg.value_store.is_some(),
+                outer_arg.name
             );
-            Argument {
-                name: sanitized,
-                ty: ty.clone(),
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
+            let mut arg = outer_arg.clone();
+            // For Constant arguments, preserve the original name since it's used to look up
+            // the constant data in the store (e.g., "constant12_out1").
+            // For non-Constant arguments (Dynamic), use the sanitized ONNX name so code
+            // generation uses the correct variable name within the subgraph.
+            if !arg.is_constant() {
+                arg.name = sanitized;
             }
+            arg
         }
         // Also check outer scope with original name
-        else if let Some(ty) = self.outer_scope_types.get(proto_str) {
+        else if let Some(outer_arg) = self.outer_scope_types.get(proto_str) {
             log::debug!(
                 "Resolving outer-scope reference '{}' with type {:?}",
                 proto_str,
-                ty
+                outer_arg.ty
             );
-            Argument {
-                name: sanitized,
-                ty: ty.clone(),
-                value_source: crate::ir::ValueSource::Dynamic,
-                value_store: None,
-            }
+            let mut arg = outer_arg.clone();
+            arg.name = sanitized;
+            arg
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
             Argument::from_name(sanitized)

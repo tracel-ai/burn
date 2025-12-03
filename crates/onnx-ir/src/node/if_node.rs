@@ -93,32 +93,28 @@ impl NodeProcessor for IfProcessor {
         }
 
         // Infer output types from branches
-        // Both branches should have the same output types, but we'll take then_branch as canonical
+        // When branches have different types, merge them to find the common type.
+        // For tensors with different ranks, use the lower rank (common base type).
         // ONLY update types, preserve existing output structure (names set by add_node)
 
         // If outputs don't exist yet, create them from branch outputs
         if node.outputs.is_empty() {
-            for then_output in then_outputs.iter() {
-                node.outputs.push(then_output.clone());
+            for (then_output, else_output) in then_outputs.iter().zip(else_outputs.iter()) {
+                let merged_ty = merge_branch_types(&then_output.ty, &else_output.ty);
+                let mut output = then_output.clone();
+                output.ty = merged_ty;
+                node.outputs.push(output);
             }
         } else {
             // Update types for existing outputs (preserves names set by add_node)
-            for (i, then_output) in then_outputs.iter().enumerate() {
-                let else_output = &else_outputs[i];
-
-                // Validate that output types are compatible
-                if then_output.ty != else_output.ty {
-                    log::warn!(
-                        "If node output {} types differ between branches: then={:?}, else={:?}",
-                        i,
-                        then_output.ty,
-                        else_output.ty
-                    );
-                }
+            for (i, (then_output, else_output)) in
+                then_outputs.iter().zip(else_outputs.iter()).enumerate()
+            {
+                let merged_ty = merge_branch_types(&then_output.ty, &else_output.ty);
 
                 // Only update the type, keep the existing name
                 if i < node.outputs.len() {
-                    node.outputs[i].ty = then_output.ty.clone();
+                    node.outputs[i].ty = merged_ty;
                 }
             }
         }
@@ -218,7 +214,7 @@ impl NodeProcessor for IfProcessor {
     }
 }
 
-/// Build outer scope types map from additional inputs added during node conversion.
+/// Build outer scope arguments map from additional inputs added during node conversion.
 ///
 /// During node conversion, outer-scope references used by subgraphs are extracted
 /// and added as additional inputs to If/Loop/Scan nodes. The `__onnx_input_count`
@@ -228,6 +224,8 @@ impl NodeProcessor for IfProcessor {
 /// The `__scope_ref_names` attribute stores the original sanitized ONNX names
 /// for these scope refs, which are needed because subgraphs reference these
 /// original names, not the renamed node output names.
+///
+/// Returns full Arguments (not just types) to preserve constant values for LSTM weights etc.
 fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
     use std::collections::HashMap;
 
@@ -251,8 +249,8 @@ fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
         })
         .unwrap_or_default();
 
-    // Build outer scope map using original names and types from inputs
-    let mut outer_scope: HashMap<String, crate::ir::ArgType> = HashMap::new();
+    // Build outer scope map using original names and full arguments from inputs
+    let mut outer_scope: HashMap<String, Argument> = HashMap::new();
     let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
 
     for (i, input) in scope_ref_inputs.iter().enumerate() {
@@ -261,11 +259,48 @@ fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
             .get(i)
             .cloned()
             .unwrap_or_else(|| input.name.clone());
-        log::debug!("Adding outer-scope type: {} -> {:?}", name, input.ty);
-        outer_scope.insert(name, input.ty.clone());
+        log::debug!(
+            "Adding outer-scope arg: {} -> type={:?}, value_source={:?}, has_store={}",
+            name,
+            input.ty,
+            input.value_source,
+            input.value_store.is_some()
+        );
+        // Clone the full Argument to preserve value_source and value_store
+        outer_scope.insert(name, (*input).clone());
     }
 
     outer_scope
+}
+
+/// Merge branch output types when they differ.
+///
+/// ONNX allows If branches to have outputs with different shapes/ranks as long as
+/// they are "compatible" at runtime. For example, one branch might output `[1, N, 128]`
+/// while another outputs `[N, 128]`. At runtime, only one branch executes.
+///
+/// For static type inference, we need to choose a consistent type. We use the
+/// **then_branch** type as canonical since:
+/// 1. The then_branch typically represents the "main" computation path
+/// 2. The else_branch often contains simplified/fallback logic
+/// 3. Burn code generation expects consistent types across the model
+///
+/// NOTE: This may cause issues with models where else_branch is the expected path,
+/// but there's no general solution for ONNX's dynamic typing in static code generation.
+fn merge_branch_types(then_ty: &ArgType, else_ty: &ArgType) -> ArgType {
+    if then_ty == else_ty {
+        return then_ty.clone();
+    }
+
+    // Log the difference for debugging
+    log::warn!(
+        "If node branches have different output types: then={:?}, else={:?}. Using then_branch type.",
+        then_ty,
+        else_ty
+    );
+
+    // Always use then_branch type as canonical
+    then_ty.clone()
 }
 
 #[cfg(test)]

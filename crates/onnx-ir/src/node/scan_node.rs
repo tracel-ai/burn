@@ -266,6 +266,8 @@ impl NodeProcessor for ScanProcessor {
 /// The `__scope_ref_names` attribute stores the original sanitized ONNX names
 /// for these scope refs, which are needed because subgraphs reference these
 /// original names, not the renamed node output names.
+///
+/// Returns full Arguments (not just types) to preserve constant values for LSTM weights etc.
 fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
     use std::collections::HashMap;
 
@@ -289,8 +291,8 @@ fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
         })
         .unwrap_or_default();
 
-    // Build outer scope map using original names and types from inputs
-    let mut outer_scope: HashMap<String, crate::ir::ArgType> = HashMap::new();
+    // Build outer scope map using original names and full arguments from inputs
+    let mut outer_scope: HashMap<String, Argument> = HashMap::new();
     let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
 
     for (i, input) in scope_ref_inputs.iter().enumerate() {
@@ -300,7 +302,8 @@ fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
             .cloned()
             .unwrap_or_else(|| input.name.clone());
         log::debug!("Adding outer-scope type: {} -> {:?}", name, input.ty);
-        outer_scope.insert(name, input.ty.clone());
+        // Clone the full Argument to preserve value_source and value_store
+        outer_scope.insert(name, (*input).clone());
     }
 
     outer_scope

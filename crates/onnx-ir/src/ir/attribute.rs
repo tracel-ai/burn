@@ -47,8 +47,11 @@ pub struct DeferredGraph {
     pub name_registry: Option<crate::graph_state::NameRegistry>,
 }
 
-/// A map of outer-scope value names to their resolved types
-pub type OuterScopeTypes = std::collections::HashMap<String, crate::ir::ArgType>;
+/// A map of outer-scope value names to their resolved arguments (including type and value)
+///
+/// Uses full `Argument` instead of just `ArgType` to preserve constant values
+/// for subgraphs that reference parent graph constants (e.g., LSTM weights).
+pub type OuterScopeTypes = std::collections::HashMap<String, crate::ir::Argument>;
 
 impl DeferredGraph {
     /// Build the subgraph from the deferred GraphProto with access to outer scope types.
