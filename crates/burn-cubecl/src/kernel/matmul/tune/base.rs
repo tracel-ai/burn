@@ -91,8 +91,19 @@ pub fn matmul_autotune<R: CubeRuntime>(
         let tma = TuneGroup::<MatmulAutotuneKey>::new("tma", |key| {
             // For large matmul, we set the max priority to TMA kernels, higher than any other
             // matmuls, since they are the best kernels no matter what.
+            //
+            // But only when all axis are large.
+            let max_axis = usize::max(key.definition.m, key.definition.n);
+            let max_axis = usize::max(key.definition.k, max_axis);
+
+            let min_axis = usize::min(key.definition.m, key.definition.n);
+            let min_axis = usize::min(key.definition.k, min_axis);
+
+            let skewed_factor = max_axis / min_axis;
+
             let priority_max = if matches!(key.analysis.kind, MatmulKind::General)
                 && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
+                && skewed_factor < 4
             {
                 PRIORITY_MAX
             } else {
@@ -275,7 +286,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                         read_strategy: AsyncPartialReadingStrategy::Cyclic,
                     },
                     true,
-                    Some(&tma),
+                    None,
                 ),
             ] {
                 let priority_within_group =
