@@ -148,6 +148,7 @@ macro_rules! testgen_with_float_param {
     () => {
         // test activation
         burn_tensor::testgen_gelu!();
+        burn_tensor::testgen_glu!();
         burn_tensor::testgen_mish!();
         burn_tensor::testgen_relu!();
         burn_tensor::testgen_leaky_relu!();
