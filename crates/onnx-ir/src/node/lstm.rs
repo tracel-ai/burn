@@ -290,9 +290,8 @@ impl NodeProcessor for LstmProcessor {
             )));
         }
 
-        // Extract config to get hidden_size and direction for output type inference
+        // Extract config for validation (peephole, sequence_lens checks below)
         let config = self.extract_config(node, opset)?;
-        let _num_directions = config.direction.num_directions();
 
         // Infer output types based on which outputs are requested
         // Output 0: Y - all hidden states [seq_length, num_directions, batch_size, hidden_size]
