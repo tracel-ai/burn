@@ -11,9 +11,32 @@ use burn_tensor::TensorData;
 use crate::ir::{OnnxGraph, OnnxGraphBuilder};
 use crate::protos::GraphProto;
 
-/// Deferred subgraph that needs to be built later during type inference.
-/// This allows us to defer subgraph processing until all outer-scope references
-/// have types resolved.
+/// Deferred subgraph that is built lazily during type inference.
+///
+/// ## Why Deferred?
+///
+/// ONNX control flow nodes (If, Loop, Scan) contain subgraphs that can reference
+/// values from the parent graph's scope. For example:
+///
+/// ```text
+/// x = Conv(input, weights)      // x has type Tensor[F32, rank=4]
+/// y = If(condition) {
+///     then_branch: Add(x, bias)  // References 'x' from parent scope
+///     else_branch: Mul(x, scale)
+/// }
+/// ```
+///
+/// The subgraph's `Add(x, bias)` needs to know the type of `x` for type inference,
+/// but `x`'s type is only determined after processing the parent's `Conv` node.
+///
+/// ## Solution: Lazy Building
+///
+/// 1. **Parse phase**: Store the raw `GraphProto` in `DeferredGraph`
+/// 2. **Type inference phase**: When processing If/Loop/Scan, outer-scope types are known
+/// 3. **Build phase**: Call `build_graph_with_outer_scope(types)` with resolved types
+///
+/// This lazy evaluation pattern ensures subgraphs have access to all type information
+/// from the parent scope when they are finally built.
 #[derive(Debug, Clone)]
 pub struct DeferredGraph {
     /// The raw ONNX GraphProto (wrapped in Arc for cheap cloning)
