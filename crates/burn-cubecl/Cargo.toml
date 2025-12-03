@@ -15,13 +15,6 @@ version.workspace = true
 workspace = true
 
 [features]
-autotune = ["burn-cubecl-fusion?/autotune"]
-autotune-checks = [
-    "autotune",
-    "cubecl/autotune-checks",
-    "burn-cubecl-fusion?/autotune-checks",
-]
-memory-checks = ["burn-fusion?/memory-checks"]
 default = [
     "autotune",
     "std",
@@ -30,6 +23,14 @@ default = [
     "burn-fusion?/default",
     "burn-cubecl-fusion?/default",
 ]
+
+autotune = ["burn-cubecl-fusion?/autotune"]
+autotune-checks = [
+    "autotune",
+    "cubecl/autotune-checks",
+    "burn-cubecl-fusion?/autotune-checks",
+]
+memory-checks = ["burn-fusion?/memory-checks"]
 doc = ["default"]
 export_tests = [
     # Too expensive and flaky for the CI.

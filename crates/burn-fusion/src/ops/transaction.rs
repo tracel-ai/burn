@@ -9,28 +9,28 @@ impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
     async fn tr_execute(
         transaction: TransactionPrimitive<Self>,
     ) -> Result<burn_tensor::ops::TransactionPrimitiveData, ExecutionError> {
-        B::tr_execute(TransactionPrimitive {
-            read_floats: transaction
+        B::tr_execute(TransactionPrimitive::new(
+            transaction
                 .read_floats
                 .into_iter()
                 .map(|t| t.client.clone().resolve_tensor_float::<B>(t))
                 .collect(),
-            read_qfloats: transaction
+            transaction
                 .read_qfloats
                 .into_iter()
                 .map(|_t| todo!("Quantization not supported yet"))
                 .collect(),
-            read_ints: transaction
+            transaction
                 .read_ints
                 .into_iter()
                 .map(|t| t.client.clone().resolve_tensor_int::<B>(t))
                 .collect(),
-            read_bools: transaction
+            transaction
                 .read_bools
                 .into_iter()
                 .map(|t| t.client.clone().resolve_tensor_bool::<B>(t))
                 .collect(),
-        })
+        ))
         .await
     }
 }

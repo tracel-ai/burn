@@ -1,6 +1,6 @@
-use crate::{
-    BasicOps, Bool, Float, Int, Tensor, TensorKind, TensorPrimitive, backend::AutodiffBackend,
-};
+pub use burn_backend::tensor::BasicAutodiffOps;
+
+use crate::{Tensor, TensorPrimitive, backend::AutodiffBackend};
 
 impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
     /// Backward pass of the tensor.
@@ -72,96 +72,4 @@ impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> Tensor<B, D, K>
     pub fn from_inner(inner: Tensor<B::InnerBackend, D, K::InnerKind>) -> Self {
         Self::new(K::from_inner(inner.primitive))
     }
-}
-
-impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
-    type InnerKind = Float;
-
-    fn inner(
-        tensor: <Self as TensorKind<B>>::Primitive,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::inner(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_inner(tensor)),
-        }
-    }
-
-    fn from_inner(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
-    ) -> <Self as TensorKind<B>>::Primitive {
-        match inner {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::from_inner(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_from_inner(tensor)),
-        }
-    }
-}
-
-impl<B: AutodiffBackend> BasicAutodiffOps<B> for Int {
-    type InnerKind = Int;
-
-    fn inner(
-        tensor: <Self as TensorKind<B>>::Primitive,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
-        B::int_inner(tensor)
-    }
-
-    fn from_inner(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
-    ) -> <Self as TensorKind<B>>::Primitive {
-        B::int_from_inner(inner)
-    }
-}
-
-impl<B: AutodiffBackend> BasicAutodiffOps<B> for Bool {
-    type InnerKind = Bool;
-
-    fn inner(
-        tensor: <Self as TensorKind<B>>::Primitive,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
-        B::bool_inner(tensor)
-    }
-
-    fn from_inner(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
-    ) -> <Self as TensorKind<B>>::Primitive {
-        B::bool_from_inner(inner)
-    }
-}
-
-/// Trait that list all operations that can be applied on all tensors on an autodiff backend.
-///
-/// # Warnings
-///
-/// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-pub trait BasicAutodiffOps<B: AutodiffBackend>: BasicOps<B> + BasicOps<B::InnerBackend> {
-    /// Inner primitive tensor.
-    type InnerKind: BasicOps<B::InnerBackend>;
-
-    /// Returns the inner tensor without the autodiff information.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// Users should prefer the [Tensor::inner](Tensor::inner) function,
-    /// which is more high-level and designed for public use.
-    fn inner(
-        tensor: <Self as TensorKind<B>>::Primitive,
-    ) -> <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive;
-
-    /// Convert a tensor to the autodiff backend.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// Users should prefer the [Tensor::from_inner](Tensor::from_inner) function,
-    /// which is more high-level and designed for public use.
-    fn from_inner(
-        inner: <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive,
-    ) -> <Self as TensorKind<B>>::Primitive;
 }
