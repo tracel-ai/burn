@@ -262,6 +262,15 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     None,
                 ),
                 (
+                    Strategy::Specialized {
+                        selection: Selection::Inferred(()),
+                        tile_kind,
+                        read_strategy: AsyncPartialReadingStrategy::Cyclic,
+                    },
+                    true,
+                    None,
+                ),
+                (
                     Strategy::Simple {
                         read_strategy: ReadingStrategy::Tma,
                         selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
@@ -283,10 +292,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     Strategy::Specialized {
                         selection: Selection::Inferred(()),
                         tile_kind,
-                        read_strategy: AsyncPartialReadingStrategy::Cyclic,
+                        read_strategy: AsyncPartialReadingStrategy::Tma,
                     },
                     true,
-                    None,
+                    Some(&tma),
                 ),
             ] {
                 let priority_within_group =
