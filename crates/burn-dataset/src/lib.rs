@@ -30,7 +30,9 @@ pub mod nlp;
 
 /// Network dataset utilities.
 #[cfg(feature = "network")]
-pub mod network;
+pub mod network {
+    pub use burn_std::network::*;
+}
 
 mod dataset;
 pub use dataset::*;

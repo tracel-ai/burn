@@ -1,7 +1,8 @@
 use burn_tensor::DType;
 use cubecl::{
     matmul::{
-        AcceleratedTileKind, PartialReadingStrategy, ReadingStrategy, Strategy,
+        AcceleratedTileKind, AsyncPartialReadingStrategy, PartialReadingStrategy, ReadingStrategy,
+        Strategy,
         components::MatmulKind,
         kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
@@ -271,6 +272,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     Strategy::Specialized {
                         selection: Selection::Inferred(()),
                         tile_kind,
+                        read_strategy: AsyncPartialReadingStrategy::Cyclic,
                     },
                     true,
                     Some(&tma),
@@ -324,15 +326,15 @@ fn create_key<R: CubeRuntime>(
         &lhs.strides,
         &rhs.strides,
         MatmulElemType {
-            elem: lhs.dtype.into(),
+            dtype: lhs.dtype.into(),
             quantized: matches!(lhs.dtype, DType::QFloat(_)),
         },
         MatmulElemType {
-            elem: rhs.dtype.into(),
+            dtype: rhs.dtype.into(),
             quantized: matches!(rhs.dtype, DType::QFloat(_)),
         },
         MatmulElemType {
-            elem: out.dtype.into(),
+            dtype: out.dtype.into(),
             quantized: matches!(out.dtype, DType::QFloat(_)),
         },
     )

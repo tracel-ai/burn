@@ -24,13 +24,14 @@ pub(crate) fn initialize_from_graph_with_registry(
     // Attach value_store to initializer constant nodes
     {
         let mut state = state_rc.borrow_mut();
+        let value_store = state.build_value_store();
         for node in &mut state.processed_nodes {
             if node.node_type == NodeType::Constant {
                 for arg in &mut node.inputs {
-                    arg.value_store = Some(state_rc.clone());
+                    arg.set_value_store(value_store.clone());
                 }
                 for arg in &mut node.outputs {
-                    arg.value_store = Some(state_rc.clone());
+                    arg.set_value_store(value_store.clone());
                 }
             }
         }

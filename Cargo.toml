@@ -16,7 +16,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    "examples/raspberry-pi-pico",        # will cause xtask issues otherwise
+    "examples/raspberry-pi-pico",
     "crates/burn-import/model-checks/*", # exclude model checking crates from workspace
 ]
 
@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0-pre.3"
+version = "0.20.0-pre.4"
 
 [workspace.lints.clippy]
 
@@ -104,7 +104,7 @@ strum = { version = "0.27.2", features = ["derive"] }
 syn = { version = "2.0.111", features = ["full", "extra-traits"] }
 tar = "0.4.44"
 tempfile = "3.20.0"
-thiserror = "2.0.17"
+thiserror = { version = "2", default-features = false }
 tokio = { version = "1.47.1", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
@@ -174,17 +174,17 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86b23d0f6e73d6e1ea3f7ba97eaf876402da9b94" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86b23d0f6e73d6e1ea3f7ba97eaf876402da9b94" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "86b23d0f6e73d6e1ea3f7ba97eaf876402da9b94" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3c049d35f197e8d9c0ca099d0ad01f2760cc94bb" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3c049d35f197e8d9c0ca099d0ad01f2760cc94bb" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3c049d35f197e8d9c0ca099d0ad01f2760cc94bb" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubecl-quant = { path = "../cubecl/crates/cubecl-quant", default-features = false }
 ### For the release. ###
-# cubecl = { version = "=0.9.0-pre.3", default-features = false }
-# cubecl-common = { version = "=0.9.0-pre.3", default-features = false }
-# cubecl-quant = { version = "=0.9.0-pre.3", default-features = false }
+# cubecl = { version = "=0.9.0-pre.4", default-features = false }
+# cubecl-common = { version = "=0.9.0-pre.4", default-features = false }
+# cubecl-quant = { version = "=0.9.0-pre.4", default-features = false }
 
 ### For xtask crate ###
 tracel-xtask = { version = "=2.2.1" }

@@ -192,6 +192,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_module_bilinear_interpolate!();
         burn_tensor::testgen_module_bicubic_interpolate!();
         burn_tensor::testgen_module_linear!();
+        burn_tensor::testgen_module_attention!();
 
         // test ops
         burn_tensor::testgen_gather_scatter!();

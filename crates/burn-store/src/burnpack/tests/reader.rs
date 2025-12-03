@@ -443,13 +443,15 @@ fn test_reader_data_offsets_validation() {
     let bytes = writer.to_bytes().unwrap();
     let reader = BurnpackReader::from_bytes(bytes).unwrap();
 
-    // Verify offsets don't overlap
+    // Verify offsets don't overlap and are properly aligned
     let metadata = reader.metadata();
     let tensor1_desc = metadata.tensors.get("tensor1").unwrap();
     let tensor2_desc = metadata.tensors.get("tensor2").unwrap();
 
+    // First tensor starts at offset 0 (already aligned to 256 bytes)
     assert_eq!(tensor1_desc.data_offsets, (0, 4));
-    assert_eq!(tensor2_desc.data_offsets, (4, 8));
+    // Second tensor starts at next 256-byte aligned offset
+    assert_eq!(tensor2_desc.data_offsets, (256, 260));
 }
 
 #[test]

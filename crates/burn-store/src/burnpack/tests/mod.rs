@@ -1,5 +1,6 @@
 use crate::TensorSnapshot;
 
+mod alignment;
 mod edge_cases;
 mod header;
 mod helpers;

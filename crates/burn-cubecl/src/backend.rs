@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
 use burn_tensor::{
     TensorData,
-    backend::{Backend, DeviceOps, SyncError},
+    backend::{Backend, DeviceOps, ExecutionError},
 };
 use cubecl::server::ComputeServer;
 use std::marker::PhantomData;
@@ -53,10 +53,10 @@ where
         false
     }
 
-    fn sync(device: &Self::Device) -> Result<(), SyncError> {
+    fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = R::client(device);
-        futures_lite::future::block_on(client.sync()).map_err(|err| SyncError::Generic {
-            context: format!("{err:?}"),
+        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
+            reason: format!("{err}"),
         })
     }
 

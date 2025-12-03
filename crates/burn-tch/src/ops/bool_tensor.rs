@@ -139,7 +139,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn bool_select_assign(
+    fn bool_select_add(
         tensor: TchTensor,
         dim: usize,
         indices: TchTensor,

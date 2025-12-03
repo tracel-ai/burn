@@ -16,6 +16,10 @@ pub mod id;
 pub mod tensor;
 pub use tensor::*;
 
+/// Network utilities.
+#[cfg(feature = "network")]
+pub mod network;
+
 // Re-exported types
 pub use cubecl_common::bytes::*;
 pub use cubecl_common::*;
