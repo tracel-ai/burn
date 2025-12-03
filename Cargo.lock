@@ -667,12 +667,14 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn-std",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "num-traits",
  "paste",
  "rand 0.9.2",
  "rand_distr",
  "serde",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1168,7 +1170,6 @@ dependencies = [
  "num-traits",
  "paste",
  "serde",
- "thiserror 2.0.17",
 ]
 
 [[package]]
