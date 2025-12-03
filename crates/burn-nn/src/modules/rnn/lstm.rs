@@ -26,8 +26,8 @@ pub enum LstmActivation {
 }
 
 impl LstmActivation {
-    /// Apply the activation function to a tensor.
-    pub fn apply<B: Backend, const D: usize>(&self, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    /// Applies the activation function to a tensor.
+    pub fn forward<B: Backend, const D: usize>(&self, tensor: Tensor<B, D>) -> Tensor<B, D> {
         match self {
             LstmActivation::Sigmoid => activation::sigmoid(tensor),
             LstmActivation::Tanh => tensor.tanh(),
@@ -269,7 +269,7 @@ impl<B: Backend> Lstm<B> {
             let biased_ig_input_sum = self
                 .input_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let input_values = self.gate_activation.0.apply(biased_ig_input_sum);
+            let input_values = self.gate_activation.0.forward(biased_ig_input_sum);
 
             // f(orget)g(ate) tensors - either computed or coupled to input gate
             let forget_values = if self.input_forget {
@@ -279,20 +279,20 @@ impl<B: Backend> Lstm<B> {
                 let biased_fg_input_sum = self
                     .forget_gate
                     .gate_product(input_t.clone(), hidden_state.clone());
-                self.gate_activation.0.apply(biased_fg_input_sum)
+                self.gate_activation.0.forward(biased_fg_input_sum)
             };
 
             // o(output)g(ate) tensors
             let biased_og_input_sum = self
                 .output_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let output_values = self.gate_activation.0.apply(biased_og_input_sum);
+            let output_values = self.gate_activation.0.forward(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
             let biased_cg_input_sum = self
                 .cell_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let candidate_cell_values = self.cell_activation.0.apply(biased_cg_input_sum);
+            let candidate_cell_values = self.cell_activation.0.forward(biased_cg_input_sum);
 
             cell_state = forget_values * cell_state.clone() + input_values * candidate_cell_values;
 
@@ -301,7 +301,7 @@ impl<B: Backend> Lstm<B> {
                 cell_state = cell_state.clamp(-clip, clip);
             }
 
-            hidden_state = output_values * self.hidden_activation.0.apply(cell_state.clone());
+            hidden_state = output_values * self.hidden_activation.0.forward(cell_state.clone());
 
             let unsqueezed_hidden_state = hidden_state.clone().unsqueeze_dim(1);
 
