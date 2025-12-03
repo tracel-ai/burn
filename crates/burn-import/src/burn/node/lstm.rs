@@ -5,7 +5,7 @@
 //! - Forward, reverse, and bidirectional directions
 //! - Batch-first and sequence-first layouts (`layout` attribute)
 //! - Initial hidden and cell states
-//! - Custom activations: Sigmoid, Tanh, Relu, HardSigmoid
+//! - Custom activations: Sigmoid, Tanh, Relu, HardSigmoid, LeakyRelu
 //! - Cell state clipping (`clip` attribute)
 //! - Input-forget gate coupling (`input_forget` attribute)
 //!
@@ -36,7 +36,7 @@ use serde::Serialize;
 /// # Panics
 ///
 /// Panics if the ONNX activation function is not supported by burn-nn.
-/// Supported activations: Sigmoid, Tanh, Relu, HardSigmoid.
+/// Supported activations: Sigmoid, Tanh, Relu, HardSigmoid, LeakyRelu.
 fn to_burn_activation(onnx_activation: LstmActivationFunction) -> ActivationConfig {
     match onnx_activation {
         LstmActivationFunction::Sigmoid => ActivationConfig::Sigmoid,
@@ -45,9 +45,12 @@ fn to_burn_activation(onnx_activation: LstmActivationFunction) -> ActivationConf
         LstmActivationFunction::HardSigmoid => {
             ActivationConfig::HardSigmoid(burn::nn::HardSigmoidConfig::new())
         }
+        LstmActivationFunction::LeakyRelu => {
+            ActivationConfig::LeakyRelu(burn::nn::LeakyReluConfig::new())
+        }
         unsupported => panic!(
             "LSTM activation '{:?}' is not supported by burn-nn. \
-             Supported activations: Sigmoid, Tanh, Relu, HardSigmoid. \
+             Supported activations: Sigmoid, Tanh, Relu, HardSigmoid, LeakyRelu. \
              Consider using a supported activation or implementing support in burn-nn.",
             unsupported
         ),
@@ -62,6 +65,9 @@ fn activation_to_tokens(activation: &ActivationConfig) -> TokenStream {
         ActivationConfig::Relu => quote! { ActivationConfig::Relu },
         ActivationConfig::HardSigmoid(_) => {
             quote! { ActivationConfig::HardSigmoid(burn::nn::HardSigmoidConfig::new()) }
+        }
+        ActivationConfig::LeakyRelu(_) => {
+            quote! { ActivationConfig::LeakyRelu(burn::nn::LeakyReluConfig::new()) }
         }
         _ => panic!("Unsupported activation config for LSTM"),
     }
