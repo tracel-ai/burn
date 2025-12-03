@@ -247,3 +247,29 @@ impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
         tensor.change_backend(target_device)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_address_to_id() {
+        let address1 = "ws://127.0.0.1:3000";
+        let address2 = "ws://127.0.0.1:3001";
+
+        let id1 = address_to_id(address1);
+        let id2 = address_to_id(address2);
+
+        assert_ne!(id1, id2);
+
+        assert_eq!(address_to_id(address1), id1);
+        assert_eq!(id_to_address(id1), Some(address1.to_string()));
+
+        assert_eq!(address_to_id(address2), id2);
+        assert_eq!(id_to_address(id2), Some(address2.to_string()));
+
+        let unused_id = u32::MAX;
+
+        assert_eq!(id_to_address(unused_id), None);
+    }
+}
