@@ -194,6 +194,8 @@ pub fn softplus<const D: usize, B: Backend>(tensor: Tensor<B, D>, beta: f64) -> 
 
 /// Applies the "quiet softmax" function on the input tensor along the given dimension.
 ///
+/// Also referred to as [`softmax1`](https://www.evanmiller.org/attention-is-off-by-one.html).
+///
 /// This function is similar to the softmax function, but it allows for "no selection" when
 /// all the outputs are close to zero.
 ///
@@ -218,11 +220,11 @@ $$
 pub fn quiet_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor = tensor.exp();
-    let tensor_tmp = tensor.clone().sum_dim(dim);
+    let max_vals = tensor.clone().detach().max_dim(dim);
+    let exp_x = (tensor - max_vals.clone()).exp();
+    let sum_exp = exp_x.clone().sum_dim(dim);
 
-    tensor.div(tensor_tmp + 1)
+    exp_x.div(sum_exp + max_vals.neg().exp())
 }
 
 /// Applies the log softmax function on the input tensor along the given dimension.

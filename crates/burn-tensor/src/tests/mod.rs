@@ -159,6 +159,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_log_sigmoid!();
         burn_tensor::testgen_silu!();
         burn_tensor::testgen_tanh_activation!();
+        burn_tensor::testgen_quiet_softmax!();
 
         // test grid
         burn_tensor::testgen_meshgrid!();
