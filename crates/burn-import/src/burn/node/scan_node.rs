@@ -4,10 +4,38 @@ use onnx_ir::Node;
 /// Generate inline code for a scan body subgraph
 fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
     subgraph: &onnx_ir::OnnxGraph,
+    outer_scope_inputs: &[Argument],
+    scope_ref_names: &[String],
+    body_input_names: &std::collections::HashSet<String>,
     scope: &mut Scope,
     node_position: usize,
 ) -> TokenStream {
     let mut body = quote! {};
+
+    // Create bindings for outer-scope references
+    // The scope_ref_names contains the original sanitized ONNX names that the subgraph uses
+    // Skip names that are body inputs (state variables and scan input elements) -
+    // these are already handled by the scan loop setup
+    for (idx, scope_ref_name) in scope_ref_names.iter().enumerate() {
+        // Skip if this is a body input (state variable or scan input element)
+        if body_input_names.contains(scope_ref_name) {
+            continue;
+        }
+        if let Some(outer_input) = outer_scope_inputs.get(idx) {
+            let subgraph_var_name = quote::format_ident!("{}", scope_ref_name);
+            let outer_var = scope.at_position(node_position).arg(outer_input);
+            if let ArgType::Tensor(_) = &outer_input.ty {
+                body.extend(quote! {
+                    let #subgraph_var_name = #outer_var.clone();
+                });
+            } else if let ArgType::Scalar(_) = &outer_input.ty {
+                let outer_name = arg_to_ident(outer_input);
+                body.extend(quote! {
+                    let #subgraph_var_name = #outer_name;
+                });
+            }
+        }
+    }
 
     // Register subgraph inputs in scope
     for input in &subgraph.inputs {
@@ -67,11 +95,23 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let num_scan_inputs = self.config.num_scan_inputs as usize;
-        let num_state_vars = self.inputs.len() - num_scan_inputs;
 
-        // Split inputs into state variables and scan input sequences
+        // Calculate how many outer-scope refs were added (beyond ONNX inputs)
+        let num_outer_scope_refs = self.config.scope_ref_names.len();
+        let num_onnx_inputs = self.inputs.len() - num_outer_scope_refs;
+        let num_state_vars = num_onnx_inputs - num_scan_inputs;
+
+        // Outer-scope references (values from parent scope that subgraph needs)
+        let outer_scope_inputs: Vec<_> = self.inputs.iter().skip(num_onnx_inputs).cloned().collect();
+
+        // Split ONNX inputs into state variables and scan input sequences
         let initial_state_vars: Vec<_> = self.inputs.iter().take(num_state_vars).collect();
-        let scan_input_sequences: Vec<_> = self.inputs.iter().skip(num_state_vars).collect();
+        let scan_input_sequences: Vec<_> = self
+            .inputs
+            .iter()
+            .skip(num_state_vars)
+            .take(num_scan_inputs)
+            .collect();
 
         // Body inputs: [state_vars..., scan_inputs...]
         // Body outputs: [state_vars_out..., scan_outputs...]
@@ -168,10 +208,27 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
             });
         }
 
+        // Collect body input names (state variables + scan input elements)
+        // These should NOT be treated as outer-scope references even though
+        // they're declared as subgraph inputs without initializers
+        let body_input_names: std::collections::HashSet<String> = self
+            .config
+            .body
+            .inputs
+            .iter()
+            .map(|arg| arg.name.clone())
+            .collect();
+
         // Generate body code
         let node_position = scope.node_position();
-        let body_code =
-            generate_scan_body_code::<PS>(&self.config.body, scope.scope(), node_position);
+        let body_code = generate_scan_body_code::<PS>(
+            &self.config.body,
+            &outer_scope_inputs,
+            &self.config.scope_ref_names,
+            &body_input_names,
+            scope.scope(),
+            node_position,
+        );
 
         // Update state variables and collect scan outputs
         let mut update_stmts = quote! {};

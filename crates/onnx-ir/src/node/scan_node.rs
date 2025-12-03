@@ -26,6 +26,10 @@ pub struct ScanConfig {
     pub scan_output_directions: Vec<i64>,
     pub scan_input_axes: Vec<i64>,
     pub scan_output_axes: Vec<i64>,
+    /// Names of outer-scope references (in order corresponding to inputs after ONNX inputs)
+    /// These are the original sanitized ONNX names that subgraphs reference
+    #[new(default)]
+    pub scope_ref_names: Vec<String>,
 }
 
 /// Node representation for Scan operation
@@ -57,16 +61,19 @@ impl NodeProcessor for ScanProcessor {
             .expect("Config extraction failed");
         let num_scan_inputs = config.num_scan_inputs as usize;
 
-        // Total inputs = num_state_vars + num_scan_inputs
-        if node.inputs.len() < num_scan_inputs {
+        // Get the count of original ONNX inputs (excluding outer-scope refs we added)
+        let onnx_input_count = crate::processor::get_onnx_input_count(node);
+
+        // Total ONNX inputs = num_state_vars + num_scan_inputs
+        if onnx_input_count < num_scan_inputs {
             return Err(ProcessError::Custom(format!(
                 "Scan requires at least {} inputs (num_scan_inputs), got {}",
                 num_scan_inputs,
-                node.inputs.len()
+                onnx_input_count
             )));
         }
 
-        let num_state_vars = node.inputs.len() - num_scan_inputs;
+        let num_state_vars = onnx_input_count - num_scan_inputs;
 
         // Get body outputs to determine output types
         let body_outputs = config.body.outputs.clone();
@@ -157,8 +164,18 @@ impl NodeProcessor for ScanProcessor {
             .ok_or_else(|| ProcessError::MissingAttribute("body".to_string()))?
             .clone();
 
-        // Handle both Graph and GraphBuilder
+        // Build outer scope types map from additional inputs (beyond ONNX inputs)
+        let outer_scope = build_outer_scope_from_inputs(node);
+
+        // Handle DeferredGraph, Graph, and GraphBuilder
         let body = match body_attr {
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!("Building deferred Scan body subgraph with {} outer-scope types", outer_scope.len());
+                deferred.build_graph_with_outer_scope(outer_scope).map_err(|e| {
+                    ProcessError::Custom(format!("Failed to build Scan body: {:?}", e))
+                })?
+            }
             crate::ir::AttributeValue::Graph(g) => g,
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
@@ -176,7 +193,7 @@ impl NodeProcessor for ScanProcessor {
             }
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for body".to_string(),
+                    "Expected DeferredGraph, Graph, or GraphBuilder for body".to_string(),
                 ));
             }
         };
@@ -214,6 +231,16 @@ impl NodeProcessor for ScanProcessor {
             .map(|v| v.clone().into_i64s())
             .unwrap_or_default();
 
+        // Get the scope ref names for use in code generation
+        let scope_ref_names: Vec<String> = node
+            .attrs
+            .get("__scope_ref_names")
+            .and_then(|v| match v {
+                crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
         Ok(ScanConfig {
             body,
             num_scan_inputs,
@@ -221,6 +248,7 @@ impl NodeProcessor for ScanProcessor {
             scan_output_directions,
             scan_input_axes,
             scan_output_axes,
+            scope_ref_names,
         })
     }
 
@@ -236,6 +264,57 @@ impl NodeProcessor for ScanProcessor {
             config,
         })
     }
+}
+
+/// Build outer scope types map from additional inputs added during node conversion.
+///
+/// During node conversion, outer-scope references used by subgraphs are extracted
+/// and added as additional inputs to If/Loop/Scan nodes. The `__onnx_input_count`
+/// attribute stores how many of the inputs are "real" ONNX inputs. Inputs beyond
+/// that count are outer-scope references with resolved types.
+///
+/// The `__scope_ref_names` attribute stores the original sanitized ONNX names
+/// for these scope refs, which are needed because subgraphs reference these
+/// original names, not the renamed node output names.
+fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
+    use std::collections::HashMap;
+
+    // Get the count of original ONNX inputs (default to all inputs if not set)
+    let onnx_input_count = node
+        .attrs
+        .get("__onnx_input_count")
+        .and_then(|v| match v {
+            crate::ir::AttributeValue::Int64(n) => Some(*n as usize),
+            _ => None,
+        })
+        .unwrap_or(node.inputs.len());
+
+    // Get the original ONNX names for the scope refs
+    let scope_ref_names: Vec<String> = node
+        .attrs
+        .get("__scope_ref_names")
+        .and_then(|v| match v {
+            crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    // Build outer scope map using original names and types from inputs
+    let mut outer_scope: HashMap<String, crate::ir::ArgType> = HashMap::new();
+    let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
+
+    for (i, input) in scope_ref_inputs.iter().enumerate() {
+        // Use the original ONNX name if available, otherwise fall back to input name
+        let name = scope_ref_names.get(i).cloned().unwrap_or_else(|| input.name.clone());
+        log::debug!(
+            "Adding outer-scope type: {} -> {:?}",
+            name,
+            input.ty
+        );
+        outer_scope.insert(name, input.ty.clone());
+    }
+
+    outer_scope
 }
 
 #[cfg(test)]

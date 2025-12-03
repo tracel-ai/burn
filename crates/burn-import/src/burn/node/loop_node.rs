@@ -4,10 +4,38 @@ use onnx_ir::Node;
 /// Generate inline code for a loop body subgraph
 fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
     subgraph: &onnx_ir::OnnxGraph,
+    outer_scope_inputs: &[Argument],
+    scope_ref_names: &[String],
+    body_input_names: &std::collections::HashSet<String>,
     scope: &mut Scope,
     node_position: usize,
 ) -> TokenStream {
     let mut body = quote! {};
+
+    // Create bindings for outer-scope references
+    // The scope_ref_names contains the original sanitized ONNX names that the subgraph uses
+    // Skip names that are body inputs (iter_num, cond, loop-carried vars) -
+    // these are already handled by the loop setup
+    for (idx, scope_ref_name) in scope_ref_names.iter().enumerate() {
+        // Skip if this is a body input (iteration counter, condition, or loop-carried var)
+        if body_input_names.contains(scope_ref_name) {
+            continue;
+        }
+        if let Some(outer_input) = outer_scope_inputs.get(idx) {
+            let subgraph_var_name = quote::format_ident!("{}", scope_ref_name);
+            let outer_var = scope.at_position(node_position).arg(outer_input);
+            if let ArgType::Tensor(_) = &outer_input.ty {
+                body.extend(quote! {
+                    let #subgraph_var_name = #outer_var.clone();
+                });
+            } else if let ArgType::Scalar(_) = &outer_input.ty {
+                let outer_name = arg_to_ident(outer_input);
+                body.extend(quote! {
+                    let #subgraph_var_name = #outer_name;
+                });
+            }
+        }
+    }
 
     // Register subgraph inputs in scope (they reference loop variables)
     for input in &subgraph.inputs {
@@ -66,11 +94,20 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
-        // Inputs: [M (max_trip_count), cond (initial condition), v_initial...]
+        // Inputs: [M (max_trip_count), cond (initial condition), v_initial..., outer_scope_refs...]
         // Per ONNX spec, M and cond can be empty strings (optional)
+        // We added outer-scope references as additional inputs during ONNX conversion
         let max_trip_count_arg = &self.inputs[0];
         let init_cond_arg = &self.inputs[1];
-        let v_initial_args: Vec<_> = self.inputs.iter().skip(2).collect();
+
+        // Calculate how many v_initial args we have (excluding outer-scope refs)
+        // scope_ref_names tells us how many outer-scope refs were added
+        let num_outer_scope_refs = self.config.scope_ref_names.len();
+        let num_onnx_inputs = self.inputs.len() - num_outer_scope_refs;
+        let v_initial_args: Vec<_> = self.inputs.iter().skip(2).take(num_onnx_inputs - 2).collect();
+
+        // Outer-scope references (values from parent scope that subgraph needs)
+        let outer_scope_inputs: Vec<_> = self.inputs.iter().skip(num_onnx_inputs).cloned().collect();
 
         // Extract max trip count
         let max_count = if max_trip_count_arg.name.is_empty() {
@@ -188,10 +225,27 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
             }
         }
 
+        // Collect body input names (iter_num, cond, loop-carried vars)
+        // These should NOT be treated as outer-scope references even though
+        // they're declared as subgraph inputs without initializers
+        let body_input_names: std::collections::HashSet<String> = self
+            .config
+            .body
+            .inputs
+            .iter()
+            .map(|arg| arg.name.clone())
+            .collect();
+
         // Generate loop body code
         let node_position = scope.node_position();
-        let body_code =
-            generate_loop_body_code::<PS>(&self.config.body, scope.scope(), node_position);
+        let body_code = generate_loop_body_code::<PS>(
+            &self.config.body,
+            &outer_scope_inputs,
+            &self.config.scope_ref_names,
+            &body_input_names,
+            scope.scope(),
+            node_position,
+        );
 
         // Update loop-carried variables after iteration
         // Skip self-assignments when body passes through a value unchanged (same name)
@@ -334,7 +388,10 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
             <Node as NodeCodegen<PS>>::register_imports(node, imports);
         }
 
-        let num_loop_vars = self.inputs.len() - 2; // Subtract M and cond
+        // Calculate number of loop-carried vars, accounting for outer-scope refs
+        let num_outer_scope_refs = self.config.scope_ref_names.len();
+        let num_onnx_inputs = self.inputs.len() - num_outer_scope_refs;
+        let num_loop_vars = num_onnx_inputs - 2; // Subtract M and cond
         let num_scan_outputs = self.outputs.len() - num_loop_vars;
 
         // Register Tensor for scan outputs if needed

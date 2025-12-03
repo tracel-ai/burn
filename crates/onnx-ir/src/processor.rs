@@ -333,7 +333,9 @@ pub fn validate_node_spec(
 
 /// Validate input count against specification
 fn validate_input_spec(node: &RawNode, opset: usize, spec: &InputSpec) -> Result<(), ProcessError> {
-    let actual = node.inputs.len();
+    // Use __onnx_input_count if available (for control flow nodes with outer-scope refs)
+    // This ensures we only validate the original ONNX inputs, not extra scope refs
+    let actual = get_onnx_input_count(node);
 
     match spec {
         InputSpec::Exact(expected) => {
@@ -417,6 +419,23 @@ fn validate_output_spec(
     }
 
     Ok(())
+}
+
+/// Get the count of original ONNX inputs (excluding outer-scope references)
+///
+/// For control flow nodes (If, Loop, Scan), outer-scope references used by subgraphs
+/// are added as additional inputs during node conversion. The `__onnx_input_count`
+/// attribute stores how many inputs are "real" ONNX inputs. This function returns
+/// that count, or falls back to the total input count if the attribute isn't present.
+pub(crate) fn get_onnx_input_count(node: &RawNode) -> usize {
+    use crate::ir::AttributeValue;
+    node.attrs
+        .get("__onnx_input_count")
+        .and_then(|v| match v {
+            AttributeValue::Int64(n) => Some(*n as usize),
+            _ => None,
+        })
+        .unwrap_or(node.inputs.len())
 }
 
 /// Copy input type to output (for operations that preserve type)

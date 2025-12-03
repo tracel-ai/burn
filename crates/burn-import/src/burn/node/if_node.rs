@@ -5,14 +5,40 @@ use onnx_ir::Node;
 ///
 /// Converts an OnnxGraph into a TokenStream that can be inserted into an if/else branch.
 /// Returns (body_code, output_tuple)
+///
+/// `outer_scope_inputs` are the node's inputs that provide values for outer-scope references.
+/// `scope_ref_names` maps the index to the original sanitized ONNX name.
 fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
     subgraph: &onnx_ir::OnnxGraph,
+    outer_scope_inputs: &[Argument],
+    scope_ref_names: &[String],
     scope: &mut Scope,
     node_position: usize,
 ) -> (TokenStream, TokenStream) {
     let mut body = quote! {};
 
-    // Register subgraph inputs in scope (they reference parent scope values)
+    // Create bindings for outer-scope references
+    // The scope_ref_names contains the original sanitized ONNX names that the subgraph uses
+    // We need to create let bindings from the parent scope values to these names
+    for (idx, scope_ref_name) in scope_ref_names.iter().enumerate() {
+        if let Some(outer_input) = outer_scope_inputs.get(idx) {
+            // Create a binding with the original ONNX name
+            let subgraph_var_name = quote::format_ident!("{}", scope_ref_name);
+            let outer_var = scope.at_position(node_position).arg(outer_input);
+            if let ArgType::Tensor(_) = &outer_input.ty {
+                body.extend(quote! {
+                    let #subgraph_var_name = #outer_var.clone();
+                });
+            } else if let ArgType::Scalar(_) = &outer_input.ty {
+                let outer_name = arg_to_ident(outer_input);
+                body.extend(quote! {
+                    let #subgraph_var_name = #outer_name;
+                });
+            }
+        }
+    }
+
+    // Register subgraph inputs in scope (these are used for generating node code)
     for input in &subgraph.inputs {
         if let ArgType::Tensor(_) = &input.ty {
             scope.tensor_register_variable(input, node_position);
@@ -79,7 +105,11 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
-        // Get condition input
+        // Debug: print what we have
+        log::debug!("If node inputs: {:?}", self.inputs.iter().map(|a| &a.name).collect::<Vec<_>>());
+        log::debug!("If node scope_ref_names: {:?}", self.config.scope_ref_names);
+
+        // Get condition input (first input)
         let cond_arg = self.inputs.first().unwrap();
 
         let cond = match &cond_arg.ty {
@@ -95,12 +125,16 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
             other => panic!("If condition must be scalar or tensor, got {:?}", other),
         };
 
-        // Generate code for then and else branches
+        // Get outer-scope reference inputs (all inputs after condition)
+        // These are values from the parent scope that the subgraphs need access to
+        let outer_scope_inputs: Vec<_> = self.inputs.iter().skip(1).cloned().collect();
+
+        // Generate code for then and else branches, passing outer-scope inputs and names
         let node_position = scope.node_position();
         let (then_body, then_output) =
-            generate_subgraph_code::<PS>(&self.config.then_branch, scope.scope(), node_position);
+            generate_subgraph_code::<PS>(&self.config.then_branch, &outer_scope_inputs, &self.config.scope_ref_names, scope.scope(), node_position);
         let (else_body, else_output) =
-            generate_subgraph_code::<PS>(&self.config.else_branch, scope.scope(), node_position);
+            generate_subgraph_code::<PS>(&self.config.else_branch, &outer_scope_inputs, &self.config.scope_ref_names, scope.scope(), node_position);
 
         // Generate output variable declarations
         let output_names: Vec<_> = self.outputs.iter().map(arg_to_ident).collect();

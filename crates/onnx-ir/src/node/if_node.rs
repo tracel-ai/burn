@@ -23,6 +23,10 @@ use crate::processor::{
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
+    /// Names of outer-scope references (in order corresponding to inputs[1..])
+    /// These are the original sanitized ONNX names that subgraphs reference
+    #[new(default)]
+    pub scope_ref_names: Vec<String>,
 }
 
 /// Node representation for If operation
@@ -55,25 +59,21 @@ impl NodeProcessor for IfProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate condition input is scalar bool
+        // Validate condition input is bool
+        // Per ONNX spec, the condition must be a tensor containing a single element,
+        // but we allow any bool tensor/scalar as some models may not be strictly conformant
         let condition = &node.inputs[0].ty;
-        if !condition.is_scalar() {
+        let is_bool = match condition {
+            ArgType::Scalar(dtype) => dtype.is_bool(),
+            ArgType::Tensor(tensor) => tensor.dtype.is_bool(),
+            ArgType::Shape(_) => false,
+        };
+
+        if !is_bool {
             return Err(ProcessError::TypeMismatch {
-                expected: "Scalar Bool (rank-0 tensor or Scalar type)".to_string(),
+                expected: "Bool tensor or scalar".to_string(),
                 actual: format!("{:?}", condition),
             });
-        }
-
-        match condition {
-            ArgType::Scalar(dtype) if dtype.is_bool() => {
-                // Valid scalar bool condition
-            }
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Scalar Bool".to_string(),
-                    actual: format!("{:?}", condition),
-                });
-            }
         }
 
         // Get branches from config (clone to avoid borrow checker issues)
@@ -140,8 +140,19 @@ impl NodeProcessor for IfProcessor {
             .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
             .clone();
 
-        // Handle both Graph and GraphBuilder
+        // Build outer scope types map from additional inputs (beyond ONNX inputs)
+        // These are outer-scope references that were added during node conversion
+        let outer_scope = build_outer_scope_from_inputs(node);
+
+        // Handle DeferredGraph, Graph, and GraphBuilder
         let then_branch = match then_attr {
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!("Building deferred then_branch subgraph with {} outer-scope types", outer_scope.len());
+                deferred.build_graph_with_outer_scope(outer_scope.clone()).map_err(|e| {
+                    ProcessError::Custom(format!("Failed to build then_branch: {:?}", e))
+                })?
+            }
             crate::ir::AttributeValue::Graph(g) => g,
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
@@ -159,12 +170,19 @@ impl NodeProcessor for IfProcessor {
             }
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for then_branch".to_string(),
+                    "Expected DeferredGraph, Graph, or GraphBuilder for then_branch".to_string(),
                 ));
             }
         };
 
         let else_branch = match else_attr {
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!("Building deferred else_branch subgraph with {} outer-scope types", outer_scope.len());
+                deferred.build_graph_with_outer_scope(outer_scope).map_err(|e| {
+                    ProcessError::Custom(format!("Failed to build else_branch: {:?}", e))
+                })?
+            }
             crate::ir::AttributeValue::Graph(g) => g,
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
                 // Convert NodeBuilders to Nodes
@@ -182,14 +200,25 @@ impl NodeProcessor for IfProcessor {
             }
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for else_branch".to_string(),
+                    "Expected DeferredGraph, Graph, or GraphBuilder for else_branch".to_string(),
                 ));
             }
         };
 
+        // Get the scope ref names for use in code generation
+        let scope_ref_names: Vec<String> = node
+            .attrs
+            .get("__scope_ref_names")
+            .and_then(|v| match v {
+                crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
         Ok(IfConfig {
             then_branch,
             else_branch,
+            scope_ref_names,
         })
     }
 
@@ -205,6 +234,57 @@ impl NodeProcessor for IfProcessor {
             config,
         })
     }
+}
+
+/// Build outer scope types map from additional inputs added during node conversion.
+///
+/// During node conversion, outer-scope references used by subgraphs are extracted
+/// and added as additional inputs to If/Loop/Scan nodes. The `__onnx_input_count`
+/// attribute stores how many of the inputs are "real" ONNX inputs. Inputs beyond
+/// that count are outer-scope references with resolved types.
+///
+/// The `__scope_ref_names` attribute stores the original sanitized ONNX names
+/// for these scope refs, which are needed because subgraphs reference these
+/// original names, not the renamed node output names.
+fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
+    use std::collections::HashMap;
+
+    // Get the count of original ONNX inputs (default to all inputs if not set)
+    let onnx_input_count = node
+        .attrs
+        .get("__onnx_input_count")
+        .and_then(|v| match v {
+            crate::ir::AttributeValue::Int64(n) => Some(*n as usize),
+            _ => None,
+        })
+        .unwrap_or(node.inputs.len());
+
+    // Get the original ONNX names for the scope refs
+    let scope_ref_names: Vec<String> = node
+        .attrs
+        .get("__scope_ref_names")
+        .and_then(|v| match v {
+            crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    // Build outer scope map using original names and types from inputs
+    let mut outer_scope: HashMap<String, crate::ir::ArgType> = HashMap::new();
+    let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
+
+    for (i, input) in scope_ref_inputs.iter().enumerate() {
+        // Use the original ONNX name if available, otherwise fall back to input name
+        let name = scope_ref_names.get(i).cloned().unwrap_or_else(|| input.name.clone());
+        log::debug!(
+            "Adding outer-scope type: {} -> {:?}",
+            name,
+            input.ty
+        );
+        outer_scope.insert(name, input.ty.clone());
+    }
+
+    outer_scope
 }
 
 #[cfg(test)]

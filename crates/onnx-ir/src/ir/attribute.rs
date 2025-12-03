@@ -4,10 +4,70 @@
 //! of attributes that can be attached to ONNX nodes.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use burn_tensor::TensorData;
 
 use crate::ir::{OnnxGraph, OnnxGraphBuilder};
+use crate::protos::GraphProto;
+
+/// Deferred subgraph that needs to be built later during type inference.
+/// This allows us to defer subgraph processing until all outer-scope references
+/// have types resolved.
+#[derive(Debug, Clone)]
+pub struct DeferredGraph {
+    /// The raw ONNX GraphProto (wrapped in Arc for cheap cloning)
+    pub proto: Arc<GraphProto>,
+    /// The opset version to use when building the subgraph
+    pub opset_version: usize,
+    /// Name registry for unique node naming across subgraphs
+    pub name_registry: Option<crate::graph_state::NameRegistry>,
+}
+
+/// A map of outer-scope value names to their resolved types
+pub type OuterScopeTypes = std::collections::HashMap<String, crate::ir::ArgType>;
+
+impl DeferredGraph {
+    /// Build the subgraph from the deferred GraphProto with access to outer scope types.
+    ///
+    /// This should be called during type inference when all outer-scope
+    /// references have been resolved. The `outer_scope` map provides types
+    /// for values that the subgraph references from the parent graph.
+    pub fn build_with_outer_scope(
+        &self,
+        outer_scope: OuterScopeTypes,
+    ) -> Result<OnnxGraphBuilder, crate::pipeline::Error> {
+        crate::pipeline::build_graph_builder_from_proto_with_outer_scope(
+            &self.proto,
+            self.opset_version,
+            self.name_registry.clone(),
+            outer_scope,
+        )
+    }
+
+    /// Build and finalize the subgraph into an OnnxGraph with outer scope types.
+    pub fn build_graph_with_outer_scope(
+        &self,
+        outer_scope: OuterScopeTypes,
+    ) -> Result<OnnxGraph, crate::pipeline::Error> {
+        let builder = self.build_with_outer_scope(outer_scope)?;
+        Ok(builder.convert_to_graph(self.opset_version))
+    }
+
+    /// Build the subgraph from the deferred GraphProto.
+    ///
+    /// This should be called during type inference when all outer-scope
+    /// references have been resolved.
+    pub fn build(&self) -> Result<OnnxGraphBuilder, crate::pipeline::Error> {
+        self.build_with_outer_scope(OuterScopeTypes::new())
+    }
+
+    /// Build and finalize the subgraph into an OnnxGraph.
+    pub fn build_graph(&self) -> Result<OnnxGraph, crate::pipeline::Error> {
+        let builder = self.build()?;
+        Ok(builder.convert_to_graph(self.opset_version))
+    }
+}
 
 /// The type of an attribute.
 #[derive(Debug, Clone)]
@@ -22,6 +82,10 @@ pub(crate) enum AttributeValue {
     Tensor(TensorData),
     #[allow(dead_code)]
     Tensors(Vec<TensorData>),
+    /// Deferred graph attribute - raw GraphProto to be built during type inference
+    DeferredGraph(DeferredGraph),
+    /// Multiple deferred graphs
+    DeferredGraphs(Vec<DeferredGraph>),
     /// Graph attribute - holds OnnxGraphBuilder during processing, converts to OnnxGraph later
     GraphBuilder(OnnxGraphBuilder),
     /// Multiple graph attributes
