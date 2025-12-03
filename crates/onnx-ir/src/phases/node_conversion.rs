@@ -10,7 +10,7 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 use crate::{
     graph_state::GraphState,
     ir::{ArgType, AttributeValue, NodeType, RawNode, TensorData, TensorDataExt},
-    pipeline::OnnxIrError,
+    pipeline::Error,
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
     protos::{GraphProto, NodeProto},
@@ -25,7 +25,7 @@ pub(crate) fn convert_nodes_from_graph(
     graph: &GraphProto,
     state_rc: &Rc<RefCell<GraphState>>,
     opset_version: usize,
-) -> Result<(), OnnxIrError> {
+) -> Result<(), Error> {
     convert_nodes_impl(&graph.node, state_rc, opset_version)
 }
 
@@ -38,7 +38,7 @@ fn convert_nodes_impl(
     nodes: &[NodeProto],
     state_rc: &Rc<RefCell<GraphState>>,
     opset_version: usize,
-) -> Result<(), OnnxIrError> {
+) -> Result<(), Error> {
     let mut node_name_counter: HashMap<NodeType, usize> = HashMap::new();
 
     // Get the name registry (if available)
@@ -183,10 +183,10 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
         };
 
         if let Some(tensor_data) = tensor_data_opt {
-            // Store in central tensor store
+            // Store in central tensor store (convert to TensorDataRef)
             let data_id = {
                 let mut state = state_rc.borrow_mut();
-                state.store_tensor_data(tensor_data.clone())
+                state.store_tensor_data(tensor_data.clone().into())
             };
 
             // Create type from tensor data

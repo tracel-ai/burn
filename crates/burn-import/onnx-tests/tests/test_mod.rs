@@ -72,6 +72,7 @@ pub mod linear;
 pub mod log;
 pub mod log_softmax;
 pub mod r#loop;
+pub mod lstm;
 pub mod matmul;
 pub mod matmulinteger;
 pub mod max;

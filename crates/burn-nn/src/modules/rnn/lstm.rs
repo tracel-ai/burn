@@ -1,11 +1,10 @@
 use burn_core as burn;
 
 use crate::GateController;
+use crate::activation::{Activation, ActivationConfig};
 use burn::config::Config;
-use burn::module::Module;
-use burn::module::{Content, DisplaySettings, Initializer, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::activation;
 use burn::tensor::backend::Backend;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
@@ -35,6 +34,34 @@ pub struct LstmConfig {
     /// Lstm initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
+    /// If true, the input tensor is expected to be `[batch_size, seq_length, input_size]`.
+    /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
+    #[config(default = true)]
+    pub batch_first: bool,
+    /// If true, process the sequence in reverse order.
+    /// This is useful for implementing reverse-direction LSTMs (e.g., ONNX reverse direction).
+    #[config(default = false)]
+    pub reverse: bool,
+    /// Optional cell state clip threshold. If provided, cell state values are clipped
+    /// to the range `[-clip, +clip]` after each timestep. This can help prevent
+    /// exploding values during inference.
+    pub clip: Option<f64>,
+    /// If true, couples the input and forget gates: `f_t = 1 - i_t`.
+    /// This reduces the number of parameters and is based on GRU-style simplification.
+    #[config(default = false)]
+    pub input_forget: bool,
+    /// Activation function for the input, forget, and output gates.
+    /// Default is Sigmoid, which is standard for LSTM gates.
+    #[config(default = "ActivationConfig::Sigmoid")]
+    pub gate_activation: ActivationConfig,
+    /// Activation function for the cell gate (candidate cell state).
+    /// Default is Tanh, which is standard for LSTM.
+    #[config(default = "ActivationConfig::Tanh")]
+    pub cell_activation: ActivationConfig,
+    /// Activation function applied to the cell state before computing hidden output.
+    /// Default is Tanh, which is standard for LSTM.
+    #[config(default = "ActivationConfig::Tanh")]
+    pub hidden_activation: ActivationConfig,
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
@@ -48,6 +75,7 @@ pub struct Lstm<B: Backend> {
     /// The input gate regulates which information to update and store in the cell state at each time step.
     pub input_gate: GateController<B>,
     /// The forget gate is used to control which information to discard or keep in the memory cell at each time step.
+    /// Note: When `input_forget` is true, this gate is not used (forget = 1 - input).
     pub forget_gate: GateController<B>,
     /// The output gate determines which information from the cell state to output at each time step.
     pub output_gate: GateController<B>,
@@ -55,6 +83,21 @@ pub struct Lstm<B: Backend> {
     pub cell_gate: GateController<B>,
     /// The hidden state of the LSTM.
     pub d_hidden: usize,
+    /// If true, input is `[batch_size, seq_length, input_size]`.
+    /// If false, input is `[seq_length, batch_size, input_size]`.
+    pub batch_first: bool,
+    /// If true, process the sequence in reverse order.
+    pub reverse: bool,
+    /// Optional cell state clip threshold.
+    pub clip: Option<f64>,
+    /// If true, couples input and forget gates: f_t = 1 - i_t.
+    pub input_forget: bool,
+    /// Activation function for gates (input, forget, output).
+    pub gate_activation: Activation<B>,
+    /// Activation function for cell gate (candidate cell state).
+    pub cell_activation: Activation<B>,
+    /// Activation function for hidden output.
+    pub hidden_activation: Activation<B>,
 }
 
 impl<B: Backend> ModuleDisplay for Lstm<B> {
@@ -97,6 +140,13 @@ impl LstmConfig {
             output_gate: new_gate(),
             cell_gate: new_gate(),
             d_hidden: self.d_hidden,
+            batch_first: self.batch_first,
+            reverse: self.reverse,
+            clip: self.clip,
+            input_forget: self.input_forget,
+            gate_activation: self.gate_activation.init(device),
+            cell_activation: self.cell_activation.init(device),
+            hidden_activation: self.hidden_activation.init(device),
         }
     }
 }
@@ -106,13 +156,17 @@ impl<B: Backend> Lstm<B> {
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
     /// ## Parameters:
-    /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
+    /// - batched_input: The input tensor of shape:
+    ///   - `[batch_size, sequence_length, input_size]` if `batch_first` is true (default)
+    ///   - `[sequence_length, batch_size, input_size]` if `batch_first` is false
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
     ///   Each state tensor has shape `[batch_size, hidden_size]`.
     ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
-    /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size]`
+    /// - output: A tensor represents the output features of LSTM. Shape:
+    ///   - `[batch_size, sequence_length, hidden_size]` if `batch_first` is true
+    ///   - `[sequence_length, batch_size, hidden_size]` if `batch_first` is false
     /// - state: A `LstmState` represents the final states. Both `state.cell` and `state.hidden` have the shape
     ///   `[batch_size, hidden_size]`.
     pub fn forward(
@@ -120,16 +174,43 @@ impl<B: Backend> Lstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<LstmState<B, 2>>,
     ) -> (Tensor<B, 3>, LstmState<B, 2>) {
+        // Convert to batch-first layout internally if needed
+        let batched_input = if self.batch_first {
+            batched_input
+        } else {
+            batched_input.swap_dims(0, 1)
+        };
+
         let device = batched_input.device();
         let [batch_size, seq_length, _] = batched_input.dims();
 
-        self.forward_iter(
-            batched_input.iter_dim(1).zip(0..seq_length),
-            state,
-            batch_size,
-            seq_length,
-            &device,
-        )
+        // Process sequence in forward or reverse order based on config
+        let (output, state) = if self.reverse {
+            self.forward_iter(
+                batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
+                state,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        } else {
+            self.forward_iter(
+                batched_input.iter_dim(1).zip(0..seq_length),
+                state,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        };
+
+        // Convert output back to seq-first layout if needed
+        let output = if self.batch_first {
+            output
+        } else {
+            output.swap_dims(0, 1)
+        };
+
+        (output, state)
     }
 
     fn forward_iter<I: Iterator<Item = (Tensor<B, 3>, usize)>>(
@@ -153,32 +234,44 @@ impl<B: Backend> Lstm<B> {
 
         for (input_t, t) in input_timestep_iter {
             let input_t = input_t.squeeze_dim(1);
-            // f(orget)g(ate) tensors
-            let biased_fg_input_sum = self
-                .forget_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
-            let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
 
             // i(nput)g(ate) tensors
             let biased_ig_input_sum = self
                 .input_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let add_values = activation::sigmoid(biased_ig_input_sum);
+            let input_values = self.gate_activation.forward(biased_ig_input_sum);
+
+            // f(orget)g(ate) tensors - either computed or coupled to input gate
+            let forget_values = if self.input_forget {
+                // Coupled mode: f_t = 1 - i_t
+                input_values.clone().neg().add_scalar(1.0)
+            } else {
+                let biased_fg_input_sum = self
+                    .forget_gate
+                    .gate_product(input_t.clone(), hidden_state.clone());
+                self.gate_activation.forward(biased_fg_input_sum)
+            };
 
             // o(output)g(ate) tensors
             let biased_og_input_sum = self
                 .output_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let output_values = activation::sigmoid(biased_og_input_sum);
+            let output_values = self.gate_activation.forward(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
             let biased_cg_input_sum = self
                 .cell_gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            let candidate_cell_values = biased_cg_input_sum.tanh();
+            let candidate_cell_values = self.cell_activation.forward(biased_cg_input_sum);
 
-            cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
-            hidden_state = output_values * cell_state.clone().tanh();
+            cell_state = forget_values * cell_state.clone() + input_values * candidate_cell_values;
+
+            // Apply cell state clipping if configured
+            if let Some(clip) = self.clip {
+                cell_state = cell_state.clamp(-clip, clip);
+            }
+
+            hidden_state = output_values * self.hidden_activation.forward(cell_state.clone());
 
             let unsqueezed_hidden_state = hidden_state.clone().unsqueeze_dim(1);
 
@@ -208,6 +301,24 @@ pub struct BiLstmConfig {
     /// BiLstm initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
+    /// If true, the input tensor is expected to be `[batch_size, seq_length, input_size]`.
+    /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
+    #[config(default = true)]
+    pub batch_first: bool,
+    /// Optional cell state clip threshold.
+    pub clip: Option<f64>,
+    /// If true, couples the input and forget gates.
+    #[config(default = false)]
+    pub input_forget: bool,
+    /// Activation function for the input, forget, and output gates.
+    #[config(default = "ActivationConfig::Sigmoid")]
+    pub gate_activation: ActivationConfig,
+    /// Activation function for the cell gate (candidate cell state).
+    #[config(default = "ActivationConfig::Tanh")]
+    pub cell_activation: ActivationConfig,
+    /// Activation function applied to the cell state before computing hidden output.
+    #[config(default = "ActivationConfig::Tanh")]
+    pub hidden_activation: ActivationConfig,
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
@@ -224,6 +335,9 @@ pub struct BiLstm<B: Backend> {
     pub reverse: Lstm<B>,
     /// The size of the hidden state.
     pub d_hidden: usize,
+    /// If true, input is `[batch_size, seq_length, input_size]`.
+    /// If false, input is `[seq_length, batch_size, input_size]`.
+    pub batch_first: bool,
 }
 
 impl<B: Backend> ModuleDisplay for BiLstm<B> {
@@ -254,14 +368,21 @@ impl<B: Backend> ModuleDisplay for BiLstm<B> {
 impl BiLstmConfig {
     /// Initialize a new [Bidirectional LSTM](BiLstm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> BiLstm<B> {
+        // Internal LSTMs always use batch_first=true; BiLstm handles layout conversion
+        let base_config = LstmConfig::new(self.d_input, self.d_hidden, self.bias)
+            .with_initializer(self.initializer.clone())
+            .with_batch_first(true)
+            .with_clip(self.clip)
+            .with_input_forget(self.input_forget)
+            .with_gate_activation(self.gate_activation.clone())
+            .with_cell_activation(self.cell_activation.clone())
+            .with_hidden_activation(self.hidden_activation.clone());
+
         BiLstm {
-            forward: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
-                .with_initializer(self.initializer.clone())
-                .init(device),
-            reverse: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
-                .with_initializer(self.initializer.clone())
-                .init(device),
+            forward: base_config.clone().init(device),
+            reverse: base_config.init(device),
             d_hidden: self.d_hidden,
+            batch_first: self.batch_first,
         }
     }
 }
@@ -271,13 +392,17 @@ impl<B: Backend> BiLstm<B> {
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
     /// ## Parameters:
-    /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
+    /// - batched_input: The input tensor of shape:
+    ///   - `[batch_size, sequence_length, input_size]` if `batch_first` is true (default)
+    ///   - `[sequence_length, batch_size, input_size]` if `batch_first` is false
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
     ///   Each state tensor has shape `[2, batch_size, hidden_size]`.
     ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
-    /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size * 2]`
+    /// - output: A tensor represents the output features of LSTM. Shape:
+    ///   - `[batch_size, sequence_length, hidden_size * 2]` if `batch_first` is true
+    ///   - `[sequence_length, batch_size, hidden_size * 2]` if `batch_first` is false
     /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
     ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
@@ -285,6 +410,13 @@ impl<B: Backend> BiLstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<LstmState<B, 3>>,
     ) -> (Tensor<B, 3>, LstmState<B, 3>) {
+        // Convert to batch-first layout internally if needed
+        let batched_input = if self.batch_first {
+            batched_input
+        } else {
+            batched_input.swap_dims(0, 1)
+        };
+
         let device = batched_input.clone().device();
         let [batch_size, seq_length, _] = batched_input.shape().dims();
 
@@ -335,6 +467,13 @@ impl<B: Backend> BiLstm<B> {
             [batched_hidden_state_forward, batched_hidden_state_reverse].to_vec(),
             2,
         );
+
+        // Convert output back to seq-first layout if needed
+        let output = if self.batch_first {
+            output
+        } else {
+            output.swap_dims(0, 1)
+        };
 
         let state = LstmState::new(
             Tensor::stack(

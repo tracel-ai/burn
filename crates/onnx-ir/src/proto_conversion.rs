@@ -10,6 +10,7 @@ use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType as DT,
     tensor_shape_proto::dimension::Value,
 };
+use crate::tensor_store::TensorDataRef;
 
 use burn_tensor::DType;
 use protobuf::Enum;
@@ -252,75 +253,125 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
     }
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<TensorProto> for TensorData {
+/// Create an Argument and TensorDataRef from an ONNX initializer (zero-copy path)
+///
+/// This is the preferred path for mmap loading - it creates TensorDataRef directly
+/// from the TensorProto without going through TensorData, avoiding unnecessary copies.
+/// The tensor bytes remain as references to the mmap'd buffer until actually accessed.
+pub fn argument_from_initializer_lazy(
+    initializer: TensorProto,
+) -> Result<(Argument, TensorDataRef), ParseError> {
+    use crate::ir::ValueSource;
+
+    let name = initializer.name.clone();
+
+    // Try to create TensorDataRef directly (zero-copy for raw_data)
+    let data_ref = TensorDataRef::try_from(initializer)?;
+
+    let arg = if data_ref.shape().is_empty() {
+        // rank-0 (scalar)
+        Argument {
+            name,
+            ty: ArgType::Scalar(data_ref.dtype()),
+            value_source: ValueSource::Constant,
+            value_store: None,
+        }
+    } else {
+        Argument {
+            name,
+            ty: ArgType::Tensor(TensorType {
+                dtype: data_ref.dtype(),
+                rank: data_ref.shape().len(),
+                static_shape: Some(data_ref.shape().to_vec()),
+            }),
+            value_source: ValueSource::Constant,
+            value_store: None,
+        }
+    };
+
+    Ok((arg, data_ref))
+}
+
+/// Convert TensorProto to TensorDataRef for zero-copy mmap support
+///
+/// This stores raw bytes directly without copying, deferring conversion
+/// to TensorData until the data is actually accessed.
+impl TryFrom<TensorProto> for TensorDataRef {
     type Error = ParseError;
 
-    fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
+    fn try_from(tensor: TensorProto) -> Result<TensorDataRef, Self::Error> {
         let shape = convert_shape(tensor.dims);
         let elem =
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
-        // Optimize using burn-tensor's from_bytes_vec for direct byte conversion
+        // Use raw_data directly when available (zero-copy from mmap)
+        // Note: For Bool, raw bytes are stored as u8 (0 or 1) and will be reinterpreted
+        // as bool during to_tensor_data(). TensorData::as_slice handles this via transmute.
         if !tensor.raw_data.is_empty() {
-            // Types that can use zero-copy or minimal-copy from raw bytes
             match elem {
-                // These types can use from_bytes_vec directly (just reinterpret bytes)
                 DType::F32
                 | DType::F64
                 | DType::F16
                 | DType::I32
                 | DType::I64
                 | DType::U16
-                | DType::U8 => {
-                    // Use from_bytes_vec to avoid intermediate typed Vec allocation
-                    Ok(burn_tensor::TensorData::from_bytes_vec(
-                        tensor.raw_data,
-                        shape,
-                        elem,
-                    ))
-                }
-                // These types need element-wise conversion
-                DType::I8 => {
-                    let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
-                    Ok(TensorData::new(data, shape))
-                }
-                DType::Bool => {
-                    let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
-                    Ok(TensorData::new(data, shape))
-                }
+                | DType::U8
+                | DType::I8
+                | DType::Bool => Ok(TensorDataRef::new(tensor.raw_data, shape, elem)),
                 _ => Err(ParseError::VariantNotFound(format!(
                     "Unsupported dtype {:?}",
                     elem
                 ))),
             }
         } else {
-            match elem {
-                DType::F32 => Ok(TensorData::new(tensor.float_data, shape)),
-                DType::F64 => Ok(TensorData::new(tensor.double_data, shape)),
-                DType::I32 => Ok(TensorData::new(tensor.int32_data, shape)),
-                DType::I64 => Ok(TensorData::new(tensor.int64_data, shape)),
+            // Convert typed fields to bytes
+            let raw_bytes = match elem {
+                DType::F32 => vec_to_bytes(&tensor.float_data),
+                DType::F64 => vec_to_bytes(&tensor.double_data),
+                DType::I32 => vec_to_bytes(&tensor.int32_data),
+                DType::I64 => vec_to_bytes(&tensor.int64_data),
                 DType::Bool => {
-                    let data: Vec<bool> = tensor.int32_data.into_iter().map(|x| x != 0).collect();
-                    Ok(TensorData::new(data, shape))
+                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| (x != 0) as u8).collect();
+                    bytes::Bytes::from(data)
                 }
                 DType::U8 => {
-                    // accept weird exporters that stuff zp as int32_data
-                    let data: Vec<u8> = tensor.int32_data.into_iter().map(|x| x as u8).collect();
-                    Ok(TensorData::new(data, shape))
+                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| x as u8).collect();
+                    bytes::Bytes::from(data)
                 }
                 DType::I8 => {
-                    let data: Vec<i8> = tensor.int32_data.into_iter().map(|x| x as i8).collect();
-                    Ok(TensorData::new(data, shape))
+                    // Convert i32 to i8 first, then get bytes via bytemuck for clarity
+                    let data: Vec<i8> = tensor.int32_data.iter().map(|&x| x as i8).collect();
+                    vec_to_bytes(&data)
                 }
-                DType::F16 => Ok(TensorData::new(Vec::<half::f16>::new(), shape)),
-                DType::U16 => Ok(TensorData::new(Vec::<u16>::new(), shape)),
-                _ => Err(ParseError::VariantNotFound(format!(
-                    "empty/unsupported payload for {:?}",
-                    elem
-                ))),
-            }
+                DType::F16 => bytes::Bytes::new(), // Empty
+                DType::U16 => bytes::Bytes::new(), // Empty
+                _ => {
+                    return Err(ParseError::VariantNotFound(format!(
+                        "empty/unsupported payload for {:?}",
+                        elem
+                    )));
+                }
+            };
+            Ok(TensorDataRef::new(raw_bytes, shape, elem))
         }
+    }
+}
+
+/// Helper to convert a Vec of POD elements to bytes::Bytes
+fn vec_to_bytes<T: bytemuck::Pod>(data: &[T]) -> bytes::Bytes {
+    bytes::Bytes::copy_from_slice(bytemuck::cast_slice(data))
+}
+
+/// Convert TensorProto to TensorData (convenience wrapper)
+///
+/// This goes through TensorDataRef, which means the data is copied
+/// to ensure proper alignment for typed access.
+impl TryFrom<TensorProto> for TensorData {
+    type Error = ParseError;
+
+    fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
+        let data_ref = TensorDataRef::try_from(tensor)?;
+        Ok(data_ref.to_tensor_data())
     }
 }
 impl TryFrom<TensorShapeProto> for Vec<usize> {
@@ -430,7 +481,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> RawNode 
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
-    let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
+    let node_type = NodeType::from_str(&node.op_type).expect("Unknown node type");
 
     RawNode {
         node_type,
@@ -441,12 +492,12 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> RawNode 
     }
 }
 
-fn to_string(bytes: Vec<u8>) -> String {
-    from_utf8(bytes.as_slice()).unwrap().to_string()
+fn to_string(bytes: bytes::Bytes) -> String {
+    from_utf8(&bytes).unwrap().to_string()
 }
 
-fn to_string_vec(bytes: Vec<Vec<u8>>) -> Vec<String> {
-    bytes.iter().map(|b| to_string(b.clone())).collect()
+fn to_string_vec(bytes: Vec<bytes::Bytes>) -> Vec<String> {
+    bytes.into_iter().map(to_string).collect()
 }
 
 fn convert_shape(shape: Vec<i64>) -> Vec<usize> {

@@ -13,8 +13,9 @@ use std::{
 };
 
 use crate::ir::{ArgType, Argument, DataId, NodeType, RawNode, TensorData};
-use crate::proto_conversion::argument_from_initializer;
+use crate::proto_conversion::{argument_from_initializer, argument_from_initializer_lazy};
 use crate::protos::{TensorProto, ValueInfoProto};
+use crate::tensor_store::TensorDataRef;
 
 use super::tensor_store::TensorStore;
 
@@ -301,7 +302,7 @@ impl GraphState {
 
     /// Allocate a new tensor ID and store data in central store
     /// Returns the allocated ID
-    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> DataId {
+    pub(crate) fn store_tensor_data(&mut self, data: TensorDataRef) -> DataId {
         Rc::make_mut(&mut self.tensor_store).store(data)
     }
 
@@ -385,6 +386,9 @@ fn create_constant_node(
 }
 
 /// Convert ONNX initializers to Constant nodes, store in tensor store
+///
+/// Uses the zero-copy lazy path when possible (raw_data available),
+/// falling back to the standard path for edge cases (scalars, empty tensors).
 fn process_initializers(
     initializers: &[TensorProto],
     tensor_store: &mut TensorStore,
@@ -395,10 +399,17 @@ fn process_initializers(
         .iter()
         .enumerate()
         .map(|(idx, initializer)| {
-            let (_arg, data) = argument_from_initializer(initializer);
+            // Try the zero-copy lazy path first (preserves mmap references)
+            let (arg, lazy_data) = match argument_from_initializer_lazy(initializer.clone()) {
+                Ok((arg, lazy_data)) => (arg, lazy_data),
+                Err(_) => {
+                    // Fallback to standard path for edge cases (scalars, empty tensors)
+                    let (arg, data) = argument_from_initializer(initializer);
+                    (arg, TensorDataRef::from(data))
+                }
+            };
 
-            // Allocate ID and store tensor data
-            let data_id = tensor_store.store(data);
+            let data_id = tensor_store.store(lazy_data);
 
             // Generate unique name using registry if available
             let const_name = if let Some(registry) = name_registry {
@@ -411,7 +422,7 @@ fn process_initializers(
             // Register in constant_map for fast lookup
             constant_map.insert(output_name.clone(), data_id);
 
-            create_constant_node(const_name, output_name, _arg.ty.clone(), data_id)
+            create_constant_node(const_name, output_name, arg.ty.clone(), data_id)
         })
         .collect()
 }
@@ -434,7 +445,9 @@ fn create_test_constant(
         static_shape: Some(shape.clone()),
     });
 
-    let data_id = tensor_store.store(tensor_data);
+    // Convert TensorData to TensorDataRef and store
+    let data_ref = TensorDataRef::from(tensor_data);
+    let data_id = tensor_store.store(data_ref);
 
     // Use name directly as output name for test lookups (no _const_out suffix)
     let const_node_name = format!("{}_const", name);
