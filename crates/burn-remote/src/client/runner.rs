@@ -3,7 +3,7 @@ use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
-use burn_std::future::DynFut;
+use burn_std::{backtrace::BackTrace, future::DynFut};
 use burn_tensor::{
     Shape, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
@@ -73,7 +73,8 @@ impl RunnerClient for RemoteClient {
                     _ => panic!("Invalid message type"),
                 },
                 Err(e) => Err(ExecutionError::Generic {
-                    context: format!("Failed to read tensor: {:?}", e),
+                    reason: format!("Failed to sync: {:?}", e),
+                    backtrace: BackTrace::capture(),
                 }),
             }
         })
@@ -102,8 +103,9 @@ impl RunnerClient for RemoteClient {
                 TaskResponseContent::SyncBackend(res) => res,
                 _ => panic!("Invalid message type"),
             },
-            Err(e) => Err(SyncError::Generic {
-                context: format!("Failed to sync: {:?}", e),
+            Err(e) => Err(ExecutionError::Generic {
+                reason: format!("Failed to sync: {:?}", e),
+                backtrace: BackTrace::capture(),
             }),
         }
     }
