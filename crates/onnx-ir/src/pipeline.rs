@@ -371,8 +371,11 @@ pub(crate) fn build_graph_builder_from_proto_with_outer_scope(
     outer_scope: crate::ir::OuterScopeTypes,
 ) -> Result<crate::ir::OnnxGraphBuilder, Error> {
     log::debug!(" PHASE 1: Initialization ");
-    let state_rc =
-        initialization::initialize_from_graph_with_registry_and_outer_scope(graph, name_registry, outer_scope);
+    let state_rc = initialization::initialize_from_graph_with_registry_and_outer_scope(
+        graph,
+        name_registry,
+        outer_scope,
+    );
 
     log::debug!(" PHASE 2: Node Conversion (Proto -> RawNode) ");
     node_conversion::convert_nodes_from_graph(graph, &state_rc, opset_version)?;

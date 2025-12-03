@@ -6,18 +6,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{graph_state::GraphState, ir::NodeType, ir::OuterScopeTypes, protos::GraphProto};
 
-/// Initialize GraphState with optional shared name registry
-pub(crate) fn initialize_from_graph_with_registry(
-    graph: &GraphProto,
-    name_registry: Option<crate::graph_state::NameRegistry>,
-) -> Rc<RefCell<GraphState>> {
-    initialize_from_graph_with_registry_and_outer_scope(
-        graph,
-        name_registry,
-        OuterScopeTypes::new(),
-    )
-}
-
 /// Initialize GraphState with optional shared name registry and outer scope types
 ///
 /// The `outer_scope` map provides types for values that the graph references

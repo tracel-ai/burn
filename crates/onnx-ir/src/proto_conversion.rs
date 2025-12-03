@@ -594,7 +594,9 @@ pub fn extract_outer_scope_references(
                             // These are loop-provided, not outer-scope references
                             let loop_provided_names: std::collections::HashSet<String> =
                                 if is_loop_or_scan && attr.name == "body" {
-                                    nested_graph.input.iter()
+                                    nested_graph
+                                        .input
+                                        .iter()
                                         .filter(|i| !i.name.is_empty())
                                         .map(|i| sanitize_name(&i.name))
                                         .collect()
@@ -606,7 +608,9 @@ pub fn extract_outer_scope_references(
                             let nested_refs = extract_outer_scope_references(nested_graph);
                             for name in nested_refs {
                                 // Skip if it's provided by the loop construct or already defined
-                                if !defined_names.contains(&name) && !loop_provided_names.contains(&name) {
+                                if !defined_names.contains(&name)
+                                    && !loop_provided_names.contains(&name)
+                                {
                                     referenced_names.insert(name);
                                 }
                             }

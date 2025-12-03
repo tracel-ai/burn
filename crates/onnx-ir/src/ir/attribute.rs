@@ -54,15 +54,16 @@ impl DeferredGraph {
         Ok(builder.convert_to_graph(self.opset_version))
     }
 
-    /// Build the subgraph from the deferred GraphProto.
+    /// Build the subgraph from the deferred GraphProto without outer scope types.
     ///
-    /// This should be called during type inference when all outer-scope
-    /// references have been resolved.
+    /// Useful for simple subgraphs that don't reference outer-scope values.
+    #[allow(dead_code)]
     pub fn build(&self) -> Result<OnnxGraphBuilder, crate::pipeline::Error> {
         self.build_with_outer_scope(OuterScopeTypes::new())
     }
 
-    /// Build and finalize the subgraph into an OnnxGraph.
+    /// Build and finalize the subgraph into an OnnxGraph without outer scope types.
+    #[allow(dead_code)]
     pub fn build_graph(&self) -> Result<OnnxGraph, crate::pipeline::Error> {
         let builder = self.build()?;
         Ok(builder.convert_to_graph(self.opset_version))
@@ -84,11 +85,14 @@ pub(crate) enum AttributeValue {
     Tensors(Vec<TensorData>),
     /// Deferred graph attribute - raw GraphProto to be built during type inference
     DeferredGraph(DeferredGraph),
-    /// Multiple deferred graphs
+    /// Multiple deferred graphs (for GRAPHS attributes, currently unused but reserved)
+    #[allow(dead_code)]
     DeferredGraphs(Vec<DeferredGraph>),
-    /// Graph attribute - holds OnnxGraphBuilder during processing, converts to OnnxGraph later
+    /// Graph attribute - holds OnnxGraphBuilder during post-processing
+    #[allow(dead_code)]
     GraphBuilder(OnnxGraphBuilder),
     /// Multiple graph attributes
+    #[allow(dead_code)]
     GraphBuilders(Vec<OnnxGraphBuilder>),
     /// Final graph after conversion (used in final Node enum)
     Graph(OnnxGraph),

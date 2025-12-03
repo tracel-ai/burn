@@ -148,10 +148,15 @@ impl NodeProcessor for IfProcessor {
         let then_branch = match then_attr {
             crate::ir::AttributeValue::DeferredGraph(deferred) => {
                 // Build the subgraph now with outer-scope types
-                log::debug!("Building deferred then_branch subgraph with {} outer-scope types", outer_scope.len());
-                deferred.build_graph_with_outer_scope(outer_scope.clone()).map_err(|e| {
-                    ProcessError::Custom(format!("Failed to build then_branch: {:?}", e))
-                })?
+                log::debug!(
+                    "Building deferred then_branch subgraph with {} outer-scope types",
+                    outer_scope.len()
+                );
+                deferred
+                    .build_graph_with_outer_scope(outer_scope.clone())
+                    .map_err(|e| {
+                        ProcessError::Custom(format!("Failed to build then_branch: {:?}", e))
+                    })?
             }
             crate::ir::AttributeValue::Graph(g) => g,
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
@@ -178,10 +183,15 @@ impl NodeProcessor for IfProcessor {
         let else_branch = match else_attr {
             crate::ir::AttributeValue::DeferredGraph(deferred) => {
                 // Build the subgraph now with outer-scope types
-                log::debug!("Building deferred else_branch subgraph with {} outer-scope types", outer_scope.len());
-                deferred.build_graph_with_outer_scope(outer_scope).map_err(|e| {
-                    ProcessError::Custom(format!("Failed to build else_branch: {:?}", e))
-                })?
+                log::debug!(
+                    "Building deferred else_branch subgraph with {} outer-scope types",
+                    outer_scope.len()
+                );
+                deferred
+                    .build_graph_with_outer_scope(outer_scope)
+                    .map_err(|e| {
+                        ProcessError::Custom(format!("Failed to build else_branch: {:?}", e))
+                    })?
             }
             crate::ir::AttributeValue::Graph(g) => g,
             crate::ir::AttributeValue::GraphBuilder(mut builder) => {
@@ -275,12 +285,11 @@ fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
 
     for (i, input) in scope_ref_inputs.iter().enumerate() {
         // Use the original ONNX name if available, otherwise fall back to input name
-        let name = scope_ref_names.get(i).cloned().unwrap_or_else(|| input.name.clone());
-        log::debug!(
-            "Adding outer-scope type: {} -> {:?}",
-            name,
-            input.ty
-        );
+        let name = scope_ref_names
+            .get(i)
+            .cloned()
+            .unwrap_or_else(|| input.name.clone());
+        log::debug!("Adding outer-scope type: {} -> {:?}", name, input.ty);
         outer_scope.insert(name, input.ty.clone());
     }
 
