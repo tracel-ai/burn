@@ -157,6 +157,15 @@ pub fn arg_to_ident(arg: &Argument) -> proc_macro2::Ident {
     proc_macro2::Ident::new(&arg.name, proc_macro2::Span::call_site())
 }
 
+// ============================================================================
+// Tensor snapshot helpers using NdArray backend
+// ============================================================================
+
+/// The backend used for tensor transformations during import.
+/// Uses the NdArray backend for CPU-based tensor operations during ONNX import.
+#[cfg(feature = "onnx")]
+pub type SerializationBackend = burn_ndarray::NdArray;
+
 /// Create a lazy tensor snapshot from an ONNX argument.
 ///
 /// This creates a TensorSnapshot that lazily loads tensor data only when needed.
@@ -285,66 +294,20 @@ where
     ))
 }
 
-/// Transpose a 2D tensor's data.
+/// Transpose a 2D tensor's data using NdArray backend.
 ///
 /// Converts from [rows, cols] to [cols, rows] layout.
 /// This is used for Linear weights which need to be transposed from ONNX format.
+#[cfg(feature = "onnx")]
 pub fn transpose_2d(data: burn::tensor::TensorData) -> burn::tensor::TensorData {
-    use burn::tensor::{DType, TensorData};
+    use burn::tensor::Tensor;
 
     let shape = &data.shape;
     assert_eq!(shape.len(), 2, "transpose_2d requires 2D tensor");
 
-    let rows = shape[0];
-    let cols = shape[1];
-
-    // Transpose based on dtype
-    let transposed_bytes = match data.dtype {
-        DType::F32 => transpose_bytes::<f32>(data.as_bytes(), rows, cols),
-        DType::F64 => transpose_bytes::<f64>(data.as_bytes(), rows, cols),
-        DType::F16 => transpose_bytes::<half::f16>(data.as_bytes(), rows, cols),
-        DType::BF16 => transpose_bytes::<half::bf16>(data.as_bytes(), rows, cols),
-        DType::I64 => transpose_bytes::<i64>(data.as_bytes(), rows, cols),
-        DType::I32 => transpose_bytes::<i32>(data.as_bytes(), rows, cols),
-        DType::I16 => transpose_bytes::<i16>(data.as_bytes(), rows, cols),
-        DType::I8 => transpose_bytes::<i8>(data.as_bytes(), rows, cols),
-        DType::U64 => transpose_bytes::<u64>(data.as_bytes(), rows, cols),
-        DType::U32 => transpose_bytes::<u32>(data.as_bytes(), rows, cols),
-        DType::U8 => transpose_bytes::<u8>(data.as_bytes(), rows, cols),
-        DType::Bool => transpose_bytes::<u8>(data.as_bytes(), rows, cols),
-        _ => panic!("Unsupported dtype for transpose: {:?}", data.dtype),
-    };
-
-    // Use from_bytes_vec to properly convert Vec<u8> to Bytes
-    TensorData::from_bytes_vec(transposed_bytes, vec![cols, rows], data.dtype)
-}
-
-fn transpose_bytes<T: Copy + Default>(bytes: &[u8], rows: usize, cols: usize) -> Vec<u8> {
-    let element_size = std::mem::size_of::<T>();
-    let num_elements = rows * cols;
-
-    // Safety: We're reinterpreting bytes as elements of type T
-    assert_eq!(bytes.len(), num_elements * element_size);
-
-    let elements: &[T] =
-        unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const T, num_elements) };
-
-    let mut transposed = vec![T::default(); num_elements];
-
-    for i in 0..rows {
-        for j in 0..cols {
-            transposed[j * rows + i] = elements[i * cols + j];
-        }
-    }
-
-    // Convert back to bytes
-    let result_bytes: &[u8] = unsafe {
-        std::slice::from_raw_parts(
-            transposed.as_ptr() as *const u8,
-            num_elements * element_size,
-        )
-    };
-    result_bytes.to_vec()
+    let device = Default::default();
+    let tensor: Tensor<SerializationBackend, 2> = Tensor::from_data(data, &device);
+    tensor.transpose().into_data()
 }
 
 extern crate alloc;
