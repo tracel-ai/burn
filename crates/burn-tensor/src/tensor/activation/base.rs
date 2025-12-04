@@ -194,6 +194,8 @@ pub fn softplus<const D: usize, B: Backend>(tensor: Tensor<B, D>, beta: f64) -> 
 
 /// Applies the "quiet softmax" function on the input tensor along the given dimension.
 ///
+/// Also referred to as [`softmax1`](https://www.evanmiller.org/attention-is-off-by-one.html).
+///
 /// This function is similar to the softmax function, but it allows for "no selection" when
 /// all the outputs are close to zero.
 ///
@@ -218,11 +220,11 @@ $$
 pub fn quiet_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor = tensor.exp();
-    let tensor_tmp = tensor.clone().sum_dim(dim);
+    let max_vals = tensor.clone().detach().max_dim(dim);
+    let exp_x = (tensor - max_vals.clone()).exp();
+    let sum_exp = exp_x.clone().sum_dim(dim);
 
-    tensor.div(tensor_tmp + 1)
+    exp_x.div(sum_exp + max_vals.neg().exp())
 }
 
 /// Applies the log softmax function on the input tensor along the given dimension.
@@ -376,10 +378,9 @@ pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tens
         "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
     );
     let new_len = tensor.dims()[dim] / 2;
-    // The `s!` macro is used for slicing tensors along a specific dimension.
-    // Usage: s![dim, start..end] slices the tensor along `dim` from `start` to `end` (exclusive).
-    let a = tensor.clone().slice(s![dim, 0..new_len]);
-    let b = tensor.slice(s![dim, new_len..new_len * 2]);
+
+    let a = tensor.clone().slice_dim(dim, s![0..new_len]);
+    let b = tensor.slice_dim(dim, s![new_len..new_len * 2]);
 
     a.mul(sigmoid(b))
 }
