@@ -41,7 +41,6 @@ burn-nn = { path = "../burn-nn", version = "=0.20.0-pre.4", default-features = f
 burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", default-features = false }
 
 # External dependencies
-bytes = { workspace = true }
 byteorder = { workspace = true, default-features = false }
 textdistance = { workspace = true }
 half = { workspace = true }
