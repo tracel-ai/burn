@@ -15,6 +15,33 @@ pub(crate) struct LocalCollectiveClient<B: Backend> {
     pub channel: SyncSender<Message<B>>,
 }
 
+/// A pending operation that can be waited on.
+pub(crate) struct PendingCollectiveOperation<T> {
+    rx: Receiver<Result<T, CollectiveError>>,
+}
+
+impl<T> Into<Receiver<Result<T, CollectiveError>>> for PendingCollectiveOperation<T> {
+    fn into(self) -> Receiver<Result<T, CollectiveError>> {
+        self.rx
+    }
+}
+
+impl<T> PendingCollectiveOperation<T> {
+    /// Wait on the operation.
+    ///
+    /// Given a `Receiver<Result<T, CollectiveError>>`, this function will wait:
+    /// - Unwraps `Ok(Result<T, CollectiveError>)` into `Result<T, CollectiveError>`;
+    /// - maps `Err(RecvError)` to `Err(CollectiveError::LocalServerMissing)`.
+    pub(crate) fn wait(self) -> Result<T, CollectiveError> {
+        let tensor = self
+            .rx
+            .recv()
+            .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
+
+        Ok(tensor)
+    }
+}
+
 impl<B: Backend> LocalCollectiveClient<B> {
     /// Common logic for starting a collective operation.
     ///
@@ -22,13 +49,13 @@ impl<B: Backend> LocalCollectiveClient<B> {
     /// - Passes the `callback` to the `Message<B>` builder,
     /// - Sends the message through the collective channel,
     /// - Returns the `recv`.
-    pub(crate) fn start_operation<T, F>(&self, builder: F) -> Receiver<Result<T, CollectiveError>>
+    pub(crate) fn start_operation<T, F>(&self, builder: F) -> PendingCollectiveOperation<T>
     where
         F: FnOnce(SyncSender<Result<T, CollectiveError>>) -> Message<B>,
     {
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         self.channel.send((builder)(tx)).unwrap();
-        rx
+        PendingCollectiveOperation { rx }
     }
 
     /// Common logic for starting a collective operation, with validation.
@@ -40,7 +67,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         &self,
         valid: Result<(), CollectiveError>,
         builder: F,
-    ) -> Receiver<Result<T, CollectiveError>>
+    ) -> PendingCollectiveOperation<T>
     where
         F: FnOnce(SyncSender<Result<T, CollectiveError>>) -> Message<B>,
     {
@@ -48,25 +75,10 @@ impl<B: Backend> LocalCollectiveClient<B> {
             Err(e) => {
                 let (tx, rx) = std::sync::mpsc::sync_channel(1);
                 tx.send(Err(e)).unwrap();
-                rx
+                PendingCollectiveOperation { rx }
             }
             _ => self.start_operation(builder),
         }
-    }
-
-    /// Common logic for waiting on a collective operation.
-    ///
-    /// Given a `Receiver<Result<T, CollectiveError>>`, this function will wait:
-    /// - Unwraps `Ok(Result<T, CollectiveError>)` into `Result<T, CollectiveError>`;
-    /// - maps `Err(RecvError)` to `Err(CollectiveError::LocalServerMissing)`.
-    pub(crate) fn operation_wait<T>(
-        rx: Receiver<Result<T, CollectiveError>>,
-    ) -> Result<T, CollectiveError> {
-        let tensor = rx
-            .recv()
-            .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
-
-        Ok(tensor)
     }
 
     pub(crate) fn reset(&self) {
@@ -79,7 +91,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         device: B::Device,
         config: CollectiveConfig,
     ) -> RegisterResult {
-        Self::operation_wait(self.register_start(id, device, config))
+        self.register_start(id, device, config).wait()
     }
 
     pub(crate) fn register_start(
@@ -87,7 +99,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         id: PeerId,
         device: B::Device,
         config: CollectiveConfig,
-    ) -> Receiver<RegisterResult> {
+    ) -> PendingCollectiveOperation<()> {
         self.start_valid_operation(
             match config.is_valid() {
                 true => Ok(()),
@@ -119,7 +131,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         tensor: B::FloatTensorPrimitive,
         op: ReduceOperation,
     ) -> AllReduceResult<B::FloatTensorPrimitive> {
-        Self::operation_wait(self.all_reduce_start(id, tensor, op))
+        self.all_reduce_start(id, tensor, op).wait()
     }
 
     /// Starts an all-reduce operation with the given parameters.
@@ -143,7 +155,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         id: PeerId,
         tensor: B::FloatTensorPrimitive,
         op: ReduceOperation,
-    ) -> Receiver<AllReduceResult<B::FloatTensorPrimitive>> {
+    ) -> PendingCollectiveOperation<B::FloatTensorPrimitive> {
         self.start_operation(|callback| Message::AllReduce {
             device_id: id,
             tensor,
@@ -168,7 +180,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         op: ReduceOperation,
         root: PeerId,
     ) -> ReduceResult<B::FloatTensorPrimitive> {
-        Self::operation_wait(self.reduce_start(id, tensor, op, root))
+        self.reduce_start(id, tensor, op, root).wait()
     }
 
     /// Starts a reduce operation on a tensor onto one device.
@@ -192,7 +204,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         tensor: B::FloatTensorPrimitive,
         op: ReduceOperation,
         root: PeerId,
-    ) -> Receiver<ReduceResult<B::FloatTensorPrimitive>> {
+    ) -> PendingCollectiveOperation<Option<B::FloatTensorPrimitive>> {
         self.start_operation(|callback| Message::Reduce {
             device_id: id,
             tensor,
@@ -216,7 +228,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         id: PeerId,
         tensor: Option<B::FloatTensorPrimitive>,
     ) -> BroadcastResult<B::FloatTensorPrimitive> {
-        Self::operation_wait(self.broadcast_start(id, tensor))
+        self.broadcast_start(id, tensor).wait()
     }
 
     /// Starts a Broadcast, or receives a broadcasted tensor.
@@ -237,7 +249,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         &self,
         id: PeerId,
         tensor: Option<B::FloatTensorPrimitive>,
-    ) -> Receiver<BroadcastResult<B::FloatTensorPrimitive>> {
+    ) -> PendingCollectiveOperation<B::FloatTensorPrimitive> {
         self.start_operation(|callback| Message::Broadcast {
             device_id: id,
             tensor,
@@ -246,10 +258,10 @@ impl<B: Backend> LocalCollectiveClient<B> {
     }
 
     pub(crate) fn finish(&self, id: PeerId) -> FinishResult {
-        Self::operation_wait(self.finish_start(id))
+        self.finish_start(id).wait()
     }
 
-    pub(crate) fn finish_start(&self, id: PeerId) -> Receiver<FinishResult> {
+    pub(crate) fn finish_start(&self, id: PeerId) -> PendingCollectiveOperation<()> {
         self.start_operation(|callback| Message::Finish { id, callback })
     }
 }
