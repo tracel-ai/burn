@@ -1,47 +1,59 @@
 extern crate alloc;
 
-// Default
-#[cfg(all(
-    feature = "default",
-    not(feature = "candle"),
-    not(feature = "tch"),
-    not(feature = "cuda"),
-    not(feature = "rocm"),
-    not(feature = "wgpu"),
-    not(feature = "cpu"),
-    not(feature = "router")
-))]
-pub type TestBackend = burn_ndarray::NdArray;
+#[cfg(any(feature = "backend", feature = "autodiff"))]
+mod backend {
+    // Default
+    #[cfg(all(
+        feature = "default",
+        not(feature = "candle"),
+        not(feature = "tch"),
+        not(feature = "cuda"),
+        not(feature = "rocm"),
+        not(feature = "wgpu"),
+        not(feature = "cpu"),
+        not(feature = "router")
+    ))]
+    pub type TestBackend = burn_ndarray::NdArray;
 
-#[cfg(feature = "candle")]
-pub type TestBackend = burn_candle::Candle;
+    #[cfg(feature = "candle")]
+    pub type TestBackend = burn_candle::Candle;
 
-#[cfg(feature = "tch")]
-pub type TestBackend = burn_tch::LibTorch;
+    #[cfg(feature = "tch")]
+    pub type TestBackend = burn_tch::LibTorch;
 
-#[cfg(feature = "cuda")]
-pub type TestBackend = burn_cuda::Cuda;
+    #[cfg(feature = "cuda")]
+    pub type TestBackend = burn_cuda::Cuda;
 
-#[cfg(feature = "rocm")]
-pub type TestBackend = burn_rocm::Rocm;
+    #[cfg(feature = "rocm")]
+    pub type TestBackend = burn_rocm::Rocm;
 
-#[cfg(feature = "wgpu")]
-pub type TestBackend = burn_wgpu::Wgpu;
+    #[cfg(feature = "wgpu")]
+    pub type TestBackend = burn_wgpu::Wgpu;
 
-#[cfg(feature = "cpu")]
-pub type TestBackend = burn_cpu::Cpu;
+    #[cfg(feature = "cpu")]
+    pub type TestBackend = burn_cpu::Cpu;
 
-#[cfg(feature = "router")]
-pub type TestBackend = burn_router::BackendRouter<
-    burn_router::DirectByteChannel<(burn_ndarray::NdArray, burn_wgpu::Wgpu)>,
->;
+    #[cfg(feature = "router")]
+    pub type TestBackend = burn_router::BackendRouter<
+        burn_router::DirectByteChannel<(burn_ndarray::NdArray, burn_wgpu::Wgpu)>,
+    >;
 
-pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-pub type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
-pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
-pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
+    pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
+    pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
+
+    #[cfg(feature = "autodiff")]
+    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+    #[cfg(feature = "autodiff")]
+    pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+}
+
+#[cfg(any(feature = "backend", feature = "autodiff"))]
+pub use backend::*;
 
 /// Quantized tensor utilities
 pub mod qtensor {
@@ -86,5 +98,10 @@ pub mod qtensor {
 }
 
 #[cfg(test)]
-/// Burn tensor tests.
+/// Burn backend tensor tests.
+#[cfg(all(test, feature = "backend"))]
 pub mod tensor;
+
+#[cfg(all(test, feature = "autodiff"))]
+/// Burn autodiff tests.
+pub mod autodiff;

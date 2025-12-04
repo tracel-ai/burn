@@ -18,6 +18,7 @@ workspace = true
 default = [
     "burn-tensor/default",
     # Backends
+    "burn-autodiff?/default",
     "burn-candle?/default",
     "burn-cpu?/default",
     "burn-ndarray?/default",
@@ -25,7 +26,6 @@ default = [
     "burn-wgpu?/default",
     "burn-router?/default",
     "burn-cuda?/default",
-    "burn-autodiff?/default",
     "burn-rocm?/default",
     # Default
     "burn-ndarray",
@@ -33,13 +33,13 @@ default = [
 std = [
     "burn-tensor/std",
     # Backends
+    "burn-autodiff?/std",
     "burn-candle?/std",
     "burn-cpu?/std",
     "burn-ndarray?/std",
     "burn-wgpu?/std",
     "burn-router?/std",
     "burn-cuda?/std",
-    "burn-autodiff?/std",
     "burn-rocm?/std",
 ]
 
@@ -57,6 +57,10 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu", "quantization"]
 cpu = ["burn-cpu"]
 router = ["burn-router", "ndarray", "wgpu"]
+
+# Tests
+backend = []
+autodiff = ["burn-autodiff"]
 
 fusion = [
     "burn-wgpu?/fusion",
