@@ -1,3 +1,5 @@
+use super::*;
+
 pub(crate) mod gelu;
 pub(crate) mod glu;
 pub(crate) mod hard_sigmoid;

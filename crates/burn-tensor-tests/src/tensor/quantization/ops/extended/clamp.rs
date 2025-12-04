@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -9,7 +9,6 @@ fn clamp_min() {
 
     let output = tensor.clamp_min(2.0);
 
-    
     output
         .dequantize()
         .into_data()
@@ -25,7 +24,6 @@ fn clamp_max() {
 
     let output = tensor.clamp_max(2.0);
 
-    
     output
         .dequantize()
         .into_data()
@@ -41,7 +39,6 @@ fn clamp_min_max() {
 
     let output = tensor.clamp(1.0, 4.0);
 
-    
     output
         .dequantize()
         .into_data()

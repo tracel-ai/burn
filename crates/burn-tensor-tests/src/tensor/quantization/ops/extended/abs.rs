@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -9,7 +9,6 @@ fn should_support_abs_ops() {
 
     let output = tensor.abs();
 
-    
     output
         .dequantize()
         .into_data()

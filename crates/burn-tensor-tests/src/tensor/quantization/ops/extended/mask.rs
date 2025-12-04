@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -15,7 +15,6 @@ fn should_support_mask_where_ops() {
     let output = tensor.mask_where(mask, value);
     let expected = TensorData::from([[1.8, 7.0], [2.0, 4.8]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -33,7 +32,6 @@ fn should_support_mask_fill_ops() {
     let output = tensor.mask_fill(mask, 2.0);
     let expected = TensorData::from([[2.0, 7.0], [2.0, 2.0]]);
 
-    
     output
         .dequantize()
         .into_data()

@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::{
     Shape, Tolerance, module::conv_transpose1d, ops::ConvTransposeOptions, ops::FloatElem,
 };

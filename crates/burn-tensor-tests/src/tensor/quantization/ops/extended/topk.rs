@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -26,7 +26,6 @@ fn test_topk() {
     let values = tensor.topk(2, /*dim*/ 2);
     let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
-    
     values
         .dequantize()
         .into_data()
@@ -62,7 +61,6 @@ fn test_topk_with_indices_3d() {
 
     let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
-    
     values
         .dequantize()
         .into_data()

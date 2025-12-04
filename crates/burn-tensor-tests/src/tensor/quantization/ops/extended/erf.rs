@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -10,7 +10,6 @@ fn should_support_erf_ops() {
     let output = tensor.erf();
     let expected = TensorData::from([[0.0000, 0.8427, 0.9953], [1.0000, 1.0000, 1.0000]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -27,7 +26,6 @@ fn should_support_erf_ops_with_negative_number() {
         [1.0000, 1.0000, 1.0000],
     ]);
 
-    
     output
         .dequantize()
         .into_data()

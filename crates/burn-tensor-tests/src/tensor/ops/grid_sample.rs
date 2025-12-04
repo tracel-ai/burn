@@ -1,6 +1,6 @@
-use crate::*;
+use super::*;
 use burn_tensor::{
-     TensorData, Tolerance,
+    TensorData, Tolerance,
     ops::{FloatElem, GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
 };
 

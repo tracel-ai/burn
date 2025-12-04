@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -17,7 +17,6 @@ fn test_sort_1d_float() {
         -8.1, -0.3, -0.21, 0., 0.5, 0.94, 0.99, 1.2, 2.1, 2.3, 3., 4., 5.2,
     ]);
 
-    
     values
         .dequantize()
         .into_data()
@@ -50,7 +49,7 @@ fn test_sort_with_indices_descending_float() {
     let values_expected = TensorData::from([
         5.2, 4., 3., 2.3, 2.1, 1.2, 0.99, 0.94, 0.5, 0., -0.21, -0.3, -8.1,
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -73,7 +72,7 @@ fn test_sort_with_indices_descending_float() {
         [[0., 2.1, 0.94], [-0.5, 1.2, -0.21]],
         [[0.99, 3., 4.], [-0.3, 2.3, -8.1]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -97,7 +96,7 @@ fn test_sort_float() {
         [[-0.5, 1.2, -0.21], [0., 2.1, -8.1]],
         [[-0.3, 2.3, 4.], [0.99, 3., 0.94]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -110,7 +109,7 @@ fn test_sort_float() {
         [[-0.5, 1.2, -0.21], [0., 2.1, 0.94]],
         [[-0.3, 2.3, -8.1], [0.99, 3., 4.]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -123,7 +122,7 @@ fn test_sort_float() {
         [[-0.5, -0.21, 1.2], [0., 0.94, 2.1]],
         [[-0.3, 2.3, 4.], [-8.1, 0.99, 3.]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -143,7 +142,7 @@ fn test_sort_with_indices_float() {
         [[-0.5, 1.2, -0.21], [0., 2.1, -8.1]],
         [[-0.3, 2.3, 4.], [0.99, 3., 0.94]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -159,7 +158,7 @@ fn test_sort_with_indices_float() {
         [[-0.5, 1.2, -0.21], [0., 2.1, 0.94]],
         [[-0.3, 2.3, -8.1], [0.99, 3., 4.]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()
@@ -175,7 +174,7 @@ fn test_sort_with_indices_float() {
         [[-0.5, -0.21, 1.2], [0., 0.94, 2.1]],
         [[-0.3, 2.3, 4.], [-8.1, 0.99, 3.]],
     ]);
-    
+
     values
         .dequantize()
         .into_data()

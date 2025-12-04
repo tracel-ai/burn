@@ -1,5 +1,5 @@
-use crate::*;
-use burn_tensor::{ TensorData};
+use super::*;
+use burn_tensor::TensorData;
 
 #[test]
 fn test_prod_float() {

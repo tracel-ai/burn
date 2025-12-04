@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use alloc::vec::Vec;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
@@ -17,7 +17,6 @@ fn test_chunk_evenly_divisible() {
         TensorData::from([4., 5.]),
     ];
 
-    
     for (index, tensor) in tensors.into_iter().enumerate() {
         tensor
             .dequantize()
@@ -40,7 +39,6 @@ fn test_chunk_not_evenly_divisible() {
         TensorData::from([6.]),
     ];
 
-    
     for (index, tensor) in tensors.into_iter().enumerate() {
         tensor
             .dequantize()
@@ -65,7 +63,6 @@ fn test_chunk_not_divisible() {
         TensorData::from([5.]),
     ];
 
-    
     for (index, tensor) in tensors.into_iter().enumerate() {
         tensor
             .dequantize()
@@ -86,7 +83,6 @@ fn test_chunk_multi_dimension() {
         TensorData::from([[3., 4., 5.]]),
     ];
 
-    
     for (index, tensor) in tensors.into_iter().enumerate() {
         tensor
             .dequantize()

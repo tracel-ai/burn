@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -16,7 +16,6 @@ fn should_support_transpose_ops() {
         [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
     ]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -37,7 +36,6 @@ fn should_support_swap_dims() {
         [[2.0, 8.0], [5.0, 11.0]],
     ]);
 
-    
     output
         .dequantize()
         .into_data()

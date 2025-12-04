@@ -1,6 +1,6 @@
-use crate::*;
+use super::*;
 use burn_tensor::{
-     TensorData,
+    TensorData,
     ops::QuantizedTensor,
     quantization::{Calibration, QTensorPrimitive, QuantLevel, QuantValue, compute_range},
 };

@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -13,7 +13,6 @@ fn should_support_log_ops() {
         [1.0986, 1.3862, 1.6094],
     ]);
 
-    
     output
         .dequantize()
         .into_data()

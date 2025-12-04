@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::module::adaptive_avg_pool1d;
 use burn_tensor::{Shape, Tolerance};
 

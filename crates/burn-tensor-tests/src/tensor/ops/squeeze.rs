@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::Shape;
 
 /// Test if the function can successfully squeeze the size 1 dimension of a 3D tensor.

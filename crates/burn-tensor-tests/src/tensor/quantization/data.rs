@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use alloc::vec;
 use burn_tensor::quantization::{QTensorPrimitive, QuantLevel, QuantValue};
 use burn_tensor::{TensorData, ops::QuantizedTensor};

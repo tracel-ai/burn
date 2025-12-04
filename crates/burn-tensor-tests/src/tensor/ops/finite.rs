@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 #[test]
 fn is_finite() {

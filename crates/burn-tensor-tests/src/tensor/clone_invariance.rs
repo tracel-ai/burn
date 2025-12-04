@@ -4,7 +4,7 @@
 /// Those are relevant tests because backends may employ unsafe optimizations to reuse tensor data
 /// and use different kernels in such cases. We ensure that the results are consistent regardless
 /// of the approach and that the input tensors are not modified when cloned.
-use crate::*;
+use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::activation::{
     gelu, log_sigmoid, log_softmax, mish, relu, sigmoid, silu, softmax, softplus, tanh,

@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::{
     Distribution, ElementConversion, TensorData, Tolerance, backend::Backend, cast::ToElement,
 };

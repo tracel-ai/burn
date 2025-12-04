@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::{Tolerance, s};
 
@@ -91,7 +91,6 @@ fn should_support_slice_assign_1d() {
     let output = tensor.slice_assign([0..2], tensor_assigned);
     let expected = TensorData::from([10.0, 5.0, 2.0]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -106,7 +105,6 @@ fn should_support_slice_assign_2d() {
     let output = tensor.slice_assign([1..2, 0..2], tensor_assigned);
     let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -120,7 +118,6 @@ fn slice_should_not_corrupt_potentially_inplace_operations() {
 
     let expected = TensorData::from([4., 6., 8.]);
 
-    
     tensor
         .dequantize()
         .into_data()
@@ -137,7 +134,6 @@ fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
 
     let expected = TensorData::from([10., 20., 30., 4., 5.]);
 
-    
     tensor_1
         .dequantize()
         .into_data()
@@ -145,7 +141,6 @@ fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
 
     let expected = TensorData::from([3., 4., 5., 6., 7.]);
 
-    
     tensor_2
         .dequantize()
         .into_data()

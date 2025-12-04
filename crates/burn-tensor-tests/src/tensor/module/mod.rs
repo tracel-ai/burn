@@ -1,3 +1,5 @@
+use super::*;
+
 mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
 mod attention;

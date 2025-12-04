@@ -1,5 +1,5 @@
-use crate::*;
-use burn_tensor::{ TensorData};
+use super::*;
+use burn_tensor::TensorData;
 
 #[test]
 fn should_support_sign_ops_float() {

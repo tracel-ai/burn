@@ -1,6 +1,6 @@
-use crate::*;
+use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{ElementConversion,  TensorData};
+use burn_tensor::{ElementConversion, TensorData};
 
 #[test]
 fn should_support_trunc_ops() {

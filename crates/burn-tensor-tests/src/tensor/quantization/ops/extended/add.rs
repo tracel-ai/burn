@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -10,7 +10,6 @@ fn test_add_d2() {
 
     let output = tensor_1 + tensor_2;
 
-    
     output
         .dequantize()
         .into_data()
@@ -27,7 +26,6 @@ fn test_add_broadcast() {
 
     let output = tensor_1 + tensor_2;
 
-    
     output
         .dequantize()
         .into_data()
@@ -46,7 +44,6 @@ fn test_add_different_strides_rhs() {
 
     let output = tensor_1 + tensor_2.transpose();
 
-    
     output
         .dequantize()
         .into_data()
@@ -65,7 +62,6 @@ fn test_add_different_strides_lhs() {
 
     let output = tensor_1.transpose() + tensor_2;
 
-    
     output
         .dequantize()
         .into_data()
@@ -84,7 +80,6 @@ fn test_add_different_strides_broadcast() {
 
     let output = tensor_1.transpose() + tensor_2;
 
-    
     output
         .dequantize()
         .into_data()
@@ -101,7 +96,6 @@ fn should_support_add_scalar_ops() {
 
     let output = tensor + scalar;
 
-    
     output
         .dequantize()
         .into_data()

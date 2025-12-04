@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -8,7 +8,6 @@ fn expand_2d() {
     let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0]);
     let output = tensor.expand([3, 3]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -21,7 +20,6 @@ fn expand_2d() {
     let tensor = QTensor::<TestBackend, 1>::int8([4.0, 7.0, 2.0, 3.0]);
     let output = tensor.expand([2, 4]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -42,7 +40,6 @@ fn expand_3d() {
         [[1.0, 2.0], [3.0, 4.0]],
     ]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -67,7 +64,6 @@ fn expand_higher_dimensions() {
         ],
     ]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -99,7 +95,6 @@ fn should_all_negative_one() {
 
     let output = tensor.expand([2, -1]);
 
-    
     output
         .dequantize()
         .into_data()

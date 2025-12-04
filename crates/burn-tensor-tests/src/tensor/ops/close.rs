@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::{DEFAULT_ATOL, DEFAULT_RTOL, TensorData};
 
 #[test]

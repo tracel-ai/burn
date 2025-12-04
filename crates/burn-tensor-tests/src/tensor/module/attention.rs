@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
 use burn_tensor::module::attention;

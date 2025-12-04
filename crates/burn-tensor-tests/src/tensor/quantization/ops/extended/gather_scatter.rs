@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::IndexingUpdateOp;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
@@ -11,7 +11,6 @@ fn should_gather_1d_dim0() {
 
     let output = tensor.gather(0, indices);
 
-    
     output
         .dequantize()
         .into_data()
@@ -28,7 +27,6 @@ fn should_gather_2d_dim0() {
 
     let output = tensor.gather(0, indices);
 
-    
     output
         .dequantize()
         .into_data()
@@ -45,7 +43,6 @@ fn should_gather_2d_dim1() {
 
     let output = tensor.gather(1, indices);
 
-    
     output
         .dequantize()
         .into_data()
@@ -72,7 +69,6 @@ fn should_gather_3d_dim1() {
         [[6.0, 7.0, 11.0], [6.0, 10.0, 11.0]],
     ]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -86,7 +82,6 @@ fn should_gather_2d_only_1dim() {
 
     let output = tensor.gather(1, indices);
 
-    
     output
         .dequantize()
         .into_data()
@@ -104,7 +99,6 @@ fn should_scatter_1d() {
 
     let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
 
-    
     output
         .dequantize()
         .into_data()
@@ -122,7 +116,6 @@ fn should_scatter_2d_dim0() {
 
     let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
 
-    
     output
         .dequantize()
         .into_data()
@@ -140,7 +133,6 @@ fn should_scatter_2d_dim1() {
 
     let output = tensor.scatter(1, indices, values, IndexingUpdateOp::Add);
 
-    
     output
         .dequantize()
         .into_data()
@@ -186,7 +178,6 @@ fn should_scatter_2d_dim1_diff_shape() {
 
     let output = tensor.scatter(1, indices, values, IndexingUpdateOp::Add);
 
-    
     output
         .dequantize()
         .into_data()

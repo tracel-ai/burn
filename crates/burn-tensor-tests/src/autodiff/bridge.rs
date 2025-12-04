@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::{DType, Distribution, Tensor};
 
 #[test]

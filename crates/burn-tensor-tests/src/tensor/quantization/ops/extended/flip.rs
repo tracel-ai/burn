@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -10,7 +10,6 @@ fn flip_float() {
     let flipped = tensor.clone().flip([0, 2]);
     let expected = TensorData::from([[[5., 4., 3.]], [[2., 1., 0.]]]);
 
-    
     flipped
         .dequantize()
         .into_data()

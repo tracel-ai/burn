@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -11,7 +11,6 @@ fn should_support_sub_ops() {
     let output = tensor_1 - tensor_2;
     let expected = TensorData::from([[-6.0, -6.0, -6.0], [-6.0, -6.0, -6.0]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -26,7 +25,6 @@ fn test_sub_broadcast() {
     let output = tensor_1 - tensor_2;
     let expected = TensorData::from([[-3.0, -3.0, -3.0], [-6.0, -6.0, -6.0]]);
 
-    
     output
         .dequantize()
         .into_data()

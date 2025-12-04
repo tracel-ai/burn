@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use alloc::vec;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
@@ -12,7 +12,6 @@ fn should_support_cat_ops_2d_dim0() {
     let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
     let expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -27,7 +26,6 @@ fn should_support_cat_ops_2d_dim1() {
     let output = TestTensor::cat(vec![tensor_1, tensor_2], 1);
     let expected = TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -42,7 +40,6 @@ fn should_support_cat_ops_3d() {
     let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
     let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
 
-    
     output
         .dequantize()
         .into_data()

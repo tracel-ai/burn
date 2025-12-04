@@ -17,8 +17,8 @@ workspace = true
 [features]
 default = [
     "burn-tensor/default",
+    "burn-autodiff/default",
     # Backends
-    "burn-autodiff?/default",
     "burn-candle?/default",
     "burn-cpu?/default",
     "burn-ndarray?/default",
@@ -29,11 +29,12 @@ default = [
     "burn-rocm?/default",
     # Default
     "burn-ndarray",
+    "autotune",
 ]
 std = [
     "burn-tensor/std",
+    "burn-autodiff/std",
     # Backends
-    "burn-autodiff?/std",
     "burn-candle?/std",
     "burn-cpu?/std",
     "burn-ndarray?/std",
@@ -58,16 +59,6 @@ wgpu = ["burn-wgpu", "quantization"]
 cpu = ["burn-cpu"]
 router = ["burn-router", "ndarray", "wgpu"]
 
-# Tests
-backend = []
-autodiff = ["burn-autodiff"]
-
-fusion = [
-    "burn-wgpu?/fusion",
-    "burn-cuda?/fusion",
-    "burn-rocm?/fusion",
-    "burn-cpu?/fusion",
-]
 autotune = [
     "burn-wgpu?/autotune",
     "burn-cuda?/autotune",
@@ -90,7 +81,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.4", default-featu
 ] }
 
 # Backends
-burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.4", default-features = false }
 burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.4", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.4", optional = true, default-features = false }
 burn-cpu = { path = "../burn-cpu", version = "=0.20.0-pre.4", optional = true, default-features = false }

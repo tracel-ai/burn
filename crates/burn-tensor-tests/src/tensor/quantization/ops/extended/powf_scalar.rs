@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -10,7 +10,6 @@ fn should_support_powf_ops() {
     let output = tensor.powf_scalar(0.71);
     let expected = TensorData::from([[0.0, 1.0, 1.6358], [2.182, 2.6759, 3.1352]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -24,7 +23,6 @@ fn should_support_neg_power() {
     let output = tensor.powf_scalar(-0.33);
     let expected = TensorData::from([[1.0, 1.0, 0.79553646], [0.695905, 0.6328783, 0.58794934]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -38,7 +36,6 @@ fn should_support_neg_values_with_even_power() {
     let output = tensor.powf_scalar(2.0);
     let expected = TensorData::from([[0., 1., 4.], [9., 16., 25.]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -52,7 +49,6 @@ fn should_support_neg_values_with_odd_power() {
     let output = tensor.powf_scalar(3.0);
     let expected = TensorData::from([[0.0, -1.0, -8.0], [-27.0, -64.0, -64.0]]);
 
-    
     output
         .dequantize()
         .into_data()

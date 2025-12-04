@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+use super::*; // re-export test types
 
 mod abs;
 mod adaptive_avgpool1d;

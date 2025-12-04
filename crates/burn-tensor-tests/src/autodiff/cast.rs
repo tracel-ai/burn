@@ -1,6 +1,6 @@
 #[cfg(feature = "std")]
 mod tests {
-    use crate::*;
+    use super::*;
     use burn_tensor::might_panic;
     use burn_tensor::{DType, Tensor, TensorData};
 

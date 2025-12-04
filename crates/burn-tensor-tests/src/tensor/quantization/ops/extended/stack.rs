@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use alloc::vec;
 use burn_tensor::Tensor;
 use burn_tensor::TensorData;
@@ -13,7 +13,6 @@ fn should_support_stack_ops_2d_dim0() {
     let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
     let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -28,7 +27,6 @@ fn should_support_stack_ops_2d_dim1() {
     let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 1);
     let expected = TensorData::from([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -46,7 +44,6 @@ fn should_support_stack_ops_3d() {
         [[[4.0, 5.0, 6.0]], [[6.0, 5.0, 4.0]]],
     ]);
 
-    
     output
         .dequantize()
         .into_data()

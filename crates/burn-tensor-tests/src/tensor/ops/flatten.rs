@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::Shape;
 
 /// Test if the function can successfully flatten a 4D tensor to a 1D tensor.

@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -10,7 +10,6 @@ fn should_support_recip_ops() {
     let output = tensor.recip();
     let expected = TensorData::from([[2.0, 1.0, 0.5], [0.33333, -0.25, -0.2]]);
 
-    
     output
         .dequantize()
         .into_data()

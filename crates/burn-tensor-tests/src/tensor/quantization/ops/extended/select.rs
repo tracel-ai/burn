@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::IndexingUpdateOp;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
@@ -74,7 +74,6 @@ fn should_select_assign_1d() {
     let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
     let expected = TensorData::from([3.0, 12.0, 3.0]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -90,7 +89,6 @@ fn should_select_assign_2d_dim0() {
     let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
     let expected = TensorData::from([[3.0, 5.0, 7.0], [3.0, 5.0, 7.0]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -106,7 +104,6 @@ fn should_select_assign_2d_dim1() {
     let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Add);
     let expected = TensorData::from([[1.0, 1.0, 4.0], [7.0, 7.0, 10.0]]);
 
-    
     output
         .dequantize()
         .into_data()

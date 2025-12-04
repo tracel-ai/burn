@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::{
     Distribution, Shape, TensorData, Tolerance, cast::ToElement, linalg::lu_decomposition, s,
 };

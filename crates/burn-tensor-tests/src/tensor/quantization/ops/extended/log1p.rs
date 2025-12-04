@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -13,7 +13,6 @@ fn should_support_exp_log1p() {
         [1.3862, 1.6094, 1.7917],
     ]);
 
-    
     output
         .dequantize()
         .into_data()

@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{Shape, module::deform_conv2d, ops::DeformConvOptions};
 

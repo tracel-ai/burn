@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::grid::affine_grid_2d;
 
 fn create_identity_transform(batch_size: usize) -> TestTensor<3> {

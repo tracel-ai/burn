@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::Transaction;
 
 // https://github.com/tracel-ai/burn/issues/4021

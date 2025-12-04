@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
@@ -11,7 +11,6 @@ fn should_support_div_ops() {
     let output = tensor_1 / tensor_2;
     let expected = TensorData::from([[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
 
-    
     output
         .dequantize()
         .into_data()
@@ -25,7 +24,6 @@ fn test_div_broadcast() {
 
     let output = tensor_1 / tensor_2;
 
-    
     output
         .dequantize()
         .into_data()
@@ -42,7 +40,6 @@ fn should_support_div_scalar_ops() {
 
     let output = tensor / scalar;
 
-    
     output
         .dequantize()
         .into_data()

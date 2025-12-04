@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool1d, max_pool1d_with_indices};

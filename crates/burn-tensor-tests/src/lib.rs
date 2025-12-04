@@ -1,7 +1,11 @@
 extern crate alloc;
 
-#[cfg(any(feature = "backend", feature = "autodiff"))]
+#[cfg(test)]
 mod backend {
+    // Re-export
+    pub use burn_autodiff::{Autodiff, checkpoint::strategy::BalancedCheckpointing};
+    pub use burn_tensor::Tensor;
+
     // Default
     #[cfg(all(
         feature = "default",
@@ -38,22 +42,41 @@ mod backend {
         burn_router::DirectByteChannel<(burn_ndarray::NdArray, burn_wgpu::Wgpu)>,
     >;
 
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    pub type TestTensorBool<const D: usize> =
-        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+    pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> = Tensor<TestBackend, D, burn_tensor::Bool>;
 
     pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
     pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
 
-    #[cfg(feature = "autodiff")]
-    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
-    #[cfg(feature = "autodiff")]
-    pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+    pub type TestAutodiffBackend = Autodiff<TestBackend>;
+    pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
 }
 
-#[cfg(any(feature = "backend", feature = "autodiff"))]
+#[cfg(test)]
 pub use backend::*;
+
+/// Burn backend tensor tests.
+#[cfg(test)]
+mod tensor;
+
+/// Burn autodiff tests.
+#[cfg(test)]
+mod autodiff;
+
+/// Burn autodiff tests with checkpointing.
+#[cfg(test)]
+#[path = "."]
+mod ad {
+    use super::*;
+
+    // Override type def
+    pub type TestAutodiffBackend = Autodiff<TestBackend, BalancedCheckpointing>;
+    pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
+
+    #[path = "autodiff/mod.rs"]
+    mod checkpointing;
+}
 
 /// Quantized tensor utilities
 pub mod qtensor {
@@ -96,12 +119,3 @@ pub mod qtensor {
         }
     }
 }
-
-#[cfg(test)]
-/// Burn backend tensor tests.
-#[cfg(all(test, feature = "backend"))]
-pub mod tensor;
-
-#[cfg(all(test, feature = "autodiff"))]
-/// Burn autodiff tests.
-pub mod autodiff;

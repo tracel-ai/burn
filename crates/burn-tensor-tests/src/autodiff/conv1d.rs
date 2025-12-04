@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::{Shape, Tolerance, module::conv1d, ops::ConvOptions};
 
 #[test]

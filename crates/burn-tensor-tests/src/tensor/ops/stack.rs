@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use alloc::vec::Vec;
 use burn_tensor::{Tensor, TensorData};
 

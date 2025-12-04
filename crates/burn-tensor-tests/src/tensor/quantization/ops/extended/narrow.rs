@@ -1,5 +1,5 @@
+use super::*;
 use crate::qtensor::*;
-use crate::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{Shape, TensorData};
 

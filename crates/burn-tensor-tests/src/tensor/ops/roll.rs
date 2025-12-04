@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::TensorData;
 
 #[ignore = "0 size resources are not yet supported"]

@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use burn_tensor::backend::Backend;
 use burn_tensor::{Element, Shape, TensorData};
 

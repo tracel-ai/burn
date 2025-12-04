@@ -1,3 +1,5 @@
+use super::*;
+
 pub(crate) mod cosine_similarity;
 pub(crate) mod diag;
 pub(crate) mod lu_decomposition;

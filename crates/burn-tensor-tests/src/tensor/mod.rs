@@ -1,3 +1,5 @@
+use super::*; // re-export test types
+
 mod activation;
 mod clone_invariance;
 mod grid;

@@ -1,6 +1,6 @@
-use crate::*;
+use super::*;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
-use burn_tensor::{ TensorData};
 
 #[test]
 fn should_support_exp_log1p() {
