@@ -67,6 +67,7 @@ pub struct ModelGen {
     /// List of onnx files to generate source code from.
     inputs: Vec<PathBuf>,
     development: bool,
+    embed_states: bool,
 }
 
 impl ModelGen {
@@ -74,6 +75,7 @@ impl ModelGen {
     ///
     /// Default configuration:
     /// - Development mode: off
+    /// - Embed states: off
     ///
     /// # Examples
     ///
@@ -163,6 +165,35 @@ impl ModelGen {
     /// ```
     pub fn development(&mut self, development: bool) -> &mut Self {
         self.development = development;
+        self
+    }
+
+    /// Embeds model weights directly in the generated Rust code.
+    ///
+    /// When enabled, the `.burnpack` file is included in the binary using `include_bytes!`.
+    /// This is useful for WebAssembly targets or when you want a single binary without
+    /// external weight files.
+    ///
+    /// **Note**: This increases binary size significantly for large models and may
+    /// increase memory usage at runtime. Only recommended for small models.
+    ///
+    /// # Arguments
+    ///
+    /// * `embed_states` - If `true`, embed weights in the binary
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use burn_import::onnx::ModelGen;
+    ///
+    /// ModelGen::new()
+    ///     .input("small_model.onnx")
+    ///     .out_dir("model/")
+    ///     .embed_states(true)  // Embed weights in binary
+    ///     .run_from_script();
+    /// ```
+    pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
+        self.embed_states = embed_states;
         self
     }
 
@@ -305,7 +336,7 @@ impl ModelGen {
         let bpk_file = out_file.with_extension("bpk");
         graph
             .into_burn()
-            .with_burnpack(bpk_file)
+            .with_burnpack(bpk_file, self.embed_states)
             .with_blank_space(true)
             .with_top_comment(top_comment)
             .codegen()

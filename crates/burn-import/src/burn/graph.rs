@@ -38,7 +38,8 @@ impl BurnGraph {
     /// # Arguments
     ///
     /// * `out_file` - The path to the burnpack file (without extension).
-    pub fn with_burnpack(mut self, out_file: PathBuf) -> Self {
+    /// * `embed_states` - If true, embed the burnpack file in the binary using `include_bytes!`.
+    pub fn with_burnpack(mut self, out_file: PathBuf, embed_states: bool) -> Self {
         // Collect all tensor snapshots from nodes
         let snapshots = self.collect_all_snapshots();
 
@@ -50,7 +51,11 @@ impl BurnGraph {
             .expect("Failed to write burnpack file");
 
         // Register the loading code
-        self.register_burnpack_file(burnpack_file);
+        if embed_states {
+            self.register_burnpack_embed(burnpack_file);
+        } else {
+            self.register_burnpack_file(burnpack_file);
+        }
 
         self
     }
@@ -278,6 +283,39 @@ impl BurnGraph {
                     let mut model = Self::new(device);
                     let mut store = BurnpackStore::from_file(file);
                     model.load_from(&mut store).expect("Failed to load burnpack file");
+                    model
+                }
+            }
+        });
+    }
+
+    fn register_burnpack_embed(&mut self, file: PathBuf) {
+        self.imports.register("burn_store::BurnpackStore");
+        self.imports.register("burn_store::ModuleSnapshot");
+        self.imports.register("burn::tensor::Bytes");
+
+        let file = file.to_str().unwrap();
+        self.default = Some(quote! {
+            _blank_!();
+            static EMBEDDED_STATES: &[u8] = include_bytes!(#file);
+            _blank_!();
+            impl<B: Backend> Default for Model<B> {
+                fn default() -> Self {
+                    Self::from_embedded(&Default::default())
+                }
+            }
+            _blank_!();
+            impl<B: Backend> Model<B> {
+                /// Load model weights from embedded burnpack data.
+                ///
+                /// Note: This currently copies the embedded data to the heap. A future PR will
+                /// implement zero-copy loading. See ZERO_COPY_IMPLEMENTATION.md in burn-store.
+                /// See https://github.com/tracel-ai/burn/issues/4123
+                pub fn from_embedded(device: &B::Device) -> Self {
+                    let mut model = Self::new(device);
+                    let bytes = Bytes::from_bytes_vec(EMBEDDED_STATES.to_vec());
+                    let mut store = BurnpackStore::from_bytes(Some(bytes));
+                    model.load_from(&mut store).expect("Failed to load embedded burnpack");
                     model
                 }
             }

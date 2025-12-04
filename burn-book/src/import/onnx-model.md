@@ -160,16 +160,18 @@ The `ModelGen` struct provides configuration options:
 ModelGen::new()
     .input("path/to/model.onnx")
     .out_dir("model/")
-    .development(true)  // Enable development mode for debugging
+    .development(true)   // Enable development mode for debugging
+    .embed_states(true)  // Embed weights in the binary (for WASM)
     .run_from_script();
 ```
 
 - `input`: Path to the ONNX model file
 - `out_dir`: Output directory for generated code and weights
-- `development`: When enabled, generates additional debug information
+- `development`: When enabled, generates additional debug files (`.onnx.txt`, `.graph.txt`)
+- `embed_states`: When enabled, embeds model weights in the binary using `include_bytes!`.
+  Useful for WebAssembly or single-binary deployments. Not recommended for large models.
 
-Model weights are automatically stored in `.burnpack` format, which provides efficient
-serialization and loading.
+Model weights are stored in `.burnpack` format, which provides efficient serialization and loading.
 
 ## Loading and Using Models
 
@@ -186,6 +188,9 @@ let model = Model::<Backend>::new(&device);
 
 // Load from a specific .burnpack file
 let model = Model::<Backend>::from_file("path/to/weights.burnpack", &device);
+
+// Load from embedded weights (if embed_states was true)
+let model = Model::<Backend>::from_embedded(&device);
 ```
 
 ## Troubleshooting
