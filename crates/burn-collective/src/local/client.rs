@@ -36,7 +36,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
     /// When `valid` is `Err`, this function returns a `Receiver<Result<T, CollectiveError>>` that
     /// immediately returns `Err(valid)`;
     /// otherwise, it behaves like [`LocalCollectiveClient::start_operation`].
-    pub(crate) fn common_valid_start<T, F>(
+    pub(crate) fn start_valid_operation<T, F>(
         &self,
         valid: Result<(), CollectiveError>,
         builder: F,
@@ -88,7 +88,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         device: B::Device,
         config: CollectiveConfig,
     ) -> Receiver<RegisterResult> {
-        self.common_valid_start(
+        self.start_valid_operation(
             match config.is_valid() {
                 true => Ok(()),
                 false => Err(CollectiveError::InvalidConfig),
