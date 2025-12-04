@@ -16,53 +16,42 @@ impl NodeCodegen for onnx_ir::linear::LinearNode {
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
 
-        Some(Field::new(
-            self.name.clone(),
-            quote! { Linear<B> },
+        // ONNX Gemm stores weights as [d_output, d_input], which matches LinearLayout::Col.
+        // MatMul-sourced Linear stores weights as [d_input, d_output], matching LinearLayout::Row.
+        // Using the appropriate layout avoids data transposition during import.
+        let init_code = if self.config.transpose_weight {
+            quote! {
+                let #name = LinearConfig::new(#d_input, #d_output)
+                    .with_bias(#bias)
+                    .with_layout(LinearLayout::Col)
+                    .init(device);
+            }
+        } else {
             quote! {
                 let #name = LinearConfig::new(#d_input, #d_output)
                     .with_bias(#bias)
                     .init(device);
-            },
+            }
+        };
+
+        Some(Field::new(
+            self.name.clone(),
+            quote! { Linear<B> },
+            init_code,
         ))
     }
 
     fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
-        use crate::burn::node_traits::{
-            create_lazy_snapshot, create_lazy_snapshot_with_transform, transpose_2d,
-        };
-        use onnx_ir::ir::ArgType;
+        use crate::burn::node_traits::create_lazy_snapshot;
 
         let mut snapshots = vec![];
 
         // Weight tensor (input index 1)
+        // No transposition needed - LinearLayout::Col handles ONNX [out, in] format
         if let Some(weight_input) = self.inputs.get(1) {
             let weight_path = format!("{}.weight", field_name);
-
-            // Get original shape for transposition
-            let original_shape = match &weight_input.ty {
-                ArgType::Tensor(t) => t.static_shape.clone().unwrap_or_default(),
-                _ => vec![],
-            };
-
-            if self.config.transpose_weight && original_shape.len() == 2 {
-                // Need to transpose: ONNX [out, in] -> Burn [in, out]
-                let transposed_shape = vec![original_shape[1], original_shape[0]];
-
-                if let Some(snapshot) = create_lazy_snapshot_with_transform(
-                    weight_input,
-                    &weight_path,
-                    "Linear",
-                    transpose_2d,
-                    transposed_shape,
-                ) {
-                    snapshots.push(snapshot);
-                }
-            } else {
-                // No transposition needed (MatMul-sourced Linear)
-                if let Some(snapshot) = create_lazy_snapshot(weight_input, &weight_path, "Linear") {
-                    snapshots.push(snapshot);
-                }
+            if let Some(snapshot) = create_lazy_snapshot(weight_input, &weight_path, "Linear") {
+                snapshots.push(snapshot);
             }
         }
 
@@ -90,6 +79,9 @@ impl NodeCodegen for onnx_ir::linear::LinearNode {
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::Linear");
         imports.register("burn::nn::LinearConfig");
+        if self.config.transpose_weight {
+            imports.register("burn::nn::LinearLayout");
+        }
     }
 }
 
