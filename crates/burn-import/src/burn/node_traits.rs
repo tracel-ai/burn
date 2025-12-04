@@ -132,7 +132,6 @@ pub trait NodeCodegen: std::fmt::Debug {
 /// # Returns
 ///
 /// `Some(TensorData)` if the input has a constant value, `None` otherwise
-#[allow(dead_code)]
 pub fn extract_node_data(
     inputs: &[onnx_ir::Argument],
     input_index: usize,
