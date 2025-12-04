@@ -86,5 +86,5 @@ pub mod qtensor {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)]
-pub mod tests;
+/// Burn tensor tests.
+pub mod tensor;
