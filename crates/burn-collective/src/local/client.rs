@@ -20,9 +20,9 @@ pub(crate) struct PendingCollectiveOperation<T> {
     rx: Receiver<Result<T, CollectiveError>>,
 }
 
-impl<T> Into<Receiver<Result<T, CollectiveError>>> for PendingCollectiveOperation<T> {
-    fn into(self) -> Receiver<Result<T, CollectiveError>> {
-        self.rx
+impl<T> From<PendingCollectiveOperation<T>> for Receiver<Result<T, CollectiveError>> {
+    fn from(value: PendingCollectiveOperation<T>) -> Self {
+        value.rx
     }
 }
 
