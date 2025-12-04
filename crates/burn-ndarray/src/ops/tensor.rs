@@ -4,7 +4,6 @@ use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::GridSampleOptions;
 use burn_tensor::{TensorMetadata, cast::ToElement};
-use num_traits::Float;
 
 // Current crate
 use super::{
@@ -489,7 +488,7 @@ where
         execute_with_float_dtype!((lhs, rhs), E, |lhs, rhs| NdArrayMathOps::elementwise_op(
             lhs,
             rhs,
-            |a: &E, b: &E| a.powf(*b)
+            |a: &E, b: &E| num_traits::Float::powf(*a, *b)
         ))
     }
 
