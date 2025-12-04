@@ -5582,6 +5582,7 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn",
  "burn-import",
+ "burn-store",
  "serde",
 ]
 
