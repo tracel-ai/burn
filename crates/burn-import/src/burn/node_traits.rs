@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use alloc::rc::Rc;
 use burn_store::{TensorSnapshot, TensorSnapshotError};
 use proc_macro2::{Ident, Span, TokenStream};
@@ -308,5 +310,3 @@ pub fn transpose_2d(data: burn::tensor::TensorData) -> burn::tensor::TensorData 
     let tensor: Tensor<SerializationBackend, 2> = Tensor::from_data(data, &device);
     tensor.transpose().into_data()
 }
-
-extern crate alloc;
