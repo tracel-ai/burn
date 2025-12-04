@@ -1,7 +1,7 @@
 use super::prelude::*;
 use core::cmp::Ordering;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmul::MatMulNode {
+impl NodeCodegen for onnx_ir::matmul::MatMulNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

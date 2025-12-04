@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::softmax::SoftmaxNode {
+impl NodeCodegen for onnx_ir::softmax::SoftmaxNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

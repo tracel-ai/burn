@@ -1,11 +1,10 @@
 use super::prelude::*;
-use onnx_ir::Node;
 
 /// Generate inline code for a subgraph
 ///
 /// Converts an OnnxGraph into a TokenStream that can be inserted into an if/else branch.
 /// Returns (body_code, output_tuple)
-fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
+fn generate_subgraph_code(
     subgraph: &onnx_ir::OnnxGraph,
     scope: &mut Scope,
     node_position: usize,
@@ -24,7 +23,7 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
         let subgraph_node_pos = node_position + idx + 1;
 
         // Register node outputs
-        for output in <Node as NodeCodegen<PS>>::outputs(node) {
+        for output in NodeCodegen::outputs(node) {
             if let ArgType::Tensor(_) = &output.ty {
                 scope.tensor_register_variable(output, subgraph_node_pos);
             }
@@ -32,7 +31,7 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
 
         // Register future uses of node inputs
         // Filter to only dynamic/constant inputs (exclude static-only initializers)
-        for input in <Node as NodeCodegen<PS>>::inputs(node)
+        for input in NodeCodegen::inputs(node)
             .iter()
             .filter(|arg| arg.is_dynamic() || arg.is_constant())
         {
@@ -52,7 +51,7 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
     // Generate forward code for each node
     for (idx, node) in subgraph.nodes.iter().enumerate() {
         let mut scope_at_pos = scope.at_position(node_position + idx + 1);
-        let node_code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
+        let node_code = NodeCodegen::forward(node, &mut scope_at_pos);
         body.extend(node_code);
     }
 
@@ -69,7 +68,7 @@ fn generate_subgraph_code<PS: PrecisionSettings + 'static>(
     (body, output_tuple)
 }
 
-impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node::IfNode {
+impl NodeCodegen for onnx_ir::node::if_node::IfNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -98,9 +97,9 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
         // Generate code for then and else branches
         let node_position = scope.node_position();
         let (then_body, then_output) =
-            generate_subgraph_code::<PS>(&self.config.then_branch, scope.scope(), node_position);
+            generate_subgraph_code(&self.config.then_branch, scope.scope(), node_position);
         let (else_body, else_output) =
-            generate_subgraph_code::<PS>(&self.config.else_branch, scope.scope(), node_position);
+            generate_subgraph_code(&self.config.else_branch, scope.scope(), node_position);
 
         // Generate output variable declarations
         let output_names: Vec<_> = self.outputs.iter().map(arg_to_ident).collect();
@@ -127,7 +126,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
         // Register imports from subgraph nodes
         let mut register_subgraph_imports = |subgraph: &onnx_ir::OnnxGraph| {
             for node in &subgraph.nodes {
-                <Node as NodeCodegen<PS>>::register_imports(node, imports);
+                NodeCodegen::register_imports(node, imports);
             }
         };
 

@@ -1,55 +1,55 @@
-/// Implements NodeCodegen<PS> trait on onnx_ir::Node enum
+/// Implements NodeCodegen trait on onnx_ir::Node enum
 /// Uses a simple macro to generate match arms for all supported nodes
-use burn::record::PrecisionSettings;
 use onnx_ir::{Argument, Node};
 use proc_macro2::TokenStream;
 
 use super::node_traits::NodeCodegen;
 use crate::burn::{BurnImports, Field};
+use burn_store::TensorSnapshot;
 
-/// Macro to implement NodeCodegen<PS> on onnx_ir::Node by dispatching to individual node impls
+/// Macro to implement NodeCodegen on onnx_ir::Node by dispatching to individual node impls
 macro_rules! impl_node_codegen_dispatch {
     ($($variant:ident),* $(,)?) => {
-        impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for Node {
+        impl NodeCodegen for Node {
             fn inputs(&self) -> &[Argument] {
                 match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::inputs(n),)*
+                    $(Node::$variant(n) => n.inputs(),)*
                     _ => panic!("Unsupported node type for inputs: {:?}", self),
                 }
             }
 
             fn outputs(&self) -> &[Argument] {
                 match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::outputs(n),)*
+                    $(Node::$variant(n) => n.outputs(),)*
                     _ => panic!("Unsupported node type for outputs: {:?}", self),
                 }
             }
 
             fn forward(&self, scope: &mut crate::burn::scope::ScopeAtPosition<'_>) -> TokenStream {
                 match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::forward(n, scope),)*
+                    $(Node::$variant(n) => n.forward(scope),)*
                     _ => panic!("Unsupported node type for forward: {:?}", self),
                 }
             }
 
             fn field(&self) -> Option<Field> {
                 match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::field(n),)*
+                    $(Node::$variant(n) => n.field(),)*
                     _ => None,
-                }
-            }
-
-            fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::field_serialize(n, serializer),)*
-                    _ => panic!("Unsupported node type for serialization: {:?}", self),
                 }
             }
 
             fn register_imports(&self, imports: &mut BurnImports) {
                 match self {
-                    $(Node::$variant(n) => NodeCodegen::<PS>::register_imports(n, imports),)*
+                    $(Node::$variant(n) => n.register_imports(imports),)*
                     _ => {}
+                }
+            }
+
+            fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+                match self {
+                    $(Node::$variant(n) => n.collect_snapshots(field_name),)*
+                    _ => vec![],
                 }
             }
         }

@@ -1,7 +1,7 @@
 use super::prelude::*;
 use std::str::FromStr;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pad::PadNode {
+impl NodeCodegen for onnx_ir::pad::PadNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

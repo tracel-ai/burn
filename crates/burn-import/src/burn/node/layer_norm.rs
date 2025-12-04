@@ -1,13 +1,7 @@
 use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::LayerNormRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::LayerNormalizationNode {
+impl NodeCodegen for onnx_ir::node::layer_norm::LayerNormalizationNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -34,30 +28,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::Layer
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
 
-        let gamma = extract_node_data(&self.inputs, 1).expect("Gamma is required");
-        let beta = extract_node_data(&self.inputs, 2);
+        let mut snapshots = vec![];
 
-        let record = LayerNormRecord::<SerializationBackend> {
-            gamma: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(gamma.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            beta: Param::initialized(
-                ParamId::new(),
-                if let Some(beta) = beta {
-                    Tensor::from_data(beta.convert::<PS::FloatElem>(), &device)
-                } else {
-                    Tensor::zeros([self.config.d_model], &device)
-                },
-            ),
-            epsilon: ConstantRecord::new(),
-        };
+        // Gamma (scale) tensor at input index 1
+        if let Some(gamma_input) = self.inputs.get(1) {
+            let gamma_path = format!("{}.gamma", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(gamma_input, &gamma_path, "LayerNorm") {
+                snapshots.push(snapshot);
+            }
+        }
 
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
+        // Beta (bias) tensor at input index 2
+        if let Some(beta_input) = self.inputs.get(2) {
+            let beta_path = format!("{}.beta", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(beta_input, &beta_path, "LayerNorm") {
+                snapshots.push(snapshot);
+            }
+        }
+
+        snapshots
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {

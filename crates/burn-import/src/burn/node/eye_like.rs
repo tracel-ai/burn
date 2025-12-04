@@ -2,7 +2,7 @@ use super::prelude::*;
 use onnx_ir::ir::ArgType;
 use quote::{ToTokens, quote};
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::eye_like::EyeLikeNode {
+impl NodeCodegen for onnx_ir::node::eye_like::EyeLikeNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

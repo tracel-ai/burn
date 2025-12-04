@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::modulo::ModNode {
+impl NodeCodegen for onnx_ir::modulo::ModNode {
     fn inputs(&self) -> &[Argument] {
         // Filter inputs only dynamic and constant
         &self.inputs

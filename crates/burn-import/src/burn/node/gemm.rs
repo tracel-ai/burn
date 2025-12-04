@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gemm::GemmNode {
+impl NodeCodegen for onnx_ir::gemm::GemmNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

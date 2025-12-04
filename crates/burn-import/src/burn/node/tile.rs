@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::tile::TileNode {
+impl NodeCodegen for onnx_ir::tile::TileNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

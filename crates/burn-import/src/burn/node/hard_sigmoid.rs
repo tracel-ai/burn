@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::hard_sigmoid::HardSigmoidNode {
+impl NodeCodegen for onnx_ir::hard_sigmoid::HardSigmoidNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

@@ -1,13 +1,7 @@
 use super::prelude::*;
-use burn::{
-    module::{Param, ParamId},
-    nn::LinearRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {
+impl NodeCodegen for onnx_ir::linear::LinearNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -33,35 +27,54 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::linear::LinearNode {
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
-        let data_weights = extract_node_data(&self.inputs, 1).unwrap();
-        let data_bias = extract_node_data(&self.inputs, 2);
-
-        // Create weight tensor
-        let weight_tensor: Tensor<SerializationBackend, 2> =
-            Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device);
-
-        // Transpose only if needed (Gemm-sourced Linear has weights in [out, in] layout)
-        // MatMul-sourced Linear already has weights in [in, out] layout
-        let weight_final = if self.config.transpose_weight {
-            weight_tensor.transpose()
-        } else {
-            weight_tensor
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::{
+            create_lazy_snapshot, create_lazy_snapshot_with_transform, transpose_2d,
         };
+        use onnx_ir::ir::ArgType;
 
-        let record = LinearRecord::<SerializationBackend> {
-            weight: Param::initialized(ParamId::new(), weight_final),
-            bias: data_bias.as_ref().map(|bias| {
-                Param::initialized(
-                    ParamId::new(),
-                    Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
-                )
-            }),
-        };
+        let mut snapshots = vec![];
 
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
+        // Weight tensor (input index 1)
+        if let Some(weight_input) = self.inputs.get(1) {
+            let weight_path = format!("{}.weight", field_name);
+
+            // Get original shape for transposition
+            let original_shape = match &weight_input.ty {
+                ArgType::Tensor(t) => t.static_shape.clone().unwrap_or_default(),
+                _ => vec![],
+            };
+
+            if self.config.transpose_weight && original_shape.len() == 2 {
+                // Need to transpose: ONNX [out, in] -> Burn [in, out]
+                let transposed_shape = vec![original_shape[1], original_shape[0]];
+
+                if let Some(snapshot) = create_lazy_snapshot_with_transform(
+                    weight_input,
+                    &weight_path,
+                    "Linear",
+                    transpose_2d,
+                    transposed_shape,
+                ) {
+                    snapshots.push(snapshot);
+                }
+            } else {
+                // No transposition needed (MatMul-sourced Linear)
+                if let Some(snapshot) = create_lazy_snapshot(weight_input, &weight_path, "Linear") {
+                    snapshots.push(snapshot);
+                }
+            }
+        }
+
+        // Bias tensor (input index 2, optional)
+        if let Some(bias_input) = self.inputs.get(2) {
+            let bias_path = format!("{}.bias", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(bias_input, &bias_path, "Linear") {
+                snapshots.push(snapshot);
+            }
+        }
+
+        snapshots
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
