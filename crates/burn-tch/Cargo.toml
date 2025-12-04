@@ -34,9 +34,6 @@ torch-sys = { workspace = true }                             # for build script 
 burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.4", default-features = false, features = [
     "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", default-features = false, features = [
-    "export_tests",
-] }
 rand = { workspace = true, features = ["thread_rng"] }
 
 [build-dependencies]
