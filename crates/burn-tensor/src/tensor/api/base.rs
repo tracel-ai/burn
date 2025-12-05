@@ -1338,10 +1338,15 @@ where
         S: SliceArg<D2>,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        self.slice_dyn(&slices.into_slices(shape))
+    }
+
+    /// Dynamic version of [`slice`].
+    pub fn slice_dyn(self, slices: &[Slice]) -> Self {
+        let shape = self.shape();
 
         // Validate slices
-        check!(TensorCheck::slice::<D, D2>(&shape, &slices));
+        check!(TensorCheck::slice::<D>(&shape, slices));
 
         // Calculate output shape and check for empty slices
         let mut output_dims = shape.dims.clone();
@@ -1353,9 +1358,7 @@ where
         if output_dims.contains(&0) {
             return Self::empty(output_dims, &self.device());
         }
-
-        // Use the slice method that supports steps
-        Self::new(K::slice(self.primitive, &slices))
+        Self::new(K::slice(self.primitive, slices))
     }
 
     /// Assigns values to a slice of the tensor and returns the updated tensor.
@@ -1428,7 +1431,12 @@ where
         S: SliceArg<D2>,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        self.slice_assign_dyn(&slices.into_slices(shape), values)
+    }
+
+    /// Dynamic version of [`slice_assign`].
+    pub fn slice_assign_dyn(self, slices: &[Slice], values: Self) -> Self {
+        let shape = self.shape();
 
         // Check if any slice produces 0 elements (empty assignment).
         // Empty assignments are no-ops and would cause issues in backend implementations.
@@ -1441,13 +1449,13 @@ where
             return self;
         }
 
-        check!(TensorCheck::slice_assign::<D, D2>(
+        check!(TensorCheck::slice_assign::<D>(
             &shape,
             &values.shape(),
-            &slices
+            slices
         ));
 
-        Self::new(K::slice_assign(self.primitive, &slices, values.primitive))
+        Self::new(K::slice_assign(self.primitive, slices, values.primitive))
     }
 
     /// Fills a slice of the tensor with a constant value and returns the updated tensor.
@@ -1514,11 +1522,16 @@ where
         S: SliceArg<D2>,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        self.slice_fill_dyn(&slices.into_slices(shape), value)
+    }
 
-        check!(TensorCheck::slice::<D, D2>(&shape, &slices));
+    /// Dynamic version of [`slice_fill`].
+    pub fn slice_fill_dyn<E: ElementConversion>(self, slices: &[Slice], value: E) -> Self {
+        let shape = self.shape();
 
-        Self::new(K::slice_fill(self.primitive, &slices, value.elem()))
+        check!(TensorCheck::slice::<D>(&shape, slices));
+
+        Self::new(K::slice_fill(self.primitive, slices, value.elem()))
     }
 
     /// Returns a new tensor with the specified dimension sliced.
