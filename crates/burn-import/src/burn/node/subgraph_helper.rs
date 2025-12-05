@@ -3,6 +3,33 @@
 use super::prelude::*;
 use std::collections::HashSet;
 
+/// Collect all names referenced within a subgraph (node inputs).
+///
+/// This is used to filter outer-scope bindings so we only generate bindings
+/// for variables that are actually used within a specific subgraph branch.
+pub(super) fn collect_subgraph_referenced_names(subgraph: &onnx_ir::OnnxGraph) -> HashSet<String> {
+    let mut names = HashSet::new();
+
+    // Collect all node input names
+    for node in &subgraph.nodes {
+        for input in node.inputs() {
+            if !input.name.is_empty() {
+                names.insert(input.name.clone());
+            }
+        }
+    }
+
+    // Also include output names that reference node outputs
+    // (these may reference outer-scope variables in pass-through cases)
+    for output in &subgraph.outputs {
+        if !output.name.is_empty() {
+            names.insert(output.name.clone());
+        }
+    }
+
+    names
+}
+
 /// Generate outer-scope reference bindings for a subgraph.
 ///
 /// Creates `let` bindings that map outer-scope values (from the parent graph)
@@ -12,12 +39,15 @@ use std::collections::HashSet;
 /// - `outer_scope_inputs`: The node inputs that provide values for outer-scope references
 /// - `scope_ref_names`: The original sanitized ONNX names that the subgraph uses
 /// - `exclude_names`: Names to exclude from binding generation (e.g., loop-provided variables)
+/// - `used_names`: Optional set of names actually used in this subgraph. If provided, only
+///   bindings for names in this set will be generated (avoids unused variable warnings).
 /// - `scope`: The parent scope for accessing outer values
 /// - `node_position`: The position of the control flow node in the graph
 pub(super) fn generate_outer_scope_bindings(
     outer_scope_inputs: &[Argument],
     scope_ref_names: &[String],
     exclude_names: &HashSet<String>,
+    used_names: Option<&HashSet<String>>,
     scope: &mut Scope,
     node_position: usize,
 ) -> TokenStream {
@@ -26,6 +56,13 @@ pub(super) fn generate_outer_scope_bindings(
     for (idx, scope_ref_name) in scope_ref_names.iter().enumerate() {
         // Skip names that should be excluded (e.g., loop-provided variables)
         if exclude_names.contains(scope_ref_name) {
+            continue;
+        }
+
+        // Skip names not actually used in this subgraph (if used_names filter is provided)
+        if let Some(used) = used_names
+            && !used.contains(scope_ref_name)
+        {
             continue;
         }
 

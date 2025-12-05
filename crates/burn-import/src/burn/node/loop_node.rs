@@ -14,11 +14,15 @@ fn generate_loop_body_code(
     scope: &mut Scope,
     node_position: usize,
 ) -> TokenStream {
-    // Generate outer-scope bindings (excluding loop-provided body inputs)
+    // Collect names actually used in this body to avoid unused variable warnings
+    let used_names = subgraph_helper::collect_subgraph_referenced_names(subgraph);
+
+    // Generate outer-scope bindings (excluding loop-provided body inputs, only for used names)
     let bindings = subgraph_helper::generate_outer_scope_bindings(
         outer_scope_inputs,
         scope_ref_names,
         body_input_names,
+        Some(&used_names),
         scope,
         node_position,
     );

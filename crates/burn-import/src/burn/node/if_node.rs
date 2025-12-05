@@ -16,11 +16,15 @@ fn generate_branch_code(
     // (no filtering needed, unlike Loop/Scan)
     let exclude_names = HashSet::new();
 
-    // Generate outer-scope bindings
+    // Collect names actually used in this branch to avoid unused variable warnings
+    let used_names = subgraph_helper::collect_subgraph_referenced_names(subgraph);
+
+    // Generate outer-scope bindings (only for names actually used in this branch)
     let bindings = subgraph_helper::generate_outer_scope_bindings(
         outer_scope_inputs,
         scope_ref_names,
         &exclude_names,
+        Some(&used_names),
         scope,
         node_position,
     );
