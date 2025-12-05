@@ -429,13 +429,18 @@ fn validate_output_spec(
 /// that count, or falls back to the total input count if the attribute isn't present.
 pub(crate) fn get_onnx_input_count(node: &RawNode) -> usize {
     use crate::ir::AttributeValue;
-    node.attrs
-        .get("__onnx_input_count")
-        .and_then(|v| match v {
-            AttributeValue::Int64(n) => Some(*n as usize),
-            _ => None,
-        })
-        .unwrap_or(node.inputs.len())
+    match node.attrs.get("__onnx_input_count") {
+        Some(AttributeValue::Int64(n)) => *n as usize,
+        Some(other) => {
+            log::warn!(
+                "__onnx_input_count attribute has unexpected type {:?} in node '{}', falling back to inputs.len()",
+                other,
+                node.name
+            );
+            node.inputs.len()
+        }
+        None => node.inputs.len(),
+    }
 }
 
 /// Copy input type to output (for operations that preserve type)
