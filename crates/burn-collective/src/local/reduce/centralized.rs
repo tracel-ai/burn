@@ -5,6 +5,7 @@ use burn_tensor::backend::Backend;
 use crate::PeerId;
 
 /// Sums the tensors on one device and returns the result
+#[tracing::instrument(skip(tensors))]
 pub(crate) fn reduce_sum_centralized<B: Backend>(
     mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
     central: &PeerId,

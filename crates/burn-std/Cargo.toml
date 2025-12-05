@@ -18,7 +18,7 @@ workspace = true
 cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
 doc = ["default"]
-network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
+network = ["dep:indicatif", "dep:reqwest"]
 std = ["cubecl-common/std", "num-traits/std"]
 
 [dependencies]
@@ -39,7 +39,10 @@ bytes = { workspace = true }
 # Network downloader
 indicatif = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["tracing"] }
+
+opentelemetry = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

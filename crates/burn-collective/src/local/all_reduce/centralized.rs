@@ -11,6 +11,7 @@ use crate::{
 /// result to all other devices
 ///
 /// Internally, this is just a call to `reduce` followed by a `broadcast`
+#[tracing::instrument(skip(tensors))]
 pub(crate) fn all_reduce_sum_centralized<B: Backend>(
     tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
 ) {

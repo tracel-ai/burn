@@ -108,9 +108,12 @@ thiserror = { version = "2", default-features = false }
 tokio = { version = "1.47.1", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
+tracing = "0.1.43"
 tracing-appender = "0.2.3"
 tracing-core = "0.1.34"
 tracing-subscriber = "0.3.20"
+opentelemetry = "0.31.0"
+tracing-opentelemetry = "0.32.0"
 zip = "6.0.0"
 
 # Persist related

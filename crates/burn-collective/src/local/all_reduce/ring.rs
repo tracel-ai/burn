@@ -4,6 +4,7 @@ use burn_tensor::{Shape, Slice, TensorMetadata, backend::Backend};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
+#[tracing::instrument(skip(tensors))]
 pub(crate) fn all_reduce_sum_ring<B: Backend>(
     tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
 ) {

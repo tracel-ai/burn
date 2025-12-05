@@ -13,6 +13,7 @@ use crate::{
 };
 
 /// An on-going all-reduce operation
+#[derive(Debug)]
 pub struct AllReduceOp<B: Backend> {
     /// all-reduce calls, one for each calling device
     calls: Vec<AllReduceOpCall<B>>,
@@ -23,6 +24,7 @@ pub struct AllReduceOp<B: Backend> {
 }
 
 /// Struct for each device that calls an all-reduce operation
+#[derive(Debug)]
 pub struct AllReduceOpCall<B: Backend> {
     /// Id of the caller for this operation
     caller: PeerId,
@@ -97,6 +99,7 @@ impl<B: Backend> AllReduceOp<B> {
     }
 
     /// Perform an all-reduce operation.
+    #[tracing::instrument(skip(config, global_client))]
     async fn all_reduce(
         &mut self,
         config: &CollectiveConfig,
@@ -118,6 +121,7 @@ impl<B: Backend> AllReduceOp<B> {
     }
 
     /// Perform an all-reduce with no multi-node operations (global ops)
+    #[tracing::instrument(skip(tensors, config))]
     async fn all_reduce_local_only(
         tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
         op: ReduceOperation,
@@ -150,6 +154,7 @@ impl<B: Backend> AllReduceOp<B> {
     // For the Ring strategy, this isn't possible, because it is more like a
     // reduce-scatter plus an all-gather, so using a Ring strategy locally in a multi-node
     // setup may be unadvantageous.
+    #[tracing::instrument(skip(tensors, config, global_client))]
     async fn all_reduce_with_global(
         tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
         op: ReduceOperation,
