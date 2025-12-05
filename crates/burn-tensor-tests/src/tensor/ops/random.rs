@@ -1,7 +1,5 @@
 use super::*;
-use burn_tensor::{
-    Distribution, ElementConversion, TensorData, Tolerance, backend::Backend, cast::ToElement,
-};
+use burn_tensor::{Distribution, ElementConversion, TensorData, Tolerance, backend::Backend};
 
 #[test]
 fn rand_default() {
@@ -11,7 +9,7 @@ fn rand_default() {
     // the conversion can ceil the value if `FloatElem` is less precise than f32
     let low = 0.elem::<FloatElem>();
     let high = 1.elem::<FloatElem>();
-    if FloatElem::EPSILON.to_f32() > f32::EPSILON {
+    if FloatElem::EPSILON.elem::<f32>() > f32::EPSILON {
         tensor.into_data().assert_within_range_inclusive(low..=high);
     } else {
         tensor.into_data().assert_within_range(low..high);
@@ -24,7 +22,7 @@ fn rand_uniform() {
     let low = 4.elem::<FloatElem>();
     let high = 5.elem::<FloatElem>();
 
-    if FloatElem::EPSILON.to_f32() > f32::EPSILON {
+    if FloatElem::EPSILON.elem::<f32>() > f32::EPSILON {
         tensor.into_data().assert_within_range_inclusive(low..=high);
     } else {
         tensor.into_data().assert_within_range(low..high);

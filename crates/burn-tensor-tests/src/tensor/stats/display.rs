@@ -5,6 +5,11 @@ use burn_tensor::{Element, Shape, TensorData};
 type FloatElem = <TestBackend as Backend>::FloatElem;
 type IntElem = <TestBackend as Backend>::IntElem;
 
+// Floating point values might not match for other precisions
+fn skip_precision_not_f32() -> bool {
+    core::any::TypeId::of::<FloatElem>() != core::any::TypeId::of::<f32>()
+}
+
 #[test]
 fn test_display_2d_int_tensor() {
     let int_data = TensorData::from([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
@@ -32,6 +37,10 @@ fn test_display_2d_int_tensor() {
 
 #[test]
 fn test_display_2d_float_tensor() {
+    if skip_precision_not_f32() {
+        return;
+    }
+
     let float_data = TensorData::from([[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]]);
     let tensor_float = TestTensor::<2>::from_data(float_data, &Default::default());
 
@@ -46,11 +55,10 @@ fn test_display_2d_float_tensor() {
   device:  {:?},
   backend:  {:?},
   kind:  "Float",
-  dtype:  "{dtype}",
+  dtype:  "f32",
 }}"#,
         tensor_float.device(),
         TestBackend::name(&tensor_float.device()),
-        dtype = core::any::type_name::<FloatElem>(),
     );
     assert_eq!(output, expected);
 }
@@ -169,10 +177,11 @@ fn test_display_tensor_summarize_1() {
   device:  {:?},
   backend:  {:?},
   kind:  "Float",
-  dtype:  "f32",
+  dtype:  "{dtype}",
 }}"#,
         tensor.device(),
         TestBackend::name(&tensor.device()),
+        dtype = FloatElem::dtype().name(),
     );
     assert_eq!(output, expected);
 }
@@ -217,10 +226,11 @@ fn test_display_tensor_summarize_2() {
   device:  {:?},
   backend:  {:?},
   kind:  "Float",
-  dtype:  "f32",
+  dtype:  "{dtype}",
 }}"#,
         tensor.device(),
         TestBackend::name(&tensor.device()),
+        dtype = FloatElem::dtype().name(),
     );
     assert_eq!(output, expected);
 }
@@ -265,15 +275,20 @@ fn test_display_tensor_summarize_3() {
   device:  {:?},
   backend:  {:?},
   kind:  "Float",
-  dtype:  "f32",
+  dtype:  "{dtype}",
 }}"#,
         tensor.device(),
         TestBackend::name(&tensor.device()),
+        dtype = FloatElem::dtype().name(),
     );
     assert_eq!(output, expected);
 }
 #[test]
 fn test_display_precision() {
+    if skip_precision_not_f32() {
+        return;
+    }
+
     let tensor = TestTensor::<2>::full([1, 1], 0.123456789, &Default::default());
 
     let output = format!("{}", tensor);
