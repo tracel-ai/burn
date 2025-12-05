@@ -285,11 +285,12 @@ impl GraphState {
                 outer_arg.name
             );
             let mut arg = outer_arg.clone();
-            // For Constant arguments, preserve the original name since it's used to look up
-            // the constant data in the store (e.g., "constant12_out1").
-            // For non-Constant arguments (Dynamic), use the sanitized ONNX name so code
-            // generation uses the correct variable name within the subgraph.
-            if !arg.is_constant() {
+            if arg.is_constant() {
+                // Preserve original name for Constant arguments since it's used to look up
+                // the constant data in the store (e.g., "constant12_out1").
+            } else {
+                // For non-Constant arguments (Dynamic), use the sanitized ONNX name so code
+                // generation uses the correct variable name within the subgraph.
                 arg.name = sanitized;
             }
             arg
