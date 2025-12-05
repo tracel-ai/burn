@@ -1,5 +1,6 @@
-use super::prelude::*;
 use burn_store::TensorSnapshot;
+
+use super::prelude::*;
 
 impl NodeCodegen for onnx_ir::node::layer_norm::LayerNormalizationNode {
     fn inputs(&self) -> &[Argument] {
@@ -14,6 +15,7 @@ impl NodeCodegen for onnx_ir::node::layer_norm::LayerNormalizationNode {
         let name = Ident::new(&self.name, Span::call_site());
         let num_features = self.config.d_model.to_tokens();
         let epsilon = self.config.epsilon;
+        let has_bias = self.config.has_bias;
 
         Some(Field::new(
             self.name.clone(),
@@ -23,6 +25,7 @@ impl NodeCodegen for onnx_ir::node::layer_norm::LayerNormalizationNode {
             quote! {
                 let #name = LayerNormConfig::new(#num_features)
                     .with_epsilon(#epsilon)
+                    .with_bias(#has_bias)
                     .init(device);
             },
         ))
@@ -41,13 +44,17 @@ impl NodeCodegen for onnx_ir::node::layer_norm::LayerNormalizationNode {
             }
         }
 
-        // Beta (bias) tensor at input index 2
-        if let Some(beta_input) = self.inputs.get(2) {
+        // Beta (bias) tensor at input index 2 - only if ONNX model has bias
+        if self.config.has_bias
+            && let Some(beta_input) = self.inputs.get(2)
+        {
             let beta_path = format!("{}.beta", field_name);
             if let Some(snapshot) = create_lazy_snapshot(beta_input, &beta_path, "LayerNorm") {
                 snapshots.push(snapshot);
             }
         }
+        // When has_bias is false, Burn's LayerNorm is configured with .with_bias(false),
+        // so no beta parameter exists and no snapshot is needed
 
         snapshots
     }
@@ -87,7 +94,8 @@ mod tests {
     };
 
     fn create_layer_norm_node(name: &str) -> LayerNormalizationNode {
-        let config = LayerNormConfig::new(512, 1e-5, true);
+        // has_bias = true (most common case with bias)
+        let config = LayerNormConfig::new(512, 1e-5, true, true);
 
         LayerNormalizationNodeBuilder::new(name)
             .input_tensor("input", 3, DType::F32)
