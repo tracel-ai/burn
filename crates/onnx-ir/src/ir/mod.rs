@@ -10,7 +10,7 @@ pub(crate) mod graph;
 mod node;
 mod tensor_data_ext;
 
-pub(crate) use attribute::{AttributeValue, Attributes};
+pub(crate) use attribute::{AttributeValue, Attributes, DeferredGraph, OuterScopeTypes};
 pub(crate) use graph::OnnxGraphBuilder;
 pub use node::RuntimeInputRef;
 pub(crate) use node::{NodeType, RawNode};

@@ -339,23 +339,75 @@ impl NodeProcessor for LstmProcessor {
     }
 
     fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
-        // Get input_size from weight tensor shape: [num_directions, 4*hidden_size, input_size]
-        let weight_shape = node.inputs[1]
-            .value()
-            .ok_or_else(|| {
-                ProcessError::Custom("LSTM: weight tensor (W) must be a constant".to_string())
-            })?
-            .shape
-            .to_vec();
+        // Get input_size - can be derived from:
+        // 1. Weight tensor W shape: [num_directions, 4*hidden_size, input_size] -> input_size is W[2]
+        // 2. Input tensor X shape: [seq_length, batch_size, input_size] -> input_size is X[2]
+        //
+        // We try multiple sources since weight tensors may be dynamically computed (e.g., after
+        // Concat/Slice operations) while the input tensor often has static shape from the model input.
+        let weight_input = &node.inputs[1];
+        let x_input = &node.inputs[0];
+        log::debug!(
+            "LSTM extract_config: X input type={:?}, W input type={:?}",
+            x_input.ty,
+            weight_input.ty
+        );
 
-        if weight_shape.len() != 3 {
-            return Err(ProcessError::Custom(format!(
-                "LSTM: weight tensor (W) must have rank 3, got {}",
-                weight_shape.len()
-            )));
-        }
+        // Try to get input_size from weight tensor's static_shape
+        let input_size = if let ArgType::Tensor(t) = &weight_input.ty {
+            if let Some(shape) = &t.static_shape {
+                if shape.len() == 3 {
+                    log::debug!("LSTM: using input_size from W static_shape: {}", shape[2]);
+                    Some(shape[2])
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
-        let input_size = weight_shape[2];
+        // Fallback: try to get input_size from weight constant data
+        let input_size = input_size.or_else(|| {
+            weight_input.value().and_then(|data| {
+                if data.shape.len() == 3 {
+                    log::debug!(
+                        "LSTM: using input_size from W constant value: {}",
+                        data.shape[2]
+                    );
+                    Some(data.shape[2])
+                } else {
+                    None
+                }
+            })
+        });
+
+        // Fallback: try to get input_size from input tensor X's static_shape
+        // X has shape [seq_length, batch_size, input_size] so input_size is X[2]
+        let input_size = input_size.or_else(|| {
+            if let ArgType::Tensor(t) = &x_input.ty {
+                if let Some(shape) = &t.static_shape {
+                    if shape.len() >= 3 {
+                        log::debug!("LSTM: using input_size from X static_shape: {}", shape[2]);
+                        Some(shape[2])
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+
+        let input_size = input_size.ok_or_else(|| {
+            ProcessError::Custom(
+                "LSTM: cannot determine input_size - weight tensor (W) and input tensor (X) must have static shape or W must be a constant".to_string()
+            )
+        })?;
 
         // Extract hidden_size from attributes (required)
         let hidden_size = node

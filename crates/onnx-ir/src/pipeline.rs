@@ -347,8 +347,35 @@ pub(crate) fn build_graph_builder_from_proto(
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
 ) -> Result<crate::ir::OnnxGraphBuilder, Error> {
+    build_graph_builder_from_proto_with_outer_scope(
+        graph,
+        opset_version,
+        name_registry,
+        crate::ir::OuterScopeTypes::new(),
+    )
+}
+
+/// Build IR graph as OnnxGraphBuilder with access to outer scope types
+///
+/// This is used for building subgraphs that reference values from parent graphs.
+/// The `outer_scope` map provides types for values that the subgraph references
+/// but doesn't define internally.
+///
+/// # Errors
+///
+/// Returns an error if node conversion or type inference fails
+pub(crate) fn build_graph_builder_from_proto_with_outer_scope(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+    name_registry: Option<crate::graph_state::NameRegistry>,
+    outer_scope: crate::ir::OuterScopeTypes,
+) -> Result<crate::ir::OnnxGraphBuilder, Error> {
     log::debug!(" PHASE 1: Initialization ");
-    let state_rc = initialization::initialize_from_graph_with_registry(graph, name_registry);
+    let state_rc = initialization::initialize_from_graph_with_registry_and_outer_scope(
+        graph,
+        name_registry,
+        outer_scope,
+    );
 
     log::debug!(" PHASE 2: Node Conversion (Proto -> RawNode) ");
     node_conversion::convert_nodes_from_graph(graph, &state_rc, opset_version)?;

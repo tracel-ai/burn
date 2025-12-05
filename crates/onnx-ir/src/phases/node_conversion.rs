@@ -72,6 +72,63 @@ fn convert_nodes_impl(
             node.node_type,
             NodeType::If | NodeType::Loop | NodeType::Scan
         ) {
+            // Extract outer-scope references from subgraphs BEFORE building them
+            // These references need their types resolved from the parent graph
+            let outer_refs =
+                crate::proto_conversion::extract_node_outer_scope_references(node_proto);
+
+            // Add outer-scope references as additional inputs to the node
+            // This ensures:
+            // 1. Type inference processes dependencies before this node
+            // 2. The types are available when building subgraphs
+            if !outer_refs.is_empty() {
+                log::debug!(
+                    "Found {} outer-scope references for {} node {}: {:?}",
+                    outer_refs.len(),
+                    node.node_type,
+                    node.name,
+                    outer_refs
+                );
+                let state = state_rc.borrow();
+                let mut scope_ref_names: Vec<String> = Vec::new();
+                for ref_name in outer_refs {
+                    // Skip references that are already in the node's inputs
+                    if node.inputs.iter().any(|i| i.name == ref_name) {
+                        log::debug!("Skipping '{}' - already in node inputs", ref_name);
+                        continue;
+                    }
+
+                    // Create an argument for this outer-scope reference
+                    // The type will be resolved from the parent graph
+                    let arg = state.init_in(&ref_name);
+                    log::debug!(
+                        "Adding outer-scope reference '{}' -> arg.name='{}' (type: {:?}) as input to {} node",
+                        ref_name,
+                        arg.name,
+                        arg.ty,
+                        node.node_type
+                    );
+                    node.inputs.push(arg);
+                    scope_ref_names.push(ref_name);
+                }
+
+                // Store the count of regular ONNX inputs (before scope refs)
+                // This allows node processors to distinguish ONNX inputs from scope refs
+                let onnx_input_count = node.inputs.len() - scope_ref_names.len();
+                node.attrs.insert(
+                    "__onnx_input_count".to_string(),
+                    AttributeValue::Int64(onnx_input_count as i64),
+                );
+
+                // Store the original ONNX names (sanitized) for the scope refs
+                // These are needed when building subgraphs since subgraphs reference
+                // the original names, not the renamed node output names
+                node.attrs.insert(
+                    "__scope_ref_names".to_string(),
+                    AttributeValue::Strings(scope_ref_names),
+                );
+            }
+
             // Pass the current graph's NameRegistry to ensure unique names across nested subgraphs
             // If no registry exists, create one and initialize with current node counts
             let parent_registry = if let Some(registry) = state_rc.borrow().name_registry().cloned()
@@ -91,6 +148,7 @@ fn convert_nodes_impl(
                 registry
             };
 
+            // Convert graph attributes - now creates DeferredGraph instead of building immediately
             let graph_attrs = crate::proto_conversion::convert_graph_attributes(
                 node_proto,
                 opset_version,
@@ -100,11 +158,6 @@ fn convert_nodes_impl(
             for (key, value) in graph_attrs {
                 node.attrs.insert(key, value);
             }
-
-            // Update subgraph inputs to use renamed names from parent scope
-            // This is necessary because onnx-ir renames outputs (e.g., var2 -> add3_out1)
-            // but subgraph inputs still reference original ONNX names
-            update_subgraph_inputs(&mut node, &state_rc.borrow());
         }
 
         // Attach value_store to all arguments
@@ -469,76 +522,6 @@ fn convert_and_remove_add_node(bias_node: &RawNode, current_node: &mut RawNode) 
     current_node.outputs[0]
         .name
         .clone_from(&bias_node.outputs[0].name);
-}
-
-/// Update subgraph inputs to use renamed names from parent scope
-///
-/// When onnx-ir processes nodes, it renames outputs (e.g., var2 -> add3_out1).
-/// Subgraph inputs reference original ONNX names, so we need to update them
-/// to use the renamed names from the parent scope.
-fn update_subgraph_inputs(node: &mut RawNode, graph_state: &GraphState) {
-    // Get the node_output_map which maps original ONNX names to (node_idx, output_idx)
-    let node_output_map = graph_state.node_output_map();
-
-    // Update inputs for each graph attribute
-    for attr_value in node.attrs.values_mut() {
-        match attr_value {
-            AttributeValue::GraphBuilder(subgraph) => {
-                update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
-            }
-            AttributeValue::GraphBuilders(subgraphs) => {
-                for subgraph in subgraphs {
-                    update_single_subgraph_inputs(subgraph, node_output_map, graph_state);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Update inputs for a single subgraph
-fn update_single_subgraph_inputs(
-    subgraph: &mut crate::ir::OnnxGraphBuilder,
-    node_output_map: &HashMap<String, (usize, usize)>,
-    graph_state: &GraphState,
-) {
-    // Build a mapping of old names to new names
-    let mut rename_map = HashMap::new();
-
-    for input in &mut subgraph.inputs {
-        // Check if this input name exists in the parent's node_output_map
-        if let Some(&(node_idx, output_idx)) = node_output_map.get(&input.name) {
-            // Get the renamed output name from the parent node
-            let renamed_name = graph_state.processed_nodes[node_idx].outputs[output_idx]
-                .name
-                .clone();
-            log::debug!(
-                "Updating subgraph input: {} -> {}",
-                input.name,
-                renamed_name
-            );
-
-            // Store the mapping
-            rename_map.insert(input.name.clone(), renamed_name.clone());
-
-            // Update the input name
-            input.name = renamed_name;
-        }
-    }
-
-    // Also update all node inputs within the subgraph that reference the old names
-    for node in &mut subgraph.nodes {
-        for node_input in &mut node.inputs {
-            if let Some(new_name) = rename_map.get(&node_input.name) {
-                log::debug!(
-                    "Updating node input in subgraph: {} -> {}",
-                    node_input.name,
-                    new_name
-                );
-                node_input.name = new_name.clone();
-            }
-        }
-    }
 }
 
 #[cfg(test)]

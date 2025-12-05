@@ -4,19 +4,24 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{graph_state::GraphState, ir::NodeType, protos::GraphProto};
+use crate::{graph_state::GraphState, ir::NodeType, ir::OuterScopeTypes, protos::GraphProto};
 
-/// Initialize GraphState with optional shared name registry
-pub(crate) fn initialize_from_graph_with_registry(
+/// Initialize GraphState with optional shared name registry and outer scope types
+///
+/// The `outer_scope` map provides types for values that the graph references
+/// from parent graphs (for subgraphs in If/Loop/Scan nodes).
+pub(crate) fn initialize_from_graph_with_registry_and_outer_scope(
     graph: &GraphProto,
     name_registry: Option<crate::graph_state::NameRegistry>,
+    outer_scope: OuterScopeTypes,
 ) -> Rc<RefCell<GraphState>> {
-    let state = GraphState::new_with_registry(
+    let state = GraphState::new_with_registry_and_outer_scope(
         &graph.input,
         &graph.output,
         &graph.initializer,
         &graph.value_info,
         name_registry,
+        outer_scope,
     );
 
     let state_rc = Rc::new(RefCell::new(state));

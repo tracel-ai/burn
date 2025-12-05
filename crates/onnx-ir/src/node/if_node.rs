@@ -16,6 +16,7 @@ use onnx_ir_derive::NodeBuilder;
 use crate::ir::{ArgType, Argument, Node, OnnxGraph, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+    build_outer_scope_from_inputs,
 };
 
 /// Configuration for If operation
@@ -23,6 +24,10 @@ use crate::processor::{
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
+    /// Names of outer-scope references (in order corresponding to inputs[1..])
+    /// These are the original sanitized ONNX names that subgraphs reference
+    #[new(default)]
+    pub scope_ref_names: Vec<String>,
 }
 
 /// Node representation for If operation
@@ -55,25 +60,21 @@ impl NodeProcessor for IfProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate condition input is scalar bool
+        // Validate condition input is bool
+        // Per ONNX spec, the condition must be a tensor containing a single element,
+        // but we allow any bool tensor/scalar as some models may not be strictly conformant
         let condition = &node.inputs[0].ty;
-        if !condition.is_scalar() {
+        let is_bool = match condition {
+            ArgType::Scalar(dtype) => dtype.is_bool(),
+            ArgType::Tensor(tensor) => tensor.dtype.is_bool(),
+            ArgType::Shape(_) => false,
+        };
+
+        if !is_bool {
             return Err(ProcessError::TypeMismatch {
-                expected: "Scalar Bool (rank-0 tensor or Scalar type)".to_string(),
+                expected: "Bool tensor or scalar".to_string(),
                 actual: format!("{:?}", condition),
             });
-        }
-
-        match condition {
-            ArgType::Scalar(dtype) if dtype.is_bool() => {
-                // Valid scalar bool condition
-            }
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Scalar Bool".to_string(),
-                    actual: format!("{:?}", condition),
-                });
-            }
         }
 
         // Get branches from config (clone to avoid borrow checker issues)
@@ -93,32 +94,28 @@ impl NodeProcessor for IfProcessor {
         }
 
         // Infer output types from branches
-        // Both branches should have the same output types, but we'll take then_branch as canonical
+        // When branches have different types, merge them to find the common type.
+        // For tensors with different ranks, use the lower rank (common base type).
         // ONLY update types, preserve existing output structure (names set by add_node)
 
         // If outputs don't exist yet, create them from branch outputs
         if node.outputs.is_empty() {
-            for then_output in then_outputs.iter() {
-                node.outputs.push(then_output.clone());
+            for (then_output, else_output) in then_outputs.iter().zip(else_outputs.iter()) {
+                let merged_ty = merge_branch_types(&then_output.ty, &else_output.ty);
+                let mut output = then_output.clone();
+                output.ty = merged_ty;
+                node.outputs.push(output);
             }
         } else {
             // Update types for existing outputs (preserves names set by add_node)
-            for (i, then_output) in then_outputs.iter().enumerate() {
-                let else_output = &else_outputs[i];
-
-                // Validate that output types are compatible
-                if then_output.ty != else_output.ty {
-                    log::warn!(
-                        "If node output {} types differ between branches: then={:?}, else={:?}",
-                        i,
-                        then_output.ty,
-                        else_output.ty
-                    );
-                }
+            for (i, (then_output, else_output)) in
+                then_outputs.iter().zip(else_outputs.iter()).enumerate()
+            {
+                let merged_ty = merge_branch_types(&then_output.ty, &else_output.ty);
 
                 // Only update the type, keep the existing name
                 if i < node.outputs.len() {
-                    node.outputs[i].ty = then_output.ty.clone();
+                    node.outputs[i].ty = merged_ty;
                 }
             }
         }
@@ -126,7 +123,7 @@ impl NodeProcessor for IfProcessor {
         Ok(())
     }
 
-    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
         let then_attr = node
             .attrs
@@ -140,56 +137,67 @@ impl NodeProcessor for IfProcessor {
             .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
             .clone();
 
-        // Handle both Graph and GraphBuilder
+        // Build outer scope types map from additional inputs (beyond ONNX inputs)
+        // These are outer-scope references that were added during node conversion
+        let outer_scope = build_outer_scope_from_inputs(node);
+
+        // Handle DeferredGraph and Graph
         let then_branch = match then_attr {
-            crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!(
+                    "Building deferred then_branch subgraph with {} outer-scope types",
+                    outer_scope.len()
+                );
+                deferred
+                    .build_graph_with_outer_scope(outer_scope.clone())
+                    .map_err(|e| {
+                        ProcessError::Custom(format!("Failed to build then_branch: {:?}", e))
+                    })?
             }
+            crate::ir::AttributeValue::Graph(g) => g,
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for then_branch".to_string(),
+                    "Expected DeferredGraph or Graph for then_branch".to_string(),
                 ));
             }
         };
 
         let else_branch = match else_attr {
-            crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!(
+                    "Building deferred else_branch subgraph with {} outer-scope types",
+                    outer_scope.len()
+                );
+                deferred
+                    .build_graph_with_outer_scope(outer_scope)
+                    .map_err(|e| {
+                        ProcessError::Custom(format!("Failed to build else_branch: {:?}", e))
+                    })?
             }
+            crate::ir::AttributeValue::Graph(g) => g,
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for else_branch".to_string(),
+                    "Expected DeferredGraph or Graph for else_branch".to_string(),
                 ));
             }
         };
 
+        // Get the scope ref names for use in code generation
+        let scope_ref_names: Vec<String> = node
+            .attrs
+            .get("__scope_ref_names")
+            .and_then(|v| match v {
+                crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
         Ok(IfConfig {
             then_branch,
             else_branch,
+            scope_ref_names,
         })
     }
 
@@ -204,6 +212,84 @@ impl NodeProcessor for IfProcessor {
             outputs: builder.outputs,
             config,
         })
+    }
+}
+
+/// Merge branch output types when they differ.
+///
+/// ONNX allows If branches to have outputs with different shapes/ranks as long as
+/// they are "compatible" at runtime. For example, one branch might output `[1, N, 128]`
+/// while another outputs `[N, 128]`. At runtime, only one branch executes.
+///
+/// For static type inference, we need to choose a consistent type. This function:
+/// 1. Returns the type if both branches match exactly
+/// 2. For tensors with same dtype but different ranks, uses the higher rank
+/// 3. For incompatible dtypes, logs a warning and uses then_branch
+///
+/// We prefer higher rank because lower-rank outputs are often the result of
+/// squeeze operations that can be unsqueezed to match the higher rank.
+fn merge_branch_types(then_ty: &ArgType, else_ty: &ArgType) -> ArgType {
+    use crate::ir::TensorType;
+
+    if then_ty == else_ty {
+        return then_ty.clone();
+    }
+
+    match (then_ty, else_ty) {
+        (ArgType::Tensor(then_tensor), ArgType::Tensor(else_tensor)) => {
+            // Validate dtype compatibility
+            if then_tensor.dtype != else_tensor.dtype {
+                log::warn!(
+                    "If branches have incompatible dtypes: then={:?}, else={:?}. Using then_branch dtype.",
+                    then_tensor.dtype,
+                    else_tensor.dtype
+                );
+                return then_ty.clone();
+            }
+
+            // Same dtype, different ranks - use higher rank
+            if then_tensor.rank != else_tensor.rank {
+                let chosen_rank = std::cmp::max(then_tensor.rank, else_tensor.rank);
+                log::debug!(
+                    "If branches have different ranks: then={}, else={}. Using rank {}.",
+                    then_tensor.rank,
+                    else_tensor.rank,
+                    chosen_rank
+                );
+                return ArgType::Tensor(TensorType {
+                    dtype: then_tensor.dtype,
+                    rank: chosen_rank,
+                    static_shape: None, // Can't determine static shape when ranks differ
+                });
+            }
+
+            // Same dtype and rank but different static shapes - clear static shape
+            log::debug!("If branches have different static shapes. Using dynamic shape.");
+            ArgType::Tensor(TensorType {
+                dtype: then_tensor.dtype,
+                rank: then_tensor.rank,
+                static_shape: None,
+            })
+        }
+        (ArgType::Scalar(then_dtype), ArgType::Scalar(else_dtype)) => {
+            if then_dtype != else_dtype {
+                log::warn!(
+                    "If branches have incompatible scalar dtypes: then={:?}, else={:?}. Using then_branch.",
+                    then_dtype,
+                    else_dtype
+                );
+            }
+            then_ty.clone()
+        }
+        _ => {
+            // Different type categories (Tensor vs Scalar vs Shape)
+            log::warn!(
+                "If branches have incompatible type categories: then={:?}, else={:?}. Using then_branch.",
+                then_ty,
+                else_ty
+            );
+            then_ty.clone()
+        }
     }
 }
 
