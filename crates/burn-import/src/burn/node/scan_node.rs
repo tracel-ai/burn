@@ -1,8 +1,7 @@
 use super::prelude::*;
-use onnx_ir::Node;
 
 /// Generate inline code for a scan body subgraph
-fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
+fn generate_scan_body_code(
     subgraph: &onnx_ir::OnnxGraph,
     scope: &mut Scope,
     node_position: usize,
@@ -21,7 +20,7 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
         let subgraph_node_pos = node_position + idx + 1;
 
         // Register node outputs
-        for output in <Node as NodeCodegen<PS>>::outputs(node) {
+        for output in NodeCodegen::outputs(node) {
             if let ArgType::Tensor(_) = &output.ty {
                 scope.tensor_register_variable(output, subgraph_node_pos);
             }
@@ -29,7 +28,7 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
 
         // Register future uses of node inputs
         // Filter to only dynamic/constant inputs (exclude static-only initializers)
-        for input in <Node as NodeCodegen<PS>>::inputs(node)
+        for input in NodeCodegen::inputs(node)
             .iter()
             .filter(|arg| arg.is_dynamic() || arg.is_constant())
         {
@@ -49,14 +48,14 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
     // Generate forward code for each node
     for (idx, node) in subgraph.nodes.iter().enumerate() {
         let mut scope_at_pos = scope.at_position(node_position + idx + 1);
-        let node_code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
+        let node_code = NodeCodegen::forward(node, &mut scope_at_pos);
         body.extend(node_code);
     }
 
     body
 }
 
-impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_node::ScanNode {
+impl NodeCodegen for onnx_ir::node::scan_node::ScanNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -170,8 +169,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
 
         // Generate body code
         let node_position = scope.node_position();
-        let body_code =
-            generate_scan_body_code::<PS>(&self.config.body, scope.scope(), node_position);
+        let body_code = generate_scan_body_code(&self.config.body, scope.scope(), node_position);
 
         // Update state variables and collect scan outputs
         let mut update_stmts = quote! {};
@@ -289,7 +287,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
     fn register_imports(&self, imports: &mut BurnImports) {
         // Register imports from body nodes
         for node in &self.config.body.nodes {
-            <Node as NodeCodegen<PS>>::register_imports(node, imports);
+            NodeCodegen::register_imports(node, imports);
         }
     }
 }

@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::space_to_depth::SpaceToDepthNode {
+impl NodeCodegen for onnx_ir::space_to_depth::SpaceToDepthNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

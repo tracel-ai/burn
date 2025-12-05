@@ -3,7 +3,7 @@
 use super::prelude::*;
 use proc_macro2::Literal;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::slice::SliceNode {
+impl NodeCodegen for onnx_ir::slice::SliceNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

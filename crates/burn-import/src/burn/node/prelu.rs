@@ -1,13 +1,7 @@
 use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::PReluRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {
+impl NodeCodegen for onnx_ir::prelu::PReluNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -31,21 +25,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::prelu::PReluNode {
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
 
-        let alpha = extract_node_data(&self.inputs, 1).expect("PRelu weight is required");
+        let mut snapshots = vec![];
 
-        let record = PReluRecord::<SerializationBackend> {
-            alpha: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(alpha.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            alpha_value: ConstantRecord,
-        };
+        // Alpha (slope) tensor at input index 1
+        if let Some(alpha_input) = self.inputs.get(1) {
+            let alpha_path = format!("{}.alpha", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(alpha_input, &alpha_path, "PRelu") {
+                snapshots.push(snapshot);
+            }
+        }
 
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
+        snapshots
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {

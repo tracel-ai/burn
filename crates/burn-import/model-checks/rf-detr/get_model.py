@@ -5,7 +5,7 @@
 # dependencies = [
 #   "torch==2.6.*",
 #   "torchvision==0.21.*",
-#   "onnx",
+#   "onnx<1.17",
 #   "onnxruntime",
 #   "numpy",
 #   "rfdetr[onnxexport]",

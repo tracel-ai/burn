@@ -1,6 +1,9 @@
+extern crate alloc;
+
+use alloc::rc::Rc;
+use burn_store::{TensorSnapshot, TensorSnapshotError};
 use proc_macro2::{Ident, Span, TokenStream};
 
-use burn::record::PrecisionSettings;
 use onnx_ir::Argument;
 
 use crate::burn::BurnImports;
@@ -50,8 +53,6 @@ impl From<onnx_ir::ir::DType> for TensorKind {
     }
 }
 
-pub type SerializationBackend = burn_ndarray::NdArray<f32>;
-
 /// Trait for converting ONNX IR nodes to Burn nodes
 #[allow(dead_code)]
 pub trait OnnxIntoNode: Sized {
@@ -59,7 +60,7 @@ pub trait OnnxIntoNode: Sized {
     fn from_onnx(node: onnx_ir::Node) -> Self;
 }
 
-pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
+pub trait NodeCodegen: std::fmt::Debug {
     /// Returns all input arguments for this node.
     ///
     /// # Notes
@@ -95,21 +96,24 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// tuple can be used.
     ///
     /// The returned Field struct contains both the type and initialization code.
-    ///
-    /// Other field functions should be implemented when this one returns something other than None.
-    ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
     fn field(&self) -> Option<Field> {
         None
     }
 
-    /// (Optional) Declare how the parameters are serialized in a record.
+    /// (Optional) Collect tensor snapshots for burnpack serialization.
     ///
-    /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    /// For nodes with fields but no learned parameters (e.g., pooling, dropout),
-    /// the default implementation serializes unit.
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::Serialize;
-        ().serialize(serializer)
+    /// Returns tensor snapshots with paths like "{field_name}.weight", "{field_name}.bias".
+    /// The snapshots must be lazy - data should only be loaded when `to_data()` is called.
+    ///
+    /// # Arguments
+    ///
+    /// * `field_name` - The field name that will be used as the prefix for tensor paths
+    ///
+    /// # Notes
+    ///
+    /// For nodes without learnable parameters, the default implementation returns an empty vec.
+    fn collect_snapshots(&self, _field_name: &str) -> Vec<TensorSnapshot> {
+        vec![]
     }
 }
 
@@ -152,4 +156,77 @@ pub fn extract_node_data(
 /// A proc_macro2::Ident with the argument's name
 pub fn arg_to_ident(arg: &Argument) -> proc_macro2::Ident {
     proc_macro2::Ident::new(&arg.name, proc_macro2::Span::call_site())
+}
+
+// ============================================================================
+// Tensor snapshot helpers using NdArray backend
+// ============================================================================
+
+/// The backend used for tensor transformations during import.
+/// Uses the NdArray backend for CPU-based tensor operations during ONNX import.
+#[cfg(feature = "onnx")]
+pub type SerializationBackend = burn_ndarray::NdArray;
+
+/// Create a lazy tensor snapshot from an ONNX argument.
+///
+/// This creates a TensorSnapshot that lazily loads tensor data only when needed.
+/// The closure captures the argument and calls `value()` only when `to_data()` is invoked.
+///
+/// # Arguments
+///
+/// * `input` - The ONNX argument containing tensor data
+/// * `path` - The tensor path (e.g., "linear1.weight")
+/// * `container_type` - The container type (e.g., "Linear")
+///
+/// # Returns
+///
+/// A TensorSnapshot with lazy data loading
+pub fn create_lazy_snapshot(
+    input: &Argument,
+    path: &str,
+    container_type: &str,
+) -> Option<TensorSnapshot> {
+    use burn::module::ParamId;
+    use burn::tensor::TensorData;
+    use onnx_ir::ir::ArgType;
+
+    // Get tensor metadata without loading data
+    let (dtype, shape) = match &input.ty {
+        ArgType::Tensor(tensor_type) => {
+            let dtype = tensor_type.dtype;
+            let shape = tensor_type
+                .static_shape
+                .as_ref()
+                .map(|s| s.to_vec())
+                .unwrap_or_default();
+            (dtype, shape)
+        }
+        _ => return None,
+    };
+
+    // Clone the input for the closure (lightweight, doesn't copy tensor data)
+    let input_clone = input.clone();
+
+    // Create a lazy closure that only loads data when called
+    let data_fn = Rc::new(move || -> Result<TensorData, TensorSnapshotError> {
+        input_clone.value().ok_or_else(|| {
+            TensorSnapshotError::DataError(format!(
+                "Failed to extract tensor data for '{}'",
+                input_clone.name
+            ))
+        })
+    });
+
+    // Parse path into path_stack
+    let path_stack: Vec<String> = path.split('.').map(String::from).collect();
+    let container_stack = vec![format!("Struct:{}", container_type)];
+
+    Some(TensorSnapshot::from_closure(
+        data_fn,
+        dtype,
+        shape,
+        path_stack,
+        container_stack,
+        ParamId::new(),
+    ))
 }

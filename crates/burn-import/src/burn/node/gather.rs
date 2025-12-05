@@ -1,7 +1,7 @@
 use super::prelude::*;
 use crate::burn::scalar_type_tokens;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::gather::GatherNode {
+impl NodeCodegen for onnx_ir::gather::GatherNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

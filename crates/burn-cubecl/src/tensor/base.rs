@@ -45,74 +45,12 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
 impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
+        use crate::ops::into_data_sync;
         use burn_tensor::Tolerance;
 
-        use crate::ops::into_data_sync;
-
-        match self.dtype {
-            DType::F64 => {
-                let expected = into_data_sync::<R, f64>(self.clone());
-                let actual = into_data_sync::<R, f64>(other);
-                expected.assert_approx_eq::<f64>(&actual, Tolerance::permissive());
-            }
-            DType::F32 | DType::Flex32 => {
-                let expected = into_data_sync::<R, f32>(self.clone());
-                let actual = into_data_sync::<R, f32>(other);
-                expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
-            }
-            DType::F16 => {
-                let expected = into_data_sync::<R, half::f16>(self.clone());
-                let actual = into_data_sync::<R, half::f16>(other);
-                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::permissive());
-            }
-            DType::BF16 => {
-                let expected = into_data_sync::<R, half::bf16>(self.clone());
-                let actual = into_data_sync::<R, half::bf16>(other);
-                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::permissive());
-            }
-            DType::I64 => {
-                let expected = into_data_sync::<R, i64>(self.clone());
-                let actual = into_data_sync::<R, i64>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::I32 => {
-                let expected = into_data_sync::<R, i32>(self.clone());
-                let actual = into_data_sync::<R, i32>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::I16 => {
-                let expected = into_data_sync::<R, i16>(self.clone());
-                let actual = into_data_sync::<R, i16>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::I8 => {
-                let expected = into_data_sync::<R, i8>(self.clone());
-                let actual = into_data_sync::<R, i8>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U64 => {
-                let expected = into_data_sync::<R, u64>(self.clone());
-                let actual = into_data_sync::<R, u64>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U32 => {
-                let expected = into_data_sync::<R, u32>(self.clone());
-                let actual = into_data_sync::<R, u32>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U16 => {
-                let expected = into_data_sync::<R, u16>(self.clone());
-                let actual = into_data_sync::<R, u16>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U8 => {
-                let expected = into_data_sync::<R, u8>(self.clone());
-                let actual = into_data_sync::<R, u8>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::Bool => (),
-            DType::QFloat(..) => (),
-        }
+        let expected = into_data_sync::<R>(self.clone());
+        let actual = into_data_sync::<R>(other);
+        expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
     }
 }
 

@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::trilu::TriluNode {
+impl NodeCodegen for onnx_ir::trilu::TriluNode {
     fn inputs(&self) -> &[Argument] {
         // Filter inputs only dynamic and constant
         &self.inputs

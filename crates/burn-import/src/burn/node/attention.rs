@@ -1,7 +1,7 @@
 use super::prelude::*;
 use onnx_ir::node::attention::AttentionQkMatmulOutputMode;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::attention::AttentionNode {
+impl NodeCodegen for onnx_ir::attention::AttentionNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

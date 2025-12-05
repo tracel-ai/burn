@@ -331,6 +331,10 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
     let out_channels = weight.shape[0];
     let kernel_shape = &weight.shape[1..dim_c];
 
+    if kernel_shape.iter().any(|s| *s != 1) {
+        return Err(ConvSetupError::Unknown);
+    }
+
     let out_shape = calculate_conv_output_sizes(
         kernel_shape,
         &options.stride,

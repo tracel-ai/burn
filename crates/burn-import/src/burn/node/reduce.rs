@@ -101,7 +101,7 @@ impl ReductionType {
 // Helper macro to implement NodeCodegen for reduce nodes
 macro_rules! impl_reduce_node {
     ($node_type:ty, $reduction_type:expr) => {
-        impl<PS: PrecisionSettings> NodeCodegen<PS> for $node_type {
+        impl NodeCodegen for $node_type {
             fn inputs(&self) -> &[Argument] {
                 &self.inputs
             }

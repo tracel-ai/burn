@@ -126,6 +126,4 @@ pub(crate) mod where_op;
 
 // Node codegen traits and utilities are in parent module
 // Re-export them here for convenience
-pub(crate) use super::node_traits::{
-    NodeCodegen, SerializationBackend, arg_to_ident, extract_node_data,
-};
+pub(crate) use super::node_traits::{NodeCodegen, arg_to_ident};

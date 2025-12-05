@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::bitwisexor::BitwiseXorNode {
+impl NodeCodegen for onnx_ir::node::bitwisexor::BitwiseXorNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

@@ -14,6 +14,7 @@ test-candle = ["burn/candle"]
 
 [dev-dependencies]
 burn = { path = "../../burn" }
+burn-store = { path = "../../burn-store", features = ["burnpack"] }
 serde = { workspace = true }
 float-cmp = { workspace = true }
 

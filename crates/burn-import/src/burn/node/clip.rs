@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::clip::ClipNode {
+impl NodeCodegen for onnx_ir::clip::ClipNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
