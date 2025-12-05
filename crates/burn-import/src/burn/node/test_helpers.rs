@@ -137,6 +137,27 @@ where
     codegen_forward(node, 0, true, 1)
 }
 
+/// Generate field initialization code for a node
+///
+/// Returns the initialization code from the node's field() method.
+///
+/// # Example
+/// ```ignore
+/// let node = create_pool_node("pool1", true);
+/// let code = codegen_field_init(&node);
+/// assert!(code.contains(".with_ceil_mode(true)"));
+/// ```
+pub fn codegen_field_init<T>(node: &T) -> String
+where
+    T: NodeCodegen,
+{
+    if let Some(field) = node.field() {
+        format_statement(field.init)
+    } else {
+        String::new()
+    }
+}
+
 /// Format a TokenStream using PrettyPlease
 fn format_tokens(tokens: proc_macro2::TokenStream) -> String {
     use rust_format::{Config, Formatter, PostProcess, PrettyPlease};
@@ -145,4 +166,46 @@ fn format_tokens(tokens: proc_macro2::TokenStream) -> String {
     let formatter = PrettyPlease::from_config(config);
     let fallback = tokens.to_string();
     formatter.format_tokens(tokens).unwrap_or(fallback)
+}
+
+/// Format a statement TokenStream by wrapping it in a function
+fn format_statement(tokens: proc_macro2::TokenStream) -> String {
+    use rust_format::{Config, Formatter, PostProcess, PrettyPlease};
+
+    // Wrap in a function to make it valid syntax for PrettyPlease
+    let wrapped = quote! {
+        fn __wrapper() {
+            #tokens
+        }
+    };
+
+    let config = Config::new_str().post_proc(PostProcess::ReplaceMarkersAndDocBlocks);
+    let formatter = PrettyPlease::from_config(config);
+
+    match formatter.format_tokens(wrapped) {
+        Ok(formatted) => {
+            // Extract the body (remove the wrapper function)
+            let lines: Vec<&str> = formatted.lines().collect();
+            // Skip "fn __wrapper() {" and the closing "}"
+            let body_lines: Vec<&str> = lines
+                .iter()
+                .skip(1)
+                .take(lines.len().saturating_sub(2))
+                .copied()
+                .collect();
+            // Remove one level of indentation (4 spaces)
+            body_lines
+                .iter()
+                .map(|line| {
+                    if line.starts_with("    ") {
+                        &line[4..]
+                    } else {
+                        *line
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+        Err(_) => tokens.to_string(),
+    }
 }

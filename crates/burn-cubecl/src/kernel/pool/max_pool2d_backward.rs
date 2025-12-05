@@ -86,6 +86,7 @@ fn loop_ranges(
     (oh_start, oh_end, ow_start, ow_end)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     x: CubeTensor<R>,
     grad: CubeTensor<R>,
@@ -94,6 +95,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    _ceil_mode: bool,
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 

@@ -28,6 +28,9 @@ pub struct MaxPool1dConfig {
     /// The dilation.
     #[config(default = "1")]
     pub dilation: usize,
+    /// If true, use ceiling instead of floor for output size calculation.
+    #[config(default = "false")]
+    pub ceil_mode: bool,
 }
 
 /// Applies a 1D max pooling over input tensors.
@@ -44,6 +47,8 @@ pub struct MaxPool1d {
     pub padding: Ignored<PaddingConfig1d>,
     /// The dilation.
     pub dilation: usize,
+    /// If true, use ceiling instead of floor for output size calculation.
+    pub ceil_mode: bool,
 }
 
 impl ModuleDisplay for MaxPool1d {
@@ -59,6 +64,7 @@ impl ModuleDisplay for MaxPool1d {
             .add("stride", &self.stride)
             .add("padding", &self.padding)
             .add("dilation", &self.dilation)
+            .add("ceil_mode", &self.ceil_mode)
             .optional()
     }
 }
@@ -74,6 +80,7 @@ impl MaxPool1dConfig {
             kernel_size: self.kernel_size,
             padding: Ignored(self.padding.clone()),
             dilation: self.dilation,
+            ceil_mode: self.ceil_mode,
         }
     }
 }
@@ -93,7 +100,14 @@ impl MaxPool1d {
             .padding
             .calculate_padding_1d(length, self.kernel_size, self.stride);
 
-        max_pool1d(input, self.kernel_size, self.stride, padding, self.dilation)
+        max_pool1d(
+            input,
+            self.kernel_size,
+            self.stride,
+            padding,
+            self.dilation,
+            self.ceil_mode,
+        )
     }
 }
 
@@ -117,7 +131,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{layer}"),
-            "MaxPool1d {kernel_size: 3, stride: 3, padding: Valid, dilation: 1}"
+            "MaxPool1d {kernel_size: 3, stride: 3, padding: Valid, dilation: 1, ceil_mode: false}"
         );
     }
 

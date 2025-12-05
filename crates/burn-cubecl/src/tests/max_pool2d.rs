@@ -19,8 +19,9 @@ mod tests {
         let padding = [1, 1];
         let dilation = [1, 1];
 
-        let pooled = module::max_pool2d(tensor, kernel_size, stride, padding, dilation);
-        let pooled_ref = module::max_pool2d(tensor_ref, kernel_size, stride, padding, dilation);
+        let pooled = module::max_pool2d(tensor, kernel_size, stride, padding, dilation, false);
+        let pooled_ref =
+            module::max_pool2d(tensor_ref, kernel_size, stride, padding, dilation, false);
 
         pooled
             .into_data()
@@ -42,9 +43,15 @@ mod tests {
         let dilation = [1, 1];
 
         let (pooled, indices) =
-            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding, dilation);
-        let (pooled_ref, indices_ref) =
-            module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding, dilation);
+            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding, dilation, false);
+        let (pooled_ref, indices_ref) = module::max_pool2d_with_indices(
+            tensor_ref,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            false,
+        );
 
         pooled
             .into_data()

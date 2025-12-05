@@ -1,6 +1,11 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(avg_pool1d, avg_pool2d);
+include_models!(
+    avg_pool1d,
+    avg_pool1d_ceil_mode,
+    avg_pool2d,
+    avg_pool2d_ceil_mode
+);
 
 #[cfg(test)]
 mod tests {
@@ -112,5 +117,68 @@ mod tests {
         output3
             .to_data()
             .assert_approx_eq::<FT>(&expected3, tolerance);
+    }
+
+    #[test]
+    fn avg_pool1d_ceil_mode() {
+        // Test ceil_mode=True for AvgPool1d
+        // Input: 1x1x6 (values 0-5), kernel: 3, stride: 2, padding: 0
+        // With ceil_mode=True: output = ceil((6-3)/2)+1 = 3 elements
+        let device = Default::default();
+        let model: avg_pool1d_ceil_mode::Model<TestBackend> =
+            avg_pool1d_ceil_mode::Model::new(&device);
+
+        let input =
+            Tensor::<TestBackend, 3>::from_floats([[[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]], &device);
+        let output = model.forward(input);
+
+        // Window 0: avg(0,1,2) = 1
+        // Window 1: avg(2,3,4) = 3
+        // Window 2: avg(4,5) = 4.5 (partial window, count_include_pad=False)
+        let expected = TensorData::from([[[1.0f32, 3.0, 4.5]]]);
+        let tolerance = Tolerance::rel_abs(0.01, 0.001);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
+    }
+
+    #[test]
+    fn avg_pool2d_ceil_mode() {
+        // Test ceil_mode=True for AvgPool2d
+        // Input: 1x1x6x6 (values 0-35), kernel: 3x3, stride: 2x2, padding: 0
+        // With ceil_mode=True: output = 3x3
+        let device = Default::default();
+        let model: avg_pool2d_ceil_mode::Model<TestBackend> =
+            avg_pool2d_ceil_mode::Model::new(&device);
+
+        let input = Tensor::<TestBackend, 4>::from_floats(
+            [[[
+                [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+                [6.0, 7.0, 8.0, 9.0, 10.0, 11.0],
+                [12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+                [18.0, 19.0, 20.0, 21.0, 22.0, 23.0],
+                [24.0, 25.0, 26.0, 27.0, 28.0, 29.0],
+                [30.0, 31.0, 32.0, 33.0, 34.0, 35.0],
+            ]]],
+            &device,
+        );
+        let output = model.forward(input);
+
+        // With ceil_mode=True and count_include_pad=False:
+        // (0,0): avg of 9 values = 7
+        // (0,1): avg of 9 values = 9
+        // (0,2): avg of 6 values (partial window) = 10.5
+        // (1,0): avg of 9 values = 19
+        // (1,1): avg of 9 values = 21
+        // (1,2): avg of 6 values = 22.5
+        // (2,0): avg of 6 values = 28
+        // (2,1): avg of 6 values = 30
+        // (2,2): avg of 4 values = 31.5
+        let expected =
+            TensorData::from([[[[7.0f32, 9.0, 10.5], [19.0, 21.0, 22.5], [28.0, 30.0, 31.5]]]]);
+        let tolerance = Tolerance::rel_abs(0.01, 0.001);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }

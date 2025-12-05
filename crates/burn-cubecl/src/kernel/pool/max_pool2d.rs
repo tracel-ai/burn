@@ -47,6 +47,13 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
         *accumulator = Max::max(*accumulator, result);
     }
 
+    fn set_padded_count(
+        #[comptime] _config: &Self::Config,
+        _accumulator: &mut Self::Accumulator,
+        _padded_count: u32,
+    ) {
+    }
+
     fn store(
         #[comptime] _config: &Self::Config,
         position: u32,
@@ -84,6 +91,13 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
         accumulator.0 = Max::max(result, accumulator.0);
     }
 
+    fn set_padded_count(
+        #[comptime] _config: &Self::Config,
+        _accumulator: &mut Self::Accumulator,
+        _padded_count: u32,
+    ) {
+    }
+
     fn store(
         #[comptime] _config: &Self::Config,
         position: u32,
@@ -102,23 +116,30 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, in_h, in_w] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
         dilation[0],
-        x.shape[2],
+        in_h,
+        ceil_mode,
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
         stride[1],
         padding[1],
         dilation[1],
-        x.shape[3],
+        in_w,
+        ceil_mode,
     );
+
+    // Padded dimensions (for count_include_pad with ceil_mode, unused in max pooling)
+    let padded_0 = in_h + 2 * padding[0];
+    let padded_1 = in_w + 2 * padding[1];
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));
 
@@ -145,6 +166,8 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
             ScalarArg::new(dilation[1] as u32),
             ScalarArg::new(padding[0] as u32),
             ScalarArg::new(padding[1] as u32),
+            ScalarArg::new(padded_0 as u32),
+            ScalarArg::new(padded_1 as u32),
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
@@ -161,24 +184,31 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil_mode: bool,
     dtype_indices: DType,
 ) -> (CubeTensor<R>, CubeTensor<R>) {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, in_h, in_w] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
         dilation[0],
-        x.shape[2],
+        in_h,
+        ceil_mode,
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
         stride[1],
         padding[1],
         dilation[1],
-        x.shape[3],
+        in_w,
+        ceil_mode,
     );
+
+    // Padded dimensions (for count_include_pad with ceil_mode, unused in max pooling)
+    let padded_0 = in_h + 2 * padding[0];
+    let padded_1 = in_w + 2 * padding[1];
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));
     let line_size = max_line_size(&x);
@@ -210,6 +240,8 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
             ScalarArg::new(dilation[1] as u32),
             ScalarArg::new(padding[0] as u32),
             ScalarArg::new(padding[1] as u32),
+            ScalarArg::new(padded_0 as u32),
+            ScalarArg::new(padded_1 as u32),
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),

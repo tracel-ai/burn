@@ -136,14 +136,28 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         module_op!(inp(x), opt(), E, |x| {
             #[cfg(feature = "simd")]
-            let x = match try_avg_pool2d_simd(x, kernel_size, stride, padding, count_include_pad) {
+            let x = match if ceil_mode {
+                // SIMD path doesn't support ceil_mode yet, skip it
+                Err(x)
+            } else {
+                try_avg_pool2d_simd(x, kernel_size, stride, padding, count_include_pad)
+            } {
                 Ok(out) => return out.into(),
                 Err(x) => x,
             };
-            avg_pool2d::<E>(x, kernel_size, stride, padding, count_include_pad).into()
+            avg_pool2d::<E>(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                count_include_pad,
+                ceil_mode,
+            )
+            .into()
         })
     }
 
@@ -154,6 +168,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         module_op!(inp(x, grad), opt(), E, |x, grad| avg_pool2d_backward::<E>(
             x,
@@ -161,7 +176,8 @@ where
             kernel_size,
             stride,
             padding,
-            count_include_pad
+            count_include_pad,
+            ceil_mode
         )
         .into())
     }
@@ -172,14 +188,20 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         module_op!(inp(x), opt(), E, |x| {
             #[cfg(feature = "simd")]
-            let x = match try_max_pool2d_simd(x, kernel_size, stride, padding, dilation) {
+            let x = match if ceil_mode {
+                // SIMD path doesn't support ceil_mode yet, skip it
+                Err(x)
+            } else {
+                try_max_pool2d_simd(x, kernel_size, stride, padding, dilation)
+            } {
                 Ok(out) => return out.into(),
                 Err(x) => x,
             };
-            max_pool2d::<E>(x, kernel_size, stride, padding, dilation).into()
+            max_pool2d::<E>(x, kernel_size, stride, padding, dilation, ceil_mode).into()
         })
     }
 
@@ -189,10 +211,17 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
         module_op!(inp(x), opt(), E, |x| {
-            let (output, indices) =
-                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation);
+            let (output, indices) = max_pool2d_with_indices::<E, I>(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                ceil_mode,
+            );
             MaxPool2dWithIndices::new(output.into(), indices.into())
         })
     }
@@ -203,6 +232,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: NdArrayTensor,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
@@ -214,6 +244,7 @@ where
                     stride,
                     padding,
                     dilation,
+                    ceil_mode,
                     output_grad,
                     indices,
                 );

@@ -40,6 +40,10 @@ For an introduction to ONNX import in Burn, see
 - Limit interaction with ONNX to the Intermediate Representation (IR) stage to simplify the process
 - Ensure operator behavior consistency across different OpSet versions
 - Exclude any ONNX/Protobuf-specific logic from the Burn graph
+- **Feature Support Validation**: The `onnx-ir` crate should extract and preserve all ONNX attributes
+  faithfully, even if Burn does not yet support them. Rejection of unsupported features should happen
+  in `burn-import` during code generation, not in `onnx-ir` during configuration extraction. This
+  allows `onnx-ir` to be reused by other projects that may have different feature support
 
 The conversion process involves three main stages:
 

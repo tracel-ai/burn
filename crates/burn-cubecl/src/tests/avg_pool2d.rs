@@ -21,9 +21,22 @@ mod tests {
         let padding = [1, 2];
         let count_include_pad = true;
 
-        let pooled = module::avg_pool2d(tensor, kernel_size, stride, padding, count_include_pad);
-        let pooled_ref =
-            module::avg_pool2d(tensor_ref, kernel_size, stride, padding, count_include_pad);
+        let pooled = module::avg_pool2d(
+            tensor,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            false,
+        );
+        let pooled_ref = module::avg_pool2d(
+            tensor_ref,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            false,
+        );
 
         pooled
             .into_data()
@@ -52,6 +65,7 @@ mod tests {
             stride,
             padding,
             count_include_pad,
+            false,
         )
         .shape();
         let grad_output =
@@ -67,6 +81,7 @@ mod tests {
                 stride,
                 padding,
                 count_include_pad,
+                false,
             )));
         let grad_ref: Tensor<ReferenceBackend, 4> = Tensor::from_primitive(TensorPrimitive::Float(
             ReferenceBackend::avg_pool2d_backward(
@@ -76,6 +91,7 @@ mod tests {
                 stride,
                 padding,
                 count_include_pad,
+                false,
             ),
         ));
 

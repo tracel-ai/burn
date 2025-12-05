@@ -151,6 +151,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         let client = x.client.clone();
         let desc = AvgPool1dOpIr::create(
@@ -159,6 +160,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -173,6 +175,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         let client = x.client.clone();
         let desc = AvgPool2dOpIr::create(
@@ -181,6 +184,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -196,6 +200,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         let client = x.client.clone();
         let desc = AvgPool1dBackwardOpIr::create(
@@ -205,6 +210,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -222,6 +228,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         let client = x.client.clone();
         let desc = AvgPool2dBackwardOpIr::create(
@@ -231,6 +238,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -247,12 +255,18 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         let client = x.client.clone();
-        let desc =
-            MaxPool1dOpIr::create(x.into_ir(), kernel_size, stride, padding, dilation, || {
-                client.create_empty_handle()
-            });
+        let desc = MaxPool1dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
 
         client
             .register(OperationIr::Module(ModuleOperationIr::MaxPool1d(desc)))
@@ -265,12 +279,18 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         let client = x.client.clone();
-        let desc =
-            MaxPool2dOpIr::create(x.into_ir(), kernel_size, stride, padding, dilation, || {
-                client.create_empty_handle()
-            });
+        let desc = MaxPool2dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
 
         client
             .register(OperationIr::Module(ModuleOperationIr::MaxPool2d(desc)))
@@ -283,6 +303,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> MaxPool1dWithIndices<Self> {
         let client = x.client.clone();
         let desc = MaxPool1dWithIndicesOpIr::create(
@@ -291,6 +312,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             IntElem::<Self>::dtype(),
             || client.create_empty_handle(),
         );
@@ -310,6 +332,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
         let client = x.client.clone();
         let desc = MaxPool2dWithIndicesOpIr::create(
@@ -318,6 +341,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             IntElem::<Self>::dtype(),
             || client.create_empty_handle(),
         );
@@ -337,6 +361,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool1dBackward<Self> {
@@ -350,6 +375,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -368,6 +394,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
@@ -381,6 +408,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
