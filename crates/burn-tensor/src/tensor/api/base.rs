@@ -1341,7 +1341,7 @@ where
         self.slice_dyn(&slices.into_slices(shape))
     }
 
-    /// Dynamic version of [`slice`].
+    /// Dynamic version of [`Self::slice`].
     pub fn slice_dyn(self, slices: &[Slice]) -> Self {
         let shape = self.shape();
 
@@ -1434,7 +1434,7 @@ where
         self.slice_assign_dyn(&slices.into_slices(shape), values)
     }
 
-    /// Dynamic version of [`slice_assign`].
+    /// Dynamic version of [`Self::slice_assign`].
     pub fn slice_assign_dyn(self, slices: &[Slice], values: Self) -> Self {
         let shape = self.shape();
 
@@ -1525,7 +1525,7 @@ where
         self.slice_fill_dyn(&slices.into_slices(shape), value)
     }
 
-    /// Dynamic version of [`slice_fill`].
+    /// Dynamic version of [`Self::slice_fill`].
     pub fn slice_fill_dyn<E: ElementConversion>(self, slices: &[Slice], value: E) -> Self {
         let shape = self.shape();
 
