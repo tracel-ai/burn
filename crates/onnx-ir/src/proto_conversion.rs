@@ -590,8 +590,12 @@ pub fn extract_outer_scope_references(
                 match attr_type {
                     AttributeType::GRAPH => {
                         if let Some(nested_graph) = attr.g.as_ref() {
-                            // For Loop/Scan body subgraphs, collect body input names
-                            // These are loop-provided, not outer-scope references
+                            // For Loop/Scan body subgraphs, collect body input names.
+                            // These are loop-provided (iteration count, condition, loop-carried vars),
+                            // not outer-scope references.
+                            // Note: "body" is the ONNX-specified attribute name for Loop/Scan subgraphs.
+                            // See: https://onnx.ai/onnx/operators/onnx__Loop.html
+                            //      https://onnx.ai/onnx/operators/onnx__Scan.html
                             let loop_provided_names: std::collections::HashSet<String> =
                                 if is_loop_or_scan && attr.name == "body" {
                                     nested_graph
