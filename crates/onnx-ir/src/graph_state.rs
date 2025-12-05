@@ -286,11 +286,12 @@ impl GraphState {
             );
             let mut arg = outer_arg.clone();
             if arg.is_constant() {
-                // Preserve original name for Constant arguments since it's used to look up
-                // the constant data in the store (e.g., "constant12_out1").
+                // Preserve original name for arguments with value_source == Constant.
+                // These reference a Constant node's output, and the name (e.g., "constant12_out1")
+                // is the key used to look up the constant data in the value store.
             } else {
-                // For non-Constant arguments (Dynamic), use the sanitized ONNX name so code
-                // generation uses the correct variable name within the subgraph.
+                // For Dynamic arguments, use the sanitized ONNX name so code generation
+                // uses the correct variable name within the subgraph.
                 arg.name = sanitized;
             }
             arg
@@ -304,7 +305,7 @@ impl GraphState {
             );
             let mut arg = outer_arg.clone();
             if arg.is_constant() {
-                // Preserve original name for Constant arguments (same logic as sanitized lookup)
+                // Preserve original name for Constant arguments (same logic as above)
             } else {
                 arg.name = sanitized;
             }
