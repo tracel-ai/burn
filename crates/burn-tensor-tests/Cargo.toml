@@ -26,6 +26,7 @@ default = [
     # Default
     "burn-ndarray",
     "autotune",
+    "std",
 ]
 std = [
     "burn-tensor/std",
@@ -48,7 +49,7 @@ cuda = ["burn-cuda", "quantization", "fusion"]
 rocm = ["burn-rocm", "quantization", "fusion"]
 ndarray = ["burn-ndarray", "quantization"]
 tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan",]
+vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu", "quantization", "fusion"]
@@ -90,4 +91,8 @@ burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.4", optional = true,
 
 # To wrap `Fusion<CubeBackend>
 burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.4", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", optional = true, features = ["fusion"]}
+burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", optional = true, features = [
+    "fusion",
+] }
+
+num-traits = { workspace = true }

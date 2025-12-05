@@ -1,5 +1,5 @@
+use super::qtensor::*;
 use super::*;
-use crate::qtensor::*;
 use alloc::vec;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;

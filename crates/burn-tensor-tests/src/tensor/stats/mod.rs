@@ -1,4 +1,4 @@
-use super::*; // re-export test types
+pub use super::*; // re-export test types
 
 mod cov;
 mod display;

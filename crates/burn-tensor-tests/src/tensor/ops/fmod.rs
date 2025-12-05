@@ -2,6 +2,9 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{ElementConversion, TensorData};
 
+#[allow(unused_imports)] // f16
+use num_traits::Float;
+
 #[test]
 fn should_support_fmod_ops() {
     let dividend = TensorData::from([[5.3, -5.3], [7.5, -7.5]]);

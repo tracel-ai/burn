@@ -1197,6 +1197,7 @@ dependencies = [
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
+ "num-traits",
 ]
 
 [[package]]
