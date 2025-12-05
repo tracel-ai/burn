@@ -25,7 +25,7 @@ macro_rules! test_elem_variant {
 }
 
 test_elem_variant!(
-    f16_i16,
+    f16_i32,
     burn_tensor::f16,
     // TODO: tests should be split per-module for int / float so we can only re-run tests that are affected by dtype configuration
     i32,
