@@ -25,7 +25,6 @@ impl FloatCandleElement for bf16 {}
 
 impl CandleElement for u8 {}
 impl IntCandleElement for u8 {}
-//maybe also a quantization type?
 
 impl CandleElement for u32 {}
 impl IntCandleElement for u32 {}

@@ -1182,6 +1182,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-tensor-tests"
+version = "0.20.0-pre.4"
+dependencies = [
+ "burn-autodiff",
+ "burn-candle",
+ "burn-cpu",
+ "burn-cubecl",
+ "burn-cuda",
+ "burn-fusion",
+ "burn-ndarray",
+ "burn-rocm",
+ "burn-router",
+ "burn-tch",
+ "burn-tensor",
+ "burn-wgpu",
+ "num-traits",
+]
+
+[[package]]
 name = "burn-train"
 version = "0.20.0-pre.4"
 dependencies = [

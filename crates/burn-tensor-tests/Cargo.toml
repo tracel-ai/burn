@@ -1,0 +1,98 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Tensor tests for Burn backends"
+documentation = "https://docs.rs/burn-tensor-tests"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-tensor-tests"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-tests"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = [
+    "burn-tensor/default",
+    "burn-autodiff/default",
+    # Backends (default not enabled for CubeCL backends as it activates fusion)
+    "burn-candle?/default",
+    "burn-cpu?/default",
+    "burn-ndarray?/default",
+    "burn-tch?/default",
+    # Default
+    "burn-ndarray",
+    "autotune",
+    "std",
+]
+std = [
+    "burn-tensor/std",
+    "burn-autodiff/std",
+    # Backends
+    "burn-candle?/std",
+    "burn-cpu?/std",
+    "burn-ndarray?/std",
+    "burn-wgpu?/std",
+    "burn-router?/std",
+    "burn-cuda?/std",
+    "burn-rocm?/std",
+]
+
+# Backends
+candle = ["burn-candle"]
+candle-cuda = ["candle", "burn-candle/cuda"]
+candle-metal = ["burn-candle?/metal"]
+cuda = ["burn-cuda", "quantization", "fusion"]
+rocm = ["burn-rocm", "quantization", "fusion"]
+ndarray = ["burn-ndarray", "quantization"]
+tch = ["burn-tch"]
+vulkan = ["wgpu", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-wgpu/webgpu"]
+metal = ["wgpu", "burn-wgpu/metal"]
+wgpu = ["burn-wgpu", "quantization", "fusion"]
+cpu = ["burn-cpu"]
+router = ["burn-router", "ndarray", "wgpu"]
+
+autotune = [
+    "burn-wgpu?/autotune",
+    "burn-cuda?/autotune",
+    "burn-rocm?/autotune",
+    "burn-cpu?/autotune",
+]
+autotune-checks = [
+    "burn-wgpu?/autotune-checks",
+    "burn-cuda?/autotune-checks",
+    "burn-rocm?/autotune-checks",
+    "burn-cpu?/autotune-checks",
+]
+fusion = ["burn-fusion", "burn-cubecl"]
+
+# Test configs
+quantization = []
+
+[dependencies]
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.4", default-features = false, features = [
+    "export_tests",
+] }
+
+# Backends
+burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.4", default-features = false }
+burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.4", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-cpu = { path = "../burn-cpu", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-router = { path = "../burn-router", version = "=0.20.0-pre.4", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.4", default-features = false, optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.4", optional = true, default-features = false }
+
+# To wrap `Fusion<CubeBackend>
+burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.4", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", optional = true, features = [
+    "fusion",
+] }
+
+num-traits = { workspace = true }
