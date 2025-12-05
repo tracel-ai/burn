@@ -8,6 +8,8 @@ type IntElemType = i32;
 #[cfg(test)]
 mod tests;
 
+// TODO: tests should be split per-module for int / float so we can only re-run tests that are affected by dtype configuration
+
 /// Generate a test module with custom floating & integer element types.
 #[macro_export]
 macro_rules! test_elem_variant {
