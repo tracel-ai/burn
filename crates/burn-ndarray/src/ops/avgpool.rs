@@ -36,6 +36,10 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
         ceil_mode,
     );
 
+    // Padded input bounds (for count_include_pad calculation)
+    let padded_height = x_height + 2 * padding_height;
+    let padded_width = x_width + 2 * padding_width;
+
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), 0.elem());
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
@@ -49,32 +53,41 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
             for oh in 0..out_height {
                 for ow in 0..out_width {
                     let mut sum_val: E = 0.elem();
-                    let mut count: E = 0.elem();
+                    let mut valid_count = 0usize;
+                    let mut padded_count = 0usize;
 
                     for kh in 0..kernel_height {
+                        let ih = oh * stride_height + kh;
+
                         for kw in 0..kernel_width {
-                            let ih = oh * stride_height + kh;
                             let iw = ow * stride_width + kw;
 
-                            if ih >= x_height + padding_height
-                                || iw >= x_width + padding_width
-                                || ih < padding_height
-                                || iw < padding_width
-                            {
-                                continue;
+                            // Check if within padded bounds (excludes ceil_mode extensions)
+                            if ih < padded_height && iw < padded_width {
+                                padded_count += 1;
+
+                                // Check if within valid (non-padding) input bounds
+                                if ih >= padding_height
+                                    && ih < x_height + padding_height
+                                    && iw >= padding_width
+                                    && iw < x_width + padding_width
+                                {
+                                    let ih_valid = ih - padding_height;
+                                    let iw_valid = iw - padding_width;
+                                    sum_val += x[[b, c, ih_valid, iw_valid]];
+                                    valid_count += 1;
+                                }
                             }
-
-                            let ih = ih - padding_height;
-                            let iw = iw - padding_width;
-
-                            count += 1.elem();
-                            sum_val += x[[b, c, ih, iw]];
                         }
                     }
 
-                    if count_include_pad {
-                        count = ((kernel_height * kernel_width) as i32).elem();
-                    }
+                    // count_include_pad: count positions within padded bounds (not ceil_mode extensions)
+                    // !count_include_pad: count only valid (non-padding) positions
+                    let count: E = if count_include_pad {
+                        (padded_count as i32).elem()
+                    } else {
+                        (valid_count as i32).elem()
+                    };
 
                     output[[b, c, oh, ow]] = sum_val / count;
                 }
@@ -100,6 +113,10 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
     let [batch_size, channels, x_height, x_width] = x.shape().try_into().unwrap();
     let [_batch_size, _channels, out_height, out_width] = grad.shape().try_into().unwrap();
 
+    // Padded input bounds (for count_include_pad calculation)
+    let padded_height = x_height + 2 * padding_height;
+    let padded_width = x_width + 2 * padding_width;
+
     let mut output_grad = Array4::from_elem((batch_size, channels, x_height, x_width), 0.elem());
     let unsafe_shared_grad = UnsafeSharedRef::new(&mut output_grad);
 
@@ -112,21 +129,29 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
 
             for oh in 0..out_height {
                 for ow in 0..out_width {
-                    let ih_start = oh * stride_height;
-                    let iw_start = ow * stride_width;
+                    let ih_start_kernel = oh * stride_height;
+                    let iw_start_kernel = ow * stride_width;
 
-                    let ih_end = ih_start + kernel_height;
-                    let iw_end = iw_start + kernel_width;
+                    let ih_end_kernel = ih_start_kernel + kernel_height;
+                    let iw_end_kernel = iw_start_kernel + kernel_width;
 
-                    let ih_start = usize::max(ih_start, padding_height);
-                    let iw_start = usize::max(iw_start, padding_width);
+                    // Clip to valid input bounds (for gradient distribution)
+                    let ih_start = usize::max(ih_start_kernel, padding_height);
+                    let iw_start = usize::max(iw_start_kernel, padding_width);
+                    let ih_end = usize::min(ih_end_kernel, x_height + padding_height);
+                    let iw_end = usize::min(iw_end_kernel, x_width + padding_width);
 
-                    let ih_end = usize::min(ih_end, x_height + padding_height);
-                    let iw_end = usize::min(iw_end, x_width + padding_width);
-
-                    let count = match count_include_pad {
-                        true => kernel_width * kernel_height,
-                        false => (ih_end - ih_start) * (iw_end - iw_start),
+                    // Calculate count based on count_include_pad
+                    let count = if count_include_pad {
+                        // Count positions within padded bounds (not ceil_mode extensions)
+                        let ih_start_padded = ih_start_kernel;
+                        let iw_start_padded = iw_start_kernel;
+                        let ih_end_padded = usize::min(ih_end_kernel, padded_height);
+                        let iw_end_padded = usize::min(iw_end_kernel, padded_width);
+                        (ih_end_padded - ih_start_padded) * (iw_end_padded - iw_start_padded)
+                    } else {
+                        // Count only valid (non-padding) positions
+                        (ih_end - ih_start) * (iw_end - iw_start)
                     };
 
                     for ih in ih_start..ih_end {

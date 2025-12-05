@@ -177,4 +177,48 @@ mod tests {
             Tolerance::default().set_half_precision_relative(1e-3),
         );
     }
+
+    #[test]
+    fn test_avg_pool2d_ceil_mode_count_include_pad() {
+        // Test count_include_pad=true + ceil_mode=true interaction
+        // When ceil_mode creates windows that extend beyond the padded input:
+        // - count_include_pad=true should count positions within padded bounds (not ceil_mode extensions)
+        //
+        // For input 6x6, kernel 3, stride 2, padding 1, ceil_mode=true:
+        // - Output is 4x4
+        // - Corner (3,3) window covers positions beyond even the user padding
+        // - Expected: 35/4 = 8.75 (divides by count of positions within padded bounds)
+
+        let x = TestTensor::from([[[
+            [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+            [6.0, 7.0, 8.0, 9.0, 10.0, 11.0],
+            [12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+            [18.0, 19.0, 20.0, 21.0, 22.0, 23.0],
+            [24.0, 25.0, 26.0, 27.0, 28.0, 29.0],
+            [30.0, 31.0, 32.0, 33.0, 34.0, 35.0],
+        ]]]);
+
+        // Expected PyTorch output with padding=1, ceil_mode=true, count_include_pad=true
+        // Note: corner (3,3) = 8.75 = 35/4, not 35/9
+        let expected = TestTensor::<4>::from([[[
+            [1.5556, 3.3333, 4.6667, 2.6667],
+            [8.3333, 14.0000, 16.0000, 8.5000],
+            [16.3333, 26.0000, 28.0000, 14.5000],
+            [10.1667, 16.0000, 17.0000, 8.7500],
+        ]]]);
+
+        let output = avg_pool2d(
+            x,
+            [3, 3],
+            [2, 2],
+            [1, 1],
+            true, // count_include_pad=true
+            true, // ceil_mode=true
+        );
+
+        expected.to_data().assert_approx_eq::<FT>(
+            &output.into_data(),
+            Tolerance::default().set_half_precision_relative(1e-2),
+        );
+    }
 }

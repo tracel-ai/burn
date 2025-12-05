@@ -26,6 +26,15 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
         result: Line<N>,
     );
 
+    /// Set the count of positions within padded bounds (for count_include_pad with ceil_mode).
+    /// Called before store() to provide the dynamically computed padded count.
+    /// Strategies that don't use counting (like max_pool) should implement as no-op.
+    fn set_padded_count(
+        #[comptime] config: &Self::Config,
+        accumulator: &mut Self::Accumulator,
+        padded_count: u32,
+    );
+
     fn store(
         #[comptime] config: &Self::Config,
         position: u32,
@@ -43,6 +52,10 @@ pub struct Pool2dDirectArgs {
     pub dilation_1: u32,
     pub padding_0: u32,
     pub padding_1: u32,
+    /// Total padded height (input_height + 2 * padding_0)
+    pub padded_0: u32,
+    /// Total padded width (input_width + 2 * padding_1)
+    pub padded_1: u32,
 }
 
 #[cube(launch)]
@@ -84,14 +97,26 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     let border_bottom = in_h + args.padding_0;
     let border_right = in_w + args.padding_1;
 
+    // Count positions within padded bounds (for count_include_pad with ceil_mode)
+    let mut padded_count = 0u32;
+
     for kh in 0..kernel_size.0 {
         let ih = oh * args.strides_0 + kh * args.dilation_0;
         let within_padding_h = ih >= args.padding_0 && ih < border_bottom;
+        // Check if within padded bounds (includes padding, excludes ceil_mode extensions)
+        let within_padded_h = ih < args.padded_0;
 
         for kw in 0..kernel_size.1 {
             let iw = ow * args.strides_1 + kw * args.dilation_1;
             let within_padding_w = iw >= args.padding_1 && iw < border_right;
+            let within_padded_w = iw < args.padded_1;
 
+            // Count positions within padded bounds
+            if within_padded_h && within_padded_w {
+                padded_count += 1;
+            }
+
+            // Only accumulate values from valid input positions
             if within_padding_h && within_padding_w {
                 let ih_pad = ih - args.padding_0;
                 let iw_pad = iw - args.padding_1;
@@ -110,6 +135,9 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
             }
         }
     }
+
+    // Set padded count for count_include_pad with ceil_mode support
+    S::Pool2d::<E>::set_padded_count(config, &mut accumulator, padded_count);
 
     S::Pool2d::<E>::store(config, ABSOLUTE_POS, output, indices, accumulator);
 }
