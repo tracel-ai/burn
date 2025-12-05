@@ -25,6 +25,7 @@ pub fn try_conv2d_simd<E: FloatNdArrayElement>(
     match E::dtype() {
         DType::F64 => conv2d::<f64, _>(x, weight, bias, options, PhantomData),
         DType::F32 => conv2d::<f32, _>(x, weight, bias, options, PhantomData),
+        DType::F16 => conv2d::<half::f16, _>(x, weight, bias, options, PhantomData),
         DType::I64 => conv2d::<i64, _>(x, weight, bias, options, PhantomData),
         DType::I32 => conv2d::<i32, _>(x, weight, bias, options, PhantomData),
         DType::I16 => conv2d::<i16, _>(x, weight, bias, options, PhantomData),
