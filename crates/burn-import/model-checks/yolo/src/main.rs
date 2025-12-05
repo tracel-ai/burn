@@ -1,11 +1,9 @@
 extern crate alloc;
 
-use burn::module::Param;
+use burn::module::{Initializer, Param};
 use burn::prelude::*;
-use burn::record::*;
 
-use burn_import::pytorch::PyTorchFileRecorder;
-use std::env;
+use burn_store::{ModuleSnapshot, PytorchStore};
 use std::path::Path;
 use std::time::Instant;
 
@@ -31,6 +29,16 @@ use yolo_model::Model;
 struct TestData<B: Backend> {
     input: Param<Tensor<B, 4>>,
     output: Param<Tensor<B, 3>>,
+}
+
+impl<B: Backend> TestData<B> {
+    fn new(device: &B::Device) -> Self {
+        // YOLO: input 640x640, output [1, 84, 8400]
+        Self {
+            input: Initializer::Zeros.init([1, 3, 640, 640], device),
+            output: Initializer::Zeros.init([1, 84, 8400], device),
+        }
+    }
 }
 
 fn get_model_display_name(model_name: &str) -> &str {
@@ -102,9 +110,9 @@ fn main() {
     // Load test data from PyTorch file
     println!("\nLoading test data from {}...", test_data_file.display());
     let start = Instant::now();
-    let test_data: TestDataRecord<MyBackend> = PyTorchFileRecorder::<FullPrecisionSettings>::new()
-        .load(test_data_file.into(), &device)
-        .expect("Failed to load test data");
+    let mut test_data = TestData::<MyBackend>::new(&device);
+    let mut store = PytorchStore::from_file(&test_data_file);
+    test_data.load_from(&mut store).expect("Failed to load test data");
     let load_time = start.elapsed();
     println!("  Data loaded in {:.2?}", load_time);
 

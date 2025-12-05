@@ -40,9 +40,14 @@ pub struct SplitConfig {
     /// The axis along which to split the input tensor.
     pub axis: usize,
     /// The uniform size of each split when splitting evenly.
+    /// When `None` and `split_sizes` is also `None`, the split size will be calculated at runtime
+    /// using `num_outputs`.
     pub split_size: Option<usize>,
     /// Custom sizes for each split when splitting unevenly (Static or Runtime).
     pub split_sizes: Option<SplitSizesInput>,
+    /// Number of outputs for runtime split calculation. Only used when both
+    /// `split_size` and `split_sizes` are `None`.
+    pub num_outputs: Option<usize>,
 }
 
 /// Node representation for Split operation
@@ -171,12 +176,10 @@ impl NodeProcessor for SplitProcessor {
         }
 
         // Handle the case when num_outputs is provided to calculate uniform split size
-        if let Some(num_outputs) = num_outputs {
-            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
-                ProcessError::Custom(
-                    "Split: Static shape must be known to calculate split size".to_string(),
-                )
-            })?[axis as usize];
+        if let Some(num_outputs) = num_outputs
+            && let Some(static_shape) = &tensor.static_shape
+        {
+            let dim_size = static_shape[axis as usize];
 
             // Validate that dimension size is sufficient for the number of outputs
             if dim_size == 0 {
@@ -193,6 +196,8 @@ impl NodeProcessor for SplitProcessor {
             // Assign the calculated split size
             split_size = Some(calculated_split_size);
         }
+        // If static shape is not available, split_size will be calculated at runtime
+        // using num_outputs. We'll handle this in the code generation phase.
 
         // Check for custom split sizes provided as a second input
         if node.inputs.len() > 1 {
@@ -275,26 +280,36 @@ impl NodeProcessor for SplitProcessor {
         }
 
         // Infer split_size if neither custom split_sizes nor split_size is provided
-        if split_sizes.is_none() && split_size.is_none() {
-            let num_outputs = node.outputs.len();
-            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
-                ProcessError::Custom(
-                    "Split: Static shape must be known to infer split size".to_string(),
-                )
-            })?[axis as usize];
+        // and static shape is available
+        if split_sizes.is_none()
+            && split_size.is_none()
+            && let Some(static_shape) = &tensor.static_shape
+        {
+            let inferred_num_outputs = node.outputs.len();
+            let dim_size = static_shape[axis as usize];
 
             // Calculate inferred split size based on number of outputs
             let calculated_split_size =
-                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+                dim_size / (inferred_num_outputs - (dim_size % inferred_num_outputs != 0) as usize);
 
             split_size = Some(calculated_split_size);
         }
+        // If static shape is not available, we need num_outputs for runtime calculation
+
+        // Determine num_outputs for runtime calculation
+        // Only set if both split_size and split_sizes are None (runtime case)
+        let runtime_num_outputs = if split_size.is_none() && split_sizes.is_none() {
+            Some(num_outputs.unwrap_or(node.outputs.len()))
+        } else {
+            None
+        };
 
         // Return the configuration for splitting operation
         let config = SplitConfig {
             axis: axis as usize,
             split_size,
             split_sizes,
+            num_outputs: runtime_num_outputs,
         };
         Ok(config)
     }
@@ -566,7 +581,8 @@ mod tests {
 
     #[test]
     fn test_split_config_no_static_shape() {
-        // Test with no static shape available - extract_config should fail
+        // Test with no static shape available - extract_config should succeed
+        // with num_outputs set for runtime calculation
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(2));
 
@@ -574,8 +590,13 @@ mod tests {
 
         let node = node;
         let processor = SplitProcessor;
-        let result = processor.extract_config(&node, 16);
-        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        let config = processor.extract_config(&node, 16).unwrap();
+
+        // When static shape is not available, split_size is None and num_outputs is set
+        assert_eq!(config.axis, 0);
+        assert!(config.split_size.is_none());
+        assert!(config.split_sizes.is_none());
+        assert_eq!(config.num_outputs, Some(2));
     }
 
     #[test]

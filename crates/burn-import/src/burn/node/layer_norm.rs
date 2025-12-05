@@ -1,13 +1,8 @@
-use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::LayerNormRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::LayerNormalizationNode {
+use super::prelude::*;
+
+impl NodeCodegen for onnx_ir::node::layer_norm::LayerNormalizationNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -20,6 +15,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::Layer
         let name = Ident::new(&self.name, Span::call_site());
         let num_features = self.config.d_model.to_tokens();
         let epsilon = self.config.epsilon;
+        let has_bias = self.config.has_bias;
 
         Some(Field::new(
             self.name.clone(),
@@ -29,35 +25,38 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::layer_norm::Layer
             quote! {
                 let #name = LayerNormConfig::new(#num_features)
                     .with_epsilon(#epsilon)
+                    .with_bias(#has_bias)
                     .init(device);
             },
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
 
-        let gamma = extract_node_data(&self.inputs, 1).expect("Gamma is required");
-        let beta = extract_node_data(&self.inputs, 2);
+        let mut snapshots = vec![];
 
-        let record = LayerNormRecord::<SerializationBackend> {
-            gamma: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(gamma.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            beta: Param::initialized(
-                ParamId::new(),
-                if let Some(beta) = beta {
-                    Tensor::from_data(beta.convert::<PS::FloatElem>(), &device)
-                } else {
-                    Tensor::zeros([self.config.d_model], &device)
-                },
-            ),
-            epsilon: ConstantRecord::new(),
-        };
+        // Gamma (scale) tensor at input index 1
+        if let Some(gamma_input) = self.inputs.get(1) {
+            let gamma_path = format!("{}.gamma", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(gamma_input, &gamma_path, "LayerNorm") {
+                snapshots.push(snapshot);
+            }
+        }
 
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
+        // Beta (bias) tensor at input index 2 - only if ONNX model has bias
+        if self.config.has_bias
+            && let Some(beta_input) = self.inputs.get(2)
+        {
+            let beta_path = format!("{}.beta", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(beta_input, &beta_path, "LayerNorm") {
+                snapshots.push(snapshot);
+            }
+        }
+        // When has_bias is false, Burn's LayerNorm is configured with .with_bias(false),
+        // so no beta parameter exists and no snapshot is needed
+
+        snapshots
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
@@ -95,7 +94,8 @@ mod tests {
     };
 
     fn create_layer_norm_node(name: &str) -> LayerNormalizationNode {
-        let config = LayerNormConfig::new(512, 1e-5, true);
+        // has_bias = true (most common case with bias)
+        let config = LayerNormConfig::new(512, 1e-5, true, true);
 
         LayerNormalizationNodeBuilder::new(name)
             .input_tensor("input", 3, DType::F32)

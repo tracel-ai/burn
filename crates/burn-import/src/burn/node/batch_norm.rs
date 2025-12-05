@@ -1,13 +1,7 @@
 use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::BatchNormRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::batch_norm::BatchNormalizationNode {
+impl NodeCodegen for onnx_ir::node::batch_norm::BatchNormalizationNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -36,39 +30,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::batch_norm::Batch
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
-
-        let gamma = extract_node_data(&self.inputs, 1).expect("Gamma is required");
-        let beta = extract_node_data(&self.inputs, 2).expect("Beta is required");
-        let running_mean = extract_node_data(&self.inputs, 3).expect("Running mean is required");
-        let running_var = extract_node_data(&self.inputs, 4).expect("Running var is required");
-
-        let record = BatchNormRecord::<SerializationBackend> {
-            gamma: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(gamma.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            beta: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(beta.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            running_mean: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(running_mean.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            running_var: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(running_var.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            epsilon: ConstantRecord::new(),
-            momentum: ConstantRecord::new(),
-        };
-
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
-    }
-
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let input = scope.arg(self.inputs.first().unwrap());
         let output = arg_to_ident(self.outputs.first().unwrap());
@@ -82,6 +43,49 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::batch_norm::Batch
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::BatchNorm");
         imports.register("burn::nn::BatchNormConfig");
+    }
+
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
+        let mut snapshots = vec![];
+
+        // Gamma tensor (input index 1)
+        if let Some(gamma_input) = self.inputs.get(1) {
+            let gamma_path = format!("{}.gamma", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(gamma_input, &gamma_path, "BatchNorm") {
+                snapshots.push(snapshot);
+            }
+        }
+
+        // Beta tensor (input index 2)
+        if let Some(beta_input) = self.inputs.get(2) {
+            let beta_path = format!("{}.beta", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(beta_input, &beta_path, "BatchNorm") {
+                snapshots.push(snapshot);
+            }
+        }
+
+        // Running mean tensor (input index 3)
+        if let Some(running_mean_input) = self.inputs.get(3) {
+            let running_mean_path = format!("{}.running_mean", field_name);
+            if let Some(snapshot) =
+                create_lazy_snapshot(running_mean_input, &running_mean_path, "BatchNorm")
+            {
+                snapshots.push(snapshot);
+            }
+        }
+
+        // Running var tensor (input index 4)
+        if let Some(running_var_input) = self.inputs.get(4) {
+            let running_var_path = format!("{}.running_var", field_name);
+            if let Some(snapshot) =
+                create_lazy_snapshot(running_var_input, &running_var_path, "BatchNorm")
+            {
+                snapshots.push(snapshot);
+            }
+        }
+
+        snapshots
     }
 }
 

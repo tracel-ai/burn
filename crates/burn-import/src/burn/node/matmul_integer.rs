@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::matmulinteger::MatMulIntegerNode {
+impl NodeCodegen for onnx_ir::matmulinteger::MatMulIntegerNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

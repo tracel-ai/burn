@@ -1,8 +1,8 @@
 # ONNX Inference
 
-This crate provides a simple example for importing MNIST ONNX model to Burn. The onnx file is
-converted into a Rust source file using `burn-import` and the weights are stored in and loaded from
-a binary file.
+This crate provides a simple example for importing MNIST ONNX model to Burn. The ONNX file is
+converted into a Rust source file using `burn-import` and the weights are stored in `.burnpack`
+format and loaded at runtime.
 
 ## Usage
 
@@ -24,24 +24,27 @@ See the image online, click the link below:
 https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 ```
 
-## Feature Flags
-
-- `embedded-model` (default) - Embed the model weights into the binary. This is useful for small
-  models (e.g. MNIST) but not recommended for very large models because it will increase the binary
-  size significantly and will consume a lot of memory at runtime. If you do not use this feature,
-  the model weights will be loaded from a binary file at runtime.
-
 ## How to import
 
-1. Create `model` directory under `src`
-2. Copy the ONNX model to `src/model/mnist.onnx`
-3. Add the following to `mod.rs`:
+1. Add `burn-store` with the `burnpack` feature to your `Cargo.toml` dependencies:
+   ```toml
+   [dependencies]
+   burn = { version = "0.20", features = ["ndarray"] }
+   burn-store = { version = "0.20", features = ["burnpack"] }
+
+   [build-dependencies]
+   burn-import = { version = "0.20" }
+   ```
+
+2. Create `model` directory under `src`
+3. Copy the ONNX model to `src/model/mnist.onnx`
+4. Add the following to `mod.rs`:
    ```rust
    pub mod mnist {
        include!(concat!(env!("OUT_DIR"), "/model/mnist.rs"));
    }
    ```
-4. Add the module to `lib.rs`:
+5. Add the module to `lib.rs`:
 
    ```rust
    pub mod model;
@@ -49,7 +52,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
    pub use model::mnist::*;
    ```
 
-5. Add the following to `build.rs`:
+6. Add the following to `build.rs`:
 
    ```rust
    use burn_import::onnx::ModelGen;
@@ -64,7 +67,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 
    ```
 
-6. Add your model to `src/bin` as a new file, in this specific case we have called it `mnist.rs`:
+7. Add your model to `src/bin` as a new file, in this specific case we have called it `mnist.rs`:
 
    ```rust
    use burn::tensor;
@@ -90,7 +93,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
    }
    ```
 
-7. Run `cargo build` to generate the model code, weights, and `mnist` binary.
+8. Run `cargo build` to generate the model code, weights, and `mnist` binary.
 
 ## How to export PyTorch model to ONNX
 

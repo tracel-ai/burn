@@ -1,15 +1,8 @@
 use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::conv::Conv2dRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv2d::Conv2dNode {
+impl NodeCodegen for onnx_ir::conv2d::Conv2dNode {
     fn inputs(&self) -> &[Argument] {
-        // Filter inputs only dynamic and constant
         &self.inputs
     }
 
@@ -44,36 +37,30 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv2d::Conv2dNode {
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
 
-        let data_weights = extract_node_data(&self.inputs, 1).unwrap();
-        let has_bias = self.inputs.len() == 3;
-        let data_bias = if has_bias {
-            extract_node_data(&self.inputs, 2)
-        } else {
-            None
-        };
-        let record = Conv2dRecord::<SerializationBackend> {
-            weight: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            bias: data_bias.as_ref().map(|bias| {
-                Param::initialized(
-                    ParamId::new(),
-                    Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
-                )
-            }),
-            stride: [ConstantRecord::new(); 2],
-            kernel_size: [ConstantRecord::new(); 2],
-            dilation: [ConstantRecord::new(); 2],
-            groups: ConstantRecord::new(),
-            padding: ConstantRecord::new(),
-        };
+        let mut snapshots = vec![];
 
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
+        // Weight tensor (input index 1)
+        if let Some(weight_input) = self.inputs.get(1) {
+            let weight_path = format!("{}.weight", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(weight_input, &weight_path, "Conv2d") {
+                snapshots.push(snapshot);
+            }
+        }
+
+        // Bias tensor (input index 2, optional)
+        if self.inputs.len() > 2
+            && let Some(bias_input) = self.inputs.get(2)
+        {
+            let bias_path = format!("{}.bias", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(bias_input, &bias_path, "Conv2d") {
+                snapshots.push(snapshot);
+            }
+        }
+
+        snapshots
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
@@ -85,6 +72,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::conv2d::Conv2dNode {
             let #output = self.#field.forward(#input);
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::conv::Conv2d");

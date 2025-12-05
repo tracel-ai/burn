@@ -19,17 +19,9 @@
 //!   the same length.
 
 use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Module, Param, ParamId},
-    nn::{
-        BiLstmRecord, GateControllerRecord, LinearRecord, LstmRecord, Sigmoid, Tanh,
-        activation::{Activation, ActivationConfig},
-    },
-    record::{PrecisionSettings, Record},
-    tensor::{Tensor, TensorData},
-};
+use burn::nn::activation::ActivationConfig;
+use burn_store::TensorSnapshot;
 use onnx_ir::lstm::{LstmActivationFunction, LstmDirection};
-use serde::Serialize;
 
 /// Convert ONNX activation function to Burn ActivationConfig.
 ///
@@ -60,6 +52,194 @@ fn to_burn_activation(onnx_activation: LstmActivationFunction) -> ActivationConf
     }
 }
 
+/// Collect tensor snapshots for LSTM burnpack serialization.
+///
+/// This function handles the complex weight transformation from ONNX's packed format
+/// to Burn's individual GateController structure using NdArray backend for tensor ops.
+///
+/// ONNX LSTM weight layout:
+/// - W: `[num_directions, 4*hidden_size, input_size]` - gates ordered as [i, o, f, c]
+/// - R: `[num_directions, 4*hidden_size, hidden_size]` - gates ordered as [i, o, f, c]
+/// - B: `[num_directions, 8*hidden_size]` - Wb[i,o,f,c] then Rb[i,o,f,c]
+///
+/// Burn LSTM structure (per direction):
+/// - input_gate.input_transform: weight `[input_size, hidden_size]`, bias `[hidden_size]`
+/// - input_gate.hidden_transform: weight `[hidden_size, hidden_size]`, bias `[hidden_size]`
+/// - forget_gate, output_gate, cell_gate: same structure
+#[allow(clippy::single_range_in_vec_init)]
+fn collect_lstm_snapshots(
+    field_name: &str,
+    inputs: &[Argument],
+    config: &onnx_ir::lstm::LstmConfig,
+) -> Vec<TensorSnapshot> {
+    use crate::burn::node_traits::{SerializationBackend, extract_node_data};
+    use burn::tensor::Tensor;
+
+    let hidden_size = config.hidden_size;
+    let input_size = config.input_size;
+
+    // Extract weight tensors from inputs
+    let data_w = extract_node_data(inputs, 1);
+    let data_r = extract_node_data(inputs, 2);
+    let data_b = extract_node_data(inputs, 3);
+
+    let Some(data_w) = data_w else {
+        return vec![];
+    };
+    let Some(data_r) = data_r else {
+        return vec![];
+    };
+
+    let dtype = data_w.dtype;
+    let device = Default::default();
+
+    // ONNX gate order: i(input), o(output), f(forget), c(cell)
+    // Burn gate order: input_gate, forget_gate, output_gate, cell_gate
+    let onnx_to_burn_gate_order = [0usize, 2, 1, 3]; // input, forget, output, cell
+    let gate_names = ["input_gate", "forget_gate", "output_gate", "cell_gate"];
+
+    // Determine direction prefixes based on LSTM type
+    let direction_prefixes: Vec<&str> = match config.direction {
+        LstmDirection::Forward | LstmDirection::Reverse => vec![""],
+        LstmDirection::Bidirectional => vec!["forward.", "reverse."],
+    };
+
+    let mut snapshots = Vec::new();
+
+    // Create tensors from data
+    let w_tensor: Tensor<SerializationBackend, 3> = Tensor::from_data(data_w.clone(), &device);
+    let r_tensor: Tensor<SerializationBackend, 3> = Tensor::from_data(data_r.clone(), &device);
+    let b_tensor: Option<Tensor<SerializationBackend, 2>> =
+        data_b.clone().map(|b| Tensor::from_data(b, &device));
+
+    for (dir_idx, dir_prefix) in direction_prefixes.iter().enumerate() {
+        // Select direction slice from W and R
+        // W shape: [num_directions, 4*hidden_size, input_size]
+        let w_dir = w_tensor
+            .clone()
+            .slice([dir_idx..dir_idx + 1, 0..4 * hidden_size, 0..input_size])
+            .squeeze::<2>(); // [4*hidden_size, input_size]
+
+        // R shape: [num_directions, 4*hidden_size, hidden_size]
+        let r_dir = r_tensor
+            .clone()
+            .slice([dir_idx..dir_idx + 1, 0..4 * hidden_size, 0..hidden_size])
+            .squeeze::<2>(); // [4*hidden_size, hidden_size]
+
+        // B shape: [num_directions, 8*hidden_size]
+        let b_dir = b_tensor.as_ref().map(|b| {
+            b.clone()
+                .slice([dir_idx..dir_idx + 1, 0..8 * hidden_size])
+                .squeeze::<1>() // [8*hidden_size]
+        });
+
+        for (gate_idx, gate_name) in gate_names.iter().enumerate() {
+            let onnx_gate_idx = onnx_to_burn_gate_order[gate_idx];
+            let start = onnx_gate_idx * hidden_size;
+            let end = start + hidden_size;
+
+            // Input transform weight: slice from W and transpose
+            // ONNX: [hidden_size, input_size] -> Burn: [input_size, hidden_size]
+            let w_gate = w_dir.clone().slice([start..end, 0..input_size]).transpose(); // [input_size, hidden_size]
+            let w_gate_data = w_gate.into_data();
+
+            let path = format!(
+                "{}.{}{}.input_transform.weight",
+                field_name, dir_prefix, gate_name
+            );
+            snapshots.push(create_snapshot_from_data(
+                w_gate_data,
+                &path,
+                "Linear",
+                dtype,
+            ));
+
+            // Input transform bias: Wb + Rb for this gate
+            if let Some(ref b) = b_dir {
+                let wb_start = onnx_gate_idx * hidden_size;
+                let wb_end = wb_start + hidden_size;
+                let rb_start = 4 * hidden_size + onnx_gate_idx * hidden_size;
+                let rb_end = rb_start + hidden_size;
+
+                let wb: Tensor<SerializationBackend, 1> = b.clone().slice([wb_start..wb_end]);
+                let rb: Tensor<SerializationBackend, 1> = b.clone().slice([rb_start..rb_end]);
+                let bias = wb.add(rb);
+                let bias_data = bias.into_data();
+
+                let path = format!(
+                    "{}.{}{}.input_transform.bias",
+                    field_name, dir_prefix, gate_name
+                );
+                snapshots.push(create_snapshot_from_data(bias_data, &path, "Linear", dtype));
+            }
+
+            // Hidden transform weight: slice from R and transpose
+            // ONNX: [hidden_size, hidden_size] -> Burn: [hidden_size, hidden_size]
+            let r_gate = r_dir
+                .clone()
+                .slice([start..end, 0..hidden_size])
+                .transpose(); // [hidden_size, hidden_size]
+            let r_gate_data = r_gate.into_data();
+
+            let path = format!(
+                "{}.{}{}.hidden_transform.weight",
+                field_name, dir_prefix, gate_name
+            );
+            snapshots.push(create_snapshot_from_data(
+                r_gate_data,
+                &path,
+                "Linear",
+                dtype,
+            ));
+
+            // Hidden transform bias: zeros (combined bias is in input_transform)
+            if b_dir.is_some() {
+                let zeros: Tensor<SerializationBackend, 1> = Tensor::zeros([hidden_size], &device);
+                let zeros_data = zeros.into_data();
+
+                let path = format!(
+                    "{}.{}{}.hidden_transform.bias",
+                    field_name, dir_prefix, gate_name
+                );
+                snapshots.push(create_snapshot_from_data(
+                    zeros_data, &path, "Linear", dtype,
+                ));
+            }
+        }
+    }
+
+    snapshots
+}
+
+/// Create a TensorSnapshot from TensorData.
+fn create_snapshot_from_data(
+    data: burn::tensor::TensorData,
+    path: &str,
+    container_type: &str,
+    dtype: burn::tensor::DType,
+) -> TensorSnapshot {
+    use burn::module::ParamId;
+    use burn_store::TensorSnapshotError;
+    use std::rc::Rc;
+
+    let shape = data.shape.clone();
+    let path_stack: Vec<String> = path.split('.').map(String::from).collect();
+    let container_stack = vec![format!("Struct:{}", container_type)];
+
+    let data_fn = Rc::new(
+        move || -> Result<burn::tensor::TensorData, TensorSnapshotError> { Ok(data.clone()) },
+    );
+
+    TensorSnapshot::from_closure(
+        data_fn,
+        dtype,
+        shape,
+        path_stack,
+        container_stack,
+        ParamId::new(),
+    )
+}
+
 /// Convert ActivationConfig to tokens for code generation
 fn activation_to_tokens(activation: &ActivationConfig) -> TokenStream {
     match activation {
@@ -79,7 +259,7 @@ fn activation_to_tokens(activation: &ActivationConfig) -> TokenStream {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
+impl NodeCodegen for onnx_ir::lstm::LstmNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -169,79 +349,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
         }
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
-
-        // Extract weight tensors from inputs
-        // Input 1: W - weight tensor [num_directions, 4*hidden_size, input_size]
-        // Input 2: R - recurrence weight tensor [num_directions, 4*hidden_size, hidden_size]
-        // Input 3: B - bias tensor [num_directions, 8*hidden_size] (optional)
-        let data_w = extract_node_data(&self.inputs, 1).unwrap();
-        let data_r = extract_node_data(&self.inputs, 2).unwrap();
-        let data_b = extract_node_data(&self.inputs, 3);
-
-        let hidden_size = self.config.hidden_size;
-        let input_size = self.config.input_size;
-
-        match self.config.direction {
-            LstmDirection::Forward => {
-                let record = create_lstm_record::<PS>(
-                    &data_w,
-                    &data_r,
-                    data_b.as_ref(),
-                    hidden_size,
-                    input_size,
-                    0, // direction index
-                    &device,
-                );
-                let item = Record::into_item::<PS>(record);
-                item.serialize(serializer)
-            }
-            LstmDirection::Reverse => {
-                // For reverse, we use the same weights but process sequence in reverse
-                // The weights are stored in direction index 0
-                let record = create_lstm_record::<PS>(
-                    &data_w,
-                    &data_r,
-                    data_b.as_ref(),
-                    hidden_size,
-                    input_size,
-                    0, // For single-direction reverse, weights are at index 0
-                    &device,
-                );
-                let item = Record::into_item::<PS>(record);
-                item.serialize(serializer)
-            }
-            LstmDirection::Bidirectional => {
-                let forward_record = create_lstm_record::<PS>(
-                    &data_w,
-                    &data_r,
-                    data_b.as_ref(),
-                    hidden_size,
-                    input_size,
-                    0, // forward direction
-                    &device,
-                );
-                let reverse_record = create_lstm_record::<PS>(
-                    &data_w,
-                    &data_r,
-                    data_b.as_ref(),
-                    hidden_size,
-                    input_size,
-                    1, // reverse direction
-                    &device,
-                );
-
-                let record = BiLstmRecord::<SerializationBackend> {
-                    forward: forward_record,
-                    reverse: reverse_record,
-                    d_hidden: ConstantRecord::new(),
-                    batch_first: ConstantRecord::new(),
-                };
-                let item = Record::into_item::<PS>(record);
-                item.serialize(serializer)
-            }
-        }
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        collect_lstm_snapshots(field_name, &self.inputs, &self.config)
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
@@ -428,137 +537,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::lstm::LstmNode {
                 imports.register("burn::nn::LstmState");
             }
         }
-    }
-}
-
-/// Create an LstmRecord by splitting ONNX weights into Burn's gate structure
-fn create_lstm_record<PS: PrecisionSettings>(
-    data_w: &TensorData,
-    data_r: &TensorData,
-    data_b: Option<&TensorData>,
-    hidden_size: usize,
-    input_size: usize,
-    direction_idx: usize,
-    device: &<SerializationBackend as burn::tensor::backend::Backend>::Device,
-) -> LstmRecord<SerializationBackend> {
-    // W shape: [num_directions, 4*hidden_size, input_size]
-    // R shape: [num_directions, 4*hidden_size, hidden_size]
-    // B shape: [num_directions, 8*hidden_size]
-
-    // Extract weights for this direction
-    let w_tensor: Tensor<SerializationBackend, 3> =
-        Tensor::from_data(data_w.clone().convert::<PS::FloatElem>(), device);
-    let r_tensor: Tensor<SerializationBackend, 3> =
-        Tensor::from_data(data_r.clone().convert::<PS::FloatElem>(), device);
-
-    // Select the direction
-    let w_dir = w_tensor
-        .slice([
-            direction_idx..direction_idx + 1,
-            0..4 * hidden_size,
-            0..input_size,
-        ])
-        .squeeze_dim(0); // [4*hidden_size, input_size]
-    let r_dir = r_tensor
-        .slice([
-            direction_idx..direction_idx + 1,
-            0..4 * hidden_size,
-            0..hidden_size,
-        ])
-        .squeeze_dim(0); // [4*hidden_size, hidden_size]
-
-    // Split into gates: ONNX order is [i, o, f, c]
-    let split_weights = |tensor: Tensor<SerializationBackend, 2>,
-                         size: usize|
-     -> [Tensor<SerializationBackend, 2>; 4] {
-        let i = tensor.clone().slice([0..hidden_size, 0..size]);
-        let o = tensor
-            .clone()
-            .slice([hidden_size..2 * hidden_size, 0..size]);
-        let f = tensor
-            .clone()
-            .slice([2 * hidden_size..3 * hidden_size, 0..size]);
-        let c = tensor.slice([3 * hidden_size..4 * hidden_size, 0..size]);
-        [i, o, f, c]
-    };
-
-    let [wi, wo, wf, wc] = split_weights(w_dir, input_size);
-    let [ri, ro, rf, rc] = split_weights(r_dir, hidden_size);
-
-    // Handle biases
-    // Note: clippy::single_range_in_vec_init is a false positive - Burn's tensor slice API
-    // requires array syntax [Range; N] for N-dimensional tensors
-    #[allow(clippy::single_range_in_vec_init)]
-    let (bi_input, bi_hidden, bo_input, bo_hidden, bf_input, bf_hidden, bc_input, bc_hidden) =
-        if let Some(b_data) = data_b {
-            let b_tensor: Tensor<SerializationBackend, 2> =
-                Tensor::from_data(b_data.clone().convert::<PS::FloatElem>(), device);
-            let b_dir = b_tensor
-                .slice([direction_idx..direction_idx + 1, 0..8 * hidden_size])
-                .squeeze_dim(0); // [8*hidden_size]
-
-            // ONNX bias order: [Wb_i, Wb_o, Wb_f, Wb_c, Rb_i, Rb_o, Rb_f, Rb_c]
-            let wb_i = b_dir.clone().slice([0..hidden_size]);
-            let wb_o = b_dir.clone().slice([hidden_size..2 * hidden_size]);
-            let wb_f = b_dir.clone().slice([2 * hidden_size..3 * hidden_size]);
-            let wb_c = b_dir.clone().slice([3 * hidden_size..4 * hidden_size]);
-            let rb_i = b_dir.clone().slice([4 * hidden_size..5 * hidden_size]);
-            let rb_o = b_dir.clone().slice([5 * hidden_size..6 * hidden_size]);
-            let rb_f = b_dir.clone().slice([6 * hidden_size..7 * hidden_size]);
-            let rb_c = b_dir.slice([7 * hidden_size..8 * hidden_size]);
-
-            (
-                Some(wb_i),
-                Some(rb_i),
-                Some(wb_o),
-                Some(rb_o),
-                Some(wb_f),
-                Some(rb_f),
-                Some(wb_c),
-                Some(rb_c),
-            )
-        } else {
-            (None, None, None, None, None, None, None, None)
-        };
-
-    // Create GateController records
-    // Note: Burn's Linear stores weight as [d_input, d_output] (row-major layout)
-    // ONNX stores as [d_output, d_input], so we need to transpose
-    // ONNX W: [4*hidden_size, input_size] -> Burn: [input_size, hidden_size]
-    // ONNX R: [4*hidden_size, hidden_size] -> Burn: [hidden_size, hidden_size]
-
-    let create_gate_record = |input_weight: Tensor<SerializationBackend, 2>,
-                              hidden_weight: Tensor<SerializationBackend, 2>,
-                              input_bias: Option<Tensor<SerializationBackend, 1>>,
-                              hidden_bias: Option<Tensor<SerializationBackend, 1>>|
-     -> GateControllerRecord<SerializationBackend> {
-        GateControllerRecord {
-            input_transform: LinearRecord {
-                weight: Param::initialized(ParamId::new(), input_weight.transpose()),
-                bias: input_bias.map(|b| Param::initialized(ParamId::new(), b)),
-            },
-            hidden_transform: LinearRecord {
-                weight: Param::initialized(ParamId::new(), hidden_weight.transpose()),
-                bias: hidden_bias.map(|b| Param::initialized(ParamId::new(), b)),
-            },
-        }
-    };
-
-    LstmRecord {
-        input_gate: create_gate_record(wi, ri, bi_input, bi_hidden),
-        forget_gate: create_gate_record(wf, rf, bf_input, bf_hidden),
-        output_gate: create_gate_record(wo, ro, bo_input, bo_hidden),
-        cell_gate: create_gate_record(wc, rc, bc_input, bc_hidden),
-        d_hidden: ConstantRecord::new(),
-        batch_first: ConstantRecord::new(),
-        reverse: ConstantRecord::new(),
-        clip: None,
-        input_forget: ConstantRecord::new(),
-        // Create activation records using the default LSTM activations
-        // Sigmoid for gates, Tanh for cell/hidden
-        gate_activation: Activation::<SerializationBackend>::from(Sigmoid).into_record(),
-        cell_activation: Activation::<SerializationBackend>::from(Tanh).into_record(),
-        hidden_activation: Activation::<SerializationBackend>::from(Tanh).into_record(),
     }
 }
 

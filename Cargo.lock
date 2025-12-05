@@ -4360,6 +4360,7 @@ dependencies = [
  "burn",
  "burn-candle",
  "burn-import",
+ "burn-store",
  "console_error_panic_hook",
  "getrandom 0.3.4",
  "js-sys",
@@ -5582,6 +5583,7 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn",
  "burn-import",
+ "burn-store",
  "serde",
 ]
 
@@ -5623,6 +5625,7 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn",
  "burn-import",
+ "burn-store",
  "float-cmp",
  "serde",
 ]

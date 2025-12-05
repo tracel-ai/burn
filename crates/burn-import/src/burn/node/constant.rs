@@ -1,7 +1,8 @@
 use super::prelude::*;
+use burn_store::TensorSnapshot;
 use onnx_ir::ir::TensorDataExt;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::ConstantNode {
+impl NodeCodegen for onnx_ir::node::constant::ConstantNode {
     fn inputs(&self) -> &[Argument] {
         // Constant has no runtime inputs - data comes from the input's value store
         &[]
@@ -80,34 +81,26 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::constant::Constan
         }
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use burn::module::ParamId;
-        use burn::record::ParamSerde;
-        use serde::Serialize;
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
 
         let output = self.outputs.first().unwrap();
 
+        // Only collect snapshots for tensor constants (not scalars or shapes)
         match &output.ty {
-            ArgType::Tensor(t) => {
-                // Get tensor data from the input
-                let input = self.inputs.first().unwrap();
-                let tensor_data = input.value().expect("Constant node must have tensor data");
-
-                // Convert to appropriate element type based on dtype
-                let data = match &t.dtype {
-                    dtype if dtype.is_int() || dtype.is_uint() => {
-                        tensor_data.clone().convert::<PS::IntElem>()
+            ArgType::Tensor(_) => {
+                if let Some(input) = self.inputs.first() {
+                    // Use the field name as the path since constants are stored as single params
+                    if let Some(snapshot) = create_lazy_snapshot(input, field_name, "Constant") {
+                        vec![snapshot]
+                    } else {
+                        vec![]
                     }
-                    dtype if dtype.is_float() => tensor_data.clone().convert::<PS::FloatElem>(),
-                    dtype if dtype.is_bool() => tensor_data.clone(),
-                    _ => return S::serialize_none(serializer),
-                };
-
-                // Serialize using ParamSerde which handles any rank
-                let param_serde = ParamSerde::new(ParamId::new().to_string(), data);
-                param_serde.serialize(serializer)
+                } else {
+                    vec![]
+                }
             }
-            _ => S::serialize_none(serializer),
+            _ => vec![],
         }
     }
 
