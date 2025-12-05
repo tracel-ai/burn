@@ -524,20 +524,20 @@ pub fn extract_outer_scope_references(
         .map(|i| sanitize_name(&i.name))
         .collect();
 
+    // Helper: check if an input is an outer-scope reference.
+    // In ONNX subgraphs, inputs WITHOUT a corresponding initializer are outer-scope references
+    // (they must be provided by the parent graph). Inputs WITH initializers are locally defined.
+    let is_outer_scope_input = |name: &str| -> bool {
+        !name.is_empty() && !initializer_names.contains(&sanitize_name(name))
+    };
+
     // Collect all names defined within this subgraph
     let mut defined_names: HashSet<String> = HashSet::new();
 
-    // Subgraph inputs WITHOUT corresponding initializers are outer-scope references
-    // (they must be provided by the parent graph)
-    // Inputs WITH initializers are locally defined
+    // Inputs with initializers are locally defined (not outer-scope)
     for input in &graph_proto.input {
-        if !input.name.is_empty() {
-            let sanitized = sanitize_name(&input.name);
-            if initializer_names.contains(&sanitized) {
-                // Has initializer -> locally defined
-                defined_names.insert(sanitized);
-            }
-            // Without initializer -> it's an outer-scope reference, don't add to defined_names
+        if !input.name.is_empty() && !is_outer_scope_input(&input.name) {
+            defined_names.insert(sanitize_name(&input.name));
         }
     }
 
@@ -562,12 +562,8 @@ pub fn extract_outer_scope_references(
 
     // Subgraph inputs without initializers are outer-scope references
     for input in &graph_proto.input {
-        if !input.name.is_empty() {
-            let sanitized = sanitize_name(&input.name);
-            if !initializer_names.contains(&sanitized) {
-                // No initializer -> outer-scope reference
-                referenced_names.insert(sanitized);
-            }
+        if is_outer_scope_input(&input.name) {
+            referenced_names.insert(sanitize_name(&input.name));
         }
     }
 
