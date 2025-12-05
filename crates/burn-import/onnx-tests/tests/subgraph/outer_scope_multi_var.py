@@ -17,7 +17,7 @@ The subgraph references THREE variables (y1, y2, y3) WITHOUT declaring them as i
 """
 
 import onnx
-from onnx import helper, TensorProto, numpy_helper
+from onnx import helper, TensorProto
 import numpy as np
 
 try:
