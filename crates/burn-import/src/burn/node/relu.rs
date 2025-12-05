@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::relu::ReluNode {
+impl NodeCodegen for onnx_ir::relu::ReluNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

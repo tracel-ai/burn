@@ -1,5 +1,5 @@
 use super::prelude::*;
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::avg_pool2d::AveragePool2dNode {
+impl NodeCodegen for onnx_ir::node::avg_pool2d::AveragePool2dNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

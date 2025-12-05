@@ -1,5 +1,5 @@
 use super::prelude::*;
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::max_pool2d::MaxPool2dNode {
+impl NodeCodegen for onnx_ir::max_pool2d::MaxPool2dNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

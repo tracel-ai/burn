@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::is_nan::IsNaNNode {
+impl NodeCodegen for onnx_ir::is_nan::IsNaNNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

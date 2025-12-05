@@ -2,8 +2,8 @@
 
 This guide offers in-depth design insights and step-by-step procedures for developers working on the
 ONNX to Burn conversion tool. This tool allows the importation of ONNX models into the Burn deep
-learning framework written in Rust. It converts both ONNX models to Rust source code and model
-weights to Burn state files.
+learning framework written in Rust. It converts ONNX models to Rust source code and model
+weights to `.burnpack` files.
 
 For an introduction to ONNX import in Burn, see
 [this section of the Burn book](https://burn.dev/books/burn/import/onnx-model.html).
@@ -76,7 +76,7 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    provide relevant information.
 
 6. **Inspect Generated Files**: The `my-model.graph.txt` contains IR details, `my-model.rs` holds
-   the Burn model in Rust code, and `my-model.json` includes the model data.
+   the Burn model in Rust code, and `my-model.burnpack` contains the model weights.
 
 7. **Add End-to-End Test**: Include the test in
    [crates/burn-import/onnx-tests/tests/test_onnx.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/test_onnx.rs).
@@ -214,7 +214,7 @@ For example, the squeeze operation in `crates/onnx-ir/src/node/squeeze.rs` conta
    - `outputs(&self)` - Returns references to output arguments (usually just `&self.outputs`)
    - `forward(&self, scope)` - Generates Rust code for the operation using the `quote!` macro
    - `field(&self)` - (Optional) Declares module fields for parameters like weights
-   - `field_serialize(&self, serializer)` - (Optional) Serializes field data for model weights
+   - `collect_snapshots(&self, field_name)` - (Optional) Collects tensor snapshots for burnpack serialization
 
 3. Use helper utilities from `argument_helpers.rs`:
    - `scope.arg(argument)` - Automatically handles Tensor/Scalar/Shape with proper cloning

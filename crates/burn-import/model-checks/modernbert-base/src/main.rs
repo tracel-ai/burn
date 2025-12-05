@@ -1,10 +1,9 @@
 extern crate alloc;
 
-use burn::module::Param;
+use burn::module::{Initializer, Param};
 use burn::prelude::*;
-use burn::record::*;
 
-use burn_import::pytorch::PyTorchFileRecorder;
+use burn_store::{ModuleSnapshot, PytorchStore};
 use std::path::Path;
 use std::time::Instant;
 
@@ -34,6 +33,20 @@ struct TestData<B: Backend> {
     attention_mask: Param<Tensor<B, 2, Int>>,
     last_hidden_state: Param<Tensor<B, 3>>,
     pooled_output: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> TestData<B> {
+    fn new(device: &B::Device) -> Self {
+        use burn::module::ParamId;
+        // ModernBERT-base: sequence_length=512, hidden_size=768
+        // Note: Initializer only works for float tensors, Int tensors need manual init
+        Self {
+            input_ids: Param::initialized(ParamId::new(), Tensor::zeros([1, 512], device)),
+            attention_mask: Param::initialized(ParamId::new(), Tensor::zeros([1, 512], device)),
+            last_hidden_state: Initializer::Zeros.init([1, 512, 768], device),
+            pooled_output: Initializer::Zeros.init([1, 768], device),
+        }
+    }
 }
 
 /// Apply mean pooling to get sentence embeddings
@@ -95,9 +108,9 @@ fn main() {
     // Load test data from PyTorch file
     println!("\nLoading test data from artifacts/test_data.pt...");
     let start = Instant::now();
-    let test_data: TestDataRecord<MyBackend> = PyTorchFileRecorder::<FullPrecisionSettings>::new()
-        .load("artifacts/test_data.pt".into(), &device)
-        .expect("Failed to load test data");
+    let mut test_data = TestData::<MyBackend>::new(&device);
+    let mut store = PytorchStore::from_file("artifacts/test_data.pt");
+    test_data.load_from(&mut store).expect("Failed to load test data");
     let load_time = start.elapsed();
     println!("  Data loaded in {:.2?}", load_time);
 

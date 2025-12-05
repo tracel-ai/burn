@@ -2,7 +2,7 @@ use super::prelude::*;
 use onnx_ir::ir::ArgType;
 use proc_macro2::Literal;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::range::RangeNode {
+impl NodeCodegen for onnx_ir::node::range::RangeNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

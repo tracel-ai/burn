@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::reshape::ReshapeNode {
+impl NodeCodegen for onnx_ir::reshape::ReshapeNode {
     fn inputs(&self) -> &[Argument] {
         // Reshape has input tensor and shape argument
         // Filter to include dynamic and constant inputs

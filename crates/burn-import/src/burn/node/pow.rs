@@ -9,7 +9,7 @@ pub enum PowerType {
     Float,
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::pow::PowNode {
+impl NodeCodegen for onnx_ir::pow::PowNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

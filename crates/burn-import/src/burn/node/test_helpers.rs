@@ -6,7 +6,6 @@
 use super::NodeCodegen;
 use crate::burn::Scope;
 use crate::burn::argument_helpers::{codegen_fn_params, codegen_return_expr, codegen_return_type};
-use burn::record::PrecisionSettings;
 use onnx_ir::ir::ArgType;
 use quote::quote;
 
@@ -31,15 +30,14 @@ use quote::quote;
 ///     }
 /// "#);
 /// ```
-pub fn codegen_forward<T, PS>(
+pub fn codegen_forward<T>(
     node: &T,
     _input_idx: usize,
     with_clone: bool,
     node_position: usize,
 ) -> String
 where
-    T: NodeCodegen<PS>,
-    PS: PrecisionSettings,
+    T: NodeCodegen,
 {
     let mut scope = Scope::default();
 
@@ -96,7 +94,7 @@ where
 
 /// Generate forward pass code with default parameters
 ///
-/// Uses FullPrecisionSettings and:
+/// Uses:
 /// - input_idx: 0 (first input)
 /// - with_clone: false (no clone)
 /// - node_position: 1
@@ -114,14 +112,14 @@ where
 /// ```
 pub fn codegen_forward_default<T>(node: &T) -> String
 where
-    T: NodeCodegen<burn::record::FullPrecisionSettings>,
+    T: NodeCodegen,
 {
     codegen_forward(node, 0, false, 1)
 }
 
 /// Generate forward pass code with clone enabled
 ///
-/// Uses FullPrecisionSettings and:
+/// Uses:
 /// - input_idx: 0 (first input)
 /// - with_clone: true (triggers clone)
 /// - node_position: 1
@@ -134,7 +132,7 @@ where
 /// ```
 pub fn codegen_forward_with_clone<T>(node: &T) -> String
 where
-    T: NodeCodegen<burn::record::FullPrecisionSettings>,
+    T: NodeCodegen,
 {
     codegen_forward(node, 0, true, 1)
 }

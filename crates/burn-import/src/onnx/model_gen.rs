@@ -4,28 +4,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use burn::record::{
-    DoublePrecisionSettings, FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings,
-};
-
 use crate::{burn::graph::BurnGraph, format_tokens, logger::init_log};
 
 use onnx_ir::{OnnxGraphBuilder, ir::OnnxGraph};
 
-pub use crate::burn::graph::RecordType;
-
 /// Builder for generating Burn model code from ONNX files.
 ///
 /// `ModelGen` converts ONNX models into Burn-compatible Rust source code and model weights.
-/// It supports multiple precision settings, record formats, and can be used from both build
-/// scripts and CLI applications.
+/// It can be used from both build scripts and CLI applications.
 ///
 /// # Conversion Process
 ///
 /// 1. Parses ONNX model file(s)
 /// 2. Converts ONNX operations to Burn nodes using the node registry
 /// 3. Generates Rust source code with type-safe tensor operations
-/// 4. Saves model weights in the specified record format
+/// 4. Saves model weights in BurnPack (.bpk) format
 ///
 /// # Examples
 ///
@@ -49,33 +42,12 @@ pub use crate::burn::graph::RecordType;
 /// ## Using from CLI
 ///
 /// ```no_run
-/// use burn_import::onnx::{ModelGen, RecordType};
+/// use burn_import::onnx::ModelGen;
 ///
 /// ModelGen::new()
 ///     .input("path/to/model.onnx")
 ///     .out_dir("src/model/")
-///     .record_type(RecordType::Bincode)
 ///     .run_from_cli();
-/// ```
-///
-/// ## Using with precision settings
-///
-/// ```no_run
-/// use burn_import::onnx::ModelGen;
-///
-/// // Use half precision (f16) for smaller model size
-/// ModelGen::new()
-///     .input("path/to/model.onnx")
-///     .out_dir("model/")
-///     .half_precision(true)
-///     .run_from_script();
-///
-/// // Use double precision (f64) for models with large integer constants
-/// ModelGen::new()
-///     .input("path/to/model.onnx")
-///     .out_dir("model/")
-///     .double_precision(true)
-///     .run_from_script();
 /// ```
 ///
 /// ## Development mode for debugging
@@ -95,9 +67,6 @@ pub struct ModelGen {
     /// List of onnx files to generate source code from.
     inputs: Vec<PathBuf>,
     development: bool,
-    half_precision: bool,
-    double_precision: bool,
-    record_type: RecordType,
     embed_states: bool,
 }
 
@@ -105,8 +74,6 @@ impl ModelGen {
     /// Creates a new `ModelGen` builder with default settings.
     ///
     /// Default configuration:
-    /// - Full precision (f32 for floats, i32 for integers)
-    /// - NamedMpk record type
     /// - Development mode: off
     /// - Embed states: off
     ///
@@ -201,6 +168,35 @@ impl ModelGen {
         self
     }
 
+    /// Embeds model weights directly in the generated Rust code.
+    ///
+    /// When enabled, the `.burnpack` file is included in the binary using `include_bytes!`.
+    /// This is useful for WebAssembly targets or when you want a single binary without
+    /// external weight files.
+    ///
+    /// **Note**: This increases binary size significantly for large models and may
+    /// increase memory usage at runtime. Only recommended for small models.
+    ///
+    /// # Arguments
+    ///
+    /// * `embed_states` - If `true`, embed weights in the binary
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use burn_import::onnx::ModelGen;
+    ///
+    /// ModelGen::new()
+    ///     .input("small_model.onnx")
+    ///     .out_dir("model/")
+    ///     .embed_states(true)  // Embed weights in binary
+    ///     .run_from_script();
+    /// ```
+    pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
+        self.embed_states = embed_states;
+        self
+    }
+
     /// Runs code generation from a build script context.
     ///
     /// Use this method when calling from `build.rs`. The output directory will be
@@ -251,125 +247,6 @@ impl ModelGen {
     /// ```
     pub fn run_from_cli(&self) {
         self.run(false);
-    }
-
-    /// Sets half precision mode for model weights.
-    ///
-    /// When enabled, model parameters are stored in half precision (f16), reducing
-    /// model size by approximately 50% compared to full precision.
-    ///
-    /// **Note:** Cannot be used with [`double_precision`](Self::double_precision).
-    /// If both are set, `double_precision` takes precedence.
-    ///
-    /// # Arguments
-    ///
-    /// * `half_precision` - If `true`, use f16 for model parameters
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use burn_import::onnx::ModelGen;
-    ///
-    /// ModelGen::new()
-    ///     .input("large_model.onnx")
-    ///     .out_dir("model/")
-    ///     .half_precision(true)  // Reduce model size
-    ///     .run_from_script();
-    /// ```
-    pub fn half_precision(&mut self, half_precision: bool) -> &mut Self {
-        self.half_precision = half_precision;
-        self
-    }
-
-    /// Sets double precision mode for model parameters.
-    ///
-    /// When enabled, uses f64 for floats and i64 for integers. This is necessary for:
-    /// - Models with large integer constants that exceed i32 range
-    /// - High-precision numerical applications
-    /// - Models requiring extended dynamic range
-    ///
-    /// **Note:** Increases model size and memory usage compared to full precision.
-    /// Takes precedence over [`half_precision`](Self::half_precision) if both are set.
-    ///
-    /// # Arguments
-    ///
-    /// * `double_precision` - If `true`, use f64/i64 for model parameters
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use burn_import::onnx::ModelGen;
-    ///
-    /// ModelGen::new()
-    ///     .input("model.onnx")
-    ///     .out_dir("model/")
-    ///     .double_precision(true)  // Use f64/i64
-    ///     .run_from_script();
-    /// ```
-    pub fn double_precision(&mut self, double_precision: bool) -> &mut Self {
-        self.double_precision = double_precision;
-        self
-    }
-
-    /// Sets the record format for saving model weights.
-    ///
-    /// Available formats:
-    /// - `RecordType::NamedMpk` - Named MessagePack (default, compact)
-    /// - `RecordType::NamedMpkGz` - Compressed Named MessagePack (smallest)
-    /// - `RecordType::Bincode` - Bincode format (fastest, good for embedded)
-    /// - `RecordType::PrettyJson` - Pretty JSON (human-readable, debugging)
-    ///
-    /// # Arguments
-    ///
-    /// * `record_type` - The record format to use
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use burn_import::onnx::{ModelGen, RecordType};
-    ///
-    /// ModelGen::new()
-    ///     .input("model.onnx")
-    ///     .out_dir("model/")
-    ///     .record_type(RecordType::Bincode)  // Use Bincode format
-    ///     .run_from_cli();
-    /// ```
-    pub fn record_type(&mut self, record_type: RecordType) -> &mut Self {
-        self.record_type = record_type;
-        self
-    }
-
-    /// Embeds model weights directly in the generated source code.
-    ///
-    /// When enabled, model weights are embedded as a byte array in the `.rs` file
-    /// instead of being saved to a separate record file. This creates a single
-    /// self-contained source file.
-    ///
-    /// **Trade-offs:**
-    /// - Single file deployment (no separate weight file needed)
-    /// - Easier distribution
-    /// - Much larger source file
-    /// - Slower compilation times
-    /// - Not recommended for large models (>10MB)
-    ///
-    /// # Arguments
-    ///
-    /// * `embed_states` - If `true`, embed weights in source code
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use burn_import::onnx::ModelGen;
-    ///
-    /// ModelGen::new()
-    ///     .input("small_model.onnx")
-    ///     .out_dir("model/")
-    ///     .embed_states(true)  // Embed weights in .rs file
-    ///     .run_from_cli();
-    /// ```
-    pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
-        self.embed_states = embed_states;
-        self
     }
 
     /// Run code generation.
@@ -426,7 +303,7 @@ impl ModelGen {
 
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
-        let code = self.generate_code_with_precision(graph, &out_file, top_comment);
+        let code = self.generate_burn_graph(graph, &out_file, top_comment);
 
         let code_str = format_tokens(code);
         let source_code_file = out_file.with_extension("rs");
@@ -449,51 +326,18 @@ impl ModelGen {
         fs::write(debug_file, debug_content).unwrap();
     }
 
-    /// Generate code with appropriate precision settings.
-    fn generate_code_with_precision(
+    /// Generate BurnGraph and codegen.
+    fn generate_burn_graph(
         &self,
         graph: ParsedOnnxGraph,
         out_file: &PathBuf,
         top_comment: Option<String>,
     ) -> proc_macro2::TokenStream {
-        let blank_space = true;
-
-        if self.double_precision {
-            self.generate_burn_graph::<DoublePrecisionSettings>(
-                graph,
-                out_file,
-                blank_space,
-                top_comment,
-            )
-        } else if self.half_precision {
-            self.generate_burn_graph::<HalfPrecisionSettings>(
-                graph,
-                out_file,
-                blank_space,
-                top_comment,
-            )
-        } else {
-            self.generate_burn_graph::<FullPrecisionSettings>(
-                graph,
-                out_file,
-                blank_space,
-                top_comment,
-            )
-        }
-    }
-
-    /// Generate BurnGraph with specified precision settings and codegen.
-    fn generate_burn_graph<PS: PrecisionSettings + 'static>(
-        &self,
-        graph: ParsedOnnxGraph,
-        out_file: &PathBuf,
-        blank_space: bool,
-        top_comment: Option<String>,
-    ) -> proc_macro2::TokenStream {
+        let bpk_file = out_file.with_extension("bpk");
         graph
-            .into_burn::<PS>()
-            .with_record(out_file.clone(), self.record_type, self.embed_states)
-            .with_blank_space(blank_space)
+            .into_burn()
+            .with_burnpack(bpk_file, self.embed_states)
+            .with_blank_space(true)
             .with_top_comment(top_comment)
             .codegen()
     }
@@ -504,8 +348,8 @@ struct ParsedOnnxGraph(OnnxGraph);
 
 impl ParsedOnnxGraph {
     /// Converts ONNX graph to Burn graph.
-    pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
-        let mut graph = BurnGraph::<PS>::default();
+    pub fn into_burn(self) -> BurnGraph {
+        let mut graph = BurnGraph::default();
 
         for node in self.0.nodes {
             // Register node directly (control flow nodes will fail at codegen time)

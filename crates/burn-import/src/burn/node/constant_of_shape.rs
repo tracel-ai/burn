@@ -1,9 +1,7 @@
 use super::prelude::*;
 use onnx_ir::ir::ArgType;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS>
-    for onnx_ir::node::constant_of_shape::ConstantOfShapeNode
-{
+impl NodeCodegen for onnx_ir::node::constant_of_shape::ConstantOfShapeNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
