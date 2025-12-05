@@ -295,15 +295,19 @@ impl GraphState {
             }
             arg
         }
-        // Also check outer scope with original name
+        // Also check outer scope with original name (fallback for unsanitized lookups)
         else if let Some(outer_arg) = self.outer_scope_types.get(proto_str) {
             log::debug!(
-                "Resolving outer-scope reference '{}' with type {:?}",
+                "Resolving outer-scope reference '{}' (original name) with type {:?}",
                 proto_str,
                 outer_arg.ty
             );
             let mut arg = outer_arg.clone();
-            arg.name = sanitized;
+            if arg.is_constant() {
+                // Preserve original name for Constant arguments (same logic as sanitized lookup)
+            } else {
+                arg.name = sanitized;
+            }
             arg
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
