@@ -6,6 +6,7 @@ use std::collections::HashMap;
 /// Similar to [reduce_sum_tree](reduce_sum_tree), but this function broadcasts the result with
 /// the same tree algorithm.
 /// The returned tensors are on the same devices as the corresponding inputs
+#[tracing::instrument(skip(tensors))]
 pub(crate) fn all_reduce_sum_tree<B: Backend>(
     tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
     arity: u32,
@@ -30,6 +31,7 @@ pub(crate) fn all_reduce_sum_tree<B: Backend>(
 }
 
 /// Recursive function that sums `tensors` and redistributes the result to the host devices
+#[tracing::instrument(skip(tensors))]
 fn all_reduce_sum_tree_inner<B: Backend>(
     mut tensors: Vec<(PeerId, B::FloatTensorPrimitive)>,
     arity: u32,

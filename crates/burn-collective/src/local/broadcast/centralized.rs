@@ -5,6 +5,7 @@ use burn_tensor::backend::Backend;
 use crate::PeerId;
 
 /// Broadcasts the tensor from one device in a map to all the others
+#[tracing::instrument(skip(devices, tensor))]
 pub(crate) fn broadcast_centralized<B: Backend>(
     mut devices: HashMap<PeerId, B::Device>,
     central: PeerId,

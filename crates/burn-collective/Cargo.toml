@@ -41,12 +41,14 @@ tokio = { workspace = true, features = [
     "sync",
     "signal",
     "time",
+    "tracing",
 ] }
 serde = { workspace = true, features = ["derive"] }
 rmp-serde = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 tokio-util = { workspace = true }
+tracing = { workspace = true }
 
 # Tests
 burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.5", optional = true }
