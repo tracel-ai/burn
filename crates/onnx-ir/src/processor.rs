@@ -443,6 +443,57 @@ pub(crate) fn get_onnx_input_count(node: &RawNode) -> usize {
     }
 }
 
+/// Build outer scope arguments map from additional inputs added during node conversion.
+///
+/// During node conversion, outer-scope references used by subgraphs are extracted
+/// and added as additional inputs to If/Loop/Scan nodes. The `__onnx_input_count`
+/// attribute stores how many of the inputs are "real" ONNX inputs. Inputs beyond
+/// that count are outer-scope references with resolved types.
+///
+/// The `__scope_ref_names` attribute stores the original sanitized ONNX names
+/// for these scope refs, which are needed because subgraphs reference these
+/// original names, not the renamed node output names.
+///
+/// Returns full Arguments (not just types) to preserve constant values for LSTM weights etc.
+pub fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
+    use crate::ir::AttributeValue;
+
+    let onnx_input_count = get_onnx_input_count(node);
+
+    // Get the original ONNX names for the scope refs
+    let scope_ref_names: Vec<String> = node
+        .attrs
+        .get("__scope_ref_names")
+        .and_then(|v| match v {
+            AttributeValue::Strings(names) => Some(names.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    // Build outer scope map using original names and full arguments from inputs
+    let mut outer_scope: HashMap<String, crate::ir::Argument> = HashMap::new();
+    let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
+
+    for (i, input) in scope_ref_inputs.iter().enumerate() {
+        // Use the original ONNX name if available, otherwise fall back to input name
+        let name = scope_ref_names
+            .get(i)
+            .cloned()
+            .unwrap_or_else(|| input.name.clone());
+        log::debug!(
+            "Adding outer-scope arg: {} -> type={:?}, value_source={:?}, has_store={}",
+            name,
+            input.ty,
+            input.value_source,
+            input.value_store.is_some()
+        );
+        // Clone the full Argument to preserve value_source and value_store
+        outer_scope.insert(name, (*input).clone());
+    }
+
+    outer_scope
+}
+
 /// Copy input type to output (for operations that preserve type)
 pub fn same_as_input(node: &mut RawNode) {
     node.outputs[0].ty = node.inputs[0].ty.clone();

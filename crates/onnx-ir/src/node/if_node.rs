@@ -16,6 +16,7 @@ use onnx_ir_derive::NodeBuilder;
 use crate::ir::{ArgType, Argument, Node, OnnxGraph, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+    build_outer_scope_from_inputs,
 };
 
 /// Configuration for If operation
@@ -212,65 +213,6 @@ impl NodeProcessor for IfProcessor {
             config,
         })
     }
-}
-
-/// Build outer scope arguments map from additional inputs added during node conversion.
-///
-/// During node conversion, outer-scope references used by subgraphs are extracted
-/// and added as additional inputs to If/Loop/Scan nodes. The `__onnx_input_count`
-/// attribute stores how many of the inputs are "real" ONNX inputs. Inputs beyond
-/// that count are outer-scope references with resolved types.
-///
-/// The `__scope_ref_names` attribute stores the original sanitized ONNX names
-/// for these scope refs, which are needed because subgraphs reference these
-/// original names, not the renamed node output names.
-///
-/// Returns full Arguments (not just types) to preserve constant values for LSTM weights etc.
-fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
-    use std::collections::HashMap;
-
-    // Get the count of original ONNX inputs (default to all inputs if not set)
-    let onnx_input_count = node
-        .attrs
-        .get("__onnx_input_count")
-        .and_then(|v| match v {
-            crate::ir::AttributeValue::Int64(n) => Some(*n as usize),
-            _ => None,
-        })
-        .unwrap_or(node.inputs.len());
-
-    // Get the original ONNX names for the scope refs
-    let scope_ref_names: Vec<String> = node
-        .attrs
-        .get("__scope_ref_names")
-        .and_then(|v| match v {
-            crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
-            _ => None,
-        })
-        .unwrap_or_default();
-
-    // Build outer scope map using original names and full arguments from inputs
-    let mut outer_scope: HashMap<String, Argument> = HashMap::new();
-    let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
-
-    for (i, input) in scope_ref_inputs.iter().enumerate() {
-        // Use the original ONNX name if available, otherwise fall back to input name
-        let name = scope_ref_names
-            .get(i)
-            .cloned()
-            .unwrap_or_else(|| input.name.clone());
-        log::debug!(
-            "Adding outer-scope arg: {} -> type={:?}, value_source={:?}, has_store={}",
-            name,
-            input.ty,
-            input.value_source,
-            input.value_store.is_some()
-        );
-        // Clone the full Argument to preserve value_source and value_store
-        outer_scope.insert(name, (*input).clone());
-    }
-
-    outer_scope
 }
 
 /// Merge branch output types when they differ.
