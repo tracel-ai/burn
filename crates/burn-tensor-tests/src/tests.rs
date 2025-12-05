@@ -1,6 +1,3 @@
-// Test data types
-use super::{FloatElemType, IntElemType};
-
 // Re-export
 pub use burn_autodiff::{Autodiff, checkpoint::strategy::BalancedCheckpointing};
 pub use burn_tensor::Tensor;
@@ -16,25 +13,25 @@ pub use burn_tensor::Tensor;
     not(feature = "cpu"),
     not(feature = "router")
 ))]
-pub type TestBackend = burn_ndarray::NdArray<FloatElemType, IntElemType>;
+pub type TestBackend = burn_ndarray::NdArray<super::FloatElemType>;
 
 #[cfg(feature = "candle")]
-pub type TestBackend = burn_candle::Candle<FloatElemType, IntElemType>;
+pub type TestBackend = burn_candle::Candle<super::FloatElemType>;
 
 #[cfg(feature = "tch")]
-pub type TestBackend = burn_tch::LibTorch<FloatElemType, IntElemType>;
+pub type TestBackend = burn_tch::LibTorch<super::FloatElemType>;
 
 #[cfg(feature = "cuda")]
-pub type TestBackend = burn_cuda::Cuda<FloatElemType, IntElemType>;
+pub type TestBackend = burn_cuda::Cuda<super::FloatElemType, super::IntElemType>;
 
 #[cfg(feature = "rocm")]
-pub type TestBackend = burn_rocm::Rocm<FloatElemType, IntElemType>;
+pub type TestBackend = burn_rocm::Rocm<super::FloatElemType, super::IntElemType>;
 
 #[cfg(feature = "wgpu")]
-pub type TestBackend = burn_wgpu::Wgpu<FloatElemType, IntElemType>;
+pub type TestBackend = burn_wgpu::Wgpu<super::FloatElemType, super::IntElemType>;
 
 #[cfg(feature = "cpu")]
-pub type TestBackend = burn_cpu::Cpu<FloatElemType, IntElemType>;
+pub type TestBackend = burn_cpu::Cpu<super::FloatElemType, super::IntElemType>;
 
 #[cfg(feature = "router")]
 pub type TestBackend = burn_router::BackendRouter<

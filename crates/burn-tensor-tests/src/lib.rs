@@ -2,7 +2,7 @@ extern crate alloc;
 
 #[cfg(test)]
 type FloatElemType = f32;
-#[cfg(test)]
+#[allow(unused)] // some backends do not have configurable int elem type
 type IntElemType = i32;
 
 #[cfg(test)]
