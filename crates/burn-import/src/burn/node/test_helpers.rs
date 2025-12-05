@@ -149,7 +149,7 @@ where
 /// ```
 pub fn codegen_field_init<T>(node: &T) -> String
 where
-    T: NodeCodegen<burn::record::FullPrecisionSettings>,
+    T: NodeCodegen,
 {
     if let Some(field) = node.field() {
         format_statement(field.init)
