@@ -310,7 +310,8 @@ impl BurnGraph {
                 ///
                 /// Note: This currently copies the embedded data to the heap. A future PR will
                 /// implement zero-copy loading. See ZERO_COPY_IMPLEMENTATION.md in burn-store.
-                /// See https://github.com/tracel-ai/burn/issues/4123
+                ///
+                /// See <https://github.com/tracel-ai/burn/issues/4123>
                 pub fn from_embedded(device: &B::Device) -> Self {
                     let mut model = Self::new(device);
                     let bytes = Bytes::from_bytes_vec(EMBEDDED_STATES.to_vec());
