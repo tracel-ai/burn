@@ -1,13 +1,12 @@
 use super::prelude::*;
 use super::subgraph_helper;
-use onnx_ir::Node;
 use std::collections::HashSet;
 
 /// Generate inline code for a scan body subgraph.
 ///
 /// Scan body inputs (state variables and scan input elements) are excluded from
 /// outer-scope bindings since they're provided by the scan construct.
-fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
+fn generate_scan_body_code(
     subgraph: &onnx_ir::OnnxGraph,
     outer_scope_inputs: &[Argument],
     scope_ref_names: &[String],
@@ -25,11 +24,11 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
     );
 
     // Register subgraph scope
-    subgraph_helper::register_subgraph_scope::<PS>(subgraph, scope, node_position);
+    subgraph_helper::register_subgraph_scope(subgraph, scope, node_position);
 
     // Generate forward code
     let forward_code =
-        subgraph_helper::generate_subgraph_forward_code::<PS>(subgraph, scope, node_position);
+        subgraph_helper::generate_subgraph_forward_code(subgraph, scope, node_position);
 
     quote! {
         #bindings
@@ -37,7 +36,7 @@ fn generate_scan_body_code<PS: PrecisionSettings + 'static>(
     }
 }
 
-impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_node::ScanNode {
+impl NodeCodegen for onnx_ir::node::scan_node::ScanNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -175,7 +174,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
 
         // Generate body code
         let node_position = scope.node_position();
-        let body_code = generate_scan_body_code::<PS>(
+        let body_code = generate_scan_body_code(
             &self.config.body,
             &outer_scope_inputs,
             &self.config.scope_ref_names,
@@ -300,7 +299,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::scan_no
     fn register_imports(&self, imports: &mut BurnImports) {
         // Register imports from body nodes
         for node in &self.config.body.nodes {
-            <Node as NodeCodegen<PS>>::register_imports(node, imports);
+            NodeCodegen::register_imports(node, imports);
         }
     }
 }

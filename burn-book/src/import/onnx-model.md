@@ -85,16 +85,24 @@ onnx.save(inferred_model, 'upgraded_model.onnx')
 
 Follow these steps to import an ONNX model into your Burn project:
 
-### Step 1: Update `build.rs`
+### Step 1: Update `Cargo.toml`
 
-First, add the `burn-import` crate to your `Cargo.toml`:
+First, add the required dependencies to your `Cargo.toml`:
 
 ```toml
+[dependencies]
+burn = { version = "~0.20", features = ["ndarray"] }
+burn-store = { version = "~0.20", features = ["burnpack"] }
+
 [build-dependencies]
 burn-import = "~0.20"
 ```
 
-Then, in your `build.rs` file:
+The `burn-store` crate with the `burnpack` feature is required to load model weights at runtime.
+
+### Step 2: Update `build.rs`
+
+In your `build.rs` file:
 
 ```rust
 use burn_import::onnx::ModelGen;
@@ -107,9 +115,9 @@ fn main() {
 }
 ```
 
-This generates Rust code from your ONNX model during the build process.
+This generates Rust code and a `.burnpack` weights file from your ONNX model during the build process.
 
-### Step 2: Modify `mod.rs`
+### Step 3: Modify `mod.rs`
 
 In your `src/model/mod.rs` file, include the generated code:
 
@@ -119,7 +127,7 @@ pub mod my_model {
 }
 ```
 
-### Step 3: Use the Imported Model
+### Step 4: Use the Imported Model
 
 Now you can use the imported model in your code:
 
@@ -146,42 +154,43 @@ fn main() {
 
 ## Advanced Configuration
 
-The `ModelGen` struct provides several configuration options:
+The `ModelGen` struct provides configuration options:
 
 ```rust
 ModelGen::new()
     .input("path/to/model.onnx")
     .out_dir("model/")
-    .record_type(RecordType::NamedMpk)
-    .half_precision(false)
-    .embed_states(false)
+    .development(true)   // Enable development mode for debugging
+    .embed_states(true)  // Embed weights in the binary (for WASM)
     .run_from_script();
 ```
 
-- `record_type`: Defines the format for storing weights (Bincode, NamedMpk, NamedMpkGz, or
-  PrettyJson).
-- `half_precision`: Reduces model size by using half-precision (f16) for weights.
-- `embed_states`: Embeds model weights directly in the generated Rust code (requires record type
-  `Bincode`).
+- `input`: Path to the ONNX model file
+- `out_dir`: Output directory for generated code and weights
+- `development`: When enabled, generates additional debug files (`.onnx.txt`, `.graph.txt`)
+- `embed_states`: When enabled, embeds model weights in the binary using `include_bytes!`.
+  Useful for WebAssembly or single-binary deployments. Not recommended for large models.
+
+Model weights are stored in `.burnpack` format, which provides efficient serialization and loading.
 
 ## Loading and Using Models
 
-Depending on your configuration, you can load models in several ways:
+You can load models in several ways:
 
 ```rust
-// Create a new model instance with device
-// (initializes weights randomly and lazily; load weights via `load_record` afterward)
+// Load from the output directory with default device (recommended for most use cases)
+// This automatically loads weights from the .burnpack file
+let model = Model::<Backend>::default();
+
+// Create a new model instance with a specific device
+// (initializes weights randomly; load weights via `load_from` afterward)
 let model = Model::<Backend>::new(&device);
 
-// Load from a file
-// (file type should match the record type specified in `ModelGen`)
-let model = Model::<Backend>::from_file("path/to/weights", &device);
+// Load from a specific .burnpack file
+let model = Model::<Backend>::from_file("path/to/weights.burnpack", &device);
 
 // Load from embedded weights (if embed_states was true)
 let model = Model::<Backend>::from_embedded(&device);
-
-// Load from the output directory with default device (useful for testing)
-let model = Model::<Backend>::default();
 ```
 
 ## Troubleshooting
@@ -198,8 +207,8 @@ Common issues and solutions:
 3. **Runtime errors**: Confirm that your input tensors match the expected shape and data type of
    your model.
 
-4. **Performance issues**: Try using the `half_precision` option to reduce memory usage or
-   experiment with different `record_type` options.
+4. **Performance issues**: Consider using a more performant backend or optimizing your model
+   architecture.
 
 5. **Viewing generated files**: Find the generated Rust code and weights in the `OUT_DIR` directory
    (usually `target/debug/build/<project>/out`).

@@ -19,13 +19,13 @@ mod tests {
 
         let output = activation::glu(tensor, 2);
 
-        output.into_data().assert_eq(
+        output.into_data().assert_approx_eq::<FloatType>(
             &TensorData::from([[
                 [-0.2665, -0.2487, 0.6656, -0.2904],
                 [0.0110, -0.5461, 0.1601, 0.2877],
                 [-0.9084, -1.5439, 1.7355, 0.2077],
             ]]),
-            false,
+            Default::default(),
         );
     }
 }

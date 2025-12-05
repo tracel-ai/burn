@@ -388,7 +388,7 @@ fn coalesce(
     }
 }
 
-/// Convert Gemm to Linear (when alpha=1, beta=1, transB=1)
+/// Convert Gemm to Linear (when alpha=1, beta=1, transA=0, transB=1)
 ///
 /// Note: The weight tensor is kept in its original ONNX layout [out_features, in_features].
 /// The burn-import layer is responsible for transposing the weights to Burn's expected
@@ -397,6 +397,22 @@ fn convert_gemm_to_linear(node: &mut RawNode) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
+
+    // Check transA - must be 0 (no transpose) or absent (default is 0)
+    let trans_a = node
+        .attrs
+        .get("transA")
+        .map(|v| matches!(v, AttributeValue::Int64(1)))
+        .unwrap_or(false);
+
+    if trans_a {
+        log::debug!(
+            "Keeping Gemm node {} (transA=1 not supported for Linear conversion)",
+            node.name
+        );
+        return;
+    }
+
     let straight_linear = match (
         node.attrs.get("alpha"),
         node.attrs.get("beta"),
@@ -415,6 +431,7 @@ fn convert_gemm_to_linear(node: &mut RawNode) {
         node.node_type = NodeType::Linear;
         node.attrs.remove("alpha");
         node.attrs.remove("beta");
+        node.attrs.remove("transA");
         node.attrs.remove("transB");
         // Mark that weights need transposition (Gemm layout is [out, in])
         node.attrs

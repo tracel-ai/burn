@@ -1,7 +1,7 @@
 use super::prelude::*;
 use onnx_ir::node::grid_sample::{GridSampleMode, GridSampleNode, GridSamplePaddingMode};
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GridSampleNode {
+impl NodeCodegen for GridSampleNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

@@ -1,12 +1,11 @@
 use super::prelude::*;
 use super::subgraph_helper;
-use onnx_ir::Node;
 use std::collections::HashSet;
 
 /// Generate inline code for a subgraph branch (then/else).
 ///
 /// Returns (body_code, output_tuple)
-fn generate_branch_code<PS: PrecisionSettings + 'static>(
+fn generate_branch_code(
     subgraph: &onnx_ir::OnnxGraph,
     outer_scope_inputs: &[Argument],
     scope_ref_names: &[String],
@@ -27,11 +26,11 @@ fn generate_branch_code<PS: PrecisionSettings + 'static>(
     );
 
     // Register subgraph scope
-    subgraph_helper::register_subgraph_scope::<PS>(subgraph, scope, node_position);
+    subgraph_helper::register_subgraph_scope(subgraph, scope, node_position);
 
     // Generate forward code
     let forward_code =
-        subgraph_helper::generate_subgraph_forward_code::<PS>(subgraph, scope, node_position);
+        subgraph_helper::generate_subgraph_forward_code(subgraph, scope, node_position);
 
     // Generate output tuple
     let output_names: Vec<_> = subgraph.outputs.iter().map(arg_to_ident).collect();
@@ -50,7 +49,7 @@ fn generate_branch_code<PS: PrecisionSettings + 'static>(
     (body, output_tuple)
 }
 
-impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node::IfNode {
+impl NodeCodegen for onnx_ir::node::if_node::IfNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -84,14 +83,14 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
 
         // Generate code for then and else branches
         let node_position = scope.node_position();
-        let (then_body, then_output) = generate_branch_code::<PS>(
+        let (then_body, then_output) = generate_branch_code(
             &self.config.then_branch,
             &outer_scope_inputs,
             &self.config.scope_ref_names,
             scope.scope(),
             node_position,
         );
-        let (else_body, else_output) = generate_branch_code::<PS>(
+        let (else_body, else_output) = generate_branch_code(
             &self.config.else_branch,
             &outer_scope_inputs,
             &self.config.scope_ref_names,
@@ -121,12 +120,14 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::if_node
 
     fn register_imports(&self, imports: &mut BurnImports) {
         // Register imports from subgraph nodes
-        for node in &self.config.then_branch.nodes {
-            <Node as NodeCodegen<PS>>::register_imports(node, imports);
-        }
-        for node in &self.config.else_branch.nodes {
-            <Node as NodeCodegen<PS>>::register_imports(node, imports);
-        }
+        let mut register_subgraph_imports = |subgraph: &onnx_ir::OnnxGraph| {
+            for node in &subgraph.nodes {
+                NodeCodegen::register_imports(node, imports);
+            }
+        };
+
+        register_subgraph_imports(&self.config.then_branch);
+        register_subgraph_imports(&self.config.else_branch);
     }
 }
 

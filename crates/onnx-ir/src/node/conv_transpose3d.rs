@@ -146,8 +146,11 @@ impl NodeProcessor for Convtranspose3dProcessor {
         // check if the bias is present
         let bias = node.inputs.len() == 3;
 
-        // the channels are inverted in the weight tensor
-        let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
+        // ONNX ConvTranspose weight tensor: (C x M/group x kD x kH x kW)
+        // where C is input channels and M is output channels.
+        // weight_shape[0] = C = in_channels
+        // weight_shape[1] = M/group = out_channels/groups
+        let channels: [usize; 2] = [weight_shape[0], weight_shape[1] * group];
 
         let kernel_size = if kernel_shape.is_empty() {
             // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
@@ -222,7 +225,8 @@ mod tests {
         auto_pad: Option<&str>,
     ) -> TestNodeBuilder {
         // Create weight tensor data
-        let weight_shape = vec![2, 4, 2, 2, 2]; // [out_channels, in_channels, k_d, k_h, k_w]
+        // ONNX ConvTranspose weight: [in_channels, out_channels/groups, k_d, k_h, k_w]
+        let weight_shape = vec![2, 4, 2, 2, 2]; // [C=in_channels, M/groups=out_channels/groups, k_d, k_h, k_w]
         let weight_data = vec![0.0; 64]; // 2*4*2*2*2 = 64
 
         let has_kernel_shape = !kernel_shape.is_empty();
@@ -276,7 +280,7 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels, [4, 2]);
+        assert_eq!(config.channels, [2, 4]); // [in_channels, out_channels]
         assert_eq!(config.kernel_size, [2, 2, 2]);
         assert_eq!(config.stride, [1, 1, 1]);
         assert_eq!(config.dilation, [1, 1, 1]);
@@ -351,7 +355,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.groups, 2);
-        assert_eq!(config.channels, [8, 2]); // channels_in is adjusted by groups
+        assert_eq!(config.channels, [2, 8]); // [in_channels, out_channels] with groups=2
     }
 
     #[test]
@@ -420,7 +424,7 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels, [4, 2]);
+        assert_eq!(config.channels, [2, 4]); // [in_channels, out_channels]
         assert_eq!(config.kernel_size, [2, 2, 2]);
         assert_eq!(config.stride, [1, 1, 1]);
         assert_eq!(config.dilation, [1, 1, 1]);

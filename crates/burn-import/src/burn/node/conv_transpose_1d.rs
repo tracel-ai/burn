@@ -1,15 +1,7 @@
 use super::prelude::*;
-use burn::{
-    module::{ConstantRecord, Param, ParamId},
-    nn::conv::ConvTranspose1dRecord,
-    record::{PrecisionSettings, Record},
-    tensor::Tensor,
-};
-use serde::Serialize;
+use burn_store::TensorSnapshot;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS>
-    for onnx_ir::node::conv_transpose1d::ConvTranspose1dNode
-{
+impl NodeCodegen for onnx_ir::node::conv_transpose1d::ConvTranspose1dNode {
     fn inputs(&self) -> &[Argument] {
         // Filter inputs only dynamic and constant
         &self.inputs
@@ -49,40 +41,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
         ))
     }
 
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let device = Default::default();
-
-        let data_weights = extract_node_data(&self.inputs, 1).unwrap();
-        let has_bias = self.inputs.len() == 3;
-        let data_bias = if has_bias {
-            extract_node_data(&self.inputs, 2)
-        } else {
-            None
-        };
-        let record = ConvTranspose1dRecord::<SerializationBackend> {
-            weight: Param::initialized(
-                ParamId::new(),
-                Tensor::from_data(data_weights.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            bias: data_bias.as_ref().map(|bias| {
-                Param::initialized(
-                    ParamId::new(),
-                    Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
-                )
-            }),
-            stride: ConstantRecord::new(),
-            kernel_size: ConstantRecord::new(),
-            dilation: ConstantRecord::new(),
-            groups: ConstantRecord::new(),
-            padding: ConstantRecord::new(),
-            padding_out: ConstantRecord::new(),
-            channels: [ConstantRecord::new(), ConstantRecord::new()],
-        };
-
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
-    }
-
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let input = scope.arg(self.inputs.first().unwrap());
         let output = arg_to_ident(self.outputs.first().unwrap());
@@ -95,6 +53,38 @@ impl<PS: PrecisionSettings> NodeCodegen<PS>
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::conv::ConvTranspose1d");
         imports.register("burn::nn::conv::ConvTranspose1dConfig");
+    }
+
+    fn collect_snapshots(&self, field_name: &str) -> Vec<TensorSnapshot> {
+        use crate::burn::node_traits::create_lazy_snapshot;
+
+        let mut snapshots = vec![];
+
+        // Weight tensor (input index 1)
+        // ONNX ConvTranspose weight: [in_channels, out_channels/groups, kL]
+        // Burn ConvTranspose1d weight: [channels_in, channels_out/groups, kernel_size]
+        // These layouts match! No transformation needed.
+        if let Some(weight_input) = self.inputs.get(1) {
+            let weight_path = format!("{}.weight", field_name);
+            if let Some(snapshot) =
+                create_lazy_snapshot(weight_input, &weight_path, "ConvTranspose1d")
+            {
+                snapshots.push(snapshot);
+            }
+        }
+
+        // Bias tensor (input index 2, optional)
+        if self.config.bias
+            && let Some(bias_input) = self.inputs.get(2)
+        {
+            let bias_path = format!("{}.bias", field_name);
+            if let Some(snapshot) = create_lazy_snapshot(bias_input, &bias_path, "ConvTranspose1d")
+            {
+                snapshots.push(snapshot);
+            }
+        }
+
+        snapshots
     }
 }
 

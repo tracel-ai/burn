@@ -1,7 +1,7 @@
 use super::prelude::*;
 use crate::burn::TensorKind;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::one_hot::OneHotNode {
+impl NodeCodegen for onnx_ir::one_hot::OneHotNode {
     fn inputs(&self) -> &[Argument] {
         // Only the first input (indices) is a dynamic tensor
         // depth and values are either static or runtime inputs

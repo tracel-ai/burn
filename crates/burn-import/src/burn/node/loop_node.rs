@@ -1,13 +1,12 @@
 use super::prelude::*;
 use super::subgraph_helper;
-use onnx_ir::Node;
 use std::collections::HashSet;
 
 /// Generate inline code for a loop body subgraph.
 ///
 /// Loop body inputs (iter_num, cond, loop-carried vars) are excluded from
 /// outer-scope bindings since they're provided by the loop construct.
-fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
+fn generate_loop_body_code(
     subgraph: &onnx_ir::OnnxGraph,
     outer_scope_inputs: &[Argument],
     scope_ref_names: &[String],
@@ -25,11 +24,11 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
     );
 
     // Register subgraph scope
-    subgraph_helper::register_subgraph_scope::<PS>(subgraph, scope, node_position);
+    subgraph_helper::register_subgraph_scope(subgraph, scope, node_position);
 
     // Generate forward code
     let forward_code =
-        subgraph_helper::generate_subgraph_forward_code::<PS>(subgraph, scope, node_position);
+        subgraph_helper::generate_subgraph_forward_code(subgraph, scope, node_position);
 
     quote! {
         #bindings
@@ -37,7 +36,7 @@ fn generate_loop_body_code<PS: PrecisionSettings + 'static>(
     }
 }
 
-impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_node::LoopNode {
+impl NodeCodegen for onnx_ir::node::loop_node::LoopNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -197,7 +196,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
 
         // Generate loop body code
         let node_position = scope.node_position();
-        let body_code = generate_loop_body_code::<PS>(
+        let body_code = generate_loop_body_code(
             &self.config.body,
             &outer_scope_inputs,
             &self.config.scope_ref_names,
@@ -344,7 +343,7 @@ impl<PS: PrecisionSettings + 'static> NodeCodegen<PS> for onnx_ir::node::loop_no
     fn register_imports(&self, imports: &mut BurnImports) {
         // Register imports from subgraph nodes
         for node in &self.config.body.nodes {
-            <Node as NodeCodegen<PS>>::register_imports(node, imports);
+            NodeCodegen::register_imports(node, imports);
         }
 
         // Calculate number of loop-carried vars, accounting for outer-scope refs

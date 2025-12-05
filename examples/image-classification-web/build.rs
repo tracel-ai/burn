@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use burn_import::{burn::graph::RecordType, onnx::ModelGen};
+use burn_import::onnx::ModelGen;
 
 const LABEL_SOURCE_FILE: &str = "src/model/label.txt";
 const LABEL_DEST_FILE: &str = "model/label.rs";
@@ -17,16 +17,12 @@ fn main() {
     // Re-run the build script if model files change.
     println!("cargo:rerun-if-changed=src/model");
 
-    // Check if half precision is enabled.
-    let half_precision = cfg!(feature = "half_precision");
-
     // Generate the model code from the ONNX file.
+    // Model weights are embedded in the binary for WebAssembly compatibility.
     ModelGen::new()
         .input(INPUT_ONNX_FILE)
         .out_dir(OUT_DIR)
-        .record_type(RecordType::Bincode)
         .embed_states(true)
-        .half_precision(half_precision)
         .run_from_script();
 
     // Generate the labels from the synset.txt file.

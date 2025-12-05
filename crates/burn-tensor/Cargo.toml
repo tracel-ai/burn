@@ -52,5 +52,4 @@ paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
-# KaTeX header is copied to the crate root in the publish workflow
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]

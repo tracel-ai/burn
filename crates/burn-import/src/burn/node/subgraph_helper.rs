@@ -1,7 +1,6 @@
 //! Shared utilities for subgraph code generation in control flow nodes (If, Loop, Scan)
 
 use super::prelude::*;
-use onnx_ir::Node;
 use std::collections::HashSet;
 
 /// Generate outer-scope reference bindings for a subgraph.
@@ -57,7 +56,7 @@ pub(super) fn generate_outer_scope_bindings(
 ///
 /// This registers all subgraph tensors in the scope so they can be properly
 /// referenced and cloned during code generation.
-pub(super) fn register_subgraph_scope<PS: PrecisionSettings + 'static>(
+pub(super) fn register_subgraph_scope(
     subgraph: &onnx_ir::OnnxGraph,
     scope: &mut Scope,
     node_position: usize,
@@ -74,7 +73,7 @@ pub(super) fn register_subgraph_scope<PS: PrecisionSettings + 'static>(
         let subgraph_node_pos = node_position + idx + 1;
 
         // Register node outputs
-        for output in <Node as NodeCodegen<PS>>::outputs(node) {
+        for output in NodeCodegen::outputs(node) {
             if let ArgType::Tensor(_) = &output.ty {
                 scope.tensor_register_variable(output, subgraph_node_pos);
             }
@@ -86,7 +85,7 @@ pub(super) fn register_subgraph_scope<PS: PrecisionSettings + 'static>(
         // - Constant: values embedded in the model that may be referenced multiple times
         // - Static initializers are excluded because they're baked into the model at
         //   compile time and don't need runtime clone management
-        for input in <Node as NodeCodegen<PS>>::inputs(node)
+        for input in NodeCodegen::inputs(node)
             .iter()
             .filter(|arg| arg.is_dynamic() || arg.is_constant())
         {
@@ -105,7 +104,7 @@ pub(super) fn register_subgraph_scope<PS: PrecisionSettings + 'static>(
 }
 
 /// Generate forward code for all nodes in a subgraph.
-pub(super) fn generate_subgraph_forward_code<PS: PrecisionSettings + 'static>(
+pub(super) fn generate_subgraph_forward_code(
     subgraph: &onnx_ir::OnnxGraph,
     scope: &mut Scope,
     node_position: usize,
@@ -114,7 +113,7 @@ pub(super) fn generate_subgraph_forward_code<PS: PrecisionSettings + 'static>(
 
     for (idx, node) in subgraph.nodes.iter().enumerate() {
         let mut scope_at_pos = scope.at_position(node_position + idx + 1);
-        let node_code = <Node as NodeCodegen<PS>>::forward(node, &mut scope_at_pos);
+        let node_code = NodeCodegen::forward(node, &mut scope_at_pos);
         code.extend(node_code);
     }
 

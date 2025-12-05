@@ -18,6 +18,9 @@ pub struct LayerNormConfig {
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
     pub epsilon: f64,
+    /// If a bias (beta) should be applied during the normalization. Default: true
+    #[config(default = true)]
+    pub bias: bool,
 }
 
 /// Applies Layer Normalization over an input tensor as described in the paper [Layer Normalization](https://arxiv.org/abs/1607.06450).
@@ -27,17 +30,17 @@ pub struct LayerNormConfig {
 /// Where:
 /// - `X` is the input tensor
 /// - `Y` is the output tensor
-/// - `γ` is the learnable weight
-/// - `β` is the learnable bias
+/// - `γ` is the learnable weight (scale)
+/// - `β` is the learnable bias (optional)
 ///
 /// Should be created using [LayerNormConfig](LayerNormConfig).
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct LayerNorm<B: Backend> {
-    /// The learnable weight.
+    /// The learnable weight (scale).
     pub gamma: Param<Tensor<B, 1>>,
-    /// The learnable bias.
-    pub beta: Param<Tensor<B, 1>>,
+    /// The learnable bias (optional).
+    pub beta: Option<Param<Tensor<B, 1>>>,
     /// A value required for numerical stability.
     epsilon: f64,
 }
@@ -46,7 +49,11 @@ impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> LayerNorm<B> {
         let gamma = Initializer::Ones.init([self.d_model], device);
-        let beta = Initializer::Zeros.init([self.d_model], device);
+        let beta = if self.bias {
+            Some(Initializer::Zeros.init([self.d_model], device))
+        } else {
+            None
+        };
 
         LayerNorm {
             gamma,
@@ -70,9 +77,12 @@ impl<B: Backend> LayerNorm<B> {
 
         let input_normalized = input.sub(mean).div(var.add_scalar(self.epsilon).sqrt());
 
-        input_normalized
-            .mul(self.gamma.val().unsqueeze())
-            .add(self.beta.val().unsqueeze())
+        let output = input_normalized.mul(self.gamma.val().unsqueeze());
+
+        match &self.beta {
+            Some(beta) => output.add(beta.val().unsqueeze()),
+            None => output,
+        }
     }
 }
 
@@ -88,6 +98,7 @@ impl<B: Backend> ModuleDisplay for LayerNorm<B> {
         content
             .add("d_model", &d_model)
             .add("epsilon", &self.epsilon)
+            .add("bias", &self.beta.is_some())
             .optional()
     }
 }
@@ -174,7 +185,7 @@ mod tests {
         let tensor_1_grad = tensor_1.grad(&grads).unwrap();
         let tensor_2_grad = tensor_2.grad(&grads).unwrap();
         let gamma_grad = module.gamma.grad(&grads).unwrap();
-        let beta_grad = module.beta.grad(&grads).unwrap();
+        let beta_grad = module.beta.as_ref().unwrap().grad(&grads).unwrap();
 
         let expected = TensorData::from([-2.0, 2.0]);
         gamma_grad
@@ -204,7 +215,18 @@ mod tests {
 
         assert_eq!(
             format!("{layer_norm}"),
-            "LayerNorm {d_model: 6, epsilon: 0.00001, params: 12}"
+            "LayerNorm {d_model: 6, epsilon: 0.00001, bias: true, params: 12}"
+        );
+    }
+
+    #[test]
+    fn display_no_bias() {
+        let config = LayerNormConfig::new(6).with_bias(false);
+        let layer_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{layer_norm}"),
+            "LayerNorm {d_model: 6, epsilon: 0.00001, bias: false, params: 6}"
         );
     }
 }

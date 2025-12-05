@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random_like::RandomNormalLikeNode {
+impl NodeCodegen for onnx_ir::node::random_like::RandomNormalLikeNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

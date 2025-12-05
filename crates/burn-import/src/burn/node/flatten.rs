@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::flatten::FlattenNode {
+impl NodeCodegen for onnx_ir::flatten::FlattenNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

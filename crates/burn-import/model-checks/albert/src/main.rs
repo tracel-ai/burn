@@ -1,11 +1,9 @@
 extern crate alloc;
 
-use burn::module::Param;
+use burn::module::{Initializer, Param};
 use burn::prelude::*;
-use burn::record::*;
 
-use burn_import::pytorch::PyTorchFileRecorder;
-use std::env;
+use burn_store::{ModuleSnapshot, PytorchStore};
 use std::path::Path;
 use std::time::Instant;
 
@@ -34,6 +32,22 @@ struct TestData<B: Backend> {
     token_type_ids: Param<Tensor<B, 2, Int>>,
     last_hidden_state: Param<Tensor<B, 3>>,
     pooler_output: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> TestData<B> {
+    fn new(device: &B::Device) -> Self {
+        use burn::module::ParamId;
+        // Initialize with correct shapes matching the test data
+        // ALBERT base uses sequence_length=128, hidden_size=768
+        // Note: Initializer only works for float tensors, Int tensors need manual init
+        Self {
+            input_ids: Param::initialized(ParamId::new(), Tensor::zeros([1, 128], device)),
+            attention_mask: Param::initialized(ParamId::new(), Tensor::zeros([1, 128], device)),
+            token_type_ids: Param::initialized(ParamId::new(), Tensor::zeros([1, 128], device)),
+            last_hidden_state: Initializer::Zeros.init([1, 128, 768], device),
+            pooler_output: Initializer::Zeros.init([1, 768], device),
+        }
+    }
 }
 
 fn get_model_display_name(model_name: &str) -> &str {
@@ -95,9 +109,9 @@ fn main() {
     // Load test data from PyTorch file
     println!("\nLoading test data from {}...", test_data_file.display());
     let start = Instant::now();
-    let test_data: TestDataRecord<MyBackend> = PyTorchFileRecorder::<FullPrecisionSettings>::new()
-        .load(test_data_file.into(), &device)
-        .expect("Failed to load test data");
+    let mut test_data = TestData::<MyBackend>::new(&device);
+    let mut store = PytorchStore::from_file(&test_data_file);
+    test_data.load_from(&mut store).expect("Failed to load test data");
     let load_time = start.elapsed();
     println!("  Data loaded in {:.2?}", load_time);
 

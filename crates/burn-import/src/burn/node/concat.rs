@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::concat::ConcatNode {
+impl NodeCodegen for onnx_ir::concat::ConcatNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

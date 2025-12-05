@@ -148,6 +148,7 @@ macro_rules! testgen_with_float_param {
     () => {
         // test activation
         burn_tensor::testgen_gelu!();
+        burn_tensor::testgen_glu!();
         burn_tensor::testgen_mish!();
         burn_tensor::testgen_relu!();
         burn_tensor::testgen_leaky_relu!();
@@ -158,6 +159,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_log_sigmoid!();
         burn_tensor::testgen_silu!();
         burn_tensor::testgen_tanh_activation!();
+        burn_tensor::testgen_quiet_softmax!();
 
         // test grid
         burn_tensor::testgen_meshgrid!();

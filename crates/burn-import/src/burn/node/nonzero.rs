@@ -1,7 +1,7 @@
 use super::prelude::*;
 use crate::burn::TensorKind;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::nonzero::NonZeroNode {
+impl NodeCodegen for onnx_ir::nonzero::NonZeroNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

@@ -9,13 +9,9 @@ version.workspace = true
 [lints]
 workspace = true
 
-[features]
-default = ["embedded-model"]
-
-embedded-model = []
-
 [dependencies]
 burn = { path = "../../crates/burn", features = ["ndarray", "dataset", "vision"] }
+burn-store = { path = "../../crates/burn-store", features = ["burnpack"] }
 serde = { workspace = true }
 
 [build-dependencies]

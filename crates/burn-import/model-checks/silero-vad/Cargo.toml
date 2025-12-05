@@ -20,6 +20,7 @@ burn = { path = "../../../../crates/burn", features = [
     "wgpu",
     "metal",
 ] }
+burn-store = { path = "../../../../crates/burn-store", features = ["burnpack"] }
 
 [build-dependencies]
 burn-import = { path = "../../../burn-import" }
