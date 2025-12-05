@@ -41,9 +41,8 @@ pub(super) fn generate_outer_scope_bindings(
                     });
                 }
                 ArgType::Scalar(_) => {
-                    let outer_name = arg_to_ident(outer_input);
                     bindings.extend(quote! {
-                        let #var_name = #outer_name;
+                        let #var_name = #outer_var;
                     });
                 }
                 _ => {}
