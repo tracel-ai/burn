@@ -80,7 +80,12 @@ pub(super) fn register_subgraph_scope<PS: PrecisionSettings + 'static>(
             }
         }
 
-        // Register future uses of node inputs (dynamic/constant only)
+        // Register future uses of node inputs.
+        // We only track dynamic and constant arguments because:
+        // - Dynamic: runtime values that need clone tracking for ownership
+        // - Constant: values embedded in the model that may be referenced multiple times
+        // - Static initializers are excluded because they're baked into the model at
+        //   compile time and don't need runtime clone management
         for input in <Node as NodeCodegen<PS>>::inputs(node)
             .iter()
             .filter(|arg| arg.is_dynamic() || arg.is_constant())
