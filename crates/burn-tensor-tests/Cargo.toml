@@ -18,15 +18,11 @@ workspace = true
 default = [
     "burn-tensor/default",
     "burn-autodiff/default",
-    # Backends
+    # Backends (default not enabled for CubeCL backends as it activates fusion)
     "burn-candle?/default",
     "burn-cpu?/default",
     "burn-ndarray?/default",
     "burn-tch?/default",
-    "burn-wgpu?/default",
-    "burn-router?/default",
-    "burn-cuda?/default",
-    "burn-rocm?/default",
     # Default
     "burn-ndarray",
     "autotune",
@@ -48,14 +44,14 @@ std = [
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "quantization"]
-rocm = ["burn-rocm", "quantization"]
+cuda = ["burn-cuda", "quantization", "fusion"]
+rocm = ["burn-rocm", "quantization", "fusion"]
 ndarray = ["burn-ndarray", "quantization"]
 tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan"]
+vulkan = ["wgpu", "burn-wgpu/vulkan",]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu", "quantization"]
+wgpu = ["burn-wgpu", "quantization", "fusion"]
 cpu = ["burn-cpu"]
 router = ["burn-router", "ndarray", "wgpu"]
 
@@ -71,6 +67,7 @@ autotune-checks = [
     "burn-rocm?/autotune-checks",
     "burn-cpu?/autotune-checks",
 ]
+fusion = ["burn-fusion", "burn-cubecl"]
 
 # Test configs
 quantization = []
@@ -90,3 +87,7 @@ burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", optional =
 burn-router = { path = "../burn-router", version = "=0.20.0-pre.4", default-features = false, optional = true }
 burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.4", default-features = false, optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.4", optional = true, default-features = false }
+
+# To wrap `Fusion<CubeBackend>
+burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.4", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", optional = true, features = ["fusion"]}

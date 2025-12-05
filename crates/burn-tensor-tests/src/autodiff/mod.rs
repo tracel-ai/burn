@@ -1,4 +1,5 @@
-use super::*; // re-export test types
+#[allow(unused_imports)] // required for re-included modules
+use super::*;
 
 mod abs;
 mod adaptive_avgpool1d;

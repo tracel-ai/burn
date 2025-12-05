@@ -64,18 +64,43 @@ mod tensor;
 #[cfg(test)]
 mod autodiff;
 
-/// Burn autodiff tests with checkpointing.
 #[cfg(test)]
-#[path = "."]
-mod ad {
+mod autodiff_checkpointing {
     use super::*;
 
     // Override type def
     pub type TestAutodiffBackend = Autodiff<TestBackend, BalancedCheckpointing>;
     pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
 
-    #[path = "autodiff/mod.rs"]
-    mod checkpointing;
+    include!("autodiff/mod.rs");
+}
+
+/// Burn tensor and autodiff tests for CubeCL backends with fusion enabled.
+#[cfg(all(test, feature = "fusion"))]
+mod fusion {
+    use burn_tensor::Tensor;
+
+    pub type TestBackend = burn_fusion::Fusion<super::TestBackend>;
+    pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> = Tensor<TestBackend, D, burn_tensor::Bool>;
+
+    // Tensor tests
+    include!("tensor/mod.rs");
+
+    // Autodiff tests
+    include!("autodiff/mod.rs");
+
+    #[cfg(test)]
+    mod autodiff_checkpointing {
+        use super::*;
+
+        // Override type def
+        pub type TestAutodiffBackend = Autodiff<TestBackend, BalancedCheckpointing>;
+        pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
+
+        include!("autodiff/mod.rs");
+    }
 }
 
 /// Quantized tensor utilities
