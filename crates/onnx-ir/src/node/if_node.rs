@@ -221,28 +221,76 @@ impl NodeProcessor for IfProcessor {
 /// they are "compatible" at runtime. For example, one branch might output `[1, N, 128]`
 /// while another outputs `[N, 128]`. At runtime, only one branch executes.
 ///
-/// For static type inference, we need to choose a consistent type. We use the
-/// **then_branch** type as canonical since:
-/// 1. The then_branch typically represents the "main" computation path
-/// 2. The else_branch often contains simplified/fallback logic
-/// 3. Burn code generation expects consistent types across the model
+/// For static type inference, we need to choose a consistent type. This function:
+/// 1. Returns the type if both branches match exactly
+/// 2. For tensors with same dtype but different ranks, uses the higher rank
+/// 3. For incompatible dtypes, logs a warning and uses then_branch
 ///
-/// NOTE: This may cause issues with models where else_branch is the expected path,
-/// but there's no general solution for ONNX's dynamic typing in static code generation.
+/// We prefer higher rank because lower-rank outputs are often the result of
+/// squeeze operations that can be unsqueezed to match the higher rank.
 fn merge_branch_types(then_ty: &ArgType, else_ty: &ArgType) -> ArgType {
+    use crate::ir::TensorType;
+
     if then_ty == else_ty {
         return then_ty.clone();
     }
 
-    // Log the difference for debugging
-    log::warn!(
-        "If node branches have different output types: then={:?}, else={:?}. Using then_branch type.",
-        then_ty,
-        else_ty
-    );
+    match (then_ty, else_ty) {
+        (ArgType::Tensor(then_tensor), ArgType::Tensor(else_tensor)) => {
+            // Validate dtype compatibility
+            if then_tensor.dtype != else_tensor.dtype {
+                log::warn!(
+                    "If branches have incompatible dtypes: then={:?}, else={:?}. Using then_branch dtype.",
+                    then_tensor.dtype,
+                    else_tensor.dtype
+                );
+                return then_ty.clone();
+            }
 
-    // Always use then_branch type as canonical
-    then_ty.clone()
+            // Same dtype, different ranks - use higher rank
+            if then_tensor.rank != else_tensor.rank {
+                let chosen_rank = std::cmp::max(then_tensor.rank, else_tensor.rank);
+                log::debug!(
+                    "If branches have different ranks: then={}, else={}. Using rank {}.",
+                    then_tensor.rank,
+                    else_tensor.rank,
+                    chosen_rank
+                );
+                return ArgType::Tensor(TensorType {
+                    dtype: then_tensor.dtype,
+                    rank: chosen_rank,
+                    static_shape: None, // Can't determine static shape when ranks differ
+                });
+            }
+
+            // Same dtype and rank but different static shapes - clear static shape
+            log::debug!("If branches have different static shapes. Using dynamic shape.");
+            ArgType::Tensor(TensorType {
+                dtype: then_tensor.dtype,
+                rank: then_tensor.rank,
+                static_shape: None,
+            })
+        }
+        (ArgType::Scalar(then_dtype), ArgType::Scalar(else_dtype)) => {
+            if then_dtype != else_dtype {
+                log::warn!(
+                    "If branches have incompatible scalar dtypes: then={:?}, else={:?}. Using then_branch.",
+                    then_dtype,
+                    else_dtype
+                );
+            }
+            then_ty.clone()
+        }
+        _ => {
+            // Different type categories (Tensor vs Scalar vs Shape)
+            log::warn!(
+                "If branches have incompatible type categories: then={:?}, else={:?}. Using then_branch.",
+                then_ty,
+                else_ty
+            );
+            then_ty.clone()
+        }
+    }
 }
 
 #[cfg(test)]
