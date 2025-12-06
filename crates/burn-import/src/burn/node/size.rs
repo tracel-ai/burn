@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::size::SizeNode {
+impl NodeCodegen for onnx_ir::size::SizeNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

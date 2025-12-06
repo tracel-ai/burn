@@ -5,6 +5,7 @@ pub(crate) mod leaky_relu;
 pub(crate) mod log_sigmoid;
 pub(crate) mod mish;
 pub(crate) mod prelu;
+pub(crate) mod quiet_softmax;
 pub(crate) mod relu;
 pub(crate) mod sigmoid;
 pub(crate) mod silu;

@@ -1,7 +1,7 @@
 use super::prelude::*;
 use onnx_ir::depth_to_space::DepthToSpaceMode;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::depth_to_space::DepthToSpaceNode {
+impl NodeCodegen for onnx_ir::depth_to_space::DepthToSpaceNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

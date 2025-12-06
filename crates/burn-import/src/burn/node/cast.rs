@@ -2,7 +2,7 @@ use super::prelude::*;
 use crate::burn::TensorKind;
 use onnx_ir::ir::DType;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::cast::CastNode {
+impl NodeCodegen for onnx_ir::cast::CastNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }

@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNode {
+impl NodeCodegen for onnx_ir::node::resize::ResizeNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
     }
@@ -103,10 +103,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::resize::ResizeNod
         } else {
             None
         }
-    }
-
-    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        S::serialize_none(serializer)
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {

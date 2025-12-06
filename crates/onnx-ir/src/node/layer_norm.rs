@@ -36,6 +36,8 @@ pub struct LayerNormConfig {
     pub epsilon: f64,
     /// Whether to use full precision for intermediate calculations (stash_type == 1)
     pub full_precision: bool,
+    /// Whether the ONNX model includes a bias (beta) parameter
+    pub has_bias: bool,
 }
 
 impl LayerNormConfig {
@@ -48,6 +50,12 @@ impl LayerNormConfig {
     /// Set the full_precision value
     pub fn with_full_precision(mut self, full_precision: bool) -> Self {
         self.full_precision = full_precision;
+        self
+    }
+
+    /// Set the has_bias value
+    pub fn with_has_bias(mut self, has_bias: bool) -> Self {
+        self.has_bias = has_bias;
         self
     }
 }
@@ -161,7 +169,9 @@ impl NodeProcessor for LayerNormProcessor {
         }
 
         let full_precision = stash_type == 1;
-        let config = LayerNormConfig::new(num_features, epsilon as f64, full_precision);
+        // Check if bias (3rd input) is present in the ONNX model
+        let has_bias = node.inputs.len() > 2;
+        let config = LayerNormConfig::new(num_features, epsilon as f64, full_precision, has_bias);
         Ok(config)
     }
 

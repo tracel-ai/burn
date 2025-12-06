@@ -34,7 +34,7 @@ burn = { path = "../burn", version = "=0.20.0-pre.4", default-features = false, 
     "std",
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", default-features = false, optional = true }
-burn-store = { path = "../burn-store", version = "=0.20.0-pre.4", default-features = false, features = ["std", "pytorch"] }
+burn-store = { path = "../burn-store", version = "=0.20.0-pre.4", default-features = false, features = ["std", "pytorch", "burnpack"] }
 onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.4", optional = true, default-features = false }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }

@@ -1,10 +1,9 @@
 extern crate alloc;
 
-use burn::module::Param;
+use burn::module::{Initializer, Param};
 use burn::prelude::*;
-use burn::record::*;
 
-use burn_import::pytorch::PyTorchFileRecorder;
+use burn_store::{ModuleSnapshot, PytorchStore};
 use std::path::Path;
 use std::time::Instant;
 
@@ -32,6 +31,16 @@ pub mod clip_vit_b_32_vision {
 struct TestData<B: Backend> {
     pixel_values: Param<Tensor<B, 4>>,
     image_embeds: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> TestData<B> {
+    fn new(device: &B::Device) -> Self {
+        // CLIP ViT-B-32 vision: image_size=224, embed_dim=512
+        Self {
+            pixel_values: Initializer::Zeros.init([1, 3, 224, 224], device),
+            image_embeds: Initializer::Zeros.init([1, 512], device),
+        }
+    }
 }
 
 fn main() {
@@ -65,9 +74,9 @@ fn main() {
     // Load test data from PyTorch file
     println!("\nLoading test data from artifacts/test_data.pt...");
     let start = Instant::now();
-    let test_data: TestDataRecord<MyBackend> = PyTorchFileRecorder::<FullPrecisionSettings>::new()
-        .load("artifacts/test_data.pt".into(), &device)
-        .expect("Failed to load test data");
+    let mut test_data = TestData::<MyBackend>::new(&device);
+    let mut store = PytorchStore::from_file("artifacts/test_data.pt");
+    test_data.load_from(&mut store).expect("Failed to load test data");
     let load_time = start.elapsed();
     println!("  Data loaded in {:.2?}", load_time);
 

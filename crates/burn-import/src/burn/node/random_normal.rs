@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random::RandomNormalNode {
+impl NodeCodegen for onnx_ir::node::random::RandomNormalNode {
     fn inputs(&self) -> &[Argument] {
         // RandomNormal has no inputs - it generates a tensor from scratch
         &[]

@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for onnx_ir::node::random::RandomUniformNode {
+impl NodeCodegen for onnx_ir::node::random::RandomUniformNode {
     fn inputs(&self) -> &[Argument] {
         // RandomUniform has no inputs - it generates a tensor from scratch
         &[]

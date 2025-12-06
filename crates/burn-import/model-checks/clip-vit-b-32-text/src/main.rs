@@ -1,10 +1,9 @@
 extern crate alloc;
 
-use burn::module::Param;
+use burn::module::{Initializer, Param};
 use burn::prelude::*;
-use burn::record::*;
 
-use burn_import::pytorch::PyTorchFileRecorder;
+use burn_store::{ModuleSnapshot, PytorchStore};
 use std::path::Path;
 use std::time::Instant;
 
@@ -34,6 +33,20 @@ struct TestData<B: Backend> {
     attention_mask: Param<Tensor<B, 2, Int>>,
     text_embeds: Param<Tensor<B, 2>>,
     last_hidden_state: Param<Tensor<B, 3>>,
+}
+
+impl<B: Backend> TestData<B> {
+    fn new(device: &B::Device) -> Self {
+        use burn::module::ParamId;
+        // CLIP ViT-B-32 text: sequence_length=77, embed_dim=512
+        // Note: Initializer only works for float tensors, Int tensors need manual init
+        Self {
+            input_ids: Param::initialized(ParamId::new(), Tensor::zeros([1, 77], device)),
+            attention_mask: Param::initialized(ParamId::new(), Tensor::zeros([1, 77], device)),
+            text_embeds: Initializer::Zeros.init([1, 512], device),
+            last_hidden_state: Initializer::Zeros.init([1, 77, 512], device),
+        }
+    }
 }
 
 fn main() {
@@ -67,9 +80,9 @@ fn main() {
     // Load test data from PyTorch file
     println!("\nLoading test data from artifacts/test_data.pt...");
     let start = Instant::now();
-    let test_data: TestDataRecord<MyBackend> = PyTorchFileRecorder::<FullPrecisionSettings>::new()
-        .load("artifacts/test_data.pt".into(), &device)
-        .expect("Failed to load test data");
+    let mut test_data = TestData::<MyBackend>::new(&device);
+    let mut store = PytorchStore::from_file("artifacts/test_data.pt");
+    test_data.load_from(&mut store).expect("Failed to load test data");
     let load_time = start.elapsed();
     println!("  Data loaded in {:.2?}", load_time);
 
