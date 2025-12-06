@@ -854,3 +854,147 @@ fn test_forward_pass_preservation_after_save_load() {
         "output3 should equal output1 after loading weights"
     );
 }
+
+// ============================================================================
+// Tests for new ModuleStore methods: get_snapshot, get_snapshots, keys
+// ============================================================================
+
+#[test]
+fn test_store_get_snapshots() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get all snapshots
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = load_store.get_snapshots().unwrap();
+
+    // Should have 4 tensors
+    assert_eq!(snapshots.len(), 4);
+
+    // Verify tensor names exist
+    let names: Vec<String> = snapshots.iter().map(|s| s.full_path()).collect();
+    assert!(names.contains(&"weight".to_string()));
+    assert!(names.contains(&"bias".to_string()));
+    assert!(names.contains(&"nested.gamma".to_string()));
+    assert!(names.contains(&"nested.beta".to_string()));
+}
+
+#[test]
+fn test_store_get_snapshot_existing() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get a specific snapshot
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshot = load_store.get_snapshot("weight").unwrap();
+
+    // Should find the tensor
+    assert!(snapshot.is_some());
+    let snapshot = snapshot.unwrap();
+    assert_eq!(snapshot.full_path(), "weight");
+    assert_eq!(snapshot.shape, vec![2, 2]);
+
+    // Verify data can be loaded
+    let data = snapshot.to_data().unwrap();
+    assert_eq!(data.to_vec::<f32>().unwrap(), vec![1.0, 2.0, 3.0, 4.0]);
+}
+
+#[test]
+fn test_store_get_snapshot_nested() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get a nested snapshot
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshot = load_store.get_snapshot("nested.gamma").unwrap();
+
+    assert!(snapshot.is_some());
+    let snapshot = snapshot.unwrap();
+    assert_eq!(snapshot.full_path(), "nested.gamma");
+    assert_eq!(snapshot.shape, vec![2]);
+}
+
+#[test]
+fn test_store_get_snapshot_not_found() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Try to get a non-existent snapshot
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshot = load_store.get_snapshot("nonexistent").unwrap();
+
+    // Should return None
+    assert!(snapshot.is_none());
+}
+
+#[test]
+fn test_store_keys() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get all keys
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let keys = load_store.keys().unwrap();
+
+    // Should have 4 keys
+    assert_eq!(keys.len(), 4);
+    assert!(keys.contains(&"weight".to_string()));
+    assert!(keys.contains(&"bias".to_string()));
+    assert!(keys.contains(&"nested.gamma".to_string()));
+    assert!(keys.contains(&"nested.beta".to_string()));
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_get_snapshots_from_file() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save to file
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("test_get_snapshots.bpk");
+
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+
+    // Get snapshots from file
+    let mut load_store = BurnpackStore::from_file(&path);
+    let snapshots = load_store.get_snapshots().unwrap();
+
+    assert_eq!(snapshots.len(), 4);
+
+    // Verify we can load data from a snapshot
+    let weight_snapshot = snapshots
+        .iter()
+        .find(|s| s.full_path() == "weight")
+        .unwrap();
+    let data = weight_snapshot.to_data().unwrap();
+    assert_eq!(data.to_vec::<f32>().unwrap(), vec![1.0, 2.0, 3.0, 4.0]);
+}

@@ -6,10 +6,11 @@ use super::writer::BurnpackWriter;
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::burnpack::base::BurnpackError;
-use crate::{ModuleSnapshot, ModuleStore, PathFilter};
+use crate::{ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot};
 use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::string::String;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use burn_core::prelude::Backend;
 use burn_tensor::Bytes;
 
@@ -276,6 +277,28 @@ impl BurnpackStore {
         new_path.set_extension("bpk");
         new_path
     }
+
+    /// Ensure the reader is initialized, loading from storage if needed
+    fn ensure_reader(&mut self) -> Result<&BurnpackReader, BurnpackError> {
+        if self.reader.is_none() {
+            let reader = match &self.mode {
+                #[cfg(feature = "std")]
+                StoreMode::File(path) => {
+                    let final_path = self.process_path(path);
+                    BurnpackReader::from_file(&final_path)?
+                }
+                StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
+                StoreMode::Bytes(None) => {
+                    return Err(BurnpackError::IoError("No bytes to read from".into()));
+                }
+            };
+            self.reader = Some(reader);
+        }
+
+        self.reader
+            .as_ref()
+            .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))
+    }
 }
 
 impl ModuleStore for BurnpackStore {
@@ -336,40 +359,8 @@ impl ModuleStore for BurnpackStore {
         &mut self,
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
-        // Load reader if not already loaded
-        if self.reader.is_none() {
-            let reader = match &self.mode {
-                #[cfg(feature = "std")]
-                StoreMode::File(path) => {
-                    // Process path with auto-extension logic
-                    let final_path = self.process_path(path);
-                    BurnpackReader::from_file(&final_path)?
-                }
-                StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
-                StoreMode::Bytes(None) => {
-                    return Err(BurnpackError::IoError("No bytes to read from".into()));
-                }
-            };
-            self.reader = Some(reader);
-        }
-
-        let reader = self
-            .reader
-            .as_ref()
-            .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))?;
-
-        // Get all snapshots at once for efficient loading
-        #[cfg(feature = "std")]
-        let snapshots = if !self.remapper.patterns.is_empty() {
-            let (remapped, _remapped_names) = self.remapper.remap(reader.get_snapshots()?);
-            // TODO figure what to do with remapped names
-            remapped
-        } else {
-            reader.get_snapshots()?
-        };
-
-        #[cfg(not(feature = "std"))]
-        let snapshots = reader.get_snapshots()?;
+        // Get all snapshots using the new method
+        let snapshots = self.get_snapshots()?;
 
         // Apply all snapshots at once to the module
         // Burnpack is Burn's native format, so no enum variant skipping needed
@@ -392,5 +383,44 @@ impl ModuleStore for BurnpackStore {
         }
 
         Ok(result)
+    }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<TensorSnapshot>, Self::Error> {
+        let snapshots = self.get_snapshots()?;
+        Ok(snapshots.into_iter().find(|s| s.full_path() == name))
+    }
+
+    fn get_snapshots(&mut self) -> Result<Vec<TensorSnapshot>, Self::Error> {
+        // Ensure reader is loaded
+        self.ensure_reader()?;
+
+        // Get snapshots from reader (reader is guaranteed to be Some after ensure_reader)
+        let reader = self.reader.as_ref().unwrap();
+        let snapshots = reader.get_snapshots()?;
+
+        // Apply remapping if configured
+        #[cfg(feature = "std")]
+        let snapshots = if !self.remapper.patterns.is_empty() {
+            let (remapped, _remapped_names) = self.remapper.remap(snapshots);
+            remapped
+        } else {
+            snapshots
+        };
+
+        Ok(snapshots)
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Ensure reader is loaded
+        self.ensure_reader()?;
+
+        // Get keys from reader metadata
+        let reader = self.reader.as_ref().unwrap();
+        Ok(reader
+            .metadata
+            .tensors
+            .keys()
+            .map(|k| k.to_string())
+            .collect())
     }
 }

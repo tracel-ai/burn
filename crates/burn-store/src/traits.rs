@@ -197,6 +197,74 @@ pub trait ModuleStore {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error>;
+
+    /// Get a single tensor snapshot by name.
+    ///
+    /// This method provides direct access to individual tensors in storage without
+    /// requiring a module. The returned `TensorSnapshot` uses lazy loading - tensor
+    /// data is only materialized when `to_data()` is called.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The tensor name/path (e.g., "encoder.layer1.weight")
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(TensorSnapshot))` - The tensor snapshot if found
+    /// * `Ok(None)` - If no tensor with that name exists
+    /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut store = BurnpackStore::from_file("model.bpk");
+    /// if let Some(snapshot) = store.get_snapshot("encoder.weight")? {
+    ///     println!("Shape: {:?}", snapshot.shape);
+    ///     println!("Dtype: {:?}", snapshot.dtype);
+    ///     let data = snapshot.to_data()?;  // Lazy load
+    /// }
+    /// ```
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<TensorSnapshot>, Self::Error>;
+
+    /// Get all tensor snapshots from storage.
+    ///
+    /// This method returns all tensors in storage as lazy-loading snapshots.
+    /// Useful for inspection, debugging, or custom tensor manipulation workflows.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<TensorSnapshot>)` - All tensor snapshots in storage
+    /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut store = SafetensorsStore::from_file("model.safetensors");
+    /// let snapshots = store.get_snapshots()?;
+    /// for snapshot in &snapshots {
+    ///     println!("{}: {:?}", snapshot.full_path(), snapshot.shape);
+    /// }
+    /// ```
+    fn get_snapshots(&mut self) -> Result<Vec<TensorSnapshot>, Self::Error>;
+
+    /// Get all tensor names/keys in storage.
+    ///
+    /// This method returns the names of all tensors without loading any data.
+    /// Useful for inspecting storage contents or checking if specific tensors exist.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<String>)` - All tensor names in storage
+    /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut store = PytorchStore::from_file("model.pth");
+    /// let keys = store.keys()?;
+    /// println!("Tensors in file: {:?}", keys);
+    /// ```
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error>;
 }
 
 // Blanket implementation for all modules

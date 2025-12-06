@@ -287,6 +287,16 @@ impl PytorchStore {
         let (remapped, _) = self.remapper.remap(snapshots);
         remapped
     }
+
+    /// Create a PytorchReader for the configured path and options.
+    fn create_reader(&self) -> Result<PytorchReader, PytorchStoreError> {
+        let reader = if let Some(ref key) = self.top_level_key {
+            PytorchReader::with_top_level_key(&self.path, key)?
+        } else {
+            PytorchReader::new(&self.path)?
+        };
+        Ok(reader)
+    }
 }
 
 impl ModuleStore for PytorchStore {
@@ -307,36 +317,7 @@ impl ModuleStore for PytorchStore {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
-        // Load tensors from PyTorch file
-        let reader = if let Some(ref key) = self.top_level_key {
-            PytorchReader::with_top_level_key(&self.path, key)?
-        } else {
-            PytorchReader::new(&self.path)?
-        };
-
-        // Convert to tensor snapshots
-        let mut snapshots: Vec<TensorSnapshot> = reader
-            .into_tensors()
-            .into_iter()
-            .map(|(key, mut snapshot)| {
-                // Parse the key into path parts (split by '.')
-                let path_parts: Vec<String> = key.split('.').map(|s| s.to_string()).collect();
-
-                // Set the path stack from the key
-                // Note: container_stack should NOT be set here - it will be managed by the module during apply
-                snapshot.path_stack = Some(path_parts);
-                snapshot.container_stack = None;
-                snapshot.tensor_id = None;
-
-                snapshot
-            })
-            .collect();
-
-        // Apply filtering
-        snapshots = self.apply_filter(snapshots);
-
-        // Apply remapping
-        snapshots = self.apply_remapping(snapshots);
+        let snapshots = self.get_snapshots()?;
 
         // Apply to module with PyTorchToBurnAdapter (always used for PyTorch files)
         // This adapter handles:
@@ -362,5 +343,45 @@ impl ModuleStore for PytorchStore {
         }
 
         Ok(result)
+    }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<TensorSnapshot>, Self::Error> {
+        let reader = self.create_reader()?;
+        Ok(reader.get(name).cloned())
+    }
+
+    fn get_snapshots(&mut self) -> Result<Vec<TensorSnapshot>, Self::Error> {
+        let reader = self.create_reader()?;
+
+        // Convert to tensor snapshots
+        let mut snapshots: Vec<TensorSnapshot> = reader
+            .into_tensors()
+            .into_iter()
+            .map(|(key, mut snapshot)| {
+                // Parse the key into path parts (split by '.')
+                let path_parts: Vec<String> = key.split('.').map(|s| s.to_string()).collect();
+
+                // Set the path stack from the key
+                // Note: container_stack should NOT be set here - it will be managed by the module during apply
+                snapshot.path_stack = Some(path_parts);
+                snapshot.container_stack = None;
+                snapshot.tensor_id = None;
+
+                snapshot
+            })
+            .collect();
+
+        // Apply filtering
+        snapshots = self.apply_filter(snapshots);
+
+        // Apply remapping
+        snapshots = self.apply_remapping(snapshots);
+
+        Ok(snapshots)
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        let reader = self.create_reader()?;
+        Ok(reader.keys())
     }
 }

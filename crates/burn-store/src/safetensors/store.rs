@@ -683,6 +683,58 @@ impl ModuleStore for SafetensorsStore {
 
         Ok(result)
     }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<TensorSnapshot>, Self::Error> {
+        let snapshots = self.get_snapshots()?;
+        Ok(snapshots.into_iter().find(|s| s.full_path() == name))
+    }
+
+    fn get_snapshots(&mut self) -> Result<Vec<TensorSnapshot>, Self::Error> {
+        #[allow(unused_mut)]
+        let mut snapshots = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => safetensors_to_snapshots_lazy_file(&p.path)?,
+            Self::Memory(p) => {
+                let data_arc = p
+                    .data
+                    .clone()
+                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
+                safetensors_to_snapshots_lazy(data_arc)?
+            }
+        };
+
+        // Apply remapping to loaded tensors
+        #[cfg(feature = "std")]
+        {
+            snapshots = match self {
+                Self::File(p) => apply_remapping(snapshots, &p.remapper),
+                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
+            };
+        }
+
+        Ok(snapshots)
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Parse just to get tensor names without loading data
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => {
+                let file = std::fs::File::open(&p.path)?;
+                let mmap = unsafe { memmap2::MmapOptions::new().map(&file)? };
+                let tensors = safetensors::SafeTensors::deserialize(&mmap)?;
+                Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
+            }
+            Self::Memory(p) => {
+                let data_arc = p
+                    .data
+                    .clone()
+                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
+                let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
+                Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
+            }
+        }
+    }
 }
 
 impl SafetensorsStore {
