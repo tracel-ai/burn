@@ -869,19 +869,18 @@ fn test_store_get_snapshots() {
     save_store.collect_from(&module).unwrap();
     let bytes = save_store.get_bytes().unwrap();
 
-    // Get all snapshots
+    // Get all snapshots (returns &BTreeMap<String, TensorSnapshot>)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
     let snapshots = load_store.get_snapshots().unwrap();
 
     // Should have 4 tensors
     assert_eq!(snapshots.len(), 4);
 
-    // Verify tensor names exist
-    let names: Vec<String> = snapshots.iter().map(|s| s.full_path()).collect();
-    assert!(names.contains(&"weight".to_string()));
-    assert!(names.contains(&"bias".to_string()));
-    assert!(names.contains(&"nested.gamma".to_string()));
-    assert!(names.contains(&"nested.beta".to_string()));
+    // Verify tensor names exist (BTreeMap keys)
+    assert!(snapshots.contains_key("weight"));
+    assert!(snapshots.contains_key("bias"));
+    assert!(snapshots.contains_key("nested.gamma"));
+    assert!(snapshots.contains_key("nested.beta"));
 }
 
 #[test]
@@ -894,7 +893,7 @@ fn test_store_get_snapshot_existing() {
     save_store.collect_from(&module).unwrap();
     let bytes = save_store.get_bytes().unwrap();
 
-    // Get a specific snapshot
+    // Get a specific snapshot (returns Option<&TensorSnapshot>)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
     let snapshot = load_store.get_snapshot("weight").unwrap();
 
@@ -984,17 +983,40 @@ fn test_store_get_snapshots_from_file() {
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
-    // Get snapshots from file
+    // Get snapshots from file (returns &BTreeMap)
     let mut load_store = BurnpackStore::from_file(&path);
     let snapshots = load_store.get_snapshots().unwrap();
 
     assert_eq!(snapshots.len(), 4);
 
-    // Verify we can load data from a snapshot
-    let weight_snapshot = snapshots
-        .iter()
-        .find(|s| s.full_path() == "weight")
-        .unwrap();
+    // Verify we can load data from a snapshot (use get() on BTreeMap)
+    let weight_snapshot = snapshots.get("weight").unwrap();
     let data = weight_snapshot.to_data().unwrap();
     assert_eq!(data.to_vec::<f32>().unwrap(), vec![1.0, 2.0, 3.0, 4.0]);
+}
+
+#[test]
+fn test_store_caching_behavior() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Create store and call get_snapshots multiple times
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+
+    // First call should populate cache
+    let snapshots1 = load_store.get_snapshots().unwrap();
+    assert_eq!(snapshots1.len(), 4);
+
+    // Second call should return cached data (same reference)
+    let snapshots2 = load_store.get_snapshots().unwrap();
+    assert_eq!(snapshots2.len(), 4);
+
+    // get_snapshot should also use the cache
+    let weight = load_store.get_snapshot("weight").unwrap();
+    assert!(weight.is_some());
 }

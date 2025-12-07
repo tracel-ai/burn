@@ -5,6 +5,8 @@ use crate::{
     TensorSnapshot,
 };
 
+use alloc::collections::BTreeMap;
+
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -75,6 +77,8 @@ pub struct PytorchStore {
     pub(crate) allow_partial: bool,
     pub(crate) top_level_key: Option<String>,
     pub(crate) skip_enum_variants: bool,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 impl PytorchStore {
@@ -99,6 +103,7 @@ impl PytorchStore {
             top_level_key: None,
             // PyTorch models never include enum variant names in paths
             skip_enum_variants: true,
+            snapshots_cache: None,
         }
     }
 
@@ -317,7 +322,8 @@ impl ModuleStore for PytorchStore {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
-        let snapshots = self.get_snapshots()?;
+        // Get snapshots from cache
+        let snapshots: Vec<TensorSnapshot> = self.get_snapshots()?.values().cloned().collect();
 
         // Apply to module with PyTorchToBurnAdapter (always used for PyTorch files)
         // This adapter handles:
@@ -345,12 +351,41 @@ impl ModuleStore for PytorchStore {
         Ok(result)
     }
 
-    fn get_snapshot(&mut self, name: &str) -> Result<Option<TensorSnapshot>, Self::Error> {
-        let reader = self.create_reader()?;
-        Ok(reader.get(name).cloned())
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_snapshots(&mut self) -> Result<Vec<TensorSnapshot>, Self::Error> {
+    fn get_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap())
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Use cache if available
+        if self.snapshots_cache.is_some() {
+            return Ok(self
+                .snapshots_cache
+                .as_ref()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect());
+        }
+
+        // Fast path: read keys without full parsing
+        let reader = self.create_reader()?;
+        Ok(reader.keys())
+    }
+}
+
+impl PytorchStore {
+    /// Ensure the snapshots cache is populated
+    fn ensure_snapshots_cache(&mut self) -> Result<(), PytorchStoreError> {
+        if self.snapshots_cache.is_some() {
+            return Ok(());
+        }
+
         let reader = self.create_reader()?;
 
         // Convert to tensor snapshots
@@ -362,7 +397,6 @@ impl ModuleStore for PytorchStore {
                 let path_parts: Vec<String> = key.split('.').map(|s| s.to_string()).collect();
 
                 // Set the path stack from the key
-                // Note: container_stack should NOT be set here - it will be managed by the module during apply
                 snapshot.path_stack = Some(path_parts);
                 snapshot.container_stack = None;
                 snapshot.tensor_id = None;
@@ -377,11 +411,11 @@ impl ModuleStore for PytorchStore {
         // Apply remapping
         snapshots = self.apply_remapping(snapshots);
 
-        Ok(snapshots)
-    }
+        // Build cache as BTreeMap
+        let cache: BTreeMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
 
-    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
-        let reader = self.create_reader()?;
-        Ok(reader.keys())
+        self.snapshots_cache = Some(cache);
+        Ok(())
     }
 }

@@ -45,6 +45,8 @@ pub struct BurnpackStore {
     writer: Option<BurnpackWriter>,
     /// Reader for loading
     reader: Option<BurnpackReader>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 impl BurnpackStore {
@@ -97,6 +99,7 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
+            snapshots_cache: None,
         }
     }
 
@@ -115,6 +118,7 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
+            snapshots_cache: None,
         }
     }
 
@@ -359,8 +363,8 @@ impl ModuleStore for BurnpackStore {
         &mut self,
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
-        // Get all snapshots using the new method
-        let snapshots = self.get_snapshots()?;
+        // Get all snapshots using the cached method
+        let snapshots: Vec<TensorSnapshot> = self.get_snapshots()?.values().cloned().collect();
 
         // Apply all snapshots at once to the module
         // Burnpack is Burn's native format, so no enum variant skipping needed
@@ -385,16 +389,53 @@ impl ModuleStore for BurnpackStore {
         Ok(result)
     }
 
-    fn get_snapshot(&mut self, name: &str) -> Result<Option<TensorSnapshot>, Self::Error> {
-        let snapshots = self.get_snapshots()?;
-        Ok(snapshots.into_iter().find(|s| s.full_path() == name))
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_snapshots(&mut self) -> Result<Vec<TensorSnapshot>, Self::Error> {
+    fn get_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap())
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Use cache if available, otherwise read from metadata directly
+        if self.snapshots_cache.is_some() {
+            return Ok(self
+                .snapshots_cache
+                .as_ref()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect());
+        }
+
+        // Fast path: read keys from metadata without parsing all snapshots
+        self.ensure_reader()?;
+        let reader = self.reader.as_ref().unwrap();
+        Ok(reader
+            .metadata
+            .tensors
+            .keys()
+            .map(|k| k.to_string())
+            .collect())
+    }
+}
+
+impl BurnpackStore {
+    /// Ensure the snapshots cache is populated
+    fn ensure_snapshots_cache(&mut self) -> Result<(), BurnpackError> {
+        if self.snapshots_cache.is_some() {
+            return Ok(());
+        }
+
         // Ensure reader is loaded
         self.ensure_reader()?;
 
-        // Get snapshots from reader (reader is guaranteed to be Some after ensure_reader)
+        // Get snapshots from reader
         let reader = self.reader.as_ref().unwrap();
         let snapshots = reader.get_snapshots()?;
 
@@ -407,20 +448,11 @@ impl ModuleStore for BurnpackStore {
             snapshots
         };
 
-        Ok(snapshots)
-    }
+        // Build the cache as BTreeMap
+        let cache: BTreeMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
 
-    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
-        // Ensure reader is loaded
-        self.ensure_reader()?;
-
-        // Get keys from reader metadata
-        let reader = self.reader.as_ref().unwrap();
-        Ok(reader
-            .metadata
-            .tensors
-            .keys()
-            .map(|k| k.to_string())
-            .collect())
+        self.snapshots_cache = Some(cache);
+        Ok(())
     }
 }
