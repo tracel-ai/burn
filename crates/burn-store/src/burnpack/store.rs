@@ -9,7 +9,7 @@ use crate::burnpack::base::BurnpackError;
 use crate::{ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot};
 use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core::prelude::Backend;
 use burn_tensor::Bytes;
@@ -407,26 +407,8 @@ impl ModuleStore for BurnpackStore {
     }
 
     fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
-        // Use cache if available, otherwise read from metadata directly
-        if self.snapshots_cache.is_some() {
-            return Ok(self
-                .snapshots_cache
-                .as_ref()
-                .unwrap()
-                .keys()
-                .cloned()
-                .collect());
-        }
-
-        // Fast path: read keys from metadata without parsing all snapshots
-        self.ensure_reader()?;
-        let reader = self.reader.as_ref().unwrap();
-        Ok(reader
-            .metadata
-            .tensors
-            .keys()
-            .map(|k| k.to_string())
-            .collect())
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
     }
 }
 

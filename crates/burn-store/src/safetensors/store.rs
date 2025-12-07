@@ -708,35 +708,8 @@ impl ModuleStore for SafetensorsStore {
     }
 
     fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
-        // Use cache if available
-        let has_cache = match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => p.snapshots_cache.is_some(),
-            Self::Memory(p) => p.snapshots_cache.is_some(),
-        };
-
-        if has_cache {
-            return Ok(self.get_all_snapshots()?.keys().cloned().collect());
-        }
-
-        // Fast path: parse just header without loading tensor data
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => {
-                let file = std::fs::File::open(&p.path)?;
-                let mmap = unsafe { memmap2::MmapOptions::new().map(&file)? };
-                let tensors = safetensors::SafeTensors::deserialize(&mmap)?;
-                Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
-            }
-            Self::Memory(p) => {
-                let data_arc = p
-                    .data
-                    .clone()
-                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
-                let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
-                Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
-            }
-        }
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
     }
 }
 

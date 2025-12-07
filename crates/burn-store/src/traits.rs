@@ -263,12 +263,11 @@ pub trait ModuleStore {
 
     /// Get all tensor names/keys in storage.
     ///
-    /// This method returns the names of all tensors without loading tensor data.
+    /// This method returns the names of all tensors in storage.
     /// Useful for inspecting storage contents or checking if specific tensors exist.
     ///
     /// **Note:** Returns ALL tensor names regardless of filter settings.
-    /// If key remapping is configured and the cache is populated, remapped names
-    /// are returned. Otherwise, original names from storage are returned.
+    /// Key remapping IS applied, so names reflect any configured remapping.
     ///
     /// # Returns
     ///

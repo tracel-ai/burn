@@ -356,20 +356,8 @@ impl ModuleStore for PytorchStore {
     }
 
     fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
-        // Use cache if available
-        if self.snapshots_cache.is_some() {
-            return Ok(self
-                .snapshots_cache
-                .as_ref()
-                .unwrap()
-                .keys()
-                .cloned()
-                .collect());
-        }
-
-        // Fast path: read keys without full parsing
-        let reader = self.create_reader()?;
-        Ok(reader.keys())
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
     }
 }
 
