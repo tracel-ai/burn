@@ -300,7 +300,7 @@ for name in &names {
 // Get all tensors as a BTreeMap (cached for repeated access)
 let snapshots = store.get_all_snapshots()?;
 for (name, snapshot) in snapshots {
-    println!("{}: {:?} {:?}", name, snapshot.shape(), snapshot.dtype());
+    println!("{}: {:?} {:?}", name, snapshot.shape, snapshot.dtype);
 }
 
 // Get a specific tensor by name
