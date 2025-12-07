@@ -269,20 +269,6 @@ impl PytorchStore {
         self
     }
 
-    /// Apply filter to tensor snapshots.
-    fn apply_filter(&self, mut snapshots: Vec<TensorSnapshot>) -> Vec<TensorSnapshot> {
-        if self.filter.is_empty() {
-            return snapshots;
-        }
-
-        snapshots.retain(|snapshot| {
-            let path = snapshot.full_path();
-            self.filter.matches(&path)
-        });
-
-        snapshots
-    }
-
     /// Apply remapping to tensor snapshots.
     fn apply_remapping(&self, snapshots: Vec<TensorSnapshot>) -> Vec<TensorSnapshot> {
         if self.remapper.is_empty() {
