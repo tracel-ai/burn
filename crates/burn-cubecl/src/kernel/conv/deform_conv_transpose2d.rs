@@ -15,10 +15,10 @@ use crate::{
 };
 use burn_tensor::{DType, Shape, ops::DeformConvOptions};
 use cubecl::{
-    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
-    cube, features::TypeUsage, prelude::*, reduce::instructions::ReduceFnConfig,
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube, features::TypeUsage, prelude::*,
     std::scalar::InputScalar,
 };
+use cubek::{convolution::components::ConvSetupError, reduce::instructions::ReduceFnConfig};
 use std::marker::PhantomData;
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.

@@ -21,8 +21,8 @@ use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{DType, IntDType};
 use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
 use cubecl::prelude::*;
-use cubecl::reduce::instructions::ReduceFnConfig;
 use cubecl::{frontend::Numeric, std::scalar::InputScalar};
+use cubek::reduce::instructions::ReduceFnConfig;
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>

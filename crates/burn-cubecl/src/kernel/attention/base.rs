@@ -1,7 +1,7 @@
 use burn_tensor::{DType, Shape};
-use cubecl::attention::{
+use cubek::attention::{
     Strategy,
-    components::{AttentionElems, AttentionSetupError},
+    components::{AttentionSetupError, AttentionStorageTypes},
 };
 
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
@@ -25,27 +25,20 @@ pub fn flash_attention<R: CubeRuntime>(
 
     let out = empty_device_dtype::<R>(client.clone(), device.clone(), out_shape, out_dtype);
 
-    cubecl::attention::launch_ref::<R>(
-        &Strategy::Unit,
+    cubek::attention::launch_ref::<R>(
+        &Strategy::Unit(Default::default()),
         client,
         &query.as_handle_ref(),
         &key.as_handle_ref(),
         &value.as_handle_ref(),
         &mask.as_ref().map(|mask| mask.as_handle_ref()),
         &out.as_handle_ref(),
-        &AttentionElems {
-            query_global: query.dtype.into(),
-            query_tile: query.dtype.into(),
-            key_global: key.dtype.into(),
-            key_stage: key.dtype.into(),
-            value_global: value.dtype.into(),
-            value_stage: value.dtype.into(),
-            key_value_tile: value.dtype.into(),
-            softmax: query.dtype.into(),
-            accumulator: out_dtype.into(),
+        AttentionStorageTypes {
+            query: query.dtype.into(),
+            key: key.dtype.into(),
+            value: value.dtype.into(),
             mask: mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8).into(),
-            out_global: out_dtype.into(),
-            out_stage: out_dtype.into(),
+            out: out_dtype.into(),
         },
     )?;
 

@@ -9,7 +9,8 @@ use crate::{
 };
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
-use cubecl::{Runtime, reduce::ReduceStrategy};
+use cubecl::Runtime;
+use cubek::reduce::ReduceStrategy;
 
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser<R: Runtime> {

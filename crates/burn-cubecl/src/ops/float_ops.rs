@@ -15,8 +15,8 @@ use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{DType, ElementConversion, FloatDType};
 use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
-use cubecl::reduce::instructions::ReduceFnConfig;
 use cubecl::std::scalar::InputScalar;
+use cubek::reduce::instructions::ReduceFnConfig;
 use std::ops::Range;
 
 impl<R, F, I, BT> FloatTensorOps<Self> for CubeBackend<R, F, I, BT>

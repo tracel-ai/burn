@@ -1,7 +1,7 @@
 //! Quantization data representation.
 
 // Re-exported types
-pub use cubecl_quant::scheme::{
+pub use cubecl_common::quant::scheme::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 

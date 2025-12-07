@@ -10,7 +10,7 @@ mod tests {
 
     use burn_tensor::{Distribution, Shape, Tensor, backend::Backend};
 
-    use cubecl::random::{
+    use burn_cubecl::cubek::random::{
         assert_number_of_1_proportional_to_prob, assert_wald_wolfowitz_runs_test,
     };
 

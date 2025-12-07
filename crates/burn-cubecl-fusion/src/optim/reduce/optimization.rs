@@ -15,17 +15,12 @@ use crate::{
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_tensor::DType;
-use cubecl::{
-    CubeCount, CubeDim, Runtime,
-    client::ComputeClient,
-    ir::StorageType,
-    prelude::*,
-    reduce::{
-        BoundChecksInner, LineMode, ReduceConfig, ReduceError, ReduceFamily, ReduceParams,
-        ReduceStrategy, init_tensors,
-        instructions::{ReduceFn, ReduceFnConfig},
-        reduce_kernel_virtual,
-    },
+use cubecl::{CubeCount, CubeDim, Runtime, client::ComputeClient, ir::StorageType, prelude::*};
+use cubek::reduce::{
+    BoundChecksInner, LineMode, ReduceConfig, ReduceError, ReduceFamily, ReduceParams,
+    ReduceStrategy, init_tensors,
+    instructions::{ReduceFn, ReduceFnConfig},
+    reduce_kernel_virtual,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

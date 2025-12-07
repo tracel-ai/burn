@@ -4,12 +4,12 @@ use super::SumAutotuneKey;
 use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
 use cubecl::{
     client::ComputeClient,
-    reduce::{ReduceDtypes, ReduceFamily, tune_key::ReduceAutotuneKey},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
+use cubek::reduce::{ReduceDtypes, ReduceFamily, tune_key::ReduceAutotuneKey};
 
 /// Executes autotune on reduce operations.
-pub fn autotune_reduce<R: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
+pub fn autotune_reduce<R: CubeRuntime, Rd: cubek::reduce::ReduceFamily>(
     client: &ComputeClient<R>,
     input: CubeTensor<R>,
     output: CubeTensor<R>,
@@ -64,7 +64,7 @@ pub(crate) fn create_key<Run: CubeRuntime, Rd: ReduceFamily>(
 mod reduce_ops {
     #![allow(missing_docs)]
 
-    use cubecl::reduce::{ReduceDtypes, ReduceFamily};
+    use cubek::reduce::{ReduceDtypes, ReduceFamily};
 
     use super::*;
 
@@ -85,19 +85,19 @@ mod reduce_ops {
         (input.clone(), output.copy(), *dim, *config, *dtypes)
     }
 
-    pub(crate) fn reduce<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
+    pub(crate) fn reduce<Run: CubeRuntime, Rd: cubek::reduce::ReduceFamily>(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
         config: Rd::Config,
         dtypes: ReduceDtypes,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
+        cubek::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             axis,
-            Some(cubecl::reduce::ReduceStrategy {
+            Some(cubek::reduce::ReduceStrategy {
                 shared: false,
                 use_planes: false,
             }),
@@ -107,19 +107,19 @@ mod reduce_ops {
         .map_err(|e| format!("{e}"))
     }
 
-    pub(crate) fn reduce_shared<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
+    pub(crate) fn reduce_shared<Run: CubeRuntime, Rd: cubek::reduce::ReduceFamily>(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
         config: Rd::Config,
         dtypes: ReduceDtypes,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
+        cubek::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             axis,
-            Some(cubecl::reduce::ReduceStrategy {
+            Some(cubek::reduce::ReduceStrategy {
                 shared: true,
                 use_planes: false,
             }),
@@ -129,19 +129,19 @@ mod reduce_ops {
         .map_err(|e| format!("{e}"))
     }
 
-    pub(crate) fn reduce_plane<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
+    pub(crate) fn reduce_plane<Run: CubeRuntime, Rd: cubek::reduce::ReduceFamily>(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
         config: Rd::Config,
         dtypes: ReduceDtypes,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
+        cubek::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             axis,
-            Some(cubecl::reduce::ReduceStrategy {
+            Some(cubek::reduce::ReduceStrategy {
                 shared: false,
                 use_planes: true,
             }),
@@ -151,19 +151,19 @@ mod reduce_ops {
         .map_err(|e| format!("{e}"))
     }
 
-    pub(crate) fn reduce_shared_plane<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
+    pub(crate) fn reduce_shared_plane<Run: CubeRuntime, Rd: cubek::reduce::ReduceFamily>(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
         config: Rd::Config,
         dtypes: ReduceDtypes,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
+        cubek::reduce::reduce::<Run, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             axis,
-            Some(cubecl::reduce::ReduceStrategy {
+            Some(cubek::reduce::ReduceStrategy {
                 shared: true,
                 use_planes: true,
             }),
@@ -236,7 +236,7 @@ mod sum_ops {
         let device = input.device.clone();
         let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
 
-        cubecl::reduce::shared_sum::<Run>(
+        cubek::reduce::shared_sum::<Run>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -254,7 +254,7 @@ mod sum_ops {
         crate::kernel::reduce::reduce::<Run>(
             input,
             crate::kernel::reduce::ReduceStrategy::Autotune,
-            cubecl::reduce::instructions::ReduceFnConfig::Sum,
+            cubek::reduce::instructions::ReduceFnConfig::Sum,
         )
         .map_err(|e| e.to_string())
     }

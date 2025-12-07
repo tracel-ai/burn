@@ -19,6 +19,11 @@ pub struct ConvAutotuneKey {
     pub batch_size: usize,
     pub has_bias: bool,
     pub dtype: DType,
+
+    pub lhs_shape_align: u8,
+    pub lhs_stride_align: u8,
+    pub rhs_shape_align: u8,
+    pub rhs_stride_align: u8,
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]

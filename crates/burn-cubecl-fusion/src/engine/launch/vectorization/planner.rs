@@ -15,12 +15,12 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
+use cubecl::quant::scheme::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     Runtime,
     client::ComputeClient,
     ir::{ElemType, StorageType, UIntKind},
 };
-use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
 use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.

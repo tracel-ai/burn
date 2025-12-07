@@ -7,8 +7,8 @@ use burn_tensor::{
         QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
     },
 };
+use cubecl::quant::scheme::QuantStore;
 use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
-use cubecl_quant::scheme::QuantStore;
 
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,

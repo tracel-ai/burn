@@ -3,10 +3,8 @@ use crate::engine::codegen::{
     ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
     kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
-use cubecl::{
-    prelude::*,
-    reduce::args::{ReduceArgs, ReduceDType},
-};
+use cubecl::prelude::*;
+use cubek::reduce::args::{ReduceArgs, ReduceDType};
 
 #[derive(Clone)]
 pub struct FusedReduceArgs;

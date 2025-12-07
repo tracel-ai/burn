@@ -1,18 +1,18 @@
 use burn_tensor::ops::ConvOptions;
-use cubecl::tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner};
-
-use crate::{
-    CubeAutotuneKey, CubeRuntime, CubeTuneId,
-    kernel::conv::{conv_direct, conv_gemm_cyclic, conv_im2col_1x1},
-    tensor::CubeTensor,
+use cubecl::{
+    ir::StorageType,
+    tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
+use cubek::matmul::AcceleratedTileKind;
+
+use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, kernel::conv::*, tensor::CubeTensor};
 
 use super::ConvAutotuneKey;
 
 /// Executes autotune on conv2d operations
 pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
-    weights: CubeTensor<R>,
+    weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> CubeTensor<R> {
@@ -24,20 +24,49 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
         TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>)
             .with(Tunable::new("conv_direct", conv_direct::<R, N>))
             .with(Tunable::new("conv_im2col_1x1", conv_im2col_1x1::<R, N>))
-            .with(Tunable::new("conv_gemm_cyclic", conv_gemm_cyclic::<R, N>))
-        // Re-enable when refactored and fully tested
-        //.with(Tunable::new("conv_gemm_tma", conv_gemm_tma::<R, N>))
-        // .with(Tunable::new(
-        //     "conv_gemm_tma_multi_stage",
-        //     conv_gemm_tma_multi_stage::<R, N>,
-        // ))
+            .with(Tunable::new(
+                "simple_sync_cmma",
+                |input, weight, bias, options| {
+                    conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Cmma)
+                },
+            ))
+            .with(Tunable::new(
+                "simple_sync_mma",
+                |input, weight, bias, options| {
+                    conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Mma)
+                },
+            ))
+            .with(Tunable::new(
+                "simple_async_cmma",
+                |input, weight, bias, options| {
+                    conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Cmma)
+                },
+            ))
+            .with(Tunable::new(
+                "simple_async_mma",
+                |input, weight, bias, options| {
+                    conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Mma)
+                },
+            ))
+            .with(Tunable::new(
+                "simple_tma_cmma",
+                |input, weight, bias, options| {
+                    conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Cmma)
+                },
+            ))
+            .with(Tunable::new(
+                "simple_tma_mma",
+                |input, weight, bias, options| {
+                    conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Mma)
+                },
+            ))
     });
 
     TUNER.execute(
         &CubeTuneId::new(&input.client, &input.device),
         &client,
         tunables,
-        (input, weights, bias, options),
+        (input, weight, bias, options),
     )
 }
 
@@ -87,6 +116,20 @@ fn create_key<R: CubeRuntime, const N: usize>(
         dilation,
         groups,
     } = options.clone();
+
+    let lhs_stride_align = if input.strides[dim_c] == 1 {
+        stride_align(&input.strides, input.dtype.into())
+    } else {
+        0
+    };
+    let lhs_shape_align = pow2_factor(in_channels).min(lhs_stride_align);
+    let rhs_stride_align = if weights.strides[dim_c] == 1 {
+        stride_align(&weights.strides, weights.dtype.into())
+    } else {
+        0
+    };
+    let rhs_shape_align = pow2_factor(in_channels).min(rhs_stride_align);
+
     CubeAutotuneKey::Conv2d(ConvAutotuneKey::new(
         kernel_size,
         stride.to_vec(),
@@ -99,5 +142,31 @@ fn create_key<R: CubeRuntime, const N: usize>(
         batch_size,
         bias.is_some(),
         dtype,
+        lhs_shape_align,
+        lhs_stride_align,
+        rhs_shape_align,
+        rhs_stride_align,
     ))
+}
+
+/// Maximum factor relevant for strides. Currently set to 2^10 because that's 128-byte swizzle's
+/// repeat number, so it's the largest align that can have performance impacts.
+const MAX_STRIDE_FACTOR: u32 = 10;
+
+/// Defines the non-contiguous stride alignment in terms of powers of two
+fn stride_align(strides: &[usize], elem: StorageType) -> u8 {
+    let max = MAX_STRIDE_FACTOR;
+    let dim_c = strides.len() - 1;
+    let factor = strides[..dim_c]
+        .iter()
+        .map(|it| (*it * elem.size_bits()) / 8)
+        .map(|it| it.trailing_zeros())
+        .min()
+        .unwrap_or(max);
+    factor.min(max) as u8
+}
+
+/// Defines the potential vectorization.
+fn pow2_factor(axis: usize) -> u8 {
+    axis.trailing_zeros().min(4) as u8
 }
