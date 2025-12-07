@@ -312,6 +312,10 @@ impl ModuleStore for BurnpackStore {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
+        // Invalidate cache since we're writing new data
+        self.snapshots_cache = None;
+        self.reader = None;
+
         // Collect snapshots from module
         let snapshots = module.collect(self.filter.clone(), None, false);
 

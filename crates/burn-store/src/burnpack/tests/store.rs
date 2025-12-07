@@ -1020,3 +1020,44 @@ fn test_store_caching_behavior() {
     let weight = load_store.get_snapshot("weight").unwrap();
     assert!(weight.is_some());
 }
+
+#[test]
+fn test_store_cache_invalidation_on_save() {
+    let device = Default::default();
+
+    // Create first module with specific weights
+    let module1 = TestModule::<TestBackend>::new(&device);
+
+    // Save module1 to bytes store
+    let mut store = BurnpackStore::from_bytes(None);
+    store.collect_from(&module1).unwrap();
+
+    // Populate cache by calling get_snapshots
+    let snapshots1 = store.get_snapshots().unwrap();
+    assert_eq!(snapshots1.len(), 4);
+    let weight1_data = snapshots1.get("weight").unwrap().to_data().unwrap();
+    let weight1_values: Vec<f32> = weight1_data.to_vec().unwrap();
+
+    // Create a different module with different weights
+    let module2 = TestModule::<TestBackend> {
+        weight: Param::from_tensor(Tensor::from_data([[10.0, 20.0], [30.0, 40.0]], &device)),
+        bias: Param::from_tensor(Tensor::from_data([100.0, 200.0], &device)),
+        nested: NestedModule {
+            gamma: Param::from_tensor(Tensor::from_data([1000.0, 2000.0], &device)),
+            beta: Param::from_tensor(Tensor::from_data([3000.0, 4000.0], &device)),
+        },
+    };
+
+    // Save module2 - this should invalidate the cache
+    store.collect_from(&module2).unwrap();
+
+    // Get snapshots again - should return NEW data, not cached old data
+    let snapshots2 = store.get_snapshots().unwrap();
+    assert_eq!(snapshots2.len(), 4);
+    let weight2_data = snapshots2.get("weight").unwrap().to_data().unwrap();
+    let weight2_values: Vec<f32> = weight2_data.to_vec().unwrap();
+
+    // Verify the data changed (cache was invalidated)
+    assert_ne!(weight1_values, weight2_values);
+    assert_eq!(weight2_values, vec![10.0, 20.0, 30.0, 40.0]);
+}

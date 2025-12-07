@@ -566,6 +566,13 @@ impl ModuleStore for SafetensorsStore {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
+        // Invalidate cache since we're writing new data
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache = None,
+            Self::Memory(p) => p.snapshots_cache = None,
+        }
+
         // Collect tensor snapshots from module with adapter
         // The to_adapter converts from Burn format to target format for saving
         let to_adapter = match self {
