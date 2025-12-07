@@ -34,10 +34,6 @@ impl<B: Backend> DirectAccessTestModule<B> {
     }
 }
 
-// ============================================================================
-// Tests for MemoryStore variant
-// ============================================================================
-
 #[test]
 fn test_memory_get_all_snapshots() {
     let device = Default::default();
