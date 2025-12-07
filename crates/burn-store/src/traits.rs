@@ -236,6 +236,9 @@ pub trait ModuleStore {
     /// organized in a `BTreeMap` for efficient lookup by name. The map preserves
     /// alphabetical ordering of tensor names.
     ///
+    /// **Note:** This returns ALL tensors in storage, regardless of any filter
+    /// settings. Filters are only applied during `apply_to()`.
+    ///
     /// Results are cached after the first call for efficient repeated access.
     ///
     /// # Returns
@@ -247,12 +250,12 @@ pub trait ModuleStore {
     ///
     /// ```rust,ignore
     /// let mut store = SafetensorsStore::from_file("model.safetensors");
-    /// let snapshots = store.get_snapshots()?;
+    /// let snapshots = store.get_all_snapshots()?;
     /// for (name, snapshot) in snapshots {
     ///     println!("{}: {:?}", name, snapshot.shape);
     /// }
     /// ```
-    fn get_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error>;
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error>;
 
     /// Get all tensor names/keys in storage.
     ///

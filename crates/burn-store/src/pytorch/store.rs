@@ -323,15 +323,23 @@ impl ModuleStore for PytorchStore {
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
         // Get snapshots from cache
-        let snapshots: Vec<TensorSnapshot> = self.get_snapshots()?.values().cloned().collect();
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
+
+        // Get filter (convert to Option for apply)
+        let filter_opt = if self.filter.is_empty() {
+            None
+        } else {
+            Some(self.filter.clone())
+        };
 
         // Apply to module with PyTorchToBurnAdapter (always used for PyTorch files)
         // This adapter handles:
         // - Transposing linear weights from PyTorch format to Burn format
         // - Renaming normalization parameters (gamma -> weight, beta -> bias)
+        // Filter is applied here during apply, not during cache population
         let result = module.apply(
             snapshots,
-            None,
+            filter_opt,
             Some(Box::new(PyTorchToBurnAdapter)),
             self.skip_enum_variants,
         );
@@ -356,7 +364,7 @@ impl ModuleStore for PytorchStore {
         Ok(self.snapshots_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
         self.ensure_snapshots_cache()?;
         Ok(self.snapshots_cache.as_ref().unwrap())
     }
@@ -405,10 +413,7 @@ impl PytorchStore {
             })
             .collect();
 
-        // Apply filtering
-        snapshots = self.apply_filter(snapshots);
-
-        // Apply remapping
+        // Apply remapping (but NOT filtering - that's done at apply time)
         snapshots = self.apply_remapping(snapshots);
 
         // Build cache as BTreeMap

@@ -640,7 +640,7 @@ impl ModuleStore for SafetensorsStore {
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
         // Get snapshots from cache
-        let snapshots: Vec<TensorSnapshot> = self.get_snapshots()?.values().cloned().collect();
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 
         // Get the adapter
         let adapter: Box<dyn ModuleAdapter> = match self {
@@ -649,11 +649,20 @@ impl ModuleStore for SafetensorsStore {
             Self::Memory(p) => p.from_adapter.clone(),
         };
 
+        // Get filter (cloned to Option for apply)
+        let filter = self.get_filter();
+        let filter_opt = if filter.is_empty() {
+            None
+        } else {
+            Some(filter.clone())
+        };
+
         // Apply to module with adapter
         // The adapter will be applied during module traversal with proper container info
+        // Filter is applied here during apply, not during cache population
         let result = module.apply(
             snapshots,
-            None,
+            filter_opt,
             Some(adapter),
             self.get_skip_enum_variants(),
         );
@@ -687,7 +696,7 @@ impl ModuleStore for SafetensorsStore {
         Ok(cache.get(name))
     }
 
-    fn get_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
         // Ensure cache is populated
         self.ensure_snapshots_cache()?;
         let cache = match self {
@@ -707,7 +716,7 @@ impl ModuleStore for SafetensorsStore {
         };
 
         if has_cache {
-            return Ok(self.get_snapshots()?.keys().cloned().collect());
+            return Ok(self.get_all_snapshots()?.keys().cloned().collect());
         }
 
         // Fast path: parse just header without loading tensor data
@@ -807,7 +816,7 @@ impl SafetensorsStore {
             }
         };
 
-        // Apply remapping
+        // Apply remapping (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]
         {
             snapshots = match self {

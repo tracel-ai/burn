@@ -298,7 +298,7 @@ for name in &names {
 }
 
 // Get all tensors as a BTreeMap (cached for repeated access)
-let snapshots = store.get_snapshots()?;
+let snapshots = store.get_all_snapshots()?;
 for (name, snapshot) in snapshots {
     println!("{}: {:?} {:?}", name, snapshot.shape(), snapshot.dtype());
 }
@@ -436,7 +436,7 @@ The stores provide a fluent API for configuration:
 #### Direct Tensor Access
 
 - `keys()` - Get ordered list of all tensor names
-- `get_snapshots()` - Get all tensors as a BTreeMap (cached)
+- `get_all_snapshots()` - Get all tensors as a BTreeMap (cached)
 - `get_snapshot(name)` - Get a specific tensor by name
 
 ### Inspecting Burnpack Files

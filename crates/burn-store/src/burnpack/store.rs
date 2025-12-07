@@ -368,10 +368,11 @@ impl ModuleStore for BurnpackStore {
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
         // Get all snapshots using the cached method
-        let snapshots: Vec<TensorSnapshot> = self.get_snapshots()?.values().cloned().collect();
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 
         // Apply all snapshots at once to the module
         // Burnpack is Burn's native format, so no enum variant skipping needed
+        // Filter is applied here during apply, not during cache population
         let result = module.apply(snapshots, self.filter.clone(), None, false);
 
         // Validate if needed
@@ -399,7 +400,7 @@ impl ModuleStore for BurnpackStore {
         Ok(self.snapshots_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
         // Ensure cache is populated
         self.ensure_snapshots_cache()?;
         Ok(self.snapshots_cache.as_ref().unwrap())
@@ -443,7 +444,7 @@ impl BurnpackStore {
         let reader = self.reader.as_ref().unwrap();
         let snapshots = reader.get_snapshots()?;
 
-        // Apply remapping if configured
+        // Apply remapping if configured (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]
         let snapshots = if !self.remapper.patterns.is_empty() {
             let (remapped, _remapped_names) = self.remapper.remap(snapshots);

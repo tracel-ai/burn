@@ -856,11 +856,11 @@ fn test_forward_pass_preservation_after_save_load() {
 }
 
 // ============================================================================
-// Tests for new ModuleStore methods: get_snapshot, get_snapshots, keys
+// Tests for new ModuleStore methods: get_snapshot, get_all_snapshots, keys
 // ============================================================================
 
 #[test]
-fn test_store_get_snapshots() {
+fn test_store_get_all_snapshots() {
     let device = Default::default();
     let module = TestModule::<TestBackend>::new(&device);
 
@@ -871,7 +871,7 @@ fn test_store_get_snapshots() {
 
     // Get all snapshots (returns &BTreeMap<String, TensorSnapshot>)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let snapshots = load_store.get_snapshots().unwrap();
+    let snapshots = load_store.get_all_snapshots().unwrap();
 
     // Should have 4 tensors
     assert_eq!(snapshots.len(), 4);
@@ -970,7 +970,7 @@ fn test_store_keys() {
 
 #[test]
 #[cfg(feature = "std")]
-fn test_store_get_snapshots_from_file() {
+fn test_store_get_all_snapshots_from_file() {
     use tempfile::tempdir;
 
     let device = Default::default();
@@ -978,14 +978,14 @@ fn test_store_get_snapshots_from_file() {
 
     // Save to file
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("test_get_snapshots.bpk");
+    let path = temp_dir.path().join("test_get_all_snapshots.bpk");
 
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
     // Get snapshots from file (returns &BTreeMap)
     let mut load_store = BurnpackStore::from_file(&path);
-    let snapshots = load_store.get_snapshots().unwrap();
+    let snapshots = load_store.get_all_snapshots().unwrap();
 
     assert_eq!(snapshots.len(), 4);
 
@@ -1009,11 +1009,11 @@ fn test_store_caching_behavior() {
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
 
     // First call should populate cache
-    let snapshots1 = load_store.get_snapshots().unwrap();
+    let snapshots1 = load_store.get_all_snapshots().unwrap();
     assert_eq!(snapshots1.len(), 4);
 
     // Second call should return cached data (same reference)
-    let snapshots2 = load_store.get_snapshots().unwrap();
+    let snapshots2 = load_store.get_all_snapshots().unwrap();
     assert_eq!(snapshots2.len(), 4);
 
     // get_snapshot should also use the cache
@@ -1033,7 +1033,7 @@ fn test_store_cache_invalidation_on_save() {
     store.collect_from(&module1).unwrap();
 
     // Populate cache by calling get_snapshots
-    let snapshots1 = store.get_snapshots().unwrap();
+    let snapshots1 = store.get_all_snapshots().unwrap();
     assert_eq!(snapshots1.len(), 4);
     let weight1_data = snapshots1.get("weight").unwrap().to_data().unwrap();
     let weight1_values: Vec<f32> = weight1_data.to_vec().unwrap();
@@ -1052,7 +1052,7 @@ fn test_store_cache_invalidation_on_save() {
     store.collect_from(&module2).unwrap();
 
     // Get snapshots again - should return NEW data, not cached old data
-    let snapshots2 = store.get_snapshots().unwrap();
+    let snapshots2 = store.get_all_snapshots().unwrap();
     assert_eq!(snapshots2.len(), 4);
     let weight2_data = snapshots2.get("weight").unwrap().to_data().unwrap();
     let weight2_values: Vec<f32> = weight2_data.to_vec().unwrap();
