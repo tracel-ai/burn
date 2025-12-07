@@ -206,6 +206,9 @@ pub trait ModuleStore {
     /// requiring a module. The returned `TensorSnapshot` uses lazy loading - tensor
     /// data is only materialized when `to_data()` is called.
     ///
+    /// **Note:** Key remapping is applied, so use the remapped name if configured.
+    /// Filters are NOT applied - use `apply_to()` for filtered loading.
+    ///
     /// Results are cached after the first call for efficient repeated access.
     ///
     /// # Arguments
@@ -237,7 +240,8 @@ pub trait ModuleStore {
     /// alphabetical ordering of tensor names.
     ///
     /// **Note:** This returns ALL tensors in storage, regardless of any filter
-    /// settings. Filters are only applied during `apply_to()`.
+    /// settings. Filters are only applied during `apply_to()`. Key remapping
+    /// IS applied, so tensor names reflect any configured remapping.
     ///
     /// Results are cached after the first call for efficient repeated access.
     ///
@@ -262,9 +266,13 @@ pub trait ModuleStore {
     /// This method returns the names of all tensors without loading tensor data.
     /// Useful for inspecting storage contents or checking if specific tensors exist.
     ///
+    /// **Note:** Returns ALL tensor names regardless of filter settings.
+    /// If key remapping is configured and the cache is populated, remapped names
+    /// are returned. Otherwise, original names from storage are returned.
+    ///
     /// # Returns
     ///
-    /// * `Ok(Vec<String>)` - All tensor names in storage (alphabetically sorted)
+    /// * `Ok(Vec<String>)` - All tensor names in storage
     /// * `Err(Self::Error)` - If an error occurred accessing storage
     ///
     /// # Example
