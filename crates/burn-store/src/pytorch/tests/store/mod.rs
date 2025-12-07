@@ -737,3 +737,228 @@ mod enum_variant_tests {
         }
     }
 }
+
+// ============================================================================
+// Tests for direct tensor access methods: get_snapshot, get_all_snapshots, keys
+// ============================================================================
+
+#[cfg(test)]
+mod direct_access_tests {
+    use super::*;
+
+    #[test]
+    fn test_get_all_snapshots() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+        let snapshots = store.get_all_snapshots().unwrap();
+
+        // linear.pt should have fc1.weight, fc1.bias, fc2.weight, fc2.bias
+        assert!(!snapshots.is_empty(), "Should have snapshots");
+        assert!(
+            snapshots.contains_key("fc1.weight"),
+            "Should contain fc1.weight"
+        );
+        assert!(
+            snapshots.contains_key("fc1.bias"),
+            "Should contain fc1.bias"
+        );
+    }
+
+    #[test]
+    fn test_get_snapshot_existing() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+
+        // Get existing snapshot
+        let snapshot = store.get_snapshot("fc1.weight").unwrap();
+        assert!(snapshot.is_some(), "Should find fc1.weight");
+
+        let snapshot = snapshot.unwrap();
+        // Linear weight should be 2D
+        assert_eq!(snapshot.shape.len(), 2, "Weight should be 2D tensor");
+
+        // Verify we can load data
+        let data = snapshot.to_data().unwrap();
+        assert!(!data.bytes.is_empty(), "Data should not be empty");
+    }
+
+    #[test]
+    fn test_get_snapshot_not_found() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+
+        // Get non-existent snapshot
+        let snapshot = store.get_snapshot("nonexistent.weight").unwrap();
+        assert!(snapshot.is_none(), "Should not find nonexistent tensor");
+    }
+
+    #[test]
+    fn test_keys() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+        let keys = store.keys().unwrap();
+
+        assert!(!keys.is_empty(), "Should have keys");
+        assert!(
+            keys.contains(&"fc1.weight".to_string()),
+            "Keys should contain fc1.weight"
+        );
+        assert!(
+            keys.contains(&"fc1.bias".to_string()),
+            "Keys should contain fc1.bias"
+        );
+    }
+
+    #[test]
+    fn test_keys_fast_path() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create fresh store - cache should be empty
+        let mut store = PytorchStore::from_file(&path);
+
+        // keys() should work without populating the full cache (fast path)
+        let keys = store.keys().unwrap();
+        assert!(!keys.is_empty(), "Should have keys via fast path");
+
+        // Now call get_all_snapshots to populate cache
+        let snapshots = store.get_all_snapshots().unwrap();
+        assert!(!snapshots.is_empty(), "Should have snapshots");
+
+        // keys() should now use the cached data
+        let keys2 = store.keys().unwrap();
+        assert_eq!(keys.len(), keys2.len(), "Keys count should match");
+    }
+
+    #[test]
+    fn test_caching_behavior() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+
+        // First call populates cache
+        let snapshots1 = store.get_all_snapshots().unwrap();
+        let count1 = snapshots1.len();
+
+        // Second call uses cache
+        let snapshots2 = store.get_all_snapshots().unwrap();
+        let count2 = snapshots2.len();
+
+        assert_eq!(count1, count2, "Cached results should match");
+    }
+
+    #[test]
+    fn test_get_all_snapshots_with_remapping() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create store with key remapping
+        let mut store = PytorchStore::from_file(path).with_key_remapping(r"^fc1\.", "linear1.");
+
+        let snapshots = store.get_all_snapshots().unwrap();
+
+        // Should have remapped keys
+        assert!(
+            snapshots.contains_key("linear1.weight"),
+            "Should contain remapped key linear1.weight. Keys: {:?}",
+            snapshots.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            snapshots.contains_key("linear1.bias"),
+            "Should contain remapped key linear1.bias"
+        );
+
+        // Original keys should not exist
+        assert!(
+            !snapshots.contains_key("fc1.weight"),
+            "Should not contain original key fc1.weight"
+        );
+    }
+
+    #[test]
+    fn test_get_snapshot_with_remapped_name() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create store with key remapping
+        let mut store = PytorchStore::from_file(path).with_key_remapping(r"^fc1\.", "linear1.");
+
+        // Should find by remapped name
+        let snapshot = store.get_snapshot("linear1.weight").unwrap();
+        assert!(snapshot.is_some(), "Should find tensor by remapped name");
+
+        // Should NOT find by original name
+        let snapshot_orig = store.get_snapshot("fc1.weight").unwrap();
+        assert!(
+            snapshot_orig.is_none(),
+            "Should not find tensor by original name after remapping"
+        );
+    }
+
+    #[test]
+    fn test_get_all_snapshots_ignores_filter() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create store with filter that only matches fc1
+        let mut store = PytorchStore::from_file(path).with_regex(r"^fc1\.");
+
+        // get_all_snapshots should return ALL tensors regardless of filter
+        let snapshots = store.get_all_snapshots().unwrap();
+
+        // Should have both fc1 and fc2 tensors
+        assert!(
+            snapshots.contains_key("fc1.weight"),
+            "Should contain fc1.weight"
+        );
+        assert!(
+            snapshots.contains_key("fc2.weight"),
+            "Should contain fc2.weight (filter not applied to get_all_snapshots)"
+        );
+    }
+}
