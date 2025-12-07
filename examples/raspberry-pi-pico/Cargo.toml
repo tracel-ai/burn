@@ -30,7 +30,7 @@ portable-atomic = { version = "1.7", features = ["critical-section"] }
 embedded-alloc = "0.6.0"
 
 burn = { path = "../../crates/burn", default-features = false, features = ["ndarray"] }
-burn-store = { path = "../../crates/burn-store", default-features = false, features = ["burnpack", "safetensors"] }
+burn-store = { path = "../../crates/burn-store", default-features = false, features = ["burnpack"] }
 
 [build-dependencies]
 burn-import = { path = "../../crates/burn-import" }
