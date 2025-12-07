@@ -738,10 +738,6 @@ mod enum_variant_tests {
     }
 }
 
-// ============================================================================
-// Tests for direct tensor access methods: get_snapshot, get_all_snapshots, keys
-// ============================================================================
-
 #[cfg(test)]
 mod direct_access_tests {
     use super::*;
