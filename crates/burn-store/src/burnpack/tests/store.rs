@@ -855,10 +855,6 @@ fn test_forward_pass_preservation_after_save_load() {
     );
 }
 
-// ============================================================================
-// Tests for new ModuleStore methods: get_snapshot, get_all_snapshots, keys
-// ============================================================================
-
 #[test]
 fn test_store_get_all_snapshots() {
     let device = Default::default();
