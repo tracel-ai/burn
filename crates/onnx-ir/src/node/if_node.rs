@@ -93,29 +93,20 @@ impl NodeProcessor for IfProcessor {
             )));
         }
 
-        // Infer output types from branches
-        // When branches have different types, merge them to find the common type.
-        // For tensors with different ranks, use the lower rank (common base type).
-        // ONLY update types, preserve existing output structure (names set by add_node)
+        // Infer output types from then_branch
+        // Both branches produce the same number of outputs, so we use then_branch as the reference.
+        // At runtime, only one branch executes, so the types should be compatible.
 
         // If outputs don't exist yet, create them from branch outputs
         if node.outputs.is_empty() {
-            for (then_output, else_output) in then_outputs.iter().zip(else_outputs.iter()) {
-                let merged_ty = merge_branch_types(&then_output.ty, &else_output.ty);
-                let mut output = then_output.clone();
-                output.ty = merged_ty;
-                node.outputs.push(output);
+            for then_output in &then_outputs {
+                node.outputs.push(then_output.clone());
             }
         } else {
             // Update types for existing outputs (preserves names set by add_node)
-            for (i, (then_output, else_output)) in
-                then_outputs.iter().zip(else_outputs.iter()).enumerate()
-            {
-                let merged_ty = merge_branch_types(&then_output.ty, &else_output.ty);
-
-                // Only update the type, keep the existing name
+            for (i, then_output) in then_outputs.iter().enumerate() {
                 if i < node.outputs.len() {
-                    node.outputs[i].ty = merged_ty;
+                    node.outputs[i].ty = then_output.ty.clone();
                 }
             }
         }
@@ -212,84 +203,6 @@ impl NodeProcessor for IfProcessor {
             outputs: builder.outputs,
             config,
         })
-    }
-}
-
-/// Merge branch output types when they differ.
-///
-/// ONNX allows If branches to have outputs with different shapes/ranks as long as
-/// they are "compatible" at runtime. For example, one branch might output `[1, N, 128]`
-/// while another outputs `[N, 128]`. At runtime, only one branch executes.
-///
-/// For static type inference, we need to choose a consistent type. This function:
-/// 1. Returns the type if both branches match exactly
-/// 2. For tensors with same dtype but different ranks, uses the higher rank
-/// 3. For incompatible dtypes, logs a warning and uses then_branch
-///
-/// We prefer higher rank because lower-rank outputs are often the result of
-/// squeeze operations that can be unsqueezed to match the higher rank.
-fn merge_branch_types(then_ty: &ArgType, else_ty: &ArgType) -> ArgType {
-    use crate::ir::TensorType;
-
-    if then_ty == else_ty {
-        return then_ty.clone();
-    }
-
-    match (then_ty, else_ty) {
-        (ArgType::Tensor(then_tensor), ArgType::Tensor(else_tensor)) => {
-            // Validate dtype compatibility
-            if then_tensor.dtype != else_tensor.dtype {
-                log::warn!(
-                    "If branches have incompatible dtypes: then={:?}, else={:?}. Using then_branch dtype.",
-                    then_tensor.dtype,
-                    else_tensor.dtype
-                );
-                return then_ty.clone();
-            }
-
-            // Same dtype, different ranks - use higher rank
-            if then_tensor.rank != else_tensor.rank {
-                let chosen_rank = std::cmp::max(then_tensor.rank, else_tensor.rank);
-                log::debug!(
-                    "If branches have different ranks: then={}, else={}. Using rank {}.",
-                    then_tensor.rank,
-                    else_tensor.rank,
-                    chosen_rank
-                );
-                return ArgType::Tensor(TensorType {
-                    dtype: then_tensor.dtype,
-                    rank: chosen_rank,
-                    static_shape: None, // Can't determine static shape when ranks differ
-                });
-            }
-
-            // Same dtype and rank but different static shapes - clear static shape
-            log::debug!("If branches have different static shapes. Using dynamic shape.");
-            ArgType::Tensor(TensorType {
-                dtype: then_tensor.dtype,
-                rank: then_tensor.rank,
-                static_shape: None,
-            })
-        }
-        (ArgType::Scalar(then_dtype), ArgType::Scalar(else_dtype)) => {
-            if then_dtype != else_dtype {
-                log::warn!(
-                    "If branches have incompatible scalar dtypes: then={:?}, else={:?}. Using then_branch.",
-                    then_dtype,
-                    else_dtype
-                );
-            }
-            then_ty.clone()
-        }
-        _ => {
-            // Different type categories (Tensor vs Scalar vs Shape)
-            log::warn!(
-                "If branches have incompatible type categories: then={:?}, else={:?}. Using then_branch.",
-                then_ty,
-                else_ty
-            );
-            then_ty.clone()
-        }
     }
 }
 
