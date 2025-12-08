@@ -10,15 +10,26 @@ See: https://github.com/snakers4/silero-vad/issues/728 for compatibility discuss
 """
 
 import json
+import struct
 import urllib.request
+import wave
 from pathlib import Path
 from collections import defaultdict
+
+import numpy as np
 
 try:
     import onnx
 except ImportError:
     print("Error: onnx package not found. Please install it with:")
     print("  pip install onnx")
+    exit(1)
+
+try:
+    import onnxruntime as ort
+except ImportError:
+    print("Error: onnxruntime package not found. Please install it with:")
+    print("  pip install onnxruntime")
     exit(1)
 
 
@@ -125,6 +136,181 @@ def extract_node_info(model_path, artifacts_dir):
     return summary
 
 
+def download_test_data():
+    """Download test audio file from silero-vad repository."""
+
+    artifacts_dir = Path("artifacts")
+    artifacts_dir.mkdir(exist_ok=True)
+
+    test_wav_path = artifacts_dir / "test.wav"
+
+    if test_wav_path.exists():
+        print(f"✓ Test audio already exists at {test_wav_path}")
+        return test_wav_path
+
+    # Download the test.wav file from silero-vad tests
+    test_url = "https://github.com/snakers4/silero-vad/raw/refs/heads/master/tests/data/test.wav"
+
+    print(f"Downloading test audio from:")
+    print(f"  {test_url}")
+    print(f"Saving to: {test_wav_path}")
+
+    try:
+        urllib.request.urlretrieve(test_url, test_wav_path)
+        file_size = test_wav_path.stat().st_size / 1024
+        print(f"✓ Download complete! File size: {file_size:.1f} KB")
+    except Exception as e:
+        print(f"✗ Error downloading test audio: {e}")
+        raise
+
+    return test_wav_path
+
+
+def load_wav(wav_path):
+    """Load a WAV file and return audio samples as float32 array normalized to [-1, 1]."""
+    with wave.open(str(wav_path), 'rb') as wav_file:
+        n_channels = wav_file.getnchannels()
+        sample_width = wav_file.getsampwidth()
+        frame_rate = wav_file.getframerate()
+        n_frames = wav_file.getnframes()
+
+        # Read raw bytes
+        raw_data = wav_file.readframes(n_frames)
+
+        # Convert to numpy array based on sample width
+        if sample_width == 2:  # 16-bit
+            samples = np.frombuffer(raw_data, dtype=np.int16)
+            # Normalize to [-1, 1]
+            samples = samples.astype(np.float32) / 32768.0
+        elif sample_width == 4:  # 32-bit
+            samples = np.frombuffer(raw_data, dtype=np.int32)
+            samples = samples.astype(np.float32) / 2147483648.0
+        else:
+            raise ValueError(f"Unsupported sample width: {sample_width}")
+
+        # If stereo, convert to mono by averaging channels
+        if n_channels == 2:
+            samples = samples.reshape(-1, 2).mean(axis=1)
+
+        return samples, frame_rate
+
+
+def generate_reference_outputs(model_path, test_wav_path, artifacts_dir):
+    """Generate reference outputs using ONNX Runtime for testing."""
+
+    print(f"  Loading test audio from {test_wav_path}...")
+    audio_samples, sample_rate = load_wav(test_wav_path)
+    print(f"    Sample rate: {sample_rate} Hz")
+    print(f"    Audio length: {len(audio_samples)} samples ({len(audio_samples)/sample_rate:.2f} seconds)")
+
+    # Create ONNX Runtime session
+    print(f"  Creating ONNX Runtime session...")
+    session = ort.InferenceSession(str(model_path), providers=['CPUExecutionProvider'])
+
+    # Silero VAD parameters
+    # For 16kHz: chunk_size = 512 (32ms)
+    # For 8kHz: chunk_size = 256 (32ms)
+    chunk_size = 512 if sample_rate == 16000 else 256
+    batch_size = 1
+
+    # Initialize state
+    state = np.zeros((2, batch_size, 128), dtype=np.float32)
+
+    # Process audio in chunks and collect outputs
+    results = {
+        "sample_rate": sample_rate,
+        "chunk_size": chunk_size,
+        "audio_length_samples": len(audio_samples),
+        "test_cases": []
+    }
+
+    # Test Case 1: First few chunks from the beginning of the audio
+    print(f"  Running inference on test chunks...")
+    num_test_chunks = min(10, len(audio_samples) // chunk_size)
+
+    state = np.zeros((2, batch_size, 128), dtype=np.float32)
+    for i in range(num_test_chunks):
+        start_idx = i * chunk_size
+        end_idx = start_idx + chunk_size
+
+        chunk = audio_samples[start_idx:end_idx]
+        if len(chunk) < chunk_size:
+            # Pad with zeros if needed
+            chunk = np.pad(chunk, (0, chunk_size - len(chunk)), mode='constant')
+
+        # Prepare inputs
+        input_tensor = chunk.reshape(1, -1).astype(np.float32)
+        sr_tensor = np.array(sample_rate, dtype=np.int64)
+
+        # Run inference
+        outputs = session.run(None, {
+            'input': input_tensor,
+            'sr': sr_tensor,
+            'state': state
+        })
+
+        output_prob = float(outputs[0].flatten()[0])
+        state = outputs[1]
+
+        results["test_cases"].append({
+            "test_name": f"chunk_{i}",
+            "chunk_index": i,
+            "start_sample": start_idx,
+            "input_samples": chunk.tolist(),
+            "expected_output": output_prob,
+            "state_after": state.tolist()
+        })
+
+    # Test Case 2: Random input (for reproducibility test)
+    print(f"  Generating random input test case...")
+    np.random.seed(42)
+    random_input = np.random.randn(chunk_size).astype(np.float32) * 0.1
+    state = np.zeros((2, batch_size, 128), dtype=np.float32)
+
+    outputs = session.run(None, {
+        'input': random_input.reshape(1, -1),
+        'sr': np.array(sample_rate, dtype=np.int64),
+        'state': state
+    })
+
+    results["test_cases"].append({
+        "test_name": "random_seed_42",
+        "chunk_index": -1,
+        "start_sample": -1,
+        "input_samples": random_input.tolist(),
+        "expected_output": float(outputs[0].flatten()[0]),
+        "state_after": outputs[1].tolist()
+    })
+
+    # Test Case 3: Zero input (silence)
+    print(f"  Generating silence test case...")
+    zero_input = np.zeros(chunk_size, dtype=np.float32)
+    state = np.zeros((2, batch_size, 128), dtype=np.float32)
+
+    outputs = session.run(None, {
+        'input': zero_input.reshape(1, -1),
+        'sr': np.array(sample_rate, dtype=np.int64),
+        'state': state
+    })
+
+    results["test_cases"].append({
+        "test_name": "silence",
+        "chunk_index": -1,
+        "start_sample": -1,
+        "input_samples": zero_input.tolist(),
+        "expected_output": float(outputs[0].flatten()[0]),
+        "state_after": outputs[1].tolist()
+    })
+
+    # Save results
+    output_path = artifacts_dir / "reference_outputs.json"
+    with open(output_path, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    print(f"  ✓ Reference outputs saved to {output_path}")
+    print(f"    Total test cases: {len(results['test_cases'])}")
+
+
 def download_model():
     """Download the Silero VAD ONNX model (opset 18, if-less version)."""
 
@@ -168,6 +354,26 @@ def download_model():
         raise
 
     print()
+
+    # Download test data
+    print("Downloading test data...")
+    try:
+        test_wav_path = download_test_data()
+    except Exception as e:
+        print(f"✗ Error downloading test data: {e}")
+        raise
+
+    print()
+
+    # Generate reference outputs
+    print("Generating reference outputs...")
+    try:
+        generate_reference_outputs(model_path, test_wav_path, artifacts_dir)
+    except Exception as e:
+        print(f"✗ Error generating reference outputs: {e}")
+        raise
+
+    print()
     print("="*80)
     print("Model preparation complete!")
     print("="*80)
@@ -180,6 +386,8 @@ def download_model():
     print("Generated files:")
     print(f"  - {model_path} (ONNX model)")
     print(f"  - {artifacts_dir / 'node_info.json'} (node analysis)")
+    print(f"  - {test_wav_path} (test audio)")
+    print(f"  - {artifacts_dir / 'reference_outputs.json'} (reference test outputs)")
     print()
     print("Next steps:")
     print("  1. Build the model: cargo build")

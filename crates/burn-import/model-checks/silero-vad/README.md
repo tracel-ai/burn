@@ -1,18 +1,11 @@
 # Silero VAD Model Check
 
 This model check verifies that burn-import can correctly handle the Silero VAD (Voice Activity
-Detection) model.
+Detection) model and produces outputs matching ONNX Runtime.
 
 ## Current Status
 
-⚠️ **In Progress**: The model downloads successfully but encounters issues during code generation:
-
-1. **Fixed**: Reshape operator now handles Scalar inputs
-2. **Current Blocker**: Constant lifting in If subgraphs - constants from the parent graph
-   are not accessible when lifting constants inside If branches
-
-The silero_vad_op18_ifless.onnx model has only 1 If node but the branches reference
-constants from the parent scope that aren't properly resolved.
+**Working**: The model is successfully imported and produces outputs matching ONNX Runtime.
 
 ## Model Information
 
@@ -28,7 +21,7 @@ See: https://github.com/snakers4/silero-vad/issues/728 for compatibility discuss
 
 ## Setup
 
-### Step 1: Download the Model
+### Step 1: Download the Model and Generate Reference Outputs
 
 ```bash
 # Using Python
@@ -38,19 +31,29 @@ python get_model.py
 uv run get_model.py
 ```
 
-This downloads the Silero VAD ONNX model to the `artifacts/` directory and extracts node information:
+This downloads:
 - `artifacts/silero_vad.onnx` - The ONNX model file
 - `artifacts/node_info.json` - Detailed analysis of all nodes, operators, and configurations
+- `artifacts/test.wav` - Test audio file from silero-vad repository
+- `artifacts/reference_outputs.json` - Reference outputs from ONNX Runtime for validation
 
-### Step 2: Build (currently fails)
+### Step 2: Build and Run Tests
 
 ```bash
 cargo build
+cargo run
 ```
+
+The test suite runs 12 test cases:
+- 10 audio chunks from the test.wav file
+- 1 random input test (reproducible with seed 42)
+- 1 silence test (all zeros)
+
+Each test compares the Burn model output against ONNX Runtime reference outputs with a 1% tolerance.
 
 ## Backend Support
 
-Once the issues are resolved, this model check will support multiple backends:
+This model check supports multiple backends:
 
 ```bash
 # NdArray backend (default, CPU)
@@ -64,4 +67,36 @@ cargo run --features wgpu --no-default-features
 
 # Metal backend (Apple Silicon GPU)
 cargo run --features metal --no-default-features
+```
+
+## Test Output Example
+
+```
+========================================
+Silero VAD Model Test Suite
+========================================
+
+Loading reference outputs...
+  Loaded 12 test cases (sample rate: 16000 Hz)
+
+Initializing Silero VAD model...
+  Model initialized
+
+Running test cases...
+------------------------------------------------------------
+  [PASS] chunk_0: output=0.000589 (expected=0.000589)
+  [PASS] chunk_1: output=0.000589 (expected=0.000528)
+  ...
+  [PASS] silence: output=0.000592 (expected=0.000592)
+------------------------------------------------------------
+
+========================================
+Test Summary
+========================================
+  Total tests: 12
+  Passed: 12
+  Failed: 0
+
+All tests passed!
+The Burn model produces outputs matching ONNX Runtime.
 ```
