@@ -350,6 +350,8 @@ impl TchTensor {
     }
 }
 
+// TODO: remove tch tests?
+
 #[cfg(test)]
 mod tests {
     use crate::LibTorch;

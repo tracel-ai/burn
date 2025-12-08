@@ -1,5 +1,5 @@
 use burn_tensor::Element;
-use half::{bf16, f16};
+use burn_tensor::{bf16, f16};
 
 /// The element type for the tch backend.
 pub trait TchElement: Element + tch::kind::Element {

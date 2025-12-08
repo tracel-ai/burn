@@ -16,13 +16,11 @@ workspace = true
 
 [features]
 default = ["std"]
-export_tests = ["burn-tensor-testgen"]
 std = ["dep:parking_lot"]
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.4", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.4", optional = true }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.4", default-features = false }
 
 derive-new = { workspace = true }
 spin = { workspace = true }
@@ -32,11 +30,6 @@ hashbrown = { workspace = true }
 num-traits = { workspace = true }
 portable-atomic = { workspace = true }
 
-
-[dev-dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", default-features = false, features = [
-    "export_tests",
-] }
 
 [package.metadata.docs.rs]
 features = ["default"]

@@ -8,6 +8,7 @@ fn test_add_d2() {
 
     let output = tensor_1 + tensor_2;
 
+    println!("{output}");
     output.into_data().assert_eq(
         &TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]),
         false,

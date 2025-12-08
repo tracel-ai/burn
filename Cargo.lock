@@ -649,9 +649,8 @@ dependencies = [
 name = "burn-autodiff"
 version = "0.20.0-pre.4"
 dependencies = [
+ "burn-backend",
  "burn-std",
- "burn-tensor",
- "burn-tensor-testgen",
  "derive-new",
  "hashbrown 0.16.1",
  "log",
@@ -1144,11 +1143,9 @@ dependencies = [
 name = "burn-tch"
 version = "0.20.0-pre.4"
 dependencies = [
- "burn-autodiff",
  "burn-std",
  "burn-tensor",
  "cc",
- "half",
  "libc",
  "log",
  "rand 0.9.2",
@@ -1162,9 +1159,7 @@ version = "0.20.0-pre.4"
 dependencies = [
  "burn-backend",
  "burn-std",
- "burn-tensor-testgen",
  "colored 3.0.0",
- "cubecl",
  "derive-new",
  "hashbrown 0.16.1",
  "num-traits",
@@ -1196,8 +1191,11 @@ dependencies = [
  "burn-router",
  "burn-tch",
  "burn-tensor",
+ "burn-tensor-testgen",
  "burn-wgpu",
+ "cubecl",
  "num-traits",
+ "serial_test",
 ]
 
 [[package]]

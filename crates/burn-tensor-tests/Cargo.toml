@@ -45,15 +45,15 @@ std = [
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "quantization", "fusion"]
-rocm = ["burn-rocm", "quantization", "fusion"]
+cuda = ["burn-cuda", "quantization", "fusion", "cubecl"]
+rocm = ["burn-rocm", "quantization", "fusion", "cubecl"]
 ndarray = ["burn-ndarray", "quantization"]
 tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu", "quantization", "fusion"]
-cpu = ["burn-cpu"]
+wgpu = ["burn-wgpu", "quantization", "fusion", "cubecl"]
+cpu = ["burn-cpu", "cubecl"]
 router = ["burn-router", "ndarray", "wgpu"]
 
 autotune = [
@@ -74,9 +74,8 @@ fusion = ["burn-fusion", "burn-cubecl"]
 quantization = []
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.4", default-features = false, features = [
-    "export_tests",
-] }
+burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.4", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.4" }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.4", default-features = false }
@@ -84,9 +83,11 @@ burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.4", optional = t
 burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.4", optional = true, default-features = false }
 burn-cpu = { path = "../burn-cpu", version = "=0.20.0-pre.4", optional = true, default-features = false }
 burn-rocm = { path = "../burn-rocm", version = "=0.20.0-pre.4", optional = true, default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", optional = true, default-features = false }
-burn-router = { path = "../burn-router", version = "=0.20.0-pre.4", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.4", default-features = false, optional = true }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", optional = true, default-features = false, features = [
+    "export_tests",
+] }
+burn-router = { path = "../burn-router", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.4", optional = true, default-features = false }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.4", optional = true, default-features = false }
 
 # To wrap `Fusion<CubeBackend>
@@ -96,3 +97,6 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", optional = t
 ] }
 
 num-traits = { workspace = true }
+serial_test = { workspace = true }
+
+cubecl = { workspace = true, features = ["random"], optional = true }

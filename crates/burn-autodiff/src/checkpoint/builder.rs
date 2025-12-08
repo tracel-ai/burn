@@ -4,7 +4,7 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 use core::any::Any;
 
 use super::{

@@ -11,7 +11,8 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::boxed::Box;
-use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
+use burn_backend::{TensorMetadata, Backend, tensor::FloatTensor};
+use burn_std::Shape;
 use core::marker::PhantomData;
 
 /// Operation in preparation.

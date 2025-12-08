@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::TensorData;
 
 #[cfg(feature = "std")]
-use burn_tensor::might_panic;
+use crate::might_panic;
 
 #[test]
 fn test_cross_3d_last_dim() {

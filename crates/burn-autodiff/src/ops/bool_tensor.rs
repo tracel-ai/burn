@@ -1,11 +1,12 @@
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
 
-use burn_tensor::{
-    Device, Shape, TensorData,
-    backend::{Backend, ExecutionError},
-    ops::{BoolTensor, BoolTensorOps, IntTensor},
+use burn_backend::{
+    Backend, ExecutionError, TensorData,
+    ops::BoolTensorOps,
+    tensor::{BoolTensor, Device, IntTensor},
 };
+use burn_std::Shape;
 
 impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     fn bool_from_data(data: TensorData, device: &Device<B>) -> BoolTensor<B> {
@@ -32,7 +33,7 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<B>, slices: &[burn_tensor::Slice]) -> BoolTensor<B> {
+    fn bool_slice(tensor: BoolTensor<B>, slices: &[burn_std::Slice]) -> BoolTensor<B> {
         B::bool_slice(tensor, slices)
     }
 
@@ -50,7 +51,7 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_std::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         B::bool_slice_assign(tensor, slices, value)

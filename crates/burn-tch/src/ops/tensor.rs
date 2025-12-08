@@ -7,7 +7,7 @@ use burn_tensor::{
     backend::Backend,
     ops::{FloatTensorOps, IntTensor},
 };
-use half::{bf16, f16};
+use burn_tensor::{bf16, f16};
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {

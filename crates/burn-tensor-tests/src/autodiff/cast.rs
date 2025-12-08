@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::{DType, Tensor, TensorData};
 
 #[cfg(feature = "std")]
-use burn_tensor::might_panic;
+use crate::might_panic;
 
 #[cfg(feature = "std")]
 #[might_panic(reason = "Unsupported precision for fusion")]

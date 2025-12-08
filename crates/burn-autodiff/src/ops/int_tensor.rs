@@ -1,11 +1,12 @@
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
 
-use burn_tensor::{
-    Device, Distribution, IntDType, Shape, TensorData,
-    backend::{Backend, ExecutionError},
-    ops::{BoolTensor, IntTensor, IntTensorOps},
+use burn_backend::{
+    Backend, Distribution, ExecutionError, TensorData,
+    ops::IntTensorOps,
+    tensor::{BoolTensor, Device, IntTensor},
 };
+use burn_std::{IntDType, Shape};
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<B> {
@@ -28,7 +29,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<B>, slices: &[burn_tensor::Slice]) -> IntTensor<B> {
+    fn int_slice(tensor: IntTensor<B>, slices: &[burn_std::Slice]) -> IntTensor<B> {
         B::int_slice(tensor, slices)
     }
 
@@ -42,7 +43,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_std::Slice],
         value: IntTensor<B>,
     ) -> IntTensor<B> {
         B::int_slice_assign(tensor, slices, value)

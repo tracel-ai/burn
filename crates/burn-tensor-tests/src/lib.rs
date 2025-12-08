@@ -6,7 +6,35 @@ type FloatElemType = f32;
 type IntElemType = i32;
 
 #[cfg(test)]
+mod backend;
+#[cfg(test)]
+pub use backend::*;
+
+/// CubeCL kernel tests.
+#[cfg(all(
+    test,
+    any(feature = "cuda", feature = "rocm", feature = "wgpu", feature = "cpu")
+))]
+#[path = "."]
+mod cube {
+    type FloatElemType = f32;
+    type IntElemType = i32;
+
+    mod backend {
+        include!("backend.rs");
+        pub type ReferenceBackend = burn_ndarray::NdArray<FloatElemType>;
+    }
+    pub use backend::*;
+
+    #[path = "cubecl/mod.rs"]
+    mod kernel;
+}
+
+#[cfg(test)]
 mod tests;
+
+#[cfg(feature = "std")]
+pub use burn_tensor_testgen::might_panic;
 
 /// Generate a test module with custom floating & integer element types.
 #[macro_export]
@@ -18,6 +46,7 @@ macro_rules! test_elem_variant {
             pub type IntElemType = $int;
 
             mod tests {
+                include!("backend.rs");
                 include!("tests.rs");
             }
         }

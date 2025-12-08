@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::{TensorData, Tolerance};
 
 #[cfg(feature = "std")]
-use burn_tensor::might_panic;
+use crate::might_panic;
 
 #[test]
 fn backward_basic() {

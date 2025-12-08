@@ -23,7 +23,6 @@ cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
 doc = ["default"]
 experimental-named-tensor = []
-export_tests = ["burn-tensor-testgen", "dep:cubecl"]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -33,9 +32,7 @@ std = [
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "0.20.0-pre.4", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.4", optional = true }
 burn-backend = { path = "../burn-backend", version = "0.20.0-pre.4", default-features = false }
-cubecl = { workspace = true, optional = true, default-features = false }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
