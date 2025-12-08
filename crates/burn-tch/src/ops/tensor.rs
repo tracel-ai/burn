@@ -72,19 +72,19 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         Ok(match tensor.tensor.kind() {
             tch::Kind::Half => {
-                let values: Vec<f16> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<f16>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             tch::Kind::Float => {
-                let values: Vec<f32> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<f32>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             tch::Kind::Double => {
-                let values: Vec<f64> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<f64>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             tch::Kind::BFloat16 => {
-                let values: Vec<bf16> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<bf16>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             _ => panic!("Not a valid float kind"),
