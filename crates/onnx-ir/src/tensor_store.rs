@@ -109,6 +109,11 @@ impl TensorStore {
     pub fn get(&self, id: DataId) -> Option<TensorData> {
         self.data.get(&id).map(|data_ref| data_ref.to_tensor_data())
     }
+
+    /// Get the number of tensors in the store (for debugging)
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 }
 
 impl Default for TensorStore {
@@ -151,5 +156,15 @@ impl ValueStore {
     /// Get data ID for a constant by its output name
     pub fn get_constant_data_id(&self, output_name: &str) -> Option<DataId> {
         self.constant_map.get(output_name).copied()
+    }
+
+    /// Get the number of entries in the constant map (for debugging)
+    pub fn constant_map_len(&self) -> usize {
+        self.constant_map.len()
+    }
+
+    /// Get the number of tensors in the store (for debugging)
+    pub fn tensor_count(&self) -> usize {
+        self.tensor_store.len()
     }
 }

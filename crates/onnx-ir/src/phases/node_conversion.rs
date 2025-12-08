@@ -276,11 +276,48 @@ fn extract_constant_from_attributes(node: &mut RawNode, state_rc: &Rc<RefCell<Gr
     }
 }
 
-/// Attach value_store references to all node arguments
+/// Attach value_store references to node arguments
+///
+/// For most arguments, we set the current graph's value_store.
+/// For outer-scope constant/static arguments (from parent graph), we preserve their
+/// existing value_store which contains the tensor data they reference.
+///
+/// We identify outer-scope constants by checking if:
+/// 1. The argument is Constant (value_source == Constant) and already has a value_store
+///    with the constant in its map, OR
+/// 2. The argument is Static (value_source == Static(data_id)) and already has a value_store
+///    with that data_id in its tensor store
 fn attach_value_stores(node: &mut RawNode, state_rc: &Rc<RefCell<GraphState>>) {
     let value_store = state_rc.borrow().build_value_store();
     for arg in &mut node.inputs {
-        arg.set_value_store(value_store.clone());
+        // Check if this is an outer-scope constant/static that should preserve its parent's store
+        let should_preserve = match arg.value_source {
+            crate::ir::ValueSource::Constant => {
+                // For Constant: check if the name is in the argument's existing store
+                arg.value_store
+                    .as_ref()
+                    .map(|store| store.get_constant_data_id(&arg.name).is_some())
+                    .unwrap_or(false)
+            }
+            crate::ir::ValueSource::Static(data_id) => {
+                // For Static: check if the data_id is in the argument's existing store
+                arg.value_store
+                    .as_ref()
+                    .map(|store| store.get_tensor_data(data_id).is_some())
+                    .unwrap_or(false)
+            }
+            _ => false,
+        };
+
+        if should_preserve {
+            log::debug!(
+                "Preserving outer-scope value_store for '{}' ({:?})",
+                arg.name,
+                arg.value_source
+            );
+        } else {
+            arg.set_value_store(value_store.clone());
+        }
     }
     for arg in &mut node.outputs {
         arg.set_value_store(value_store.clone());

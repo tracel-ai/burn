@@ -361,6 +361,7 @@ fn main() {
         .input("tests/subgraph/outer_scope_multi_var.onnx")
         .input("tests/subgraph/outer_scope_loop.onnx")
         .input("tests/subgraph/outer_scope_scan.onnx")
+        .input("tests/subgraph/outer_scope_constant.onnx")
         .out_dir("model/")
         .run_from_script();
 

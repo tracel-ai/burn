@@ -107,8 +107,57 @@ impl NodeCodegen for onnx_ir::reshape::ReshapeNode {
                             }
                         }
                     }
-                    ArgType::Scalar(_) => {
-                        panic!("Reshape: unexpected scalar input")
+                    ArgType::Scalar(elem_type) => {
+                        // Scalar input - convert scalar to tensor then reshape
+                        let input_name = arg_to_ident(input_arg);
+
+                        match &output_arg.ty {
+                            ArgType::Tensor(tensor_type) => {
+                                use onnx_ir::ir::DType;
+                                let shape_values = shape_values.to_tokens();
+                                let output_rank = tensor_type.rank;
+                                // Create a tensor with the output rank directly from the scalar
+                                // We use TensorData::from([scalar]) to create a 1-element tensor,
+                                // then reshape to the target shape
+                                match elem_type {
+                                    DType::F32 | DType::F64 => {
+                                        quote! {
+                                            let #output = Tensor::<B, #output_rank>::from_data(
+                                                TensorData::from([#input_name]).convert::<f32>(),
+                                                &self.device
+                                            ).reshape(#shape_values);
+                                        }
+                                    }
+                                    DType::I32 | DType::I64 => {
+                                        quote! {
+                                            let #output = Tensor::<B, #output_rank, Int>::from_data(
+                                                TensorData::from([#input_name]),
+                                                &self.device
+                                            ).reshape(#shape_values);
+                                        }
+                                    }
+                                    DType::Bool => {
+                                        quote! {
+                                            let #output = Tensor::<B, #output_rank, Bool>::from_data(
+                                                TensorData::from([#input_name]),
+                                                &self.device
+                                            ).reshape(#shape_values);
+                                        }
+                                    }
+                                    _ => panic!(
+                                        "Reshape: unsupported scalar type {:?}",
+                                        elem_type
+                                    ),
+                                }
+                            }
+                            ArgType::Scalar(_) => {
+                                // Scalar to scalar - just pass through
+                                quote! {
+                                    let #output = #input_name;
+                                }
+                            }
+                            _ => panic!("Reshape: scalar input to {:?} not supported", output_arg.ty),
+                        }
                     }
                 }
             }

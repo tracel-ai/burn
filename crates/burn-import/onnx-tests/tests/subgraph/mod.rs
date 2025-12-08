@@ -11,7 +11,8 @@ include_models!(
     outer_scope_ref,
     outer_scope_multi_var,
     outer_scope_loop,
-    outer_scope_scan
+    outer_scope_scan,
+    outer_scope_constant
 );
 
 #[cfg(test)]
@@ -442,6 +443,69 @@ mod tests {
             [7.0, 10.0, 9.5],
             [10.0, 13.0, 12.5],
         ]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    // ==========================================================================
+    // Outer-scope CONSTANT/INITIALIZER reference tests
+    //
+    // These test that constants/initializers defined in the parent graph can be
+    // accessed from subgraphs (If branches). This is different from outer_scope_ref
+    // which tests computed values.
+    //
+    // Pattern:
+    //   weight = parent_initializer [3, 2]  # Defined in parent graph
+    //   bias = parent_initializer [2]       # Defined in parent graph
+    //   z = If(condition) {
+    //       then: MatMul(x, weight) + bias  # Uses parent's weight/bias
+    //       else: x[:, :2] * 2              # Simple fallback
+    //   }
+    //
+    // This pattern is common in real models like Silero VAD where Conv layers
+    // inside If branches use weights from the parent graph.
+    // ==========================================================================
+
+    #[test]
+    fn test_outer_scope_constant_then_branch() {
+        // condition=True -> then branch -> MatMul(x, weight) + bias
+        // Uses weight and bias initializers from parent graph
+        let device = Default::default();
+        let model: outer_scope_constant::Model<TestBackend> = Default::default();
+
+        let x =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0_f32, 2.0, 3.0]]), &device);
+
+        let condition = true;
+        let output = model.forward(x, condition);
+
+        // x @ weight + bias
+        // [[1, 2, 3]] @ [[1, 0.5], [2, 1], [0.5, 2]] + [0.1, 0.2]
+        // = [[1*1 + 2*2 + 3*0.5, 1*0.5 + 2*1 + 3*2]] + [0.1, 0.2]
+        // = [[6.5, 8.5]] + [0.1, 0.2] = [[6.6, 8.7]]
+        let expected = TensorData::from([[6.6_f32, 8.7]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn test_outer_scope_constant_else_branch() {
+        // condition=False -> else branch -> x[:, :2] * 2
+        let device = Default::default();
+        let model: outer_scope_constant::Model<TestBackend> = Default::default();
+
+        let x =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0_f32, 2.0, 3.0]]), &device);
+
+        let condition = false;
+        let output = model.forward(x, condition);
+
+        // x[:, :2] * 2 = [[1, 2]] * 2 = [[2, 4]]
+        let expected = TensorData::from([[2.0_f32, 4.0]]);
 
         output
             .to_data()

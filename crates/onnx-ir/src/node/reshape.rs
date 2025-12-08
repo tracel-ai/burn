@@ -84,10 +84,14 @@ fn extract_input_info(input: &Argument) -> InputInfo {
             is_shape: true,
             shape_size: Some(*size),
         },
-        _ => panic!(
-            "Reshape: invalid input type - expected Tensor or Shape, got {:?}",
-            input.ty
-        ),
+        ArgType::Scalar(dtype) => {
+            // Scalar can be used as input when reshaping to/from rank 0
+            InputInfo {
+                dtype: *dtype,
+                is_shape: false,
+                shape_size: None,
+            }
+        }
     }
 }
 

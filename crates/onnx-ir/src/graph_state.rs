@@ -159,8 +159,14 @@ impl GraphState {
         );
 
         // Map initializer names to their constant node outputs
+        // Insert both original ONNX names and sanitized names for lookup flexibility
         for (i, initializer) in initializers.iter().enumerate() {
             node_output_map.insert(initializer.name.clone(), (i, 0));
+            // Also insert sanitized name for lookups using sanitized outer-scope references
+            let sanitized = crate::proto_conversion::sanitize_name(&initializer.name);
+            if sanitized != initializer.name {
+                node_output_map.insert(sanitized, (i, 0));
+            }
         }
 
         // Store value_info for intermediate values

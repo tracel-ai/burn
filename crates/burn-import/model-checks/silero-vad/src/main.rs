@@ -77,18 +77,16 @@ fn main() {
 
     println!("  Input shape: [{}, {}]", batch_size, sequence_length);
 
-    // The model also needs state tensors
-    // h: [2, 1, 64] - LSTM hidden state
-    // c: [2, 1, 64] - LSTM cell state
-    let h = Tensor::<MyBackend, 3>::zeros([2, batch_size, 64], &device);
-    let c = Tensor::<MyBackend, 3>::zeros([2, batch_size, 64], &device);
+    // The ifless model uses a combined state tensor
+    // state: [2, batch, 128] - Combined LSTM hidden and cell state
+    let state = Tensor::<MyBackend, 3>::zeros([2, batch_size, 128], &device);
 
     // sr is sample rate (typically 16000 for 16kHz)
     let sr = 16000i64;
 
     println!("\nRunning model inference...");
     let start = Instant::now();
-    let (output, _h_out, _c_out) = model.forward(input, sr, h, c);
+    let (output, _state_out) = model.forward(input, sr, state);
     let inference_time = start.elapsed();
     println!("  ✓ Inference completed in {:.2?}", inference_time);
 
@@ -114,6 +112,6 @@ fn main() {
     println!("Model test completed successfully!");
     println!("========================================");
     println!();
-    println!("✓ If/Loop/Scan operators are working correctly");
+    println!("✓ Silero VAD ifless model is working correctly");
     println!("✓ Model can be imported and executed with burn");
 }

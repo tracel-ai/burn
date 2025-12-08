@@ -2,8 +2,11 @@
 """
 Download and prepare the Silero VAD model for testing.
 
-This script downloads the Silero VAD ONNX model and prepares it for use with burn-import.
-The model uses If operators which test the subgraph support.
+This script downloads the Silero VAD ONNX model (opset 18, if-less version) and prepares
+it for use with burn-import. This version has only 1 If node (for sample rate selection)
+making it compatible with static type inference.
+
+See: https://github.com/snakers4/silero-vad/issues/728 for compatibility discussion.
 """
 
 import json
@@ -23,8 +26,20 @@ def extract_node_info(model_path, artifacts_dir):
     """Extract node types and configurations from the ONNX model."""
     print("Extracting node information from ONNX model...")
 
-    # Load the ONNX model
-    model = onnx.load(str(model_path))
+    # Load the ONNX model (without external data since we only need structure)
+    model = onnx.load(str(model_path), load_external_data=False)
+
+    # Check for external data
+    external_files = set()
+    for init in model.graph.initializer:
+        if init.data_location == onnx.TensorProto.EXTERNAL:
+            for ext_data in init.external_data:
+                if ext_data.key == 'location':
+                    external_files.add(ext_data.value)
+
+    if external_files:
+        print(f"⚠️  Model requires external data files: {external_files}")
+        print("   These files are missing from the repository!")
 
     # Collect node information
     node_types = defaultdict(int)
@@ -90,6 +105,7 @@ def extract_node_info(model_path, artifacts_dir):
         "opset_version": model.opset_import[0].version if model.opset_import else "unknown",
         "total_nodes": len(node_details),
         "node_type_counts": dict(sorted(node_types.items())),
+        "external_data_files": list(external_files),
         "nodes": node_details
     }
 
@@ -99,6 +115,7 @@ def extract_node_info(model_path, artifacts_dir):
         json.dump(summary, f, indent=2)
 
     print(f"✓ Node information extracted to {output_path}")
+    print(f"  Opset version: {summary['opset_version']}")
     print(f"  Total nodes: {summary['total_nodes']}")
     print(f"  Unique node types: {len(node_types)}")
     print(f"  Node type distribution:")
@@ -109,7 +126,7 @@ def extract_node_info(model_path, artifacts_dir):
 
 
 def download_model():
-    """Download the Silero VAD ONNX model."""
+    """Download the Silero VAD ONNX model (opset 18, if-less version)."""
 
     # Create artifacts directory if it doesn't exist
     artifacts_dir = Path("artifacts")
@@ -125,10 +142,11 @@ def download_model():
         print(f"  File size: {model_path.stat().st_size / 1024:.1f} KB")
         print()
     else:
-        # Download the model
-        model_url = "https://github.com/snakers4/silero-vad/raw/9623ce72da2eb2f08466d67ddda11f5636486172/src/silero_vad/data/silero_vad.onnx"
+        # Download the opset 18 if-less model
+        # Note: This model has external data that is missing from the repo
+        model_url = "https://github.com/snakers4/silero-vad/raw/refs/heads/master/src/silero_vad/data/silero_vad_op18_ifless.onnx"
 
-        print(f"Downloading Silero VAD model from:")
+        print(f"Downloading Silero VAD model (opset 18, if-less) from:")
         print(f"  {model_url}")
         print(f"Saving to: {model_path}")
         print()
@@ -154,11 +172,10 @@ def download_model():
     print("Model preparation complete!")
     print("="*80)
     print()
-    print("The Silero VAD model uses advanced ONNX operators:")
-    print("  - If: Conditional execution (25 instances)")
-    print("  - LSTM: Long Short-Term Memory (4 instances)")
+    print("Silero VAD (opset 18, if-less) has only 1 If node for sample rate selection.")
+    print("This makes it compatible with burn-import's static type inference.")
     print()
-    print("The If operators test burn-import's subgraph support.")
+    print("See: https://github.com/snakers4/silero-vad/issues/728")
     print()
     print("Generated files:")
     print(f"  - {model_path} (ONNX model)")

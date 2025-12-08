@@ -204,9 +204,24 @@ pub(crate) fn post_process(
         drop(state);
 
         // Re-attach value_store and lift constants
+        // For outer-scope Static arguments (constants converted from parent graph), preserve
+        // their existing value_store since it contains the tensor data they reference.
         for node in &mut nodes {
             for arg in &mut node.inputs {
-                arg.set_value_store(value_store.clone());
+                // Preserve value_store for Static arguments that already have a store containing their data
+                let should_preserve =
+                    if let crate::ir::ValueSource::Static(data_id) = arg.value_source {
+                        arg.value_store
+                            .as_ref()
+                            .map(|store| store.get_tensor_data(data_id).is_some())
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    };
+
+                if !should_preserve {
+                    arg.set_value_store(value_store.clone());
+                }
             }
 
             let registry = get_processor_registry();
