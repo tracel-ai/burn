@@ -64,7 +64,7 @@ indicatif = "0.18.0"
 insta = "1.43.2"
 js-sys = "0.3.77"
 libm = "0.2.15"
-log = { default-features = false, version = "0.4.28" }
+log = { default-features = false, version = "0.4.29" }
 parking_lot = { version = "0.12.5", default-features = false }
 paste = "1"
 planus = { version = "=1.1" }
