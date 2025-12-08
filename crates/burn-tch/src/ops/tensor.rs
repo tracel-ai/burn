@@ -72,7 +72,6 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         Ok(match tensor.tensor.kind() {
             tch::Kind::Half => {
-                println!("into data half");
                 let values = Vec::<f16>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
@@ -85,7 +84,6 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
                 TensorData::new(values, shape)
             }
             tch::Kind::BFloat16 => {
-                println!("into data bf16");
                 let values = Vec::<bf16>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
