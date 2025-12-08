@@ -240,7 +240,7 @@ checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
 name = "burn"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-autodiff",
  "burn-candle",
@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "burn-autodiff"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-std",
  "burn-tensor",
@@ -272,7 +272,7 @@ dependencies = [
 
 [[package]]
 name = "burn-backend"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-std",
  "bytemuck",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "burn-candle"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-std",
  "burn-tensor",
@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "burn-core"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "ahash",
  "bincode",
@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "burn-cubecl"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-cubecl-fusion",
  "burn-fusion",
@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "burn-cubecl-fusion"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-fusion",
  "burn-ir",
@@ -363,7 +363,7 @@ dependencies = [
 
 [[package]]
 name = "burn-cuda"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-cubecl",
  "burn-tensor",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "burn-derive"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "burn-fusion"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-ir",
  "burn-std",
@@ -401,7 +401,7 @@ dependencies = [
 
 [[package]]
 name = "burn-import"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "burn-ir"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-tensor",
  "hashbrown 0.16.1",
@@ -436,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "burn-ndarray"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "atomic_float",
  "burn-autodiff",
@@ -458,7 +458,7 @@ dependencies = [
 
 [[package]]
 name = "burn-nn"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-core",
  "num-traits",
@@ -466,7 +466,7 @@ dependencies = [
 
 [[package]]
 name = "burn-optim"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-core",
  "derive-new",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "burn-rocm"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-cubecl",
  "burn-tensor",
@@ -491,7 +491,7 @@ dependencies = [
 
 [[package]]
 name = "burn-router"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-ir",
  "burn-std",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "burn-std"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -516,7 +516,7 @@ dependencies = [
 
 [[package]]
 name = "burn-store"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-core",
  "burn-nn",
@@ -534,7 +534,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-backend",
  "burn-std",
@@ -548,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "burn-wgpu"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-cubecl",
  "burn-tensor",
@@ -3504,7 +3504,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "onnx-ir"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn-tensor",
  "bytemuck",
@@ -3521,7 +3521,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-ir-derive"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "proc-macro2",
  "quote",

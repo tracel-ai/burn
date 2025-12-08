@@ -1,10 +1,9 @@
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_tensor::{DType, Shape};
 use cubecl::attention::{
     Strategy,
-    components::{AttentionElems, AttentionSetupError},
+    components::{AttentionSetupError, AttentionStorageTypes},
 };
-
-use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
 /// Launch a flash attention kernel
 pub fn flash_attention<R: CubeRuntime>(
@@ -24,29 +23,27 @@ pub fn flash_attention<R: CubeRuntime>(
     let out_shape = Shape::new([num_batches, num_heads, seq_q, val_dim]);
 
     let out = empty_device_dtype::<R>(client.clone(), device.clone(), out_shape, out_dtype);
+    let dtypes = AttentionStorageTypes {
+        query: query.dtype.into(),
+        key: key.dtype.into(),
+        value: value.dtype.into(),
+        mask: mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8).into(),
+        out: out.dtype.into(),
+    };
 
     cubecl::attention::launch_ref::<R>(
-        &Strategy::Unit,
+        &Strategy::Unit(cubecl::attention::kernels::SharedAttentionSettings {
+            tiling_scheme: None,
+            reuse_key_value: false,
+            two_rows_in_array_tile: false,
+        }),
         client,
         &query.as_handle_ref(),
         &key.as_handle_ref(),
         &value.as_handle_ref(),
         &mask.as_ref().map(|mask| mask.as_handle_ref()),
         &out.as_handle_ref(),
-        &AttentionElems {
-            query_global: query.dtype.into(),
-            query_tile: query.dtype.into(),
-            key_global: key.dtype.into(),
-            key_stage: key.dtype.into(),
-            value_global: value.dtype.into(),
-            value_stage: value.dtype.into(),
-            key_value_tile: value.dtype.into(),
-            softmax: query.dtype.into(),
-            accumulator: out_dtype.into(),
-            mask: mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8).into(),
-            out_global: out_dtype.into(),
-            out_stage: out_dtype.into(),
-        },
+        dtypes,
     )?;
 
     Ok(out)
