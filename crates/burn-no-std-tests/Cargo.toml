@@ -17,7 +17,7 @@ workspace = true
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { path = "../burn", version = "=0.20.0-pre.4", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", default-features = false }
+burn = { path = "../burn", version = "=0.20.0-pre.5", default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.5", default-features = false }
 
-burn-store = { path = "../burn-store", version = "=0.20.0-pre.4", default-features = false, features = ["safetensors", "burnpack"]}
+burn-store = { path = "../burn-store", version = "=0.20.0-pre.5", default-features = false, features = ["safetensors", "burnpack"]}
