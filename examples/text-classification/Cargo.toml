@@ -42,7 +42,7 @@ burn = { path = "../../crates/burn", features = [
 log = { workspace = true }
 
 # Tokenizer
-tokenizers = { version = "0.22.1", default-features = false, features = [
+tokenizers = { version = "0.22.2", default-features = false, features = [
     "onig",
     "http",
 ] }
