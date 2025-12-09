@@ -8,6 +8,7 @@
 //! and data types.
 
 extern crate alloc;
+extern crate core;
 
 /// Id module contains types for unique identifiers.
 pub mod id;

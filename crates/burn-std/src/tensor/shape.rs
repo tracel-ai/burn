@@ -1,6 +1,8 @@
 //! Tensor shape definition.
 
 use alloc::vec::Vec;
+use core::fmt::{Debug, Display, Formatter};
+use core::str::FromStr;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
     slice::{Iter, IterMut, SliceIndex},
@@ -35,6 +37,26 @@ pub enum ShapeError {
     IncompatibleShapes { left: Shape, right: Shape },
     /// Invalid empty shape.
     Empty,
+}
+
+/// Shape Expression Error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShapeExpressionError {
+    /// Parse Error.
+    ParseError {
+        /// The error message.
+        message: String,
+        /// The source expression.
+        source: String,
+    },
+
+    /// Invalid Expression.
+    InvalidExpression {
+        /// The error message.
+        message: String,
+        /// The source expression.
+        source: String,
+    },
 }
 
 impl Shape {
@@ -442,6 +464,60 @@ pub fn calculate_matmul_output(lhs: &Shape, rhs: &Shape) -> Result<Shape, ShapeE
     Ok(shape)
 }
 
+impl Display for Shape {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.dims.fmt(f)
+    }
+}
+
+impl FromStr for Shape {
+    type Err = ShapeExpressionError;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        let mut s = source.trim();
+
+        if let Some(p) = s.strip_prefix('[') {
+            if let Some(p) = p.strip_suffix(']') {
+                s = p.trim();
+            } else {
+                return Err(ShapeExpressionError::ParseError {
+                    message: "Unbalanced '[]'".to_string(),
+                    source: source.to_string(),
+                });
+            }
+        } else if s.ends_with(']') {
+            return Err(ShapeExpressionError::ParseError {
+                message: "Unbalanced '[]'".to_string(),
+                source: source.to_string(),
+            });
+        }
+
+        if s.is_empty() {
+            return Err(ShapeExpressionError::InvalidExpression {
+                message: "Empty shape expression".to_string(),
+                source: source.to_string(),
+            });
+        }
+
+        let dims = s
+            .split(',')
+            .map(|dim_str| {
+                dim_str
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|_| ShapeExpressionError::ParseError {
+                        message: format!("Failed to parse dimension '{}'", dim_str),
+                        source: source.to_string(),
+                    })
+            })
+            .collect::<Result<Vec<usize>, ShapeExpressionError>>()?;
+
+        assert_ne!(dims.len(), 0, "Empty shape expression");
+
+        Ok(Shape { dims })
+    }
+}
+
 impl IntoIterator for Shape {
     type Item = usize;
     type IntoIter = alloc::vec::IntoIter<Self::Item>;
@@ -556,8 +632,68 @@ impl From<Shape> for Vec<usize> {
 #[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
     use super::*;
+    use crate::alloc::string::ToString;
     use crate::s;
     use alloc::vec;
+
+    #[test]
+    fn test_shape_to_str() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        assert_eq!(shape.to_string(), "[2, 3, 4, 5]");
+    }
+
+    #[test]
+    fn test_shape_from_str() {
+        assert_eq!(
+            "[2, 3, 4, 5]".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+        assert_eq!(
+            "2, 3, 4, 5".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+
+        assert_eq!("[2]".parse::<Shape>().unwrap(), Shape::new([2]));
+        assert_eq!("2".parse::<Shape>().unwrap(), Shape::new([2]));
+
+        assert_eq!(
+            "[".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unbalanced '[]'".to_string(),
+                source: "[".to_string()
+            })
+        );
+        assert_eq!(
+            "]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unbalanced '[]'".to_string(),
+                source: "]".to_string()
+            })
+        );
+
+        assert_eq!(
+            "[]".parse::<Shape>(),
+            Err(ShapeExpressionError::InvalidExpression {
+                message: "Empty shape expression".to_string(),
+                source: "[]".to_string()
+            })
+        );
+        assert_eq!(
+            "".parse::<Shape>(),
+            Err(ShapeExpressionError::InvalidExpression {
+                message: "Empty shape expression".to_string(),
+                source: "".to_string()
+            })
+        );
+
+        assert_eq!(
+            "[a]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Failed to parse dimension 'a'".to_string(),
+                source: "[a]".to_string()
+            })
+        );
+    }
 
     #[test]
     fn num_dims_and_rank() {
