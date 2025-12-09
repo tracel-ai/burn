@@ -97,6 +97,7 @@ fn extract_input_info(input: &Argument) -> InputInfo {
 
 /// Determine the output type based on input and output characteristics
 fn determine_output_type(
+    input: &Argument,
     input_info: &InputInfo,
     output_rank: usize,
     static_shape: Option<Vec<usize>>,
@@ -107,7 +108,19 @@ fn determine_output_type(
         return ArgType::Scalar(input_info.dtype);
     }
 
-    // Case 2: Shape input -> Shape output (optimization)
+    // Case 2: Scalar input reshaped to [1] or [-1] - keep as scalar
+    // This avoids unnecessary scalar -> tensor -> scalar conversions
+    if matches!(input.ty, ArgType::Scalar(_))
+        && output_rank == 1
+        && let Some(shape_values) = get_static_shape(node)
+    {
+        // Shape is [-1] or [1] - effectively a single element, keep as scalar
+        if shape_values.len() == 1 && (shape_values[0] == -1 || shape_values[0] == 1) {
+            return ArgType::Scalar(input_info.dtype);
+        }
+    }
+
+    // Case 3: Shape input -> Shape output (optimization)
     if input_info.is_shape && output_rank == 1 && input_info.dtype == crate::ir::DType::I64 {
         let output_size =
             calculate_shape_output_size(input_info.shape_size.unwrap_or(1), node, &static_shape);
@@ -115,7 +128,7 @@ fn determine_output_type(
         return ArgType::Shape(output_size);
     }
 
-    // Case 3: Regular tensor output
+    // Case 4: Regular tensor output
     ArgType::Tensor(TensorType {
         rank: output_rank,
         static_shape,
@@ -356,7 +369,13 @@ impl NodeProcessor for ReshapeProcessor {
         };
 
         // Set output type
-        node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
+        node.outputs[0].ty = determine_output_type(
+            &node.inputs[0],
+            &input_info,
+            output_rank,
+            static_shape,
+            node,
+        );
 
         Ok(())
     }

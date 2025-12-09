@@ -16,10 +16,11 @@ impl NodeCodegen for onnx_ir::gather::GatherNode {
         match &input_arg.ty {
             ArgType::Shape(_) => forward_shape_gather(self),
             ArgType::Tensor(_) => forward_tensor_gather(self, scope),
-            _ => panic!(
-                "Gather needs Tensor or Shape input, got {:?}!",
-                input_arg.ty
-            ),
+            ArgType::Scalar(_) => forward_scalar_gather(self),
+            // _ => panic!(
+            //     "Gather needs Tensor or Shape input, got {:?}!",
+            //     input_arg.ty
+            // ),
         }
     }
 }
@@ -118,6 +119,22 @@ fn forward_shape_gather(node: &onnx_ir::gather::GatherNode) -> proc_macro2::Toke
             "Gather from Shape input can only output Shape or Scalar, got {:?}!",
             output_arg.ty
         ),
+    }
+}
+
+/// Forward for scalar input - just pass through the scalar value
+/// When gathering from a scalar, there's only one element, so the result is the scalar itself
+fn forward_scalar_gather(node: &onnx_ir::gather::GatherNode) -> proc_macro2::TokenStream {
+    let input_arg = node.inputs.first().unwrap();
+    let output_arg = node.outputs.first().unwrap();
+
+    let input = arg_to_ident(input_arg);
+    let output = arg_to_ident(output_arg);
+
+    // A scalar only has one element, so gathering from it just returns the scalar
+    // This handles cases like Reshape(scalar, [-1]) -> Scalar followed by Gather
+    quote! {
+        let #output = #input;
     }
 }
 
@@ -634,6 +651,44 @@ mod tests {
         ) -> Tensor<B, 6> {
             let output_data = input_data.take::<3, 6>(1, index_tensor);
             output_data
+        }
+        ");
+    }
+
+    // ==================== Scalar Input Gather Tests ====================
+
+    #[test]
+    fn test_gather_scalar_input_i64() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("pass_through")
+            .input_scalar("scalar_val", DType::I64)
+            .input_scalar("idx", DType::I64)
+            .output_scalar("result", DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, scalar_val: i64, idx: i64) -> i64 {
+            let result = scalar_val;
+            result
+        }
+        ");
+    }
+
+    #[test]
+    fn test_gather_scalar_input_f32() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("get_scalar")
+            .input_scalar("value", DType::F32)
+            .input_scalar("index", DType::I32)
+            .output_scalar("output", DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, value: f32, index: i32) -> f32 {
+            let output = value;
+            output
         }
         ");
     }
