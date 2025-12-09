@@ -1,19 +1,17 @@
 use burn_tensor::DType;
-use cubecl::{
-    matmul::{
-        AcceleratedTileKind, AsyncPartialReadingStrategy, PartialReadingStrategy, ReadingStrategy,
-        Strategy,
-        components::MatmulKind,
-        kernels::layered::{
-            Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-            ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-            simple_unit::SimpleUnitSelectionArgs,
-        },
-        tune_key::{
-            MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
-        },
+use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
+use cubek::matmul::{
+    AcceleratedTileKind, AsyncPartialReadingStrategy, PartialReadingStrategy, ReadingStrategy,
+    Strategy,
+    components::MatmulKind,
+    kernels::layered::{
+        Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
+        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+        simple_unit::SimpleUnitSelectionArgs,
     },
-    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+    tune_key::{
+        MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
+    },
 };
 
 use crate::{
@@ -175,7 +173,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 ),
                 (
                     Strategy::DoubleUnit(Selection::Inferred(
-                        cubecl::matmul::kernels::layered::double_unit::DoubleUnitSelectionArgs {
+                        cubek::matmul::kernels::layered::double_unit::DoubleUnitSelectionArgs {
                             tile_size,
                         },
                     )),

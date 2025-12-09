@@ -1,6 +1,6 @@
 use burn_tensor::{DType, Shape, quantization::QParamTensor};
+use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::{client::ComputeClient, server::Handle};
-use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::CubeRuntime;
 

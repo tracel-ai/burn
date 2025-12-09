@@ -1,12 +1,12 @@
 use burn_fusion::stream::Context;
 use burn_tensor::{DType, quantization::QParamTensor};
+use cubecl::quant::scheme::{QuantParam, QuantScheme};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::ElemType,
     prelude::{TensorArg, TensorHandleRef},
 };
-use cubecl_quant::scheme::{QuantParam, QuantScheme};
 use std::marker::PhantomData;
 
 /// Defines a fallback operation when fusion isn't possible.

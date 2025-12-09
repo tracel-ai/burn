@@ -1,9 +1,11 @@
 #[burn_tensor_testgen::testgen(normal)]
 mod tests {
     use super::*;
+    use burn_cubecl::cubek::random::{
+        assert_mean_approx_equal, assert_normal_respects_68_95_99_rule,
+    };
     use burn_tensor::{Distribution, Shape, Tensor, TensorData, backend::Backend};
     use burn_tensor::{Tolerance, ops::FloatElem};
-    use cubecl::random::{assert_mean_approx_equal, assert_normal_respects_68_95_99_rule};
     use serial_test::serial;
     type FT = FloatElem<TestBackend>;
 
