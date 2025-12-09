@@ -30,12 +30,12 @@ safetensors = [
 ]
 
 [dependencies]
-burn = { path = "../burn", version = "=0.20.0-pre.4", default-features = false, features = [
+burn = { path = "../burn", version = "=0.20.0-pre.5", default-features = false, features = [
     "std",
 ] }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.4", default-features = false, optional = true }
-burn-store = { path = "../burn-store", version = "=0.20.0-pre.4", default-features = false, features = ["std", "pytorch", "burnpack"] }
-onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.4", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.5", default-features = false, optional = true }
+burn-store = { path = "../burn-store", version = "=0.20.0-pre.5", default-features = false, features = ["std", "pytorch", "burnpack"] }
+onnx-ir = { path = "../onnx-ir", version = "=0.20.0-pre.5", optional = true, default-features = false }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }

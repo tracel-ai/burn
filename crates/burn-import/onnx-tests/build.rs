@@ -354,9 +354,14 @@ fn main() {
         .input("tests/scan/scan_reverse.onnx")
         .input("tests/scan/scan_multi_state.onnx")
         .input("tests/scan/scan_axis1.onnx")
-        // Deeply nested subgraph tests (If -> Loop -> If -> Scan)
+        // Subgraph tests: nested control flow and outer-scope references
         .input("tests/subgraph/nested_if_loop_if.onnx")
         .input("tests/subgraph/nested_if_loop_if_scan.onnx")
+        .input("tests/subgraph/outer_scope_ref.onnx")
+        .input("tests/subgraph/outer_scope_multi_var.onnx")
+        .input("tests/subgraph/outer_scope_loop.onnx")
+        .input("tests/subgraph/outer_scope_scan.onnx")
+        .input("tests/subgraph/outer_scope_constant.onnx")
         .out_dir("model/")
         .run_from_script();
 

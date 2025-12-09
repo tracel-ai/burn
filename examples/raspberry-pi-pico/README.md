@@ -1,14 +1,12 @@
-# Running Onnx Inference on the Raspberry Pi Pico
+# Running Onnx Inference on the Raspberry Pi Pico 2
 This example shows how to run an inference on a no_std, no atomic pointer, and no heap environment.
 
 ## Setup
-1. Install raspberry pi pico target `rustup target add thumbv6m-none-eabi`
+1. Install Raspberry Pi Pico 2 target `rustup target add thumbv8m.main-none-eabihf`
 
-2. Install [`probe-rs`](https://probe.rs/docs/getting-started/installation/). This is optional, install `elf2uf2-rs` to use the usb boot with `cargo install elf2uf2-rs`.
+2. Install `elf2flash` with `cargo install elf2flash`. Optionally install [`probe-rs`](https://probe.rs/docs/getting-started/installation/) instead.
 
-3. Have a [compatible probe](https://probe.rs/docs/getting-started/probe-setup/) to flash to the raspberry pi pico. This is optional, alternatively, modify `.cargo/config.toml` and uncomment the runner to use `elf2uf2-rs`.
-
-If you are using `elfuf2-rs` logging will not go to your serial port, add logging by using `embassy-usb`.
+If you have opted to use probe-rs, have a [compatible probe](https://probe.rs/docs/getting-started/probe-setup/) to flash to the raspberry pi pico. Modify the `.cargo/config.toml` and uncomment the runner to use `probe-rs`.
 
 ## Running
 Run as usual with `cargo run`

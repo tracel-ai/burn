@@ -717,6 +717,7 @@ where
         Self::new(K::cummax(self.primitive, dim))
     }
 
+    /// Applies element wise equal comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///

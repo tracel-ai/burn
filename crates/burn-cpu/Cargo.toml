@@ -23,9 +23,9 @@ fusion = ["burn-fusion", "burn-cubecl/fusion"]
 std = ["burn-cubecl/std", "cubecl/std"]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.4", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.4", features = [
+burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.5", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.5", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5", features = [
     "cubecl-cpu",
 ] }
 cubecl = { workspace = true, features = ["cpu"] }
@@ -38,7 +38,7 @@ log = { workspace = true }
 
 
 [dev-dependencies]
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.4", default-features = false, features = [
+burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.5", default-features = false, features = [
     "export_tests",
 ] }
 paste = { workspace = true }

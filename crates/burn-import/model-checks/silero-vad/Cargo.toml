@@ -21,6 +21,8 @@ burn = { path = "../../../../crates/burn", features = [
     "metal",
 ] }
 burn-store = { path = "../../../../crates/burn-store", features = ["burnpack"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [build-dependencies]
 burn-import = { path = "../../../burn-import" }

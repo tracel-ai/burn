@@ -53,6 +53,18 @@ impl From<onnx_ir::ir::DType> for TensorKind {
     }
 }
 
+impl quote::ToTokens for TensorKind {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        // TODO use this throughout the codebase
+        let kind = match self {
+            TensorKind::Int => quote::quote! { Int },
+            TensorKind::Float => quote::quote! { Float },
+            TensorKind::Bool => quote::quote! { Bool },
+        };
+        tokens.extend(kind);
+    }
+}
+
 /// Trait for converting ONNX IR nodes to Burn nodes
 #[allow(dead_code)]
 pub trait OnnxIntoNode: Sized {
