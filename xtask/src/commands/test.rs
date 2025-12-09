@@ -35,7 +35,7 @@ fn handle_backend_tests(
     context: Context,
 ) -> anyhow::Result<()> {
     args.target = Target::AllPackages;
-    args.only.push("burn-tensor-tests".to_string());
+    args.only.push("burn-backend-tests".to_string());
     args.no_default_features = true;
 
     let mut features = vec![String::from(backend)];

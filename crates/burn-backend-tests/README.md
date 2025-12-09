@@ -1,4 +1,4 @@
-# Burn Backend Tensor Tests
+# Burn Backend Tests
 
 This crate provides a comprehensive suite of tests for Burn backends, covering:
 

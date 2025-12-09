@@ -2,13 +2,13 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
 description = "Tensor tests for Burn backends"
-documentation = "https://docs.rs/burn-tensor-tests"
+documentation = "https://docs.rs/burn-backend-tests"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license.workspace = true
-name = "burn-tensor-tests"
+name = "burn-backend-tests"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-tests"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend-tests"
 version.workspace = true
 
 [lints]

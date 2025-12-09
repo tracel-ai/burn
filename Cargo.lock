@@ -677,6 +677,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-backend-tests"
+version = "0.20.0-pre.4"
+dependencies = [
+ "burn-autodiff",
+ "burn-candle",
+ "burn-cpu",
+ "burn-cubecl",
+ "burn-cuda",
+ "burn-fusion",
+ "burn-ndarray",
+ "burn-rocm",
+ "burn-router",
+ "burn-tch",
+ "burn-tensor",
+ "burn-tensor-testgen",
+ "burn-wgpu",
+ "cubecl",
+ "num-traits",
+ "serial_test",
+]
+
+[[package]]
 name = "burn-candle"
 version = "0.20.0-pre.4"
 dependencies = [
@@ -1174,28 +1196,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
-]
-
-[[package]]
-name = "burn-tensor-tests"
-version = "0.20.0-pre.4"
-dependencies = [
- "burn-autodiff",
- "burn-candle",
- "burn-cpu",
- "burn-cubecl",
- "burn-cuda",
- "burn-fusion",
- "burn-ndarray",
- "burn-rocm",
- "burn-router",
- "burn-tch",
- "burn-tensor",
- "burn-tensor-testgen",
- "burn-wgpu",
- "cubecl",
- "num-traits",
- "serial_test",
 ]
 
 [[package]]
