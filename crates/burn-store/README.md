@@ -22,8 +22,7 @@ interoperability, and advanced tensor management.
 - **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
   predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
-- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM
-  environments
+- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM environments
 
 ### Advanced Features
 
@@ -278,6 +277,47 @@ model.save_into(&mut save_store)?;
 
 ## Advanced Usage
 
+### Direct Tensor Access
+
+All stores provide methods to directly access tensor snapshots without loading into a model. This is
+useful for inspection, debugging, selective processing, or building custom loading pipelines.
+
+```rust
+use burn_store::{ModuleStore, BurnpackStore, SafetensorsStore, PytorchStore};
+
+// Works with any store type
+let mut store = BurnpackStore::from_file("model.bpk");
+// let mut store = SafetensorsStore::from_file("model.safetensors");
+// let mut store = PytorchStore::from_file("model.pth");
+
+// List all tensor names (ordered)
+let names = store.keys()?;
+println!("Model contains {} tensors:", names.len());
+for name in &names {
+    println!("  - {}", name);
+}
+
+// Get all tensors as a BTreeMap (cached for repeated access)
+let snapshots = store.get_all_snapshots()?;
+for (name, snapshot) in snapshots {
+    println!("{}: {:?} {:?}", name, snapshot.shape, snapshot.dtype);
+}
+
+// Get a specific tensor by name
+if let Some(snapshot) = store.get_snapshot("encoder.layer0.weight")? {
+    // Lazy loading - data is only fetched when to_data() is called
+    let data = snapshot.to_data()?;
+    println!("Shape: {:?}, DType: {:?}", data.shape, data.dtype);
+}
+```
+
+#### Use Cases
+
+- **Model Inspection**: Examine tensor shapes, dtypes, and names without full model instantiation
+- **Selective Loading**: Build custom pipelines that only load specific tensors
+- **Debugging**: Verify tensor values and compare across different model files
+- **Format Conversion**: Read tensors from one format and write to another
+
 ### Custom Filtering with Predicates
 
 ```rust
@@ -392,6 +432,12 @@ The stores provide a fluent API for configuration:
 - `skip_enum_variants(bool)` - Skip enum variant names in paths for PyTorch compatibility
 - `with_top_level_key(key)` - Access nested dict in PyTorch files
 - `overwrite(bool)` - Allow overwriting existing files (Burnpack)
+
+#### Direct Tensor Access
+
+- `keys()` - Get ordered list of all tensor names
+- `get_all_snapshots()` - Get all tensors as a BTreeMap (cached)
+- `get_snapshot(name)` - Get a specific tensor by name
 
 ### Inspecting Burnpack Files
 
