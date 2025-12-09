@@ -130,23 +130,19 @@ pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
 }
 
 /// Global runtime.
-static SERVER_RUNTIME: OnceLock<Mutex<Arc<Runtime>>> = OnceLock::new();
-
-/// Gets a locked mutable view of the `SERVER_RUNTIME`.
-pub(crate) fn get_collective_server_runtime_mut() -> MutexGuard<'static, Arc<Runtime>> {
-    SERVER_RUNTIME
-        .get_or_init(|| {
-            Mutex::new(Arc::new(
-                Builder::new_multi_thread().enable_all().build().unwrap(),
-            ))
-        })
-        .lock()
-        .unwrap()
-}
+static SERVER_RUNTIME: OnceLock<Arc<Runtime>> = OnceLock::new();
 
 /// Get the global [`Runtime`].
 pub(crate) fn get_collective_server_runtime() -> Arc<Runtime> {
-    get_collective_server_runtime_mut().clone()
+    SERVER_RUNTIME
+        .get_or_init(|| {
+            Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("Unable to initialize runtime")
+                .into()
+        })
+        .clone()
 }
 
 /// Configuration for the local collective client/server pair.
