@@ -125,6 +125,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
     /// # Result
     /// - `Ok(tensor)` if the operation was successful
     /// - `Err(CollectiveError)` on error.
+    #[tracing::instrument(skip(self, tensor))]
     pub fn all_reduce(
         &self,
         id: PeerId,
