@@ -12,8 +12,7 @@
 //! - **Opset 12**: Added support for int8, uint8 data types; clarified behavior with negative padding.
 //!
 //! **Implementation Note**: This implementation validates opset 11+ (see FIXME at lines 97-98).
-//! The implementation does not support `ceil_mode=1` and only validates 1 output (not the optional
-//! Indices output, see FIXME at lines 103-104).
+//! Only validates 1 output (not the optional Indices output, see FIXME at lines 103-104).
 //!
 //! ## Missing Test Coverage
 //! - TODO: No test for dilation > 1 with opset < 11 - Should reject dilation in older opsets
@@ -47,6 +46,8 @@ pub struct MaxPool1dConfig {
     pub dilation: usize,
     /// Padding configuration
     pub padding: PaddingConfig1d,
+    /// Whether to use ceil mode for output size calculation (opset 10+)
+    pub ceil_mode: bool,
 }
 
 /// Node representation for MaxPool1d operation
@@ -133,11 +134,13 @@ impl NodeProcessor for MaxPool1dProcessor {
                     }
                 }
                 "ceil_mode" => {
-                    if value.clone().into_i64() == 1 {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "ceil_mode".to_string(),
-                            reason: "ceil_mode is not supported".to_string(),
-                        });
+                    // ceil_mode support requires opset 10+
+                    let ceil_mode = value.clone().into_i64();
+                    if ceil_mode != 0 && opset < 10 {
+                        return Err(ProcessError::Custom(format!(
+                            "MaxPool: ceil_mode requires opset 10+, got opset {}",
+                            opset
+                        )));
                     }
                 }
                 _ => {
@@ -160,6 +163,7 @@ impl NodeProcessor for MaxPool1dProcessor {
         let mut stride = vec![1];
         let mut pads = vec![0, 0];
         let mut dilation = vec![1];
+        let mut ceil_mode: i64 = 0;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -167,8 +171,8 @@ impl NodeProcessor for MaxPool1dProcessor {
                 "strides" => stride = value.clone().into_i64s(),
                 "pads" => pads = value.clone().into_i64s(),
                 "dilations" => dilation = value.clone().into_i64s(),
+                "ceil_mode" => ceil_mode = value.clone().into_i64(),
                 "auto_pad" => {}
-                "ceil_mode" => {}
                 "storage_order" => {}
                 _ => {}
             }
@@ -181,6 +185,7 @@ impl NodeProcessor for MaxPool1dProcessor {
             stride[0] as usize,
             dilation[0] as usize,
             padding,
+            ceil_mode == 1,
         );
 
         Ok(config)
@@ -239,6 +244,7 @@ mod tests {
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
         assert_eq!(config.dilation, 1);
+        assert!(!config.ceil_mode);
         assert!(matches!(config.padding, PaddingConfig1d::Valid));
     }
 
@@ -311,7 +317,38 @@ mod tests {
         let mut node = node;
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
+        let config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        assert_eq!(config.kernel_size, 4);
+        assert_eq!(config.stride, 1);
+        assert_eq!(config.dilation, 1);
+        assert!(config.ceil_mode);
+        assert!(matches!(config.padding, PaddingConfig1d::Valid));
+    }
+
+    #[test]
+    fn test_max_pool1d_ceil_mode_opset_validation() {
+        // Test that ceil_mode=1 with opset < 10 is rejected
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, None);
+        let mut node = node;
+        let processor = MaxPool1dProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 9, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        if let Err(ProcessError::Custom(msg)) = result {
+            assert!(msg.contains("ceil_mode requires opset 10+"));
+        }
+    }
+
+    #[test]
+    fn test_max_pool1d_ceil_mode_zero_accepted_old_opset() {
+        // Test that ceil_mode=0 is accepted even with old opset
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, None);
+        let mut node = node;
+        let processor = MaxPool1dProcessor;
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 1, &prefs);
+        assert!(result.is_ok());
     }
 }

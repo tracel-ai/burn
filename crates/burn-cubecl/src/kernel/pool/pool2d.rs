@@ -26,6 +26,16 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
         result: Line<N>,
     );
 
+    /// Count a position within the kernel window (for avg_pool count_include_pad).
+    /// Called for each position in the kernel window with the current ih/iw coordinates.
+    /// Only avg_pool uses this; max_pool implements as no-op.
+    fn count_position(
+        #[comptime] config: &Self::Config,
+        accumulator: &mut Self::Accumulator,
+        ih: u32,
+        iw: u32,
+    );
+
     fn store(
         #[comptime] config: &Self::Config,
         position: u32,
@@ -92,6 +102,10 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
             let iw = ow * args.strides_1 + kw * args.dilation_1;
             let within_padding_w = iw >= args.padding_1 && iw < border_right;
 
+            // Let strategy handle position counting (only used by avg_pool)
+            S::Pool2d::<E>::count_position(config, &mut accumulator, ih, iw);
+
+            // Only accumulate values from valid input positions
             if within_padding_h && within_padding_w {
                 let ih_pad = ih - args.padding_0;
                 let iw_pad = iw - args.padding_1;
