@@ -12,20 +12,25 @@ version = "0.1.0"
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
 embassy-executor = { version = "0.9.1", features = ["arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.5.0", features = ["defmt", "defmt-timestamp-uptime"] }
-# Change rp2040 to rp235xa for Raspberry Pi Pico 2
-embassy-rp = { version = "0.9.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040"] }
+embassy-usb-logger = { version = "0.5.1" }
+
+# Change rp235xa to rp2040 for Raspberry Pi Pico
+embassy-rp = { version = "0.9.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xb", "binary-info"] }
 
 defmt = "1.0.1"
 defmt-rtt = "1.0.0"
 
+log = "0.4"
+
 cortex-m = { version = "0.7.6", features = ["inline-asm"] }
-cortex-m-rt = "0.7.0"
+cortex-m-rt = "0.7.5"
 critical-section = "1.1"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
-portable-atomic = { version = "1.5", features = ["critical-section"] }
+portable-atomic = { version = "1.7", features = ["critical-section"] }
 embedded-alloc = "0.6.0"
 
 burn = { path = "../../crates/burn", default-features = false, features = ["ndarray"] }
+burn-store = { path = "../../crates/burn-store", default-features = false, features = ["burnpack"] }
 
 [build-dependencies]
 burn-import = { path = "../../crates/burn-import" }

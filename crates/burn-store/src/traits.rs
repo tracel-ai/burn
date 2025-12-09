@@ -1,4 +1,6 @@
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use super::applier::Applier;
@@ -197,6 +199,89 @@ pub trait ModuleStore {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error>;
+
+    /// Get a single tensor snapshot by name.
+    ///
+    /// This method provides direct access to individual tensors in storage without
+    /// requiring a module. The returned `TensorSnapshot` uses lazy loading - tensor
+    /// data is only materialized when `to_data()` is called.
+    ///
+    /// **Note:** Key remapping is applied, so use the remapped name if configured.
+    /// Filters are NOT applied - use `apply_to()` for filtered loading.
+    ///
+    /// Results are cached after the first call for efficient repeated access.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The tensor name/path (e.g., "encoder.layer1.weight")
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(&TensorSnapshot))` - Reference to the tensor snapshot if found
+    /// * `Ok(None)` - If no tensor with that name exists
+    /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut store = BurnpackStore::from_file("model.bpk");
+    /// if let Some(snapshot) = store.get_snapshot("encoder.weight")? {
+    ///     println!("Shape: {:?}", snapshot.shape);
+    ///     println!("Dtype: {:?}", snapshot.dtype);
+    ///     let data = snapshot.to_data()?;  // Lazy load
+    /// }
+    /// ```
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error>;
+
+    /// Get all tensor snapshots from storage as an ordered map.
+    ///
+    /// This method returns all tensors in storage as lazy-loading snapshots,
+    /// organized in a `BTreeMap` for efficient lookup by name. The map preserves
+    /// alphabetical ordering of tensor names.
+    ///
+    /// **Note:** This returns ALL tensors in storage, regardless of any filter
+    /// settings. Filters are only applied during `apply_to()`. Key remapping
+    /// IS applied, so tensor names reflect any configured remapping.
+    ///
+    /// Results are cached after the first call for efficient repeated access.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(&BTreeMap<String, TensorSnapshot>)` - Reference to all tensor snapshots
+    /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut store = SafetensorsStore::from_file("model.safetensors");
+    /// let snapshots = store.get_all_snapshots()?;
+    /// for (name, snapshot) in snapshots {
+    ///     println!("{}: {:?}", name, snapshot.shape);
+    /// }
+    /// ```
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error>;
+
+    /// Get all tensor names/keys in storage.
+    ///
+    /// This method returns the names of all tensors in storage.
+    /// Useful for inspecting storage contents or checking if specific tensors exist.
+    ///
+    /// **Note:** Returns ALL tensor names regardless of filter settings.
+    /// Key remapping IS applied, so names reflect any configured remapping.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<String>)` - All tensor names in storage
+    /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut store = PytorchStore::from_file("model.pth");
+    /// let keys = store.keys()?;
+    /// println!("Tensors in file: {:?}", keys);
+    /// ```
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error>;
 }
 
 // Blanket implementation for all modules
