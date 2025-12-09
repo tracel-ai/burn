@@ -1,5 +1,6 @@
 //! Tensor shape definition.
 
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
 use core::str::FromStr;
@@ -476,20 +477,20 @@ impl FromStr for Shape {
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let mut s = source.trim();
 
-        if let Some(p) = s.strip_prefix('[') {
-            if let Some(p) = p.strip_suffix(']') {
-                s = p.trim();
-            } else {
-                return Err(ShapeExpressionError::ParseError {
-                    message: "Unbalanced '[]'".to_string(),
-                    source: source.to_string(),
-                });
+        const DELIMS: [(&str, &str); 2] = [("[", "]"), ("(", ")")];
+
+        for (open, close) in DELIMS {
+            if let Some(p) = s.strip_prefix(open) {
+                if let Some(p) = p.strip_suffix(close) {
+                    s = p.trim();
+                    break;
+                } else {
+                    return Err(ShapeExpressionError::ParseError {
+                        message: "Unbalanced delimiters".to_string(),
+                        source: source.to_string(),
+                    });
+                }
             }
-        } else if s.ends_with(']') {
-            return Err(ShapeExpressionError::ParseError {
-                message: "Unbalanced '[]'".to_string(),
-                source: source.to_string(),
-            });
         }
 
         if s.is_empty() {
@@ -503,13 +504,15 @@ impl FromStr for Shape {
                     .trim()
                     .parse::<usize>()
                     .map_err(|_| ShapeExpressionError::ParseError {
-                        message: format!("Failed to parse dimension '{}'", dim_str),
+                        message: "Unable to parse shape".to_string(),
                         source: source.to_string(),
                     })
             })
             .collect::<Result<Vec<usize>, ShapeExpressionError>>()?;
 
-        assert_ne!(dims.len(), 0, "Empty shape expression");
+        if dims.is_empty() {
+            unreachable!("Split should have returned at least one element");
+        }
 
         Ok(Shape { dims })
     }
@@ -629,8 +632,8 @@ impl From<Shape> for Vec<usize> {
 #[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
     use super::*;
-    use crate::alloc::string::ToString;
     use crate::s;
+    use alloc::string::ToString;
     use alloc::vec;
 
     #[test]
@@ -646,11 +649,16 @@ mod tests {
             Shape::new([2, 3, 4, 5])
         );
         assert_eq!(
+            "(2, 3, 4, 5)".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+        assert_eq!(
             "2, 3, 4, 5".parse::<Shape>().unwrap(),
             Shape::new([2, 3, 4, 5])
         );
 
         assert_eq!("[2]".parse::<Shape>().unwrap(), Shape::new([2]));
+        assert_eq!("(2)".parse::<Shape>().unwrap(), Shape::new([2]));
         assert_eq!("2".parse::<Shape>().unwrap(), Shape::new([2]));
 
         assert_eq!("[]".parse::<Shape>().unwrap(), Shape::new([]));
@@ -659,14 +667,37 @@ mod tests {
         assert_eq!(
             "[".parse::<Shape>(),
             Err(ShapeExpressionError::ParseError {
-                message: "Unbalanced '[]'".to_string(),
+                message: "Unbalanced delimiters".to_string(),
                 source: "[".to_string()
             })
         );
+
+        assert_eq!(
+            "[[1]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[[1]".to_string()
+            })
+        );
+        assert_eq!(
+            "[[1]]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[[1]]".to_string()
+            })
+        );
+        assert_eq!(
+            "[1)".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unbalanced delimiters".to_string(),
+                source: "[1)".to_string()
+            })
+        );
+
         assert_eq!(
             "]".parse::<Shape>(),
             Err(ShapeExpressionError::ParseError {
-                message: "Unbalanced '[]'".to_string(),
+                message: "Unable to parse shape".to_string(),
                 source: "]".to_string()
             })
         );
@@ -674,7 +705,7 @@ mod tests {
         assert_eq!(
             "[a]".parse::<Shape>(),
             Err(ShapeExpressionError::ParseError {
-                message: "Failed to parse dimension 'a'".to_string(),
+                message: "Unable to parse shape".to_string(),
                 source: "[a]".to_string()
             })
         );

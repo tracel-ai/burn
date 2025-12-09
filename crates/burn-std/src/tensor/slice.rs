@@ -752,8 +752,7 @@ impl SliceExpressionError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alloc::string::ToString;
-    use alloc::vec;
+    use alloc::string::ToString;
 
     #[test]
     fn test_parse_error() {
