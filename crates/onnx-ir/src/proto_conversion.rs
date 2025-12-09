@@ -504,8 +504,188 @@ fn convert_shape(shape: Vec<i64>) -> Vec<usize> {
     shape.iter().map(|s| *s as usize).collect()
 }
 
+/// Extract outer-scope references from a GraphProto
+///
+/// Returns a set of names that are referenced within the subgraph but not defined
+/// within it (not in inputs, initializers, or node outputs). These are outer-scope
+/// references that must be resolved from the parent graph.
+///
+/// This also handles nested subgraphs recursively.
+pub fn extract_outer_scope_references(
+    graph_proto: &crate::protos::GraphProto,
+) -> std::collections::HashSet<String> {
+    use std::collections::HashSet;
+
+    // Collect initializer names for lookup
+    let initializer_names: HashSet<String> = graph_proto
+        .initializer
+        .iter()
+        .filter(|i| !i.name.is_empty())
+        .map(|i| sanitize_name(&i.name))
+        .collect();
+
+    // Helper: check if an input is an outer-scope reference.
+    // In ONNX subgraphs, inputs WITHOUT a corresponding initializer are outer-scope references
+    // (they must be provided by the parent graph). Inputs WITH initializers are locally defined.
+    let is_outer_scope_input = |name: &str| -> bool {
+        !name.is_empty() && !initializer_names.contains(&sanitize_name(name))
+    };
+
+    // Collect all names defined within this subgraph
+    let mut defined_names: HashSet<String> = HashSet::new();
+
+    // Inputs with initializers are locally defined (not outer-scope)
+    for input in &graph_proto.input {
+        if !input.name.is_empty() && !is_outer_scope_input(&input.name) {
+            defined_names.insert(sanitize_name(&input.name));
+        }
+    }
+
+    // Initializers are defined within the subgraph
+    for init in &graph_proto.initializer {
+        if !init.name.is_empty() {
+            defined_names.insert(sanitize_name(&init.name));
+        }
+    }
+
+    // Node outputs are defined within the subgraph
+    for node in &graph_proto.node {
+        for output in &node.output {
+            if !output.is_empty() {
+                defined_names.insert(sanitize_name(output));
+            }
+        }
+    }
+
+    // Collect all referenced names
+    let mut referenced_names: HashSet<String> = HashSet::new();
+
+    // Subgraph inputs without initializers are outer-scope references
+    for input in &graph_proto.input {
+        if is_outer_scope_input(&input.name) {
+            referenced_names.insert(sanitize_name(&input.name));
+        }
+    }
+
+    // Node inputs are references
+    for node in &graph_proto.node {
+        for input in &node.input {
+            if !input.is_empty() {
+                referenced_names.insert(sanitize_name(input));
+            }
+        }
+
+        // Recursively extract from nested subgraphs
+        // For Loop/Scan nodes, their body inputs are provided by the loop construct,
+        // so we should NOT include them as outer-scope references for our graph.
+        let is_loop_or_scan = node.op_type == "Loop" || node.op_type == "Scan";
+
+        for attr in &node.attribute {
+            if let Ok(attr_type) = attr.type_.enum_value() {
+                use crate::protos::attribute_proto::AttributeType;
+                match attr_type {
+                    AttributeType::GRAPH => {
+                        if let Some(nested_graph) = attr.g.as_ref() {
+                            // For Loop/Scan body subgraphs, collect body input names.
+                            // These are loop-provided (iteration count, condition, loop-carried vars),
+                            // not outer-scope references.
+                            // Note: "body" is the ONNX-specified attribute name for Loop/Scan subgraphs.
+                            // See: https://onnx.ai/onnx/operators/onnx__Loop.html
+                            //      https://onnx.ai/onnx/operators/onnx__Scan.html
+                            let loop_provided_names: std::collections::HashSet<String> =
+                                if is_loop_or_scan && attr.name == "body" {
+                                    nested_graph
+                                        .input
+                                        .iter()
+                                        .filter(|i| !i.name.is_empty())
+                                        .map(|i| sanitize_name(&i.name))
+                                        .collect()
+                                } else {
+                                    std::collections::HashSet::new()
+                                };
+
+                            // Nested subgraph references can be outer-scope for us too
+                            let nested_refs = extract_outer_scope_references(nested_graph);
+                            for name in nested_refs {
+                                // Skip if it's provided by the loop construct or already defined
+                                if !defined_names.contains(&name)
+                                    && !loop_provided_names.contains(&name)
+                                {
+                                    referenced_names.insert(name);
+                                }
+                            }
+                        }
+                    }
+                    AttributeType::GRAPHS => {
+                        for nested_graph in &attr.graphs {
+                            let nested_refs = extract_outer_scope_references(nested_graph);
+                            for name in nested_refs {
+                                if !defined_names.contains(&name) {
+                                    referenced_names.insert(name);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    // Graph outputs can also reference names
+    for output in &graph_proto.output {
+        if !output.name.is_empty() {
+            referenced_names.insert(sanitize_name(&output.name));
+        }
+    }
+
+    // Outer-scope references = referenced - defined
+    referenced_names
+        .difference(&defined_names)
+        .cloned()
+        .collect()
+}
+
+/// Extract all outer-scope references from all subgraphs in a NodeProto
+///
+/// This scans all GRAPH and GRAPHS attributes and returns all names that are
+/// referenced but not defined within the subgraphs. These need to be added
+/// as implicit inputs to ensure proper topological ordering.
+pub fn extract_node_outer_scope_references(
+    node_proto: &NodeProto,
+) -> std::collections::HashSet<String> {
+    use std::collections::HashSet;
+
+    let mut all_refs: HashSet<String> = HashSet::new();
+
+    for attr in &node_proto.attribute {
+        if let Ok(attr_type) = attr.type_.enum_value() {
+            match attr_type {
+                AttributeType::GRAPH => {
+                    if let Some(graph_proto) = attr.g.as_ref() {
+                        let refs = extract_outer_scope_references(graph_proto);
+                        all_refs.extend(refs);
+                    }
+                }
+                AttributeType::GRAPHS => {
+                    for graph_proto in &attr.graphs {
+                        let refs = extract_outer_scope_references(graph_proto);
+                        all_refs.extend(refs);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    all_refs
+}
+
 /// Convert graph attributes from NodeProto for control flow nodes (If, Loop, Scan)
-/// This must be called with opset_version during node processing
+///
+/// **IMPORTANT**: This function now creates **deferred** graph attributes that store
+/// the raw GraphProto. The actual subgraph building is deferred until type inference,
+/// when all outer-scope references have been resolved.
 ///
 /// If parent_registry is provided, it will be used to ensure unique names across nested subgraphs.
 /// Otherwise, a new registry is created for sibling subgraphs.
@@ -514,7 +694,8 @@ pub fn convert_graph_attributes(
     opset_version: usize,
     parent_registry: Option<crate::graph_state::NameRegistry>,
 ) -> Attributes {
-    use crate::pipeline::build_graph_builder_from_proto;
+    use crate::ir::DeferredGraph;
+    use std::sync::Arc;
 
     let mut result = Attributes::new();
 
@@ -527,34 +708,28 @@ pub fn convert_graph_attributes(
             match attr_type {
                 AttributeType::GRAPH => {
                     if let Some(graph_proto) = attr.g.as_ref() {
-                        let graph_builder = build_graph_builder_from_proto(
-                            graph_proto,
+                        // Store as deferred graph - will be built during type inference
+                        let deferred = DeferredGraph {
+                            proto: Arc::new(graph_proto.clone()),
                             opset_version,
-                            Some(name_registry.clone()),
-                        )
-                        .expect("Failed to build subgraph from ONNX GraphProto");
-                        result.insert(
-                            attr.name.clone(),
-                            AttributeValue::GraphBuilder(graph_builder),
-                        );
+                            name_registry: Some(name_registry.clone()),
+                        };
+                        result.insert(attr.name.clone(), AttributeValue::DeferredGraph(deferred));
                     }
                 }
                 AttributeType::GRAPHS => {
-                    let graph_builders: Vec<_> = attr
+                    let deferred_graphs: Vec<_> = attr
                         .graphs
                         .iter()
-                        .map(|graph_proto| {
-                            build_graph_builder_from_proto(
-                                graph_proto,
-                                opset_version,
-                                Some(name_registry.clone()),
-                            )
-                            .expect("Failed to build subgraph from ONNX GraphProto")
+                        .map(|graph_proto| DeferredGraph {
+                            proto: Arc::new(graph_proto.clone()),
+                            opset_version,
+                            name_registry: Some(name_registry.clone()),
                         })
                         .collect();
                     result.insert(
                         attr.name.clone(),
-                        AttributeValue::GraphBuilders(graph_builders),
+                        AttributeValue::DeferredGraphs(deferred_graphs),
                     );
                 }
                 _ => {}
@@ -575,7 +750,12 @@ impl TryFrom<ValueInfoProto> for Argument {
             .ok_or(ParseError::VariantNotFound("missing type".into()))?;
 
         if !proto_type.has_tensor_type() {
-            panic!("Unsupported argument type {proto_type:?}");
+            // Return error instead of panicking - this can happen for subgraph inputs
+            // that reference outer scope values without explicit type info
+            return Err(ParseError::VariantNotFound(format!(
+                "Unsupported argument type: no tensor_type in {:?}",
+                proto_type
+            )));
         }
 
         let tensor_proto = proto_type.tensor_type();

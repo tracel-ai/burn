@@ -333,7 +333,9 @@ pub fn validate_node_spec(
 
 /// Validate input count against specification
 fn validate_input_spec(node: &RawNode, opset: usize, spec: &InputSpec) -> Result<(), ProcessError> {
-    let actual = node.inputs.len();
+    // Use __onnx_input_count if available (for control flow nodes with outer-scope refs)
+    // This ensures we only validate the original ONNX inputs, not extra scope refs
+    let actual = get_onnx_input_count(node);
 
     match spec {
         InputSpec::Exact(expected) => {
@@ -417,6 +419,79 @@ fn validate_output_spec(
     }
 
     Ok(())
+}
+
+/// Get the count of original ONNX inputs (excluding outer-scope references)
+///
+/// For control flow nodes (If, Loop, Scan), outer-scope references used by subgraphs
+/// are added as additional inputs during node conversion. The `__onnx_input_count`
+/// attribute stores how many inputs are "real" ONNX inputs. This function returns
+/// that count, or falls back to the total input count if the attribute isn't present.
+pub(crate) fn get_onnx_input_count(node: &RawNode) -> usize {
+    use crate::ir::AttributeValue;
+    match node.attrs.get("__onnx_input_count") {
+        Some(AttributeValue::Int64(n)) => *n as usize,
+        Some(other) => {
+            log::warn!(
+                "__onnx_input_count attribute has unexpected type {:?} in node '{}', falling back to inputs.len()",
+                other,
+                node.name
+            );
+            node.inputs.len()
+        }
+        None => node.inputs.len(),
+    }
+}
+
+/// Build outer scope arguments map from additional inputs added during node conversion.
+///
+/// During node conversion, outer-scope references used by subgraphs are extracted
+/// and added as additional inputs to If/Loop/Scan nodes. The `__onnx_input_count`
+/// attribute stores how many of the inputs are "real" ONNX inputs. Inputs beyond
+/// that count are outer-scope references with resolved types.
+///
+/// The `__scope_ref_names` attribute stores the original sanitized ONNX names
+/// for these scope refs, which are needed because subgraphs reference these
+/// original names, not the renamed node output names.
+///
+/// Returns full Arguments (not just types) to preserve constant values for LSTM weights etc.
+pub fn build_outer_scope_from_inputs(node: &RawNode) -> crate::ir::OuterScopeTypes {
+    use crate::ir::AttributeValue;
+
+    let onnx_input_count = get_onnx_input_count(node);
+
+    // Get the original ONNX names for the scope refs
+    let scope_ref_names: Vec<String> = node
+        .attrs
+        .get("__scope_ref_names")
+        .and_then(|v| match v {
+            AttributeValue::Strings(names) => Some(names.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    // Build outer scope map using original names and full arguments from inputs
+    let mut outer_scope: HashMap<String, crate::ir::Argument> = HashMap::new();
+    let scope_ref_inputs: Vec<_> = node.inputs.iter().skip(onnx_input_count).collect();
+
+    for (i, input) in scope_ref_inputs.iter().enumerate() {
+        // Use the original ONNX name if available, otherwise fall back to input name
+        let name = scope_ref_names
+            .get(i)
+            .cloned()
+            .unwrap_or_else(|| input.name.clone());
+        log::debug!(
+            "Adding outer-scope arg: {} -> type={:?}, value_source={:?}, has_store={}",
+            name,
+            input.ty,
+            input.value_source,
+            input.value_store.is_some()
+        );
+        // Clone the full Argument to preserve value_source and value_store
+        outer_scope.insert(name, (*input).clone());
+    }
+
+    outer_scope
 }
 
 /// Copy input type to output (for operations that preserve type)

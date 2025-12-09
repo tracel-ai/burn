@@ -1,4 +1,5 @@
 mod adapter;
+mod direct_access;
 mod error_handling;
 mod file_io;
 mod filtering;
