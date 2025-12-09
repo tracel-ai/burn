@@ -350,9 +350,6 @@ impl TchTensor {
     }
 }
 
-<<<<<<< HEAD
-// TODO: remove tch tests?
-=======
 // Adapted from `tch` to use patched `T::kind()` instead of `T::KIND` which is incorrect for bf16.
 // TODO: remove when fixed in `tch` release (https://github.com/LaurentMazare/tch-rs/pull/996).
 impl<T: TchElement + Copy> TryFrom<&TchTensor> for Vec<T> {
@@ -417,7 +414,6 @@ fn f_copy_data<T: TchElement>(
         }
     }
 }
->>>>>>> main
 
 #[cfg(test)]
 mod tests {

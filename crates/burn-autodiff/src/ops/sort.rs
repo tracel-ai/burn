@@ -1,6 +1,6 @@
 use super::{Backward, Ops, unary};
 use crate::{checkpoint::base::Checkpointer, grads::Gradients};
-use burn_backend::{TensorMetadata, Backend};
+use burn_backend::{Backend, TensorMetadata};
 use burn_std::Shape;
 
 #[derive(Debug)]
