@@ -21,9 +21,11 @@ impl Pool2dDirectStrategyFamily for AvgPoolStrategy {
 
 #[derive(CubeType, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct AvgPoolStrategyConfig {
-    kernel_size_h: u32,
-    kernel_size_w: u32,
     count_include_pad: bool,
+    /// Total padded height (input_height + 2 * padding_0)
+    padded_h: u32,
+    /// Total padded width (input_width + 2 * padding_1)
+    padded_w: u32,
 }
 
 #[cube]
@@ -60,16 +62,17 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
         *sum += result;
     }
 
-    fn set_padded_count(
+    fn count_position(
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        padded_count: u32,
+        ih: u32,
+        iw: u32,
     ) {
-        // When count_include_pad=true, use the dynamically computed padded count
-        // This correctly handles ceil_mode by only counting positions within padded bounds
-        if comptime![config.count_include_pad] {
+        // When count_include_pad=true, count positions within padded bounds
+        // (excludes ceil_mode extensions beyond the padded input)
+        if comptime![config.count_include_pad] && ih < config.padded_h && iw < config.padded_w {
             let (_sum, count) = accumulator;
-            *count = padded_count;
+            *count += 1;
         }
     }
 
@@ -141,14 +144,12 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
             ScalarArg::new(dilation as u32),
             ScalarArg::new(padding[0] as u32),
             ScalarArg::new(padding[1] as u32),
-            ScalarArg::new(padded_0 as u32),
-            ScalarArg::new(padded_1 as u32),
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         AvgPoolStrategyConfig {
-            kernel_size_h: kernel_size[0] as u32,
-            kernel_size_w: kernel_size[1] as u32,
             count_include_pad,
+            padded_h: padded_0 as u32,
+            padded_w: padded_1 as u32,
         },
         output.dtype.into(),
     )
