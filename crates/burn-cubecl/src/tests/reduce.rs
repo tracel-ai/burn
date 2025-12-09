@@ -1,9 +1,7 @@
 #[burn_tensor_testgen::testgen(reduce)]
 mod reduce {
     use super::*;
-    use burn_cubecl::kernel::reduce::{
-        ArgMax, ArgMin, Mean, Prod, ReduceStrategy, Sum, reduce, reduce_dim,
-    };
+    use burn_cubecl::kernel::reduce::{ReduceStrategy, reduce, reduce_dim};
     use burn_tensor::{
         Distribution, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
         ops::IntTensorOps,

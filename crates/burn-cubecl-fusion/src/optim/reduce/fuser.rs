@@ -10,7 +10,6 @@ use crate::{
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
 use cubecl::Runtime;
-use cubek::reduce::ReduceStrategy;
 
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser<R: Runtime> {
@@ -108,18 +107,17 @@ impl<R: Runtime> ReduceFuser<R> {
             _ => input.precision(),
         };
 
-        self.reduce = Some(FusedReduce::new(
+        self.reduce = Some(FusedReduce {
             input,
             output,
             acc,
             axis,
-            op.clone(),
-            ReduceStrategy {
-                shared: false,
-                use_planes: false,
-            },
+            op: op.clone(),
+            use_planes: false,
+            shared: false,
             inst,
-        ));
+        });
+
         self.fuser_read_fallback.close();
     }
 

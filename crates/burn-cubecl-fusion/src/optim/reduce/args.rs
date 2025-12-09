@@ -4,7 +4,7 @@ use crate::engine::codegen::{
     kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
 use cubecl::prelude::*;
-use cubek::reduce::args::{ReduceArgs, ReduceDType};
+use cubek::reduce::components::args::{ReduceArgs, ReduceDType};
 
 #[derive(Clone)]
 pub struct FusedReduceArgs;

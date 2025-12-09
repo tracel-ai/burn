@@ -16,7 +16,7 @@ use burn_tensor::{DType, ElementConversion, FloatDType};
 use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
 use cubecl::std::scalar::InputScalar;
-use cubek::reduce::instructions::ReduceFnConfig;
+use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 
 impl<R, F, I, BT> FloatTensorOps<Self> for CubeBackend<R, F, I, BT>
@@ -290,35 +290,41 @@ where
     }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Max).unwrap()
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceOperationConfig::Max).unwrap()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Min).unwrap()
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceOperationConfig::Min).unwrap()
     }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::MaxAbs).unwrap()
     }
 
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce_dim(
+            tensor,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::MaxAbs,
+        )
+        .unwrap()
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceOperationConfig::Sum).unwrap()
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Mean).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceOperationConfig::Mean).unwrap()
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
@@ -338,11 +344,11 @@ where
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Prod).unwrap()
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce_dim(tensor, dim, Default::default(), ReduceOperationConfig::Prod).unwrap()
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -419,11 +425,23 @@ where
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::ArgMax).unwrap()
+        reduce::reduce_dim(
+            tensor,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::ArgMax,
+        )
+        .unwrap()
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(tensor, dim, Default::default(), ReduceFnConfig::ArgMin).unwrap()
+        reduce::reduce_dim(
+            tensor,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::ArgMin,
+        )
+        .unwrap()
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {

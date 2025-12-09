@@ -8,7 +8,7 @@ use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::{ReduceStrategy, tune_key::ReduceAutotuneKey};
+use cubek::reduce::launch::{ReduceStrategy, tune_key::ReduceAutotuneKey};
 use serde::{Deserialize, Serialize};
 
 use super::optimization::ReduceOptimizationTuneArg;

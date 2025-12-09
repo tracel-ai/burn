@@ -7,10 +7,10 @@ use crate::{
 };
 use burn_tensor::{DType, Shape};
 use cubecl::{AutotuneKey, client::ComputeClient, features::TypeUsage, ir::StorageType};
-use cubek::reduce::{ReduceDtypes, ReduceError, shared_sum};
+use cubek::reduce::{
+    ReduceDtypes, ReduceError, components::instructions::ReduceOperationConfig, shared_sum,
+};
 use serde::{Deserialize, Serialize};
-
-pub use cubek::reduce::instructions::*;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 /// Autotune key representative of sum versions
@@ -70,7 +70,9 @@ pub fn sum<Run: CubeRuntime>(
 
             Ok(output)
         }
-        SumStrategy::Chained(strategy) => reduce::<Run>(tensor, strategy, ReduceFnConfig::Sum),
+        SumStrategy::Chained(strategy) => {
+            reduce::<Run>(tensor, strategy, ReduceOperationConfig::Sum)
+        }
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run>(&client, tensor)),
     }
@@ -107,7 +109,7 @@ impl Default for SumStrategy {
 pub fn reduce<Run: CubeRuntime>(
     mut tensor: CubeTensor<Run>,
     strategy: ReduceStrategy,
-    config: ReduceFnConfig,
+    config: ReduceOperationConfig,
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
@@ -138,7 +140,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
     input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,
-    config: ReduceFnConfig,
+    config: ReduceOperationConfig,
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
     let dtypes = config.precision(input.dtype.into());
     let client = input.client.clone();
@@ -150,7 +152,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
     )?;
 
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubek::reduce::reduce::<Run, ReduceFn>(
+        ReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -159,7 +161,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
             config,
             dtypes,
         ),
-        ReduceStrategy::Specific(strategy) => cubek::reduce::reduce::<Run, ReduceFn>(
+        ReduceStrategy::Specific(strategy) => cubek::reduce::reduce::<Run>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -170,7 +172,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
         ),
         #[cfg(feature = "autotune")]
         ReduceStrategy::Autotune => {
-            autotune_reduce::<Run, ReduceFn>(&client, input, output.clone(), dim, config, dtypes);
+            autotune_reduce::<Run>(&client, input, output.clone(), dim, config, dtypes);
             Ok(())
         }
     };
@@ -203,7 +205,7 @@ pub enum ReduceStrategy {
     /// This differs from Autotune as it doesn't try and compare many strategies to select the best.
     Unspecified,
     /// Fix the exact strategy for the reduction.
-    Specific(cubek::reduce::ReduceStrategy),
+    Specific(cubek::reduce::launch::ReduceStrategy),
     /// Use autotune to find the best strategy given the hardware and the inputs.
     #[cfg(feature = "autotune")]
     Autotune,
