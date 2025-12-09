@@ -351,6 +351,7 @@ impl Iterator for SliceIter {
     }
 }
 
+/// Note: Unbounded [`Slice`]s produce infinite iterators.
 impl IntoIterator for Slice {
     type Item = isize;
     type IntoIter = SliceIter;
