@@ -17,10 +17,6 @@ impl NodeCodegen for onnx_ir::gather::GatherNode {
             ArgType::Shape(_) => forward_shape_gather(self),
             ArgType::Tensor(_) => forward_tensor_gather(self, scope),
             ArgType::Scalar(_) => forward_scalar_gather(self),
-            // _ => panic!(
-            //     "Gather needs Tensor or Shape input, got {:?}!",
-            //     input_arg.ty
-            // ),
         }
     }
 }
