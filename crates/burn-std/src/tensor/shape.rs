@@ -493,10 +493,7 @@ impl FromStr for Shape {
         }
 
         if s.is_empty() {
-            return Err(ShapeExpressionError::InvalidExpression {
-                message: "Empty shape expression".to_string(),
-                source: source.to_string(),
-            });
+            return Ok(Shape::new([]));
         }
 
         let dims = s
@@ -656,6 +653,9 @@ mod tests {
         assert_eq!("[2]".parse::<Shape>().unwrap(), Shape::new([2]));
         assert_eq!("2".parse::<Shape>().unwrap(), Shape::new([2]));
 
+        assert_eq!("[]".parse::<Shape>().unwrap(), Shape::new([]));
+        assert_eq!("".parse::<Shape>().unwrap(), Shape::new([]));
+
         assert_eq!(
             "[".parse::<Shape>(),
             Err(ShapeExpressionError::ParseError {
@@ -668,21 +668,6 @@ mod tests {
             Err(ShapeExpressionError::ParseError {
                 message: "Unbalanced '[]'".to_string(),
                 source: "]".to_string()
-            })
-        );
-
-        assert_eq!(
-            "[]".parse::<Shape>(),
-            Err(ShapeExpressionError::InvalidExpression {
-                message: "Empty shape expression".to_string(),
-                source: "[]".to_string()
-            })
-        );
-        assert_eq!(
-            "".parse::<Shape>(),
-            Err(ShapeExpressionError::InvalidExpression {
-                message: "Empty shape expression".to_string(),
-                source: "".to_string()
             })
         );
 
