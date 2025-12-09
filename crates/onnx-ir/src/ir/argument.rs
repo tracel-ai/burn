@@ -184,14 +184,46 @@ impl Argument {
 
     /// Get the constant value from the central tensor store
     pub fn value(&self) -> Option<TensorData> {
+        if self.value_store.is_none() {
+            if matches!(
+                self.value_source,
+                ValueSource::Constant | ValueSource::Static(_)
+            ) {
+                log::warn!(
+                    "value() called on '{}' (value_source={:?}) but value_store is None",
+                    self.name,
+                    self.value_source
+                );
+            }
+            return None;
+        }
         let store = self.value_store.as_ref()?;
 
         match &self.value_source {
             // Static: data is embedded directly
-            ValueSource::Static(data_id) => store.get_tensor_data(*data_id),
+            ValueSource::Static(data_id) => {
+                let result = store.get_tensor_data(*data_id);
+                if result.is_none() {
+                    log::warn!(
+                        "value() for Static({}) on '{}' returned None - store has {} tensors",
+                        data_id,
+                        self.name,
+                        store.tensor_count()
+                    );
+                }
+                result
+            }
             // Constant: look up the constant node by output name
             ValueSource::Constant => {
-                let data_id = store.get_constant_data_id(&self.name)?;
+                let data_id = store.get_constant_data_id(&self.name);
+                if data_id.is_none() {
+                    log::warn!(
+                        "value() lookup failed for '{}': constant not found in store (constant_map has {} entries)",
+                        self.name,
+                        store.constant_map_len()
+                    );
+                }
+                let data_id = data_id?;
                 store.get_tensor_data(data_id)
             }
             // Dynamic/Optional: no constant data
