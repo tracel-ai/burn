@@ -8,6 +8,7 @@ use crate::{
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -123,6 +124,7 @@ impl SafetensorsStore {
             skip_enum_variants: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
+            snapshots_cache: None,
         })
     }
 
@@ -139,6 +141,7 @@ impl SafetensorsStore {
             skip_enum_variants: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
+            snapshots_cache: None,
         })
     }
 
@@ -473,6 +476,8 @@ pub struct FileStore {
     skip_enum_variants: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 /// Memory-based store.
@@ -487,6 +492,8 @@ pub struct MemoryStore {
     skip_enum_variants: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 impl Default for MemoryStore {
@@ -502,6 +509,7 @@ impl Default for MemoryStore {
             skip_enum_variants: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
+            snapshots_cache: None,
         }
     }
 }
@@ -558,6 +566,13 @@ impl ModuleStore for SafetensorsStore {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
+        // Invalidate cache since we're writing new data
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache = None,
+            Self::Memory(p) => p.snapshots_cache = None,
+        }
+
         // Collect tensor snapshots from module with adapter
         // The to_adapter converts from Burn format to target format for saving
         let to_adapter = match self {
@@ -624,31 +639,8 @@ impl ModuleStore for SafetensorsStore {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
-        // Convert to tensor snapshots with lazy loading
-        #[allow(unused_mut)]
-        let mut snapshots = match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => {
-                // Use safetensors' built-in lazy loading mechanisms
-                safetensors_to_snapshots_lazy_file(&p.path)?
-            }
-            Self::Memory(p) => {
-                let data_arc = p
-                    .data
-                    .clone()
-                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
-                safetensors_to_snapshots_lazy(data_arc)?
-            }
-        };
-
-        // Apply remapping to loaded tensors
-        #[cfg(feature = "std")]
-        {
-            snapshots = match self {
-                Self::File(p) => apply_remapping(snapshots, &p.remapper),
-                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
-            };
-        }
+        // Get snapshots from cache
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 
         // Get the adapter
         let adapter: Box<dyn ModuleAdapter> = match self {
@@ -657,11 +649,20 @@ impl ModuleStore for SafetensorsStore {
             Self::Memory(p) => p.from_adapter.clone(),
         };
 
+        // Get filter (cloned to Option for apply)
+        let filter = self.get_filter();
+        let filter_opt = if filter.is_empty() {
+            None
+        } else {
+            Some(filter.clone())
+        };
+
         // Apply to module with adapter
         // The adapter will be applied during module traversal with proper container info
+        // Filter is applied here during apply, not during cache population
         let result = module.apply(
             snapshots,
-            None,
+            filter_opt,
             Some(adapter),
             self.get_skip_enum_variants(),
         );
@@ -682,6 +683,33 @@ impl ModuleStore for SafetensorsStore {
         }
 
         Ok(result)
+    }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        let cache = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache.as_ref().unwrap(),
+            Self::Memory(p) => p.snapshots_cache.as_ref().unwrap(),
+        };
+        Ok(cache.get(name))
+    }
+
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        let cache = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache.as_ref().unwrap(),
+            Self::Memory(p) => p.snapshots_cache.as_ref().unwrap(),
+        };
+        Ok(cache)
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
     }
 }
 
@@ -732,6 +760,56 @@ impl SafetensorsStore {
             Self::File(p) => p.skip_enum_variants,
             Self::Memory(p) => p.skip_enum_variants,
         }
+    }
+
+    /// Ensure the snapshots cache is populated
+    fn ensure_snapshots_cache(&mut self) -> Result<(), SafetensorsStoreError> {
+        // Check if cache exists
+        let has_cache = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache.is_some(),
+            Self::Memory(p) => p.snapshots_cache.is_some(),
+        };
+
+        if has_cache {
+            return Ok(());
+        }
+
+        // Load snapshots
+        #[allow(unused_mut)]
+        let mut snapshots = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => safetensors_to_snapshots_lazy_file(&p.path)?,
+            Self::Memory(p) => {
+                let data_arc = p
+                    .data
+                    .clone()
+                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
+                safetensors_to_snapshots_lazy(data_arc)?
+            }
+        };
+
+        // Apply remapping (but NOT filtering - that's done at apply time)
+        #[cfg(feature = "std")]
+        {
+            snapshots = match self {
+                Self::File(p) => apply_remapping(snapshots, &p.remapper),
+                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
+            };
+        }
+
+        // Build cache as BTreeMap
+        let cache: BTreeMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+
+        // Store cache
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache = Some(cache),
+            Self::Memory(p) => p.snapshots_cache = Some(cache),
+        }
+
+        Ok(())
     }
 }
 

@@ -350,7 +350,74 @@ impl TchTensor {
     }
 }
 
+<<<<<<< HEAD
 // TODO: remove tch tests?
+=======
+// Adapted from `tch` to use patched `T::kind()` instead of `T::KIND` which is incorrect for bf16.
+// TODO: remove when fixed in `tch` release (https://github.com/LaurentMazare/tch-rs/pull/996).
+impl<T: TchElement + Copy> TryFrom<&TchTensor> for Vec<T> {
+    type Error = tch::TchError;
+    fn try_from(tensor: &TchTensor) -> Result<Self, Self::Error> {
+        let tensor = &tensor.tensor;
+        let size = tensor.size();
+        if size.len() != 1 {
+            Err(tch::TchError::Convert(format!(
+                "Attempting to convert a Tensor with {} dimensions to flat vector",
+                size.len()
+            )))?;
+        }
+        let numel = size[0] as usize;
+        let mut vec = vec![T::ZERO; numel];
+        // Adapted to use patched `T::kind()` instead
+        // TODO: tensor.f_to_kind(T::KIND)?.f_copy_data(&mut vec, numel)?;
+        f_copy_data(&mut tensor.f_to_kind(T::kind())?, &mut vec, numel)?;
+        Ok(vec)
+    }
+}
+
+unsafe fn ptr_to_string(ptr: *mut libc::c_char) -> Option<String> {
+    if !ptr.is_null() {
+        unsafe {
+            let str = std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned();
+            libc::free(ptr as *mut libc::c_void);
+            Some(str)
+        }
+    } else {
+        None
+    }
+}
+
+/// Copies `numel` elements from `self` to `dst`.
+fn f_copy_data<T: TchElement>(
+    tensor: &mut tch::Tensor,
+    dst: &mut [T],
+    numel: usize,
+) -> Result<(), tch::TchError> {
+    if T::kind() != tensor.f_kind()? {
+        return Err(tch::TchError::Kind(format!(
+            "incoherent elt kind, {:?} != {:?}",
+            tensor.f_kind(),
+            T::kind()
+        )));
+    }
+    if dst.len() < numel {
+        return Err(tch::TchError::Shape(format!("slice len < {numel}")));
+    }
+
+    unsafe {
+        torch_sys::at_copy_data(
+            tensor.as_mut_ptr(),
+            dst.as_mut_ptr() as *const c_void,
+            numel,
+            T::kind().elt_size_in_bytes(),
+        );
+        match ptr_to_string(torch_sys::get_and_reset_last_err()) {
+            None => Ok(()),
+            Some(c_error) => Err(tch::TchError::Torch(c_error)),
+        }
+    }
+}
+>>>>>>> main
 
 #[cfg(test)]
 mod tests {
@@ -414,6 +481,21 @@ mod tests {
         assert_ne!(
             tensor_3.to_data().as_slice::<f32>().unwrap(),
             tensor_1.to_data().as_slice::<f32>().unwrap()
+        );
+    }
+
+    #[test]
+    fn should_have_bf16_kind() {
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
+        let tensor_2 = tensor_1.cast(DType::BF16);
+
+        tensor_2
+            .to_data()
+            .assert_eq(&TensorData::from([4.0, 4.0]), false);
+
+        assert_eq!(
+            tensor_2.into_primitive().tensor().tensor.kind(),
+            tch::Kind::BFloat16
         );
     }
 }

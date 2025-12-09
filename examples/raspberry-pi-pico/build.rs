@@ -8,7 +8,6 @@
 //! updating `memory.x` ensures a rebuild of the application with the
 //! new memory settings.
 
-use burn_import::burn::graph::RecordType;
 use burn_import::onnx::ModelGen;
 use std::env;
 use std::fs::File;
@@ -33,7 +32,6 @@ fn main() {
 
     println!("cargo:rustc-link-arg-bins=--nmagic");
     println!("cargo:rustc-link-arg-bins=-Tlink.x");
-    println!("cargo:rustc-link-arg-bins=-Tlink-rp.x");
     println!("cargo:rustc-link-arg-bins=-Tdefmt.x");
 
     generate_model();
@@ -44,7 +42,6 @@ fn generate_model() {
     ModelGen::new()
         .input("src/model/sine.onnx")
         .out_dir("model/")
-        .record_type(RecordType::Bincode)
         .embed_states(true)
         .run_from_script();
 }

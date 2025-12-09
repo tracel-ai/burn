@@ -19,8 +19,8 @@ default = ["std"]
 std = ["dep:parking_lot"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.4", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.4", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.5", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false }
 
 derive-new = { workspace = true }
 spin = { workspace = true }

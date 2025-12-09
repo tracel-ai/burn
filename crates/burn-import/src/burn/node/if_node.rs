@@ -1,68 +1,53 @@
 use super::prelude::*;
+use super::subgraph_helper;
+use std::collections::HashSet;
 
-/// Generate inline code for a subgraph
+/// Generate inline code for a subgraph branch (then/else).
 ///
-/// Converts an OnnxGraph into a TokenStream that can be inserted into an if/else branch.
 /// Returns (body_code, output_tuple)
-fn generate_subgraph_code(
+fn generate_branch_code(
     subgraph: &onnx_ir::OnnxGraph,
+    outer_scope_inputs: &[Argument],
+    scope_ref_names: &[String],
     scope: &mut Scope,
     node_position: usize,
 ) -> (TokenStream, TokenStream) {
-    let mut body = quote! {};
+    // For If branches, all scope_ref_names are genuine outer-scope references
+    // (no filtering needed, unlike Loop/Scan)
+    let exclude_names = HashSet::new();
 
-    // Register subgraph inputs in scope (they reference parent scope values)
-    for input in &subgraph.inputs {
-        if let ArgType::Tensor(_) = &input.ty {
-            scope.tensor_register_variable(input, node_position);
-        }
-    }
+    // Collect names actually used in this branch to avoid unused variable warnings
+    let used_names = subgraph_helper::collect_subgraph_referenced_names(subgraph);
 
-    // Build scope for subgraph nodes: register outputs and future uses
-    for (idx, node) in subgraph.nodes.iter().enumerate() {
-        let subgraph_node_pos = node_position + idx + 1;
+    // Generate outer-scope bindings (only for names actually used in this branch)
+    let bindings = subgraph_helper::generate_outer_scope_bindings(
+        outer_scope_inputs,
+        scope_ref_names,
+        &exclude_names,
+        Some(&used_names),
+        scope,
+        node_position,
+    );
 
-        // Register node outputs
-        for output in NodeCodegen::outputs(node) {
-            if let ArgType::Tensor(_) = &output.ty {
-                scope.tensor_register_variable(output, subgraph_node_pos);
-            }
-        }
+    // Register subgraph scope
+    subgraph_helper::register_subgraph_scope(subgraph, scope, node_position);
 
-        // Register future uses of node inputs
-        // Filter to only dynamic/constant inputs (exclude static-only initializers)
-        for input in NodeCodegen::inputs(node)
-            .iter()
-            .filter(|arg| arg.is_dynamic() || arg.is_constant())
-        {
-            if let ArgType::Tensor(_) = &input.ty {
-                scope.tensor_register_future_use(input, subgraph_node_pos - 1);
-            }
-        }
-    }
-
-    // Register future uses for subgraph outputs
-    for output in &subgraph.outputs {
-        if let ArgType::Tensor(_) = &output.ty {
-            scope.tensor_register_future_use(output, node_position + subgraph.nodes.len());
-        }
-    }
-
-    // Generate forward code for each node
-    for (idx, node) in subgraph.nodes.iter().enumerate() {
-        let mut scope_at_pos = scope.at_position(node_position + idx + 1);
-        let node_code = NodeCodegen::forward(node, &mut scope_at_pos);
-        body.extend(node_code);
-    }
+    // Generate forward code
+    let forward_code =
+        subgraph_helper::generate_subgraph_forward_code(subgraph, scope, node_position);
 
     // Generate output tuple
     let output_names: Vec<_> = subgraph.outputs.iter().map(arg_to_ident).collect();
-
     let output_tuple = if output_names.len() == 1 {
         let out = &output_names[0];
         quote! { #out }
     } else {
         quote! { (#(#output_names),*) }
+    };
+
+    let body = quote! {
+        #bindings
+        #forward_code
     };
 
     (body, output_tuple)
@@ -78,8 +63,11 @@ impl NodeCodegen for onnx_ir::node::if_node::IfNode {
     }
 
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
-        // Get condition input
-        let cond_arg = self.inputs.first().unwrap();
+        // Get condition input (first input)
+        let cond_arg = self
+            .inputs
+            .first()
+            .expect("If node requires condition input");
 
         let cond = match &cond_arg.ty {
             ArgType::Scalar(_) => {
@@ -94,16 +82,28 @@ impl NodeCodegen for onnx_ir::node::if_node::IfNode {
             other => panic!("If condition must be scalar or tensor, got {:?}", other),
         };
 
+        // Get outer-scope reference inputs (all inputs after condition)
+        let outer_scope_inputs: Vec<_> = self.inputs.iter().skip(1).cloned().collect();
+
         // Generate code for then and else branches
         let node_position = scope.node_position();
-        let (then_body, then_output) =
-            generate_subgraph_code(&self.config.then_branch, scope.scope(), node_position);
-        let (else_body, else_output) =
-            generate_subgraph_code(&self.config.else_branch, scope.scope(), node_position);
+        let (then_body, then_output) = generate_branch_code(
+            &self.config.then_branch,
+            &outer_scope_inputs,
+            &self.config.scope_ref_names,
+            scope.scope(),
+            node_position,
+        );
+        let (else_body, else_output) = generate_branch_code(
+            &self.config.else_branch,
+            &outer_scope_inputs,
+            &self.config.scope_ref_names,
+            scope.scope(),
+            node_position,
+        );
 
         // Generate output variable declarations
         let output_names: Vec<_> = self.outputs.iter().map(arg_to_ident).collect();
-
         let output_decls = if self.outputs.len() == 1 {
             let out = &output_names[0];
             quote! { let #out }

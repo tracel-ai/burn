@@ -16,6 +16,7 @@ use onnx_ir_derive::NodeBuilder;
 use crate::ir::{ArgType, Argument, Node, OnnxGraph, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
+    build_outer_scope_from_inputs,
 };
 
 /// Configuration for If operation
@@ -23,6 +24,10 @@ use crate::processor::{
 pub struct IfConfig {
     pub then_branch: OnnxGraph,
     pub else_branch: OnnxGraph,
+    /// Names of outer-scope references (in order corresponding to inputs[1..])
+    /// These are the original sanitized ONNX names that subgraphs reference
+    #[new(default)]
+    pub scope_ref_names: Vec<String>,
 }
 
 /// Node representation for If operation
@@ -55,25 +60,21 @@ impl NodeProcessor for IfProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate condition input is scalar bool
+        // Validate condition input is bool
+        // Per ONNX spec, the condition must be a tensor containing a single element,
+        // but we allow any bool tensor/scalar as some models may not be strictly conformant
         let condition = &node.inputs[0].ty;
-        if !condition.is_scalar() {
+        let is_bool = match condition {
+            ArgType::Scalar(dtype) => dtype.is_bool(),
+            ArgType::Tensor(tensor) => tensor.dtype.is_bool(),
+            ArgType::Shape(_) => false,
+        };
+
+        if !is_bool {
             return Err(ProcessError::TypeMismatch {
-                expected: "Scalar Bool (rank-0 tensor or Scalar type)".to_string(),
+                expected: "Bool tensor or scalar".to_string(),
                 actual: format!("{:?}", condition),
             });
-        }
-
-        match condition {
-            ArgType::Scalar(dtype) if dtype.is_bool() => {
-                // Valid scalar bool condition
-            }
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Scalar Bool".to_string(),
-                    actual: format!("{:?}", condition),
-                });
-            }
         }
 
         // Get branches from config (clone to avoid borrow checker issues)
@@ -92,31 +93,18 @@ impl NodeProcessor for IfProcessor {
             )));
         }
 
-        // Infer output types from branches
-        // Both branches should have the same output types, but we'll take then_branch as canonical
-        // ONLY update types, preserve existing output structure (names set by add_node)
+        // Infer output types from then_branch
+        // Both branches produce the same number of outputs, so we use then_branch as the reference.
+        // At runtime, only one branch executes, so the types should be compatible.
 
         // If outputs don't exist yet, create them from branch outputs
         if node.outputs.is_empty() {
-            for then_output in then_outputs.iter() {
+            for then_output in &then_outputs {
                 node.outputs.push(then_output.clone());
             }
         } else {
             // Update types for existing outputs (preserves names set by add_node)
             for (i, then_output) in then_outputs.iter().enumerate() {
-                let else_output = &else_outputs[i];
-
-                // Validate that output types are compatible
-                if then_output.ty != else_output.ty {
-                    log::warn!(
-                        "If node output {} types differ between branches: then={:?}, else={:?}",
-                        i,
-                        then_output.ty,
-                        else_output.ty
-                    );
-                }
-
-                // Only update the type, keep the existing name
                 if i < node.outputs.len() {
                     node.outputs[i].ty = then_output.ty.clone();
                 }
@@ -126,7 +114,7 @@ impl NodeProcessor for IfProcessor {
         Ok(())
     }
 
-    fn extract_config(&self, node: &RawNode, opset: usize) -> Result<Self::Config, ProcessError> {
+    fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract then_branch and else_branch from attributes
         let then_attr = node
             .attrs
@@ -140,56 +128,67 @@ impl NodeProcessor for IfProcessor {
             .ok_or_else(|| ProcessError::MissingAttribute("else_branch".to_string()))?
             .clone();
 
-        // Handle both Graph and GraphBuilder
+        // Build outer scope types map from additional inputs (beyond ONNX inputs)
+        // These are outer-scope references that were added during node conversion
+        let outer_scope = build_outer_scope_from_inputs(node);
+
+        // Handle DeferredGraph and Graph
         let then_branch = match then_attr {
-            crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!(
+                    "Building deferred then_branch subgraph with {} outer-scope types",
+                    outer_scope.len()
+                );
+                deferred
+                    .build_graph_with_outer_scope(outer_scope.clone())
+                    .map_err(|e| {
+                        ProcessError::Custom(format!("Failed to build then_branch: {:?}", e))
+                    })?
             }
+            crate::ir::AttributeValue::Graph(g) => g,
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for then_branch".to_string(),
+                    "Expected DeferredGraph or Graph for then_branch".to_string(),
                 ));
             }
         };
 
         let else_branch = match else_attr {
-            crate::ir::AttributeValue::Graph(g) => g,
-            crate::ir::AttributeValue::GraphBuilder(mut builder) => {
-                // Convert NodeBuilders to Nodes
-                let nodes = crate::ir::graph::finalize_graph_nodes(&mut builder.nodes, opset);
-                let value_store = builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-                crate::ir::OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut builder.inputs),
-                    outputs: std::mem::take(&mut builder.outputs),
-                    value_store,
-                }
+            crate::ir::AttributeValue::DeferredGraph(deferred) => {
+                // Build the subgraph now with outer-scope types
+                log::debug!(
+                    "Building deferred else_branch subgraph with {} outer-scope types",
+                    outer_scope.len()
+                );
+                deferred
+                    .build_graph_with_outer_scope(outer_scope)
+                    .map_err(|e| {
+                        ProcessError::Custom(format!("Failed to build else_branch: {:?}", e))
+                    })?
             }
+            crate::ir::AttributeValue::Graph(g) => g,
             _ => {
                 return Err(ProcessError::Custom(
-                    "Expected Graph or GraphBuilder for else_branch".to_string(),
+                    "Expected DeferredGraph or Graph for else_branch".to_string(),
                 ));
             }
         };
 
+        // Get the scope ref names for use in code generation
+        let scope_ref_names: Vec<String> = node
+            .attrs
+            .get("__scope_ref_names")
+            .and_then(|v| match v {
+                crate::ir::AttributeValue::Strings(names) => Some(names.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
         Ok(IfConfig {
             then_branch,
             else_branch,
+            scope_ref_names,
         })
     }
 

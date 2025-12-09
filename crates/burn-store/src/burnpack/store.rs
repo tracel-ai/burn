@@ -6,10 +6,11 @@ use super::writer::BurnpackWriter;
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::burnpack::base::BurnpackError;
-use crate::{ModuleSnapshot, ModuleStore, PathFilter};
+use crate::{ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot};
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use burn_core::prelude::Backend;
 use burn_tensor::Bytes;
 
@@ -44,6 +45,8 @@ pub struct BurnpackStore {
     writer: Option<BurnpackWriter>,
     /// Reader for loading
     reader: Option<BurnpackReader>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 impl BurnpackStore {
@@ -96,6 +99,7 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
+            snapshots_cache: None,
         }
     }
 
@@ -114,6 +118,7 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
+            snapshots_cache: None,
         }
     }
 
@@ -276,6 +281,28 @@ impl BurnpackStore {
         new_path.set_extension("bpk");
         new_path
     }
+
+    /// Ensure the reader is initialized, loading from storage if needed
+    fn ensure_reader(&mut self) -> Result<&BurnpackReader, BurnpackError> {
+        if self.reader.is_none() {
+            let reader = match &self.mode {
+                #[cfg(feature = "std")]
+                StoreMode::File(path) => {
+                    let final_path = self.process_path(path);
+                    BurnpackReader::from_file(&final_path)?
+                }
+                StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
+                StoreMode::Bytes(None) => {
+                    return Err(BurnpackError::IoError("No bytes to read from".into()));
+                }
+            };
+            self.reader = Some(reader);
+        }
+
+        self.reader
+            .as_ref()
+            .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))
+    }
 }
 
 impl ModuleStore for BurnpackStore {
@@ -285,6 +312,10 @@ impl ModuleStore for BurnpackStore {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
+        // Invalidate cache since we're writing new data
+        self.snapshots_cache = None;
+        self.reader = None;
+
         // Collect snapshots from module
         let snapshots = module.collect(self.filter.clone(), None, false);
 
@@ -336,43 +367,12 @@ impl ModuleStore for BurnpackStore {
         &mut self,
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
-        // Load reader if not already loaded
-        if self.reader.is_none() {
-            let reader = match &self.mode {
-                #[cfg(feature = "std")]
-                StoreMode::File(path) => {
-                    // Process path with auto-extension logic
-                    let final_path = self.process_path(path);
-                    BurnpackReader::from_file(&final_path)?
-                }
-                StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
-                StoreMode::Bytes(None) => {
-                    return Err(BurnpackError::IoError("No bytes to read from".into()));
-                }
-            };
-            self.reader = Some(reader);
-        }
-
-        let reader = self
-            .reader
-            .as_ref()
-            .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))?;
-
-        // Get all snapshots at once for efficient loading
-        #[cfg(feature = "std")]
-        let snapshots = if !self.remapper.patterns.is_empty() {
-            let (remapped, _remapped_names) = self.remapper.remap(reader.get_snapshots()?);
-            // TODO figure what to do with remapped names
-            remapped
-        } else {
-            reader.get_snapshots()?
-        };
-
-        #[cfg(not(feature = "std"))]
-        let snapshots = reader.get_snapshots()?;
+        // Get all snapshots using the cached method
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 
         // Apply all snapshots at once to the module
         // Burnpack is Burn's native format, so no enum variant skipping needed
+        // Filter is applied here during apply, not during cache population
         let result = module.apply(snapshots, self.filter.clone(), None, false);
 
         // Validate if needed
@@ -392,5 +392,54 @@ impl ModuleStore for BurnpackStore {
         }
 
         Ok(result)
+    }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap().get(name))
+    }
+
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap())
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
+    }
+}
+
+impl BurnpackStore {
+    /// Ensure the snapshots cache is populated
+    fn ensure_snapshots_cache(&mut self) -> Result<(), BurnpackError> {
+        if self.snapshots_cache.is_some() {
+            return Ok(());
+        }
+
+        // Ensure reader is loaded
+        self.ensure_reader()?;
+
+        // Get snapshots from reader
+        let reader = self.reader.as_ref().unwrap();
+        let snapshots = reader.get_snapshots()?;
+
+        // Apply remapping if configured (but NOT filtering - that's done at apply time)
+        #[cfg(feature = "std")]
+        let snapshots = if !self.remapper.patterns.is_empty() {
+            let (remapped, _remapped_names) = self.remapper.remap(snapshots);
+            remapped
+        } else {
+            snapshots
+        };
+
+        // Build the cache as BTreeMap
+        let cache: BTreeMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+
+        self.snapshots_cache = Some(cache);
+        Ok(())
     }
 }
