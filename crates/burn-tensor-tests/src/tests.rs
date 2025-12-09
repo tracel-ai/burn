@@ -10,6 +10,7 @@ mod autodiff;
 
 mod autodiff_checkpointing {
     pub use super::*;
+    use burn_autodiff::checkpoint::strategy::BalancedCheckpointing;
 
     // Override type def
     pub type TestAutodiffBackend = Autodiff<TestBackend, BalancedCheckpointing>;
@@ -19,7 +20,7 @@ mod autodiff_checkpointing {
 }
 
 /// Burn tensor and autodiff tests for CubeCL backends with fusion enabled.
-#[cfg(feature = "fusion")]
+#[cfg(feature = "cube")]
 mod fusion {
     use burn_tensor::Tensor;
 
@@ -37,6 +38,7 @@ mod fusion {
     #[cfg(test)]
     mod autodiff_checkpointing {
         pub use super::*;
+        use burn_autodiff::checkpoint::strategy::BalancedCheckpointing;
 
         // Override type def
         pub type TestAutodiffBackend = Autodiff<TestBackend, BalancedCheckpointing>;

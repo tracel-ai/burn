@@ -24,8 +24,7 @@ default = [
     "burn-ndarray?/default",
     "burn-tch?/default",
     # Default
-    "burn-ndarray",
-    "autotune",
+    "ndarray",
     "std",
 ]
 std = [
@@ -45,16 +44,16 @@ std = [
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "quantization", "fusion", "cubecl"]
-rocm = ["burn-rocm", "quantization", "fusion", "cubecl"]
+cuda = ["burn-cuda", "quantization", "cube"]
+rocm = ["burn-rocm", "quantization", "cube"]
 ndarray = ["burn-ndarray", "quantization"]
 tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu", "quantization", "fusion", "cubecl"]
-cpu = ["burn-cpu", "cubecl"]
-router = ["burn-router", "ndarray", "wgpu"]
+wgpu = ["burn-wgpu", "quantization", "cube"]
+cpu = ["burn-cpu", "cube"]
+router = ["burn-router", "ndarray", "burn-wgpu"]
 
 autotune = [
     "burn-wgpu?/autotune",
@@ -68,7 +67,9 @@ autotune-checks = [
     "burn-rocm?/autotune-checks",
     "burn-cpu?/autotune-checks",
 ]
-fusion = ["burn-fusion", "burn-cubecl"]
+
+# CubeCL backends
+cube = ["cubecl", "autotune", "burn-fusion", "burn-cubecl", "burn-ndarray"]
 
 # Test configs
 quantization = []

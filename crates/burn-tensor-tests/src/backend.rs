@@ -1,20 +1,11 @@
 // Re-export
-pub use burn_autodiff::{Autodiff, checkpoint::strategy::BalancedCheckpointing};
+pub use burn_autodiff::Autodiff;
 pub use burn_tensor::Tensor;
 
 use super::FloatElemType;
 
 // Default
-#[cfg(all(
-    feature = "default",
-    not(feature = "candle"),
-    not(feature = "tch"),
-    not(feature = "cuda"),
-    not(feature = "rocm"),
-    not(feature = "wgpu"),
-    not(feature = "cpu"),
-    not(feature = "router")
-))]
+#[cfg(feature = "ndarray")]
 pub type TestBackend = burn_ndarray::NdArray<FloatElemType>;
 
 #[cfg(feature = "candle")]
@@ -40,12 +31,17 @@ pub type TestBackend = burn_router::BackendRouter<
     burn_router::DirectByteChannel<(burn_ndarray::NdArray, burn_wgpu::Wgpu)>,
 >;
 
-pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
-pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
-pub type TestTensorBool<const D: usize> = Tensor<TestBackend, D, burn_tensor::Bool>;
+#[allow(unused)]
+mod types {
+    use super::*;
+    pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> = Tensor<TestBackend, D, burn_tensor::Bool>;
 
-pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
-pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
+    pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
+    pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
 
-pub type TestAutodiffBackend = Autodiff<TestBackend>;
-pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
+    pub type TestAutodiffBackend = Autodiff<TestBackend>;
+    pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
+}
+pub use types::*;

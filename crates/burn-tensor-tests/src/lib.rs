@@ -1,8 +1,8 @@
 extern crate alloc;
 
-#[cfg(test)]
+#[allow(unused)]
 type FloatElemType = f32;
-#[allow(unused)] // some backends do not have configurable int elem type
+#[allow(unused)]
 type IntElemType = i32;
 
 #[cfg(test)]
@@ -11,10 +11,7 @@ mod backend;
 pub use backend::*;
 
 /// CubeCL kernel tests.
-#[cfg(all(
-    test,
-    any(feature = "cuda", feature = "rocm", feature = "wgpu", feature = "cpu")
-))]
+#[cfg(all(test, feature = "cube"))]
 #[path = "."]
 mod cube {
     type FloatElemType = f32;
@@ -65,39 +62,3 @@ test_elem_variant!(
 
 // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
 // breaks a lot of tests from precision issues
-
-// #[cfg(not(target_os = "macos"))] // Wgpu on MacOS currently doesn't support atomic compare exchange
-// burn_autodiff::testgen_ad_deform_conv2d!(); // This kernel in cubecl isn't implemented without atomics
-
-// TODO: maybe remove q_* ops for equality?
-// TODO: remove q remainder?
-
-/*
-CUDA
-burn_cubecl::testgen_all!([f32], [i32], [u32]);
-
-WGPU
-mod tests {
-    use burn_cubecl::CubeBackend;
-    #[cfg(feature = "vulkan")]
-    pub use half::f16;
-    #[cfg(feature = "metal")]
-    pub use half::f16;
-
-    pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
-
-
-    #[cfg(feature = "vulkan")]
-    burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
-    #[cfg(feature = "metal")]
-    burn_cubecl::testgen_all!([f16, f32], [i16, i32], [u32]);
-    #[cfg(all(not(feature = "vulkan"), not(feature = "metal")))]
-    burn_cubecl::testgen_all!([f32], [i32], [u32]);
-}
-
-ROCM
-burn_cubecl::testgen_all!([f16, f32], [i32], [u32]);
-
-CPU
-burn_cubecl::testgen_all!([f32], [i8, i16, i32, i64], [u32]);
-*/

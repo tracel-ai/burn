@@ -221,8 +221,6 @@ fn test_conv3d_basic() {
     test.assert_grads(grads);
 }
 
-// TODO
-
 #[test]
 fn test_conv3d_complex() {
     let test = Conv3dTestCase {
