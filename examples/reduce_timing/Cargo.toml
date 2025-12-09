@@ -1,0 +1,34 @@
+[package]
+name = "reduce_timing"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["cuda"]
+cuda = ["burn/cuda"]
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+burn = { path = "../../crates/burn", version = "=0.20.0-pre.4", features = [
+    "train",
+    "collective"
+] }
+
+rand = { workspace = true }
+
+tokio = { workspace = true, features = ["full", "tracing"] }
+tracing = { workspace = true }
+# todo: tracing-log
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true, features = ["trace"] }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-aws = { workspace = true }
+opentelemetry-otlp = { workspace = true, features = ["tracing", "grpc-tonic"] }
+opentelemetry-stdout = "0.31.0"
+

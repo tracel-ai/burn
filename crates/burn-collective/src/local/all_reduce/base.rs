@@ -99,7 +99,7 @@ impl<B: Backend> AllReduceOp<B> {
     }
 
     /// Perform an all-reduce operation.
-    #[tracing::instrument(skip(config, global_client))]
+    #[tracing::instrument(skip(self, config, global_client))]
     async fn all_reduce(
         &mut self,
         config: &CollectiveConfig,
