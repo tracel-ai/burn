@@ -1,5 +1,8 @@
 //! Tensor slice utilities.
 
+#[allow(unused_imports)]
+use alloc::format;
+use alloc::string::String;
 use crate::Shape;
 use crate::indexing::AsIndex;
 use alloc::vec;
@@ -7,6 +10,9 @@ use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
+
+use crate::Shape;
+use crate::indexing::AsIndex;
 
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
@@ -690,10 +696,6 @@ impl FromStr for Slice {
         Ok(Slice::new(start, end, step))
     }
 }
-
-#[allow(unused_imports)]
-use alloc::format;
-use alloc::string::String;
 
 /// Common Parse Error.
 #[derive(Debug, Clone, PartialEq, Eq)]
