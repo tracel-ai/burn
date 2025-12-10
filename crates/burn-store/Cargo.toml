@@ -77,3 +77,7 @@ harness = false
 [[bench]]
 name = "unified_saving"
 harness = false
+
+[[bench]]
+name = "zero_copy_loading"
+harness = false
