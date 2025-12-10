@@ -38,9 +38,6 @@ colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
 num-traits = { workspace = true }
 
-# The same implementation of HashMap in std but with no_std support (only needs alloc crate)
-hashbrown = { workspace = true } # no_std compatible
-
 # Serialization
 serde = { workspace = true }
 
