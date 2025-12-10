@@ -116,6 +116,7 @@ impl AvgPool2dTestCase {
             [self.stride_1, self.stride_2],
             [self.padding_1, self.padding_2],
             self.count_include_pad,
+            false,
         );
         let grads = output.backward();
         let x_grad_actual = x.grad(&grads).unwrap();

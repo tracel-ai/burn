@@ -21,7 +21,7 @@ where
     );
     let (values, params) = tensor.quantized_handles().unwrap();
 
-    cubecl_quant::dequantize::launch_ref(
+    cubek::quantization::dequantize::launch_ref(
         &values.client,
         &values.as_handle_ref(),
         &output.as_handle_ref(),

@@ -1,6 +1,6 @@
 use burn_tensor::{DType, quantization::QTensorPrimitive};
+use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::AllocationKind;
-use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::{CubeRuntime, ops::empty_qtensor, tensor::CubeTensor};
 

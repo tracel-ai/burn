@@ -30,7 +30,6 @@ autotune-checks = [
     "cubecl/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
-memory-checks = ["burn-fusion?/memory-checks"]
 doc = ["default"]
 export_tests = [
     # Too expensive and flaky for the CI.
@@ -44,6 +43,7 @@ export_tests = [
 ]
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
+memory-checks = ["burn-fusion?/memory-checks"]
 std = [
     "cubecl/std",
     "burn-tensor/std",
@@ -54,24 +54,24 @@ std = [
 template = []
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.5", default-features = false, optional = true }
 burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.20.0-pre.5", default-features = false, optional = true }
+burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.5", default-features = false, optional = true }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5", default-features = false, features = [
-    "cubecl",
-] }
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.5", default-features = false, features = [
     "cubecl",
 ] }
-cubecl = { workspace = true, features = [
+burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5", default-features = false, features = [
+    "cubecl",
+] }
+cubecl = { workspace = true, features = ["stdlib"] }
+cubek = { workspace = true, features = [
     "attention",
     "matmul",
     "convolution",
     "reduce",
     "random",
-    "stdlib",
+    "quantization",
 ] }
-cubecl-quant = { workspace = true, features = ["kernels"] }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }

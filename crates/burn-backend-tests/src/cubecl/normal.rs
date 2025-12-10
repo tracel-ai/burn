@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::{Distribution, Shape, Tensor, backend::Backend};
-use cubecl::random::{assert_mean_approx_equal, assert_normal_respects_68_95_99_rule};
+use cubek::random::{assert_mean_approx_equal, assert_normal_respects_68_95_99_rule};
 use serial_test::serial;
 
 #[test]

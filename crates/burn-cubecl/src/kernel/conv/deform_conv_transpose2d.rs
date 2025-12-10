@@ -15,9 +15,12 @@ use crate::{
 };
 use burn_tensor::{DType, Shape, ops::DeformConvOptions};
 use cubecl::{
-    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
-    cube, features::TypeUsage, prelude::*, reduce::instructions::ReduceFnConfig,
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube, features::TypeUsage, prelude::*,
     std::scalar::InputScalar,
+};
+use cubek::{
+    convolution::components::ConvSetupError,
+    reduce::components::instructions::ReduceOperationConfig,
 };
 use std::marker::PhantomData;
 
@@ -49,10 +52,15 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let gradient_bias = bias.map(|bias| {
-        let grad =
-            reduce_dim(out_grad.clone(), 0, Default::default(), ReduceFnConfig::Sum).unwrap();
-        let grad = reduce_dim(grad, 2, Default::default(), ReduceFnConfig::Sum).unwrap();
-        let grad = reduce_dim(grad, 3, Default::default(), ReduceFnConfig::Sum).unwrap();
+        let grad = reduce_dim(
+            out_grad.clone(),
+            0,
+            Default::default(),
+            ReduceOperationConfig::Sum,
+        )
+        .unwrap();
+        let grad = reduce_dim(grad, 2, Default::default(), ReduceOperationConfig::Sum).unwrap();
+        let grad = reduce_dim(grad, 3, Default::default(), ReduceOperationConfig::Sum).unwrap();
 
         reshape(grad, bias.shape)
     });

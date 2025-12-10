@@ -124,6 +124,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    _ceil_mode: bool,
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 

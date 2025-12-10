@@ -11,7 +11,7 @@ use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorId, TensorIr};
 use burn_tensor::DType;
-use cubecl_quant::scheme::QuantParam;
+use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).

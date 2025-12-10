@@ -1,16 +1,14 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use burn_tensor::quantization::QuantScheme;
+use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
-use cubecl_quant::{
-    layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout},
-    scheme::QuantLevel,
-};
+use cubek::quantization::layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout};
 use serde::{Deserialize, Serialize};
 
 /// Define how a tensor might be transformed at runtime.

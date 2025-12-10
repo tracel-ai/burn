@@ -8,7 +8,8 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, ops::ConvTransposeOptions};
-use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubek::convolution::components::ConvSetupError;
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {

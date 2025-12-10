@@ -4,7 +4,7 @@ use burn_tensor::{ElementConversion, Tolerance};
 
 use serial_test::serial;
 
-use cubecl::random::{assert_at_least_one_value_per_bin, assert_wald_wolfowitz_runs_test};
+use cubek::random::{assert_at_least_one_value_per_bin, assert_wald_wolfowitz_runs_test};
 
 #[test]
 #[serial]

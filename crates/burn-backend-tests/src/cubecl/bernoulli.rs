@@ -6,7 +6,7 @@ use core::f32;
 
 use burn_tensor::{Distribution, Shape, Tensor, backend::Backend};
 
-use cubecl::random::{assert_number_of_1_proportional_to_prob, assert_wald_wolfowitz_runs_test};
+use cubek::random::{assert_number_of_1_proportional_to_prob, assert_wald_wolfowitz_runs_test};
 
 #[test]
 #[serial]

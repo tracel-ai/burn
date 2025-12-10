@@ -69,7 +69,7 @@ autotune-checks = [
 ]
 
 # CubeCL backends
-cube = ["cubecl", "autotune", "burn-fusion", "burn-cubecl", "burn-ndarray"]
+cube = ["cubecl", "cubek", "autotune", "burn-fusion", "burn-cubecl", "burn-ndarray"]
 
 # Test configs
 quantization = []
@@ -100,4 +100,5 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.5", optional = t
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 
-cubecl = { workspace = true, features = ["random"], optional = true }
+cubecl = { workspace = true, optional = true }
+cubek = { workspace = true, features = ["random"], optional = true }

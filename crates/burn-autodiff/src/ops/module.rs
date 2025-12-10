@@ -1197,12 +1197,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         #[derive(Debug)]
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool1D {
-            type State = (NodeId, usize, usize, usize, bool);
+            type State = (NodeId, usize, usize, usize, bool, bool);
 
             fn backward(
                 self,
@@ -1212,7 +1213,8 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B>(&ops.node);
-                let (x_state, kernel_size, stride, padding, count_include_pad) = ops.state;
+                let (x_state, kernel_size, stride, padding, count_include_pad, ceil_mode) =
+                    ops.state;
                 let x = checkpointer.retrieve_node_output(x_state);
 
                 if let Some(node) = node_parent {
@@ -1223,6 +1225,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         stride,
                         padding,
                         count_include_pad,
+                        ceil_mode,
                     );
                     grads.register::<B>(node.id, grad);
                 }
@@ -1237,13 +1240,21 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
                 prep.finish(
-                    (x_state, kernel_size, stride, padding, count_include_pad),
+                    (
+                        x_state,
+                        kernel_size,
+                        stride,
+                        padding,
+                        count_include_pad,
+                        ceil_mode,
+                    ),
                     B::avg_pool1d(
                         x.primitive.clone(),
                         kernel_size,
                         stride,
                         padding,
                         count_include_pad,
+                        ceil_mode,
                     ),
                 )
             }
@@ -1253,6 +1264,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 stride,
                 padding,
                 count_include_pad,
+                ceil_mode,
             )),
         }
     }
@@ -1263,12 +1275,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         #[derive(Debug)]
         struct AvgPool2D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool2D {
-            type State = (NodeId, [usize; 2], [usize; 2], [usize; 2], bool);
+            type State = (NodeId, [usize; 2], [usize; 2], [usize; 2], bool, bool);
 
             fn backward(
                 self,
@@ -1278,7 +1291,8 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B>(&ops.node);
-                let (x_state, kernel_size, stride, padding, count_include_pad) = ops.state;
+                let (x_state, kernel_size, stride, padding, count_include_pad, ceil_mode) =
+                    ops.state;
                 let x = checkpointer.retrieve_node_output(x_state);
 
                 if let Some(node) = node_parent {
@@ -1289,6 +1303,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         stride,
                         padding,
                         count_include_pad,
+                        ceil_mode,
                     );
                     grads.register::<B>(node.id, grad);
                 }
@@ -1303,13 +1318,21 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
                 prep.finish(
-                    (x_state, kernel_size, stride, padding, count_include_pad),
+                    (
+                        x_state,
+                        kernel_size,
+                        stride,
+                        padding,
+                        count_include_pad,
+                        ceil_mode,
+                    ),
                     B::avg_pool2d(
                         x.primitive.clone(),
                         kernel_size,
                         stride,
                         padding,
                         count_include_pad,
+                        ceil_mode,
                     ),
                 )
             }
@@ -1319,6 +1342,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 stride,
                 padding,
                 count_include_pad,
+                ceil_mode,
             )),
         }
     }
@@ -1330,6 +1354,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _stride: [usize; 2],
         _padding: [usize; 2],
         _count_include_pad: bool,
+        _ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         panic!("Can't differentiate avg pool 2d backward.");
     }
@@ -1340,6 +1365,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         match MaxPool1D
             .prepare::<C>([x.node.clone()])
@@ -1348,8 +1374,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let output =
-                    B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
+                let output = B::max_pool1d_with_indices(
+                    x.primitive,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
                 prep.finish(
                     (
                         x_state,
@@ -1358,6 +1390,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         stride,
                         padding,
                         dilation,
+                        ceil_mode,
                     ),
                     output.output,
                 )
@@ -1368,6 +1401,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 stride,
                 padding,
                 dilation,
+                ceil_mode,
             )),
         }
     }
@@ -1378,6 +1412,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> MaxPool1dWithIndices<Self> {
         match MaxPool1D
             .prepare::<C>([x.node.clone()])
@@ -1386,8 +1421,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let output =
-                    B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
+                let output = B::max_pool1d_with_indices(
+                    x.primitive,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
 
                 let output_tensor = prep.finish(
                     (
@@ -1397,6 +1438,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         stride,
                         padding,
                         dilation,
+                        ceil_mode,
                     ),
                     output.output,
                 );
@@ -1404,8 +1446,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 MaxPool1dWithIndices::new(output_tensor, output.indices)
             }
             OpsKind::UnTracked(prep) => {
-                let output =
-                    B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
+                let output = B::max_pool1d_with_indices(
+                    x.primitive,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
                 let output_tensor = prep.finish(output.output);
 
                 MaxPool1dWithIndices::new(output_tensor, output.indices)
@@ -1419,6 +1467,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         output_grad: AutodiffTensor<B>,
         indices: IntTensor<B>,
     ) -> MaxPool1dBackward<Self> {
@@ -1428,6 +1477,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             stride,
             padding,
             dilation,
+            ceil_mode,
             output_grad.primitive,
             indices,
         );
@@ -1440,6 +1490,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         match MaxPool2D
             .prepare::<C>([x.node.clone()])
@@ -1448,8 +1499,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let output =
-                    B::max_pool2d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
+                let output = B::max_pool2d_with_indices(
+                    x.primitive,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
                 prep.finish(
                     (
                         x_state,
@@ -1458,6 +1515,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         stride,
                         padding,
                         dilation,
+                        ceil_mode,
                     ),
                     output.output,
                 )
@@ -1468,6 +1526,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 stride,
                 padding,
                 dilation,
+                ceil_mode,
             )),
         }
     }
@@ -1478,6 +1537,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
         match MaxPool2D
             .prepare::<C>([x.node.clone()])
@@ -1487,8 +1547,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
 
-                let output =
-                    B::max_pool2d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
+                let output = B::max_pool2d_with_indices(
+                    x.primitive,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
 
                 let output_tensor = prep.finish(
                     (
@@ -1498,6 +1564,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         stride,
                         padding,
                         dilation,
+                        ceil_mode,
                     ),
                     output.output,
                 );
@@ -1505,8 +1572,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 MaxPool2dWithIndices::new(output_tensor, output.indices)
             }
             OpsKind::UnTracked(prep) => {
-                let output =
-                    B::max_pool2d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
+                let output = B::max_pool2d_with_indices(
+                    x.primitive,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
                 let output_tensor = prep.finish(output.output);
 
                 MaxPool2dWithIndices::new(output_tensor, output.indices)
@@ -1520,6 +1593,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _stride: [usize; 2],
         _padding: [usize; 2],
         _dilation: [usize; 2],
+        _ceil_mode: bool,
         _output_grad: AutodiffTensor<B>,
         _indices: IntTensor<B>,
     ) -> MaxPool2dBackward<Self> {
@@ -1669,7 +1743,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 struct MaxPool1D;
 
 impl<B: Backend> Backward<B, 1> for MaxPool1D {
-    type State = (NodeId, IntTensor<B>, usize, usize, usize, usize);
+    type State = (NodeId, IntTensor<B>, usize, usize, usize, usize, bool);
 
     fn backward(
         self,
@@ -1679,7 +1753,7 @@ impl<B: Backend> Backward<B, 1> for MaxPool1D {
     ) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B>(&ops.node);
-        let (x_state, indices, kernel_size, stride, padding, dilation) = ops.state;
+        let (x_state, indices, kernel_size, stride, padding, dilation, ceil_mode) = ops.state;
         let x = checkpointer.retrieve_node_output(x_state);
 
         if let Some(node) = node_parent {
@@ -1689,6 +1763,7 @@ impl<B: Backend> Backward<B, 1> for MaxPool1D {
                 stride,
                 padding,
                 dilation,
+                ceil_mode,
                 grad,
                 indices,
             );
@@ -1709,6 +1784,7 @@ impl<B: Backend> Backward<B, 1> for MaxPool2D {
         [usize; 2],
         [usize; 2],
         [usize; 2],
+        bool,
     );
 
     fn backward(
@@ -1719,7 +1795,7 @@ impl<B: Backend> Backward<B, 1> for MaxPool2D {
     ) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B>(&ops.node);
-        let (x_state, indices, kernel_size, stride, padding, dilation) = ops.state;
+        let (x_state, indices, kernel_size, stride, padding, dilation, ceil_mode) = ops.state;
         let x = checkpointer.retrieve_node_output(x_state);
 
         if let Some(node) = node_parent {
@@ -1729,6 +1805,7 @@ impl<B: Backend> Backward<B, 1> for MaxPool2D {
                 stride,
                 padding,
                 dilation,
+                ceil_mode,
                 grad,
                 indices,
             );

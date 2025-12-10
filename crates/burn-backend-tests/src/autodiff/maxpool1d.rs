@@ -18,7 +18,7 @@ fn test_max_pool1d_simple() {
     let x_grad_expected =
         TestAutodiffTensor::<3>::from_floats([[[1., 1., 0., 0., 0., 1.]]], &device);
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
+    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
     let grads = output.backward();
 
     // Asserts
@@ -53,7 +53,7 @@ fn test_max_pool1d_with_dilation() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
+    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
     let grads = output.backward();
 
     // Asserts
@@ -88,7 +88,7 @@ fn test_max_pool1d_complex() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
+    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
     let grads = output.backward();
 
     // Asserts
@@ -123,7 +123,7 @@ fn test_max_pool1d_complex_with_padding() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
+    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
     let grads = output.backward();
 
     // Asserts
