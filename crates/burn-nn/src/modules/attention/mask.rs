@@ -18,6 +18,40 @@ pub fn generate_autoregressive_mask<B: Backend>(
     mask.expand([batch_size, seq_length, seq_length])
 }
 
+/// Generate a sliding window attention mask.
+///
+/// Restricts attention to a local window around each position.
+pub fn generate_sliding_window_mask<B: Backend>(
+    batch_size: usize,
+    seq_length: usize,
+    window_size: usize,
+    causal: bool,
+    device: &B::Device,
+) -> Tensor<B, 3, Bool> {
+    let positions = Tensor::<B, 1, Int>::arange(0..seq_length as i64, device);
+    let rows = positions
+        .clone()
+        .reshape([seq_length, 1])
+        .expand([seq_length, seq_length]);
+    let cols = positions
+        .reshape([1, seq_length])
+        .expand([seq_length, seq_length]);
+
+    let diff = rows - cols;
+
+    let mask = if causal {
+        let future_mask = diff.clone().lower_elem(0);
+        let window_mask = diff.greater_elem(window_size as i64);
+        future_mask.bool_or(window_mask)
+    } else {
+        let too_far_back = diff.clone().greater_elem(window_size as i64);
+        let too_far_forward = diff.lower_elem(-(window_size as i64));
+        too_far_back.bool_or(too_far_forward)
+    };
+
+    mask.expand([batch_size, seq_length, seq_length])
+}
+
 /// Generate a padding attention mask.
 pub struct GeneratePaddingMask<B: Backend> {
     /// The generated tensor.
@@ -155,6 +189,40 @@ mod tests {
                 [false, false, false, false, true, true],
                 [false, false, false, false, false, false],
             ]),
+            false,
+        );
+    }
+
+    #[test]
+    fn test_generate_sliding_window_mask_causal() {
+        let device = <TestBackend as Backend>::Device::default();
+
+        let mask = generate_sliding_window_mask::<TestBackend>(1, 4, 1, true, &device);
+
+        mask.into_data().assert_eq(
+            &TensorData::from([[
+                [false, true, true, true],
+                [false, false, true, true],
+                [true, false, false, true],
+                [true, true, false, false],
+            ]]),
+            false,
+        );
+    }
+
+    #[test]
+    fn test_generate_sliding_window_mask_bidirectional() {
+        let device = <TestBackend as Backend>::Device::default();
+
+        let mask = generate_sliding_window_mask::<TestBackend>(1, 4, 1, false, &device);
+
+        mask.into_data().assert_eq(
+            &TensorData::from([[
+                [false, false, true, true],
+                [false, false, false, true],
+                [true, false, false, false],
+                [true, true, false, false],
+            ]]),
             false,
         );
     }
