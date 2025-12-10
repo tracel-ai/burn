@@ -120,6 +120,39 @@ let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
 burn_model.save_into(&mut store)?;
 ```
 
+### Contiguous Layer Reindexing
+
+When loading PyTorch models that use `nn.Sequential` with mixed layer types (e.g., Conv2d + ReLU),
+the layer indices may be non-contiguous because only some layers have parameters:
+
+```python
+# PyTorch model with non-contiguous indices
+self.fc = nn.Sequential(
+    nn.Conv2d(...),  # fc.0.weight, fc.0.bias
+    nn.ReLU(),       # No parameters (index 1 skipped)
+    nn.Conv2d(...),  # fc.2.weight, fc.2.bias
+    nn.ReLU(),       # No parameters (index 3 skipped)
+    nn.Conv2d(...),  # fc.4.weight, fc.4.bias
+)
+```
+
+Burn models typically expect contiguous indices (`fc.0`, `fc.1`, `fc.2`). The `contiguous_reindex`
+feature automatically remaps non-contiguous indices to contiguous ones:
+
+```rust
+// PytorchStore: contiguous_reindex is ON by default
+let mut store = PytorchStore::from_file("model.pth");
+// fc.0 -> fc.0, fc.2 -> fc.1, fc.4 -> fc.2
+
+// Disable if your model already has contiguous indices
+let mut store = PytorchStore::from_file("model.pth")
+    .contiguous_reindex(false);
+
+// SafetensorsStore: contiguous_reindex is OFF by default
+let mut store = SafetensorsStore::from_file("model.safetensors")
+    .contiguous_reindex(true);  // Enable for PyTorch-exported safetensors
+```
+
 ### Tensor Name Remapping
 
 ```rust
@@ -430,6 +463,8 @@ The stores provide a fluent API for configuration:
 - `allow_partial(bool)` - Continue on missing tensors
 - `validate(bool)` - Toggle validation
 - `skip_enum_variants(bool)` - Skip enum variant names in paths for PyTorch compatibility
+- `contiguous_reindex(bool)` - Reindex non-contiguous layer indices (default: `true` for PyTorch,
+  `false` for SafeTensors)
 - `with_top_level_key(key)` - Access nested dict in PyTorch files
 - `overwrite(bool)` - Allow overwriting existing files (Burnpack)
 
