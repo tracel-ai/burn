@@ -34,6 +34,23 @@ mod tests {
     }
 
     #[test]
+    fn should_support_slice_assign_vec() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data_assigned = TensorData::from([[10.0, 5.0]]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data(data, &device);
+        let tensor_assigned = TestTensor::<2>::from_data(data_assigned, &device);
+
+        let slices: Vec<Slice> = vec![1..2, 0..2].into_iter().map(Slice::from).collect();
+
+        let output = tensor.slice_assign(&slices, tensor_assigned);
+        let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
         let device = Default::default();
         let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &device);

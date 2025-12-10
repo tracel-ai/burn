@@ -2,6 +2,7 @@
 
 use crate::Shape;
 use crate::indexing::AsIndex;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
@@ -10,20 +11,16 @@ use core::str::FromStr;
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
 /// and arrays of slices (from `s![.., ..]` or `[0..5, 1..3]`).
-pub trait SliceArg<const D2: usize> {
+pub trait SliceArg {
     /// Convert to an array of slices with clamping to shape dimensions
-    fn into_slices(self, shape: Shape) -> [Slice; D2];
+    fn into_slices(self, shape: &Shape) -> Vec<Slice>;
 }
 
-impl<const D2: usize, T> SliceArg<D2> for [T; D2]
-where
-    T: Into<Slice>,
-{
-    fn into_slices(self, shape: Shape) -> [Slice; D2] {
-        self.into_iter()
+impl SliceArg for &[Slice] {
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
+        self.iter()
             .enumerate()
-            .map(|(i, s)| {
-                let slice: Slice = s.into();
+            .map(|(i, slice)| {
                 // Apply shape clamping by converting to range and back
                 let clamped_range = slice.to_range(shape[i]);
                 Slice::new(
@@ -33,19 +30,34 @@ where
                 )
             })
             .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
     }
 }
 
-impl<T> SliceArg<1> for T
+impl SliceArg for &Vec<Slice> {
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
+        self.as_slice().into_slices(shape)
+    }
+}
+
+impl<const R: usize, T> SliceArg for [T; R]
 where
     T: Into<Slice>,
 {
-    fn into_slices(self, shape: Shape) -> [Slice; 1] {
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
+        let slices: Vec<Slice> = self.into_iter().map(|s| s.into()).collect::<Vec<_>>();
+
+        slices.into_slices(shape)
+    }
+}
+
+impl<T> SliceArg for T
+where
+    T: Into<Slice>,
+{
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
         let slice: Slice = self.into();
         let clamped_range = slice.to_range(shape[0]);
-        [Slice::new(
+        vec![Slice::new(
             clamped_range.start as isize,
             Some(clamped_range.end as isize),
             slice.step(),
