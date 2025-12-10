@@ -1,7 +1,9 @@
 use cubecl::{
     CubeElement as CubeElem, flex32,
-    matmul::components::{MatmulPrecision, MatrixPrecision},
     prelude::{Float, Int, Numeric},
+};
+use cubek::{
+    matmul::components::{MatmulPrecision, MatrixPrecision},
     reduce::ReducePrecision,
 };
 

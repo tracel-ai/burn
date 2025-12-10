@@ -6,9 +6,9 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    reduce::{ReduceStrategy, tune_key::ReduceAutotuneKey},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
+use cubek::reduce::launch::{ReduceStrategy, tune_key::ReduceAutotuneKey};
 use serde::{Deserialize, Serialize};
 
 use super::optimization::ReduceOptimizationTuneArg;

@@ -13,7 +13,8 @@ use burn_tensor::{
     Shape,
     ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubek::convolution::components::ConvSetupError;
 
 /// Perform a 2D convolution transposition using the GEMM (col2im) algorithm.
 ///

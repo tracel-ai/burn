@@ -46,7 +46,7 @@ where
     }
 
     fn seed(_device: &Self::Device, seed: u64) {
-        cubecl::random::seed(seed);
+        cubek::random::seed(seed);
     }
 
     fn ad_enabled() -> bool {

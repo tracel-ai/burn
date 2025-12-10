@@ -17,14 +17,19 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use cubecl::matmul::{
+use cubecl::{
+    client::ComputeClient,
+    prelude::*,
+    std::tensor::{MatrixBatchLayout, matrix_batch_layout},
+};
+use cubek::matmul::{
     AcceleratedTileKind,
     components::{
-        self, MatmulElems, MatmulProblem, MatmulSetupError,
+        self, MatmulElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
         tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
     },
     kernels::layered::{
-        Selection,
+        Algorithm, Selection,
         double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
         double_unit::DoubleUnitAlgorithm,
         launch_kernel_virtual,
@@ -34,12 +39,6 @@ use cubecl::matmul::{
         vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
     },
     tune_key::MatmulElemType,
-};
-use cubecl::{
-    client::ComputeClient,
-    matmul::{components::MatmulLineSizes, kernels::layered::Algorithm},
-    prelude::*,
-    std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

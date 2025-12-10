@@ -454,6 +454,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dOps,
@@ -466,6 +467,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -480,6 +482,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -498,6 +501,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dOps,
@@ -510,6 +514,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -525,6 +530,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -544,6 +550,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dBackwardOps,
@@ -558,6 +565,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -574,6 +582,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -593,6 +602,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dBackwardOps,
@@ -607,6 +617,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -623,6 +634,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -641,6 +653,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool1dOps,
@@ -653,6 +666,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -662,10 +676,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&x]);
 
         let client = x.client.clone();
-        let desc =
-            MaxPool1dOpIr::create(x.into_ir(), kernel_size, stride, padding, dilation, || {
-                client.create_empty_handle()
-            });
+        let desc = MaxPool1dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
 
         client
             .register(
@@ -682,6 +701,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool2dOps,
@@ -694,6 +714,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -703,10 +724,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&x]);
 
         let client = x.client.clone();
-        let desc =
-            MaxPool2dOpIr::create(x.into_ir(), kernel_size, stride, padding, dilation, || {
-                client.create_empty_handle()
-            });
+        let desc = MaxPool2dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
 
         client
             .register(
@@ -723,6 +749,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> MaxPool1dWithIndices<Self> {
         make_ops!(
             MaxPool1dWithIndicesOps,
@@ -735,6 +762,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -751,6 +779,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             B::IntElem::dtype(),
             || client.create_empty_handle(),
         );
@@ -772,6 +801,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
         make_ops!(
             MaxPool2dWithIndicesOps,
@@ -784,6 +814,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -800,6 +831,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             B::IntElem::dtype(),
             || client.create_empty_handle(),
         );
@@ -821,6 +853,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool1dBackward<Self> {
@@ -837,6 +870,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                     grad,
                     indices,
                 );
@@ -856,6 +890,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -878,6 +913,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
@@ -894,6 +930,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                     grad,
                     indices,
                 );
@@ -913,6 +950,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
