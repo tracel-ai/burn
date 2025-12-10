@@ -27,7 +27,7 @@ jobs:
       - name: cargo update
         run: cargo update
       - name: create pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.generate-app-token.outputs.token }}
           branch: "create-pull-request/update-cargo-lock"
