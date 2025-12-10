@@ -407,4 +407,18 @@ mod tests {
 
         output.into_data().assert_eq(&expected, false);
     }
+
+    #[test]
+    fn should_support_slice_assign_single_dim_slice() {
+        let device = Default::default();
+        let x = TestTensor::<3>::ones([2, 3, 1], &device);
+        let values = TestTensor::<3>::zeros([1, 3, 1], &device);
+
+        let output = x.slice_assign(s![1], values);
+
+        output.into_data().assert_eq(
+            &TensorData::from([[[1.0], [1.0], [1.0]], [[0.0], [0.0], [0.0]]]),
+            false,
+        );
+    }
 }
