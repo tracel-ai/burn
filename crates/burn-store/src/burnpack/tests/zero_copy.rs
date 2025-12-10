@@ -179,3 +179,33 @@ fn test_storage_backend_slice_bytes() {
         assert!(!data.bytes.is_empty());
     }
 }
+
+/// Test that zero_copy=true with file-based loading works (via mmap + bytes::Bytes).
+#[test]
+fn test_zero_copy_file_based_works() {
+    use tempfile::NamedTempFile;
+
+    let device = Default::default();
+    let module = SimpleModule::<TestBackend>::new(&device);
+
+    // Save to a temporary file
+    let temp_file = NamedTempFile::new().unwrap();
+    let path = temp_file.path();
+
+    let mut save_store = BurnpackStore::from_file(path).overwrite(true);
+    save_store.collect_from(&module).unwrap();
+
+    // Load with zero_copy=true - should work because mmap is converted to bytes::Bytes
+    let mut load_store = BurnpackStore::from_file(path).zero_copy(true);
+    let mut loaded_module = SimpleModule::<TestBackend>::new_zeros(&device);
+
+    // The apply should succeed - mmap now supports zero-copy via bytes::Bytes::from_owner()
+    load_store.apply_to(&mut loaded_module).unwrap();
+
+    // Verify data is correct
+    let loaded_weight = loaded_module.weight.val().to_data();
+    assert_eq!(
+        loaded_weight.to_vec::<f32>().unwrap(),
+        vec![1.0, 2.0, 3.0, 4.0]
+    );
+}

@@ -25,11 +25,8 @@ use std::path::Path;
 
 /// Storage backend for BurnpackReader
 pub(crate) enum StorageBackend {
-    /// Memory-based storage
+    /// Memory-based storage (also used for memory-mapped files converted to bytes::Bytes)
     Memory(Rc<Bytes>),
-    /// Memory-mapped file storage (efficient for large files)
-    #[cfg(all(feature = "std", feature = "memmap"))]
-    Mmap(Rc<memmap2::Mmap>),
     /// File-based storage with buffered reading
     #[cfg(feature = "std")]
     #[allow(dead_code)]
@@ -81,29 +78,6 @@ impl StorageBackend {
                 bytes.copy_from_slice(&data_bytes[offset..end]);
                 Ok(())
             }
-            #[cfg(all(feature = "std", feature = "memmap"))]
-            StorageBackend::Mmap(mmap) => {
-                let mmap_bytes = mmap.as_ref();
-                let end = offset.checked_add(bytes.len()).ok_or_else(|| {
-                    BurnpackError::IoError(format!(
-                        "Offset overflow: offset {} + length {} exceeds maximum",
-                        offset,
-                        bytes.len()
-                    ))
-                })?;
-
-                if end > mmap_bytes.len() {
-                    return Err(BurnpackError::IoError(format!(
-                        "Read out of bounds: requested {}..{} but mmap length is {}",
-                        offset,
-                        end,
-                        mmap_bytes.len()
-                    )));
-                }
-
-                bytes.copy_from_slice(&mmap_bytes[offset..end]);
-                Ok(())
-            }
             #[cfg(feature = "std")]
             StorageBackend::FileBuffered { file } => {
                 use std::io::SeekFrom;
@@ -126,8 +100,6 @@ impl StorageBackend {
     pub(crate) fn as_bytes(&self) -> Result<&[u8], BurnpackError> {
         match self {
             StorageBackend::Memory(data) => Ok(data.as_ref()),
-            #[cfg(all(feature = "std", feature = "memmap"))]
-            StorageBackend::Mmap(mmap) => Ok(mmap.as_ref()),
             #[cfg(feature = "std")]
             StorageBackend::FileBuffered { .. } => Err(BurnpackError::IoError(
                 "Cannot get full bytes reference for FileBuffered backend".into(),
@@ -141,14 +113,9 @@ impl StorageBackend {
     /// `Bytes` was created via `Bytes::from_shared()` (backed by `bytes::Bytes`).
     ///
     /// # Returns
-    /// - `Ok(Some(bytes))` - Successfully created a zero-copy slice
-    /// - `Ok(None)` - Backend doesn't support zero-copy (mmap, file-based)
-    /// - `Err(_)` - Split operation failed
-    pub(crate) fn slice_bytes(
-        &self,
-        start: usize,
-        end: usize,
-    ) -> Result<Option<Bytes>, BurnpackError> {
+    /// - `Ok(bytes)` - Successfully created a zero-copy slice
+    /// - `Err(_)` - Backend doesn't support zero-copy or split failed
+    pub(crate) fn slice_bytes(&self, start: usize, end: usize) -> Result<Bytes, BurnpackError> {
         match self {
             StorageBackend::Memory(data) => {
                 // Clone the Bytes - cheap if backed by SharedBytesAllocationController
@@ -168,18 +135,12 @@ impl StorageBackend {
                     ))
                 })?;
 
-                Ok(Some(middle))
-            }
-            #[cfg(all(feature = "std", feature = "memmap"))]
-            StorageBackend::Mmap(_) => {
-                // Mmap cannot be sliced into Bytes without copying
-                Ok(None)
+                Ok(middle)
             }
             #[cfg(feature = "std")]
-            StorageBackend::FileBuffered { .. } => {
-                // File must be read into memory
-                Ok(None)
-            }
+            StorageBackend::FileBuffered { .. } => Err(BurnpackError::IoError(
+                "Zero-copy not supported for buffered file reading. Use from_file() with memmap feature for zero-copy loading.".into(),
+            )),
         }
     }
 }
@@ -403,9 +364,14 @@ impl BurnpackReader {
             }
         }
 
+        // Convert mmap to bytes::Bytes for zero-copy slicing support
+        // bytes::Bytes::from_owner takes ownership and enables efficient slicing
+        let shared_bytes = bytes::Bytes::from_owner(mmap);
+        let bytes = Bytes::from_shared(shared_bytes, burn_tensor::AllocationProperty::File);
+
         Ok(Self {
             metadata,
-            storage: StorageBackend::Mmap(Rc::new(mmap)),
+            storage: StorageBackend::Memory(Rc::new(bytes)),
             data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
@@ -589,8 +555,6 @@ impl BurnpackReader {
             // Clone storage reference for the closure
             let storage = match &self.storage {
                 StorageBackend::Memory(data) => StorageBackend::Memory(data.clone()),
-                #[cfg(all(feature = "std", feature = "memmap"))]
-                StorageBackend::Mmap(mmap) => StorageBackend::Mmap(mmap.clone()),
                 #[cfg(feature = "std")]
                 StorageBackend::FileBuffered { file } => {
                     StorageBackend::FileBuffered { file: file.clone() }
@@ -656,38 +620,19 @@ impl BurnpackReader {
             // Create the data-loading closure based on zero_copy flag
             let data_fn: Rc<dyn Fn() -> Result<TensorData, crate::TensorSnapshotError>> =
                 if zero_copy {
-                    // Zero-copy closure: try to slice without copying
+                    // Zero-copy closure: slice without copying, error if not supported
                     Rc::new(move || {
-                        match storage.slice_bytes(start, end) {
-                            Ok(Some(bytes)) => {
-                                // Successfully got zero-copy slice
-                                Ok(TensorData::from_bytes(
-                                    bytes,
-                                    shape_for_closure.clone(),
-                                    dtype,
-                                ))
-                            }
-                            Ok(None) => {
-                                // Backend doesn't support zero-copy, fall back to copying
-                                let len = end - start;
-                                let mut data_bytes = vec![0u8; len];
-                                storage.read_into(&mut data_bytes, start).map_err(|e| {
-                                    crate::TensorSnapshotError::IoError(format!(
-                                        "Failed to read tensor data: {}",
-                                        e
-                                    ))
-                                })?;
-                                Ok(TensorData::from_bytes_vec(
-                                    data_bytes,
-                                    shape_for_closure.clone(),
-                                    dtype,
-                                ))
-                            }
-                            Err(e) => Err(crate::TensorSnapshotError::IoError(format!(
-                                "Failed to slice tensor data: {}",
+                        let bytes = storage.slice_bytes(start, end).map_err(|e| {
+                            crate::TensorSnapshotError::IoError(format!(
+                                "Zero-copy slice failed: {}",
                                 e
-                            ))),
-                        }
+                            ))
+                        })?;
+                        Ok(TensorData::from_bytes(
+                            bytes,
+                            shape_for_closure.clone(),
+                            dtype,
+                        ))
                     })
                 } else {
                     // Copying closure: always allocate and copy
