@@ -160,11 +160,11 @@ impl Shape {
     /// - [`Shape::into_ranges`] - Convert to full covering ranges
     ///
     /// [`s!`]: crate::s!
-    pub fn into_slices<const D: usize, S>(self, slices: S) -> [Slice; D]
+    pub fn into_slices<S>(self, slices: S) -> Vec<Slice>
     where
-        S: SliceArg<D>,
+        S: SliceArg,
     {
-        slices.into_slices(self)
+        slices.into_slices(&self)
     }
 
     /// Construct a vector of the dims.
