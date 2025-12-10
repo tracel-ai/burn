@@ -14,11 +14,12 @@ cuda = ["burn/cuda"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-burn = { path = "../../crates/burn", version = "=0.20.0-pre.4", features = [
+burn = { path = "../../crates/burn", version = "=0.20.0-pre.5", features = [
     "train",
     "collective"
 ] }
 
+log = { workspace = true }
 rand = { workspace = true }
 
 tokio = { workspace = true, features = ["full", "tracing"] }

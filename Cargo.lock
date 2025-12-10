@@ -768,6 +768,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+ "tracing",
  "tracing-core",
  "tracing-subscriber",
 ]
@@ -7124,10 +7125,11 @@ dependencies = [
 
 [[package]]
 name = "reduce_timing"
-version = "0.20.0-pre.4"
+version = "0.20.0-pre.5"
 dependencies = [
  "burn",
  "clap",
+ "log",
  "opentelemetry",
  "opentelemetry-aws",
  "opentelemetry-otlp",
