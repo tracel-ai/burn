@@ -4,6 +4,7 @@ use burn_tensor::{DType, quantization::QuantValue};
 use burn_tensor::{ElementConversion, Slice};
 use core::fmt::Debug;
 use core::marker::PhantomData;
+use half::f16;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
@@ -453,7 +454,7 @@ where
 {
     pub fn add(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
         let (lhs, rhs) = dispatch_binary_simd!(
-            E, VecAdd, lhs, rhs, u8, i8, u16, i16, u32, i32, f32, u64, i64, f64
+            E, VecAdd, lhs, rhs, u8, i8, u16, i16, f16, u32, i32, f32, u64, i64, f64
         );
 
         let array = &lhs + &rhs;
@@ -470,6 +471,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             i32,
             f32,
@@ -484,7 +486,7 @@ where
 
     pub fn sub(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
         let (lhs, rhs) = dispatch_binary_simd!(
-            E, VecSub, lhs, rhs, u8, i8, u16, i16, u32, i32, f32, u64, i64, f64
+            E, VecSub, lhs, rhs, u8, i8, u16, i16, f16, u32, i32, f32, u64, i64, f64
         );
 
         let array = lhs - rhs;
@@ -501,6 +503,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             i32,
             f32,
@@ -515,7 +518,7 @@ where
 
     pub fn mul(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
         let (lhs, rhs) =
-            dispatch_binary_simd!(noq, E, VecMul, lhs, rhs, u16, i16, u32, i32, f32, f64);
+            dispatch_binary_simd!(noq, E, VecMul, lhs, rhs, u16, i16, f16, u32, i32, f32, f64);
 
         let array = lhs * rhs;
         array.into_shared()
@@ -530,6 +533,7 @@ where
             rhs.elem(),
             u16,
             i16,
+            f16,
             u32,
             i32,
             f32,
@@ -541,14 +545,14 @@ where
     }
 
     pub fn div(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
-        let (lhs, rhs) = dispatch_binary_simd!(noq, E, VecDiv, lhs, rhs, f32, f64);
+        let (lhs, rhs) = dispatch_binary_simd!(noq, E, VecDiv, lhs, rhs, f16, f32, f64);
 
         let array = lhs / rhs;
         array.into_shared()
     }
 
     pub fn div_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E> {
-        let lhs = dispatch_binary_scalar_simd!(noq, E, VecDiv, lhs, rhs.elem(), f32, f64);
+        let lhs = dispatch_binary_scalar_simd!(noq, E, VecDiv, lhs, rhs.elem(), f16, f32, f64);
 
         let array = lhs / rhs;
         array.into_shared()
@@ -823,6 +827,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             i32,
             f32,
@@ -849,6 +854,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             i32,
             f32,
@@ -875,6 +881,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             i32,
             f32,
@@ -933,14 +940,14 @@ where
     }
 
     pub(crate) fn abs(tensor: SharedArray<E>) -> SharedArray<E> {
-        let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);
+        let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, f16, i32, f32, f64);
 
         tensor.mapv_into(|a| a.abs_elem()).into_shared()
     }
 
     pub(crate) fn equal(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
         let (lhs, rhs) = dispatch_cmp_simd!(
-            E, VecEquals, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+            E, VecEquals, lhs, rhs, u8, i8, u16, i16, f16, u32, f32, i32, u64, i64, f64
         );
 
         // Use the helper to broadcast both arrays to a common shape
@@ -962,6 +969,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             f32,
             i32,
@@ -975,7 +983,7 @@ where
 
     pub(crate) fn greater(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
         let (lhs, rhs) = dispatch_cmp_simd!(
-            E, VecGreater, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+            E, VecGreater, lhs, rhs, u8, i8, u16, i16, f16, u32, f32, i32, u64, i64, f64
         );
 
         // Use the helper to broadcast both arrays to a common shape
@@ -997,6 +1005,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             f32,
             i32,
@@ -1018,6 +1027,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             f32,
             i32,
@@ -1045,6 +1055,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             f32,
             i32,
@@ -1058,7 +1069,7 @@ where
 
     pub(crate) fn lower_equal(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
         let (lhs, rhs) = dispatch_cmp_simd!(
-            E, VecLowerEq, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+            E, VecLowerEq, lhs, rhs, u8, i8, u16, i16, f16, u32, f32, i32, u64, i64, f64
         );
 
         // Use the helper to broadcast both arrays to a common shape
@@ -1080,6 +1091,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             f32,
             i32,
@@ -1093,7 +1105,7 @@ where
 
     pub(crate) fn lower(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
         let (lhs, rhs) = dispatch_cmp_simd!(
-            E, VecLower, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+            E, VecLower, lhs, rhs, u8, i8, u16, i16, f16, u32, f32, i32, u64, i64, f64
         );
 
         // Use the helper to broadcast both arrays to a common shape
@@ -1116,6 +1128,7 @@ where
             i8,
             u16,
             i16,
+            f16,
             u32,
             f32,
             i32,

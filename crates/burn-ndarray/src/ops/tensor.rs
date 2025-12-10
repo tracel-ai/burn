@@ -453,7 +453,7 @@ where
     }
 
     fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
-        cat_with_dtype!(tensors, dim, [F64, F32])
+        cat_with_dtype!(tensors, dim, [F64, F32, BF16, F16])
     }
 
     fn float_clamp_min(tensor: FloatTensor<Self>, min: E) -> FloatTensor<Self> {
@@ -488,7 +488,7 @@ where
         execute_with_float_dtype!((lhs, rhs), E, |lhs, rhs| NdArrayMathOps::elementwise_op(
             lhs,
             rhs,
-            |a: &E, b: &E| a.powf(*b)
+            |a: &E, b: &E| num_traits::Float::powf(*a, *b)
         ))
     }
 

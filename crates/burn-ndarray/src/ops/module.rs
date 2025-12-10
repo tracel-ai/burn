@@ -25,6 +25,20 @@ macro_rules! module_op {
     (inp($($x:tt),+), opt($($opt:tt),*), $element:ident, $op:expr) => {{
         #[allow(unused_parens, unreachable_patterns)]
         match ($($x),+) {
+            ($(NdArrayTensor::F16($x)),+) => {
+                type $element = half::f16;
+                $op(
+                    $($x),+
+                    $(, $opt.map(|o| match o { NdArrayTensor::F16(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                )
+            }
+            ($(NdArrayTensor::BF16($x)),+) => {
+                type $element = half::bf16;
+                $op(
+                    $($x),+
+                    $(, $opt.map(|o| match o { NdArrayTensor::BF16(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                )
+            }
             ($(NdArrayTensor::F32($x)),+) => {
                 type $element = f32;
                 $op(
