@@ -1,5 +1,8 @@
 extern crate alloc;
 
+#[cfg(feature = "std")]
+pub use burn_tensor_testgen::might_panic;
+
 #[allow(unused)]
 type FloatElemType = f32;
 #[allow(unused)]
@@ -9,6 +12,9 @@ type IntElemType = i32;
 mod backend;
 #[cfg(test)]
 pub use backend::*;
+
+#[cfg(test)]
+mod tests;
 
 /// CubeCL kernel tests.
 #[cfg(all(test, feature = "cube"))]
@@ -26,12 +32,6 @@ mod cube {
     #[path = "cubecl/mod.rs"]
     mod kernel;
 }
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(feature = "std")]
-pub use burn_tensor_testgen::might_panic;
 
 /// Generate a test module with custom floating & integer element types.
 #[macro_export]

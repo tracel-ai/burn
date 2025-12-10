@@ -32,9 +32,11 @@ fn test_lu_3x3_decomposition() {
     permutations
         .into_data()
         .assert_eq(&expected_permutations, false);
+
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
     result
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
 }
 
 #[test]

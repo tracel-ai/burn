@@ -1,9 +1,5 @@
 pub use super::*;
 
-/// Burn backend tensor tests.
-#[path = "tensor/mod.rs"]
-mod tensor;
-
 /// Burn autodiff tests.
 #[path = "autodiff/mod.rs"]
 mod autodiff;
@@ -18,6 +14,10 @@ mod autodiff_checkpointing {
 
     include!("autodiff/mod.rs");
 }
+
+/// Burn backend tensor tests.
+#[path = "tensor/mod.rs"]
+mod tensor;
 
 /// Burn tensor and autodiff tests for CubeCL backends with fusion enabled.
 #[cfg(feature = "cube")]
