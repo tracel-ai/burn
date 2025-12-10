@@ -76,6 +76,10 @@ impl<B: Backend> AllReduceOp<B> {
     }
 
     /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
+    #[tracing::instrument(
+        skip(self, config, global_client),
+        fields(self.op = ?self.op, self.shape = ?self.shape.dims)
+    )]
     pub async fn execute(
         mut self,
         config: &CollectiveConfig,
@@ -128,11 +132,6 @@ impl<B: Backend> AllReduceOp<B> {
         config: &CollectiveConfig,
     ) -> Result<(), CollectiveError> {
         let local_strategy = &config.local_all_reduce_strategy;
-        match local_strategy {
-            AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
-            AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
-            AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
-        };
 
         if op == ReduceOperation::Mean {
             // Apply mean division
@@ -141,6 +140,12 @@ impl<B: Backend> AllReduceOp<B> {
                 *tensor = B::float_div_scalar(tensor.clone(), tensor_count.elem())
             });
         }
+
+        match local_strategy {
+            AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
+            AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
+            AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
+        };
 
         Ok(())
     }

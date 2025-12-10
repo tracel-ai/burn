@@ -143,8 +143,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
             None
         }
         Some(TracingMode::Otel) => {
-            opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
-
             let exporter = opentelemetry_otlp::SpanExporter::builder()
                 .with_tonic()
                 .build()?;
@@ -162,9 +160,11 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
             let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
             tracing_subscriber::registry()
-                .with(telemetry)
                 .with(env_filter)
+                .with(telemetry)
                 .try_init()?;
+
+            opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
 
             Some(provider)
         }
@@ -205,16 +205,16 @@ impl<B: Backend> Worker<B> {
     }
 
     #[tracing::instrument(skip(self, tensor))]
-    pub fn all_reduce<const R: usize>(
+    pub fn dispatch_all_reduce<const R: usize>(
         &mut self,
         tensor: Tensor<B, R>,
         op: ReduceOperation,
     ) -> Tensor<B, R> {
-        eprintln!("w={}: all_reduce start", self.index);
+        log::debug!("w={}: dispatch_all_reduce start", self.index);
         let tensor = Tensor::from_primitive(TensorPrimitive::Float(
             all_reduce::<B>(self.id, tensor.into_primitive().tensor(), op).unwrap(),
         ));
-        eprintln!("w={}: all_reduce end", self.index);
+        log::debug!("w={}: dispatch_all_reduce end", self.index);
         tensor
     }
 
@@ -229,7 +229,7 @@ impl<B: Backend> Worker<B> {
                 }
                 AllReduceRequest { tensor, op, tx } => {
                     assert_eq!(&tensor.device(), &self.device);
-                    let tensor = self.all_reduce(tensor, op);
+                    let tensor = self.dispatch_all_reduce(tensor, op);
                     tx.send(tensor).unwrap();
                 }
             }
