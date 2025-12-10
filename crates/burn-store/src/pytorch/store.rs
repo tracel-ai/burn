@@ -2,7 +2,7 @@
 
 use crate::{
     ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
-    TensorSnapshot,
+    TensorSnapshot, reindex_contiguous,
 };
 
 use alloc::collections::BTreeMap;
@@ -77,6 +77,8 @@ pub struct PytorchStore {
     pub(crate) allow_partial: bool,
     pub(crate) top_level_key: Option<String>,
     pub(crate) skip_enum_variants: bool,
+    /// Enable contiguous reindexing of layer indices (default: true)
+    pub(crate) contiguous_reindex: bool,
     /// Cached tensor snapshots (parsed once, reused)
     snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
@@ -103,6 +105,9 @@ impl PytorchStore {
             top_level_key: None,
             // PyTorch models never include enum variant names in paths
             skip_enum_variants: true,
+            // Enable contiguous reindexing by default for PyTorch files
+            // This handles nn.Sequential models with gaps in layer indices
+            contiguous_reindex: true,
             snapshots_cache: None,
         }
     }
@@ -269,6 +274,36 @@ impl PytorchStore {
         self
     }
 
+    /// Enable or disable automatic contiguous reindexing of layer indices (default: true).
+    ///
+    /// When enabled, non-contiguous numeric indices in tensor paths are renumbered
+    /// to be contiguous. This is useful when loading PyTorch models that have gaps
+    /// in layer numbering, such as when using `nn.Sequential` with mixed layer types
+    /// (e.g., Conv2d layers at indices 0, 2, 4 with ReLU layers at 1, 3, 5).
+    ///
+    /// # Example
+    ///
+    /// With reindexing enabled (default):
+    /// - `fc.0.weight` → `fc.0.weight`
+    /// - `fc.2.weight` → `fc.1.weight` (gap filled)
+    /// - `fc.4.weight` → `fc.2.weight` (gap filled)
+    ///
+    /// # Arguments
+    ///
+    /// * `reindex` - `true` to enable contiguous reindexing, `false` to disable
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
+    /// // Disable contiguous reindexing if your model already has contiguous indices
+    /// let store = PytorchStore::from_file("model.pth")
+    ///     .contiguous_reindex(false);
+    /// ```
+    pub fn contiguous_reindex(mut self, reindex: bool) -> Self {
+        self.contiguous_reindex = reindex;
+        self
+    }
+
     /// Apply remapping to tensor snapshots.
     fn apply_remapping(&self, snapshots: Vec<TensorSnapshot>) -> Vec<TensorSnapshot> {
         if self.remapper.is_empty() {
@@ -389,6 +424,13 @@ impl PytorchStore {
 
         // Apply remapping (but NOT filtering - that's done at apply time)
         snapshots = self.apply_remapping(snapshots);
+
+        // Apply contiguous reindexing if enabled
+        // This must be done after remapping so that remapped paths are reindexed
+        if self.contiguous_reindex {
+            let (reindexed, _) = reindex_contiguous(snapshots);
+            snapshots = reindexed;
+        }
 
         // Build cache as BTreeMap
         let cache: BTreeMap<String, TensorSnapshot> =

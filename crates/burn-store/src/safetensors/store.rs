@@ -6,7 +6,7 @@ use crate::{
 };
 
 #[cfg(feature = "std")]
-use crate::KeyRemapper;
+use crate::{KeyRemapper, reindex_contiguous};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -122,6 +122,9 @@ impl SafetensorsStore {
             allow_partial: false,
             overwrite: false,
             skip_enum_variants: false,
+            // Contiguous reindexing is off by default for SafeTensors
+            // (SafeTensors files typically have clean, contiguous indices)
+            contiguous_reindex: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             snapshots_cache: None,
@@ -139,6 +142,9 @@ impl SafetensorsStore {
             validate: true,
             allow_partial: false,
             skip_enum_variants: false,
+            // Contiguous reindexing is off by default for SafeTensors
+            #[cfg(feature = "std")]
+            contiguous_reindex: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             snapshots_cache: None,
@@ -392,6 +398,40 @@ impl SafetensorsStore {
         self
     }
 
+    /// Enable or disable automatic contiguous reindexing of layer indices (default: false).
+    ///
+    /// When enabled, non-contiguous numeric indices in tensor paths are renumbered
+    /// to be contiguous. This is useful when loading models that have gaps
+    /// in layer numbering, such as PyTorch models using `nn.Sequential` with mixed
+    /// layer types (e.g., Conv2d layers at indices 0, 2, 4 with ReLU layers at 1, 3, 5).
+    ///
+    /// # Example
+    ///
+    /// With reindexing enabled:
+    /// - `fc.0.weight` → `fc.0.weight`
+    /// - `fc.2.weight` → `fc.1.weight` (gap filled)
+    /// - `fc.4.weight` → `fc.2.weight` (gap filled)
+    ///
+    /// # Arguments
+    ///
+    /// * `reindex` - `true` to enable contiguous reindexing, `false` to disable
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// // Enable contiguous reindexing for PyTorch-exported safetensors
+    /// let store = SafetensorsStore::from_file("model.safetensors")
+    ///     .contiguous_reindex(true);
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn contiguous_reindex(mut self, reindex: bool) -> Self {
+        match &mut self {
+            Self::File(p) => p.contiguous_reindex = reindex,
+            Self::Memory(p) => p.contiguous_reindex = reindex,
+        }
+        self
+    }
+
     /// Set whether to overwrite existing files when saving (default: false).
     ///
     /// When set to `false`, attempting to save to an existing file will result in an error.
@@ -474,6 +514,8 @@ pub struct FileStore {
     allow_partial: bool,
     overwrite: bool,
     skip_enum_variants: bool,
+    /// Enable contiguous reindexing of layer indices (default: false)
+    contiguous_reindex: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensor snapshots (parsed once, reused)
@@ -490,6 +532,9 @@ pub struct MemoryStore {
     validate: bool,
     allow_partial: bool,
     skip_enum_variants: bool,
+    /// Enable contiguous reindexing of layer indices (default: false)
+    #[cfg(feature = "std")]
+    contiguous_reindex: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensor snapshots (parsed once, reused)
@@ -507,6 +552,8 @@ impl Default for MemoryStore {
             validate: true,
             allow_partial: false,
             skip_enum_variants: false,
+            #[cfg(feature = "std")]
+            contiguous_reindex: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             snapshots_cache: None,
@@ -762,6 +809,14 @@ impl SafetensorsStore {
         }
     }
 
+    #[cfg(feature = "std")]
+    fn get_contiguous_reindex(&self) -> bool {
+        match self {
+            Self::File(p) => p.contiguous_reindex,
+            Self::Memory(p) => p.contiguous_reindex,
+        }
+    }
+
     /// Ensure the snapshots cache is populated
     fn ensure_snapshots_cache(&mut self) -> Result<(), SafetensorsStoreError> {
         // Check if cache exists
@@ -796,6 +851,14 @@ impl SafetensorsStore {
                 Self::File(p) => apply_remapping(snapshots, &p.remapper),
                 Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
             };
+        }
+
+        // Apply contiguous reindexing if enabled
+        // This must be done after remapping so that remapped paths are reindexed
+        #[cfg(feature = "std")]
+        if self.get_contiguous_reindex() {
+            let (reindexed, _) = reindex_contiguous(snapshots);
+            snapshots = reindexed;
         }
 
         // Build cache as BTreeMap
