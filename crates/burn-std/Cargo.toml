@@ -30,6 +30,7 @@ serde = { workspace = true }
 cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
+    "shared-bytes",
 ] }
 
 # Network downloader

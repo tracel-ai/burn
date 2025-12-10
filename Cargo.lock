@@ -1126,6 +1126,7 @@ dependencies = [
  "burn-tensor",
  "burn-wgpu",
  "byteorder",
+ "bytes",
  "ciborium",
  "divan",
  "half",
@@ -2021,6 +2022,7 @@ source = "git+https://github.com/tracel-ai/cubecl?rev=ae290d34ce50dca14fbc846169
 dependencies = [
  "backtrace",
  "bytemuck",
+ "bytes",
  "cfg-if",
  "cfg_aliases",
  "derive-new",
