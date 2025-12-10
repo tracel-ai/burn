@@ -341,8 +341,11 @@ mod tests {
         let config = WindowedAttentionConfig::new(d_model, n_heads, window_size);
         let module = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::random([batch_size, seq_length, d_model], Distribution::Default, &device);
+        let input = Tensor::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Default,
+            &device,
+        );
         let output = module.forward(input);
 
         assert_eq!(
@@ -356,12 +359,14 @@ mod tests {
         let [batch_size, seq_length, d_model, n_heads, window_size] = [2, 8, 32, 4, 2];
         let device = Default::default();
 
-        let config =
-            WindowedAttentionConfig::new(d_model, n_heads, window_size).with_causal(false);
+        let config = WindowedAttentionConfig::new(d_model, n_heads, window_size).with_causal(false);
         let module = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::random([batch_size, seq_length, d_model], Distribution::Default, &device);
+        let input = Tensor::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Default,
+            &device,
+        );
         let output = module.forward(input);
 
         assert_eq!(
@@ -375,12 +380,14 @@ mod tests {
         let [batch_size, seq_length, d_model, n_heads, window_size] = [1, 6, 16, 2, 1];
         let device = Default::default();
 
-        let config =
-            WindowedAttentionConfig::new(d_model, n_heads, window_size).with_dropout(0.0);
+        let config = WindowedAttentionConfig::new(d_model, n_heads, window_size).with_dropout(0.0);
         let module = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::random([batch_size, seq_length, d_model], Distribution::Default, &device);
+        let input = Tensor::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Default,
+            &device,
+        );
         let output1 = module.forward(input.clone());
 
         // Modify position 0, which is outside the window of position 3
@@ -411,8 +418,11 @@ mod tests {
             .with_causal(false);
         let module = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::random([batch_size, seq_length, d_model], Distribution::Default, &device);
+        let input = Tensor::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Default,
+            &device,
+        );
         let mask = Tensor::from_data([[false, false, true, true]], &device);
 
         let output1 = module.forward_mask(input.clone(), Some(mask.clone()));
@@ -459,13 +469,15 @@ mod tests {
         let [batch_size, d_model, n_heads, window_size] = [1, 16, 2, 4];
         let device = Default::default();
 
-        let config =
-            WindowedAttentionConfig::new(d_model, n_heads, window_size).with_dropout(0.0);
+        let config = WindowedAttentionConfig::new(d_model, n_heads, window_size).with_dropout(0.0);
         let module = config.init::<TestBackend>(&device);
 
         let seq_len = 3;
-        let full_input =
-            Tensor::random([batch_size, seq_len, d_model], Distribution::Default, &device);
+        let full_input = Tensor::random(
+            [batch_size, seq_len, d_model],
+            Distribution::Default,
+            &device,
+        );
 
         // Forward with full sequence
         let full_output = module.forward(full_input.clone());
