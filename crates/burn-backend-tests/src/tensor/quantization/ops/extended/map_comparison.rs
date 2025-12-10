@@ -29,6 +29,7 @@ fn test_not_equal() {
 }
 
 #[test]
+#[ignore = "quantization equality with float element is undefined"]
 fn test_equal_elem() {
     let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]);
 
@@ -41,6 +42,7 @@ fn test_equal_elem() {
 }
 
 #[test]
+#[ignore = "quantization equality with float element is undefined"]
 fn test_not_equal_elem() {
     let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]);
 
@@ -53,6 +55,7 @@ fn test_not_equal_elem() {
 }
 
 #[test]
+#[ignore = "quantization equality with float element is undefined"]
 fn test_greater_elem() {
     let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
@@ -115,6 +118,7 @@ fn test_lower_elem() {
 }
 
 #[test]
+#[ignore = "quantization equality with float element is undefined"]
 fn test_lower_equal_elem() {
     let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 

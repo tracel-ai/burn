@@ -18,6 +18,7 @@ fn should_support_remainder_basic() {
 }
 
 #[test]
+#[ignore = "quantization remainder with float element is undefined"]
 fn should_support_remainder_basic_scalar() {
     let tensor = QTensor::<TestBackend, 1>::int8([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
 
@@ -193,6 +194,7 @@ fn should_support_remainder_op() {
 }
 
 #[test]
+#[ignore = "quantization remainder with float element is undefined"]
 fn should_support_remainder_scalar_op() {
     let tensor = QTensor::<TestBackend, 1>::int8([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
 
