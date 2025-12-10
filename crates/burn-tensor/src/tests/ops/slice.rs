@@ -130,6 +130,20 @@ mod tests {
     }
 
     #[test]
+    fn should_support_full_sliceing_vec() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
+
+        let slices: Vec<Slice> = vec![(0..2).into()];
+
+        let output = tensor.clone().slice(&slices);
+        output.into_data().assert_eq(&data, false);
+
+        let output = tensor.slice([0..2, 0..3]);
+        output.into_data().assert_eq(&data, false);
+    }
+
+    #[test]
     fn should_support_partial_sliceing_2d() {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = TestTensor::<2>::from_data(data, &Default::default());
@@ -191,6 +205,21 @@ mod tests {
         let tensor = TestTensor::<1>::from_data(data, &device);
 
         let output = tensor.slice_fill([0..2], -1.0);
+        let expected = TensorData::from([-1.0, -1.0, 2.0]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_fill_vec() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device);
+
+        let slices: Vec<Slice> = vec![(0..2).into()];
+
+        let output = tensor.slice_fill(&slices, -1.0);
         let expected = TensorData::from([-1.0, -1.0, 2.0]);
 
         output.into_data().assert_eq(&expected, false);

@@ -1265,6 +1265,7 @@ where
     ///   - A single range for 1D slicing (e.g., `0..5`, `..`, `2..`)
     ///   - An array of ranges (e.g., `[0..2, 1..4]`)
     ///   - The [`s!`] macro output for advanced slicing with steps
+    ///   - a `&Vec<Slice>` or `&[Slice]`
     ///
     /// # Behavior
     ///
@@ -1333,15 +1334,15 @@ where
     /// - [`slice_dim`](Self::slice_dim) - Slice a single dimension
     ///
     /// [`s!`]: crate::s!
-    pub fn slice<const D2: usize, S>(self, slices: S) -> Self
+    pub fn slice<S>(self, slices: S) -> Self
     where
-        S: SliceArg<D2>,
+        S: SliceArg,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        let slices = slices.into_slices(&shape);
 
         // Validate slices
-        check!(TensorCheck::slice::<D, D2>(&shape, &slices));
+        check!(TensorCheck::slice::<D>(&shape, &slices));
 
         // Calculate output shape and check for empty slices
         let mut output_dims = shape.dims.clone();
@@ -1353,8 +1354,6 @@ where
         if output_dims.contains(&0) {
             return Self::empty(output_dims, &self.device());
         }
-
-        // Use the slice method that supports steps
         Self::new(K::slice(self.primitive, &slices))
     }
 
@@ -1423,12 +1422,12 @@ where
     /// - [`slice_fill`](Self::slice_fill) - Fill a slice with a constant value
     ///
     /// [`s!`]: crate::s!
-    pub fn slice_assign<const D2: usize, S>(self, slices: S, values: Self) -> Self
+    pub fn slice_assign<S>(self, slices: S, values: Self) -> Self
     where
-        S: SliceArg<D2>,
+        S: SliceArg,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        let slices = slices.into_slices(&shape);
 
         // Check if any slice produces 0 elements (empty assignment).
         // Empty assignments are no-ops and would cause issues in backend implementations.
@@ -1441,7 +1440,7 @@ where
             return self;
         }
 
-        check!(TensorCheck::slice_assign::<D, D2>(
+        check!(TensorCheck::slice_assign::<D>(
             &shape,
             &values.shape(),
             &slices
@@ -1509,14 +1508,14 @@ where
     /// - [`slice_assign`](Self::slice_assign) - Assign tensor values to a slice
     ///
     /// [`s!`]: crate::s!
-    pub fn slice_fill<const D2: usize, S, E: ElementConversion>(self, slices: S, value: E) -> Self
+    pub fn slice_fill<S, E: ElementConversion>(self, slices: S, value: E) -> Self
     where
-        S: SliceArg<D2>,
+        S: SliceArg,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        let slices = slices.into_slices(&shape);
 
-        check!(TensorCheck::slice::<D, D2>(&shape, &slices));
+        check!(TensorCheck::slice::<D>(&shape, &slices));
 
         Self::new(K::slice_fill(self.primitive, &slices, value.elem()))
     }
