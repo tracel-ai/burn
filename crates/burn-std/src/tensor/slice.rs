@@ -1,7 +1,5 @@
 //! Tensor slice utilities.
 
-use crate::Shape;
-use crate::indexing::AsIndex;
 #[allow(unused_imports)]
 use alloc::format;
 use alloc::string::String;
