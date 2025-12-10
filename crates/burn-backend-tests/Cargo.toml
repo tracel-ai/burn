@@ -69,7 +69,14 @@ autotune-checks = [
 ]
 
 # CubeCL backends
-cube = ["cubecl", "cubek", "autotune", "burn-fusion", "burn-cubecl", "burn-ndarray"]
+cube = [
+    "cubecl",
+    "cubek",
+    "autotune",
+    "burn-fusion",
+    "burn-cubecl",
+    "burn-ndarray",
+]
 
 # Test configs
 quantization = []
@@ -79,7 +86,9 @@ burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.5", default-featu
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.5" }
 
 # Backends
-burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.5", default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.5", default-features = false, features = [
+    "export_tests",
+] }
 burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.5", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.5", optional = true, default-features = false }
 burn-cpu = { path = "../burn-cpu", version = "=0.20.0-pre.5", optional = true, default-features = false }

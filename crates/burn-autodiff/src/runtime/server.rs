@@ -130,9 +130,9 @@ impl AutodiffServer {
                 .for_each(|step| step.step(&mut grads, &mut checkpointer))
         });
 
-        // #[cfg(feature = "export_tests")]
         // For checkpointing tests
-        // assert!(checkpointer.is_empty());
+        #[cfg(feature = "export_tests")]
+        assert!(checkpointer.is_empty());
 
         grads
     }

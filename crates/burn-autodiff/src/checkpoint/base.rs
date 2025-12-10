@@ -75,7 +75,6 @@ impl Checkpointer {
         }
     }
 
-    // #[cfg(feature = "export_tests")]
     /// Checks if checkpointer has been drained adequately. Useful for testing
     pub fn is_empty(&self) -> bool {
         self.backward_states.is_empty() && self.retro_forwards.is_empty()
