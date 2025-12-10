@@ -44,7 +44,7 @@ fn handle_backend_tests(
     }
     args.features = Some(features);
 
-    base_commands::test::handle_command(args.clone().try_into().unwrap(), env, context)
+    base_commands::test::handle_command(args, env, context)
 }
 
 fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
