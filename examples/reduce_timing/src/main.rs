@@ -41,8 +41,8 @@ fn parse_array4(s: &str) -> Result<[usize; 4], String> {
 
 fn parse_all_reduce_strategy(s: &str) -> Result<AllReduceStrategy, String> {
     let s = s.trim();
-    if s.starts_with("tree:") {
-        let depth = s[5..].parse::<usize>().map_err(|e| e.to_string())?;
+    if let Some(depth) = s.strip_prefix("tree:") {
+        let depth = depth.parse::<usize>().map_err(|e| e.to_string())?;
         Ok(AllReduceStrategy::Tree(depth as u32))
     } else if s.eq("centralized") {
         Ok(AllReduceStrategy::Centralized)
@@ -310,7 +310,6 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
     let device_count = B::Device::device_count(type_id);
 
     let devices = (0..device_count)
-        .into_iter()
         .map(|idx| B::Device::from_id(DeviceId::new(type_id, idx as u32)))
         .collect::<Vec<_>>();
 
@@ -322,7 +321,7 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
 
     let config = CollectiveConfig::default()
         .with_num_devices(devices.len())
-        .with_local_all_reduce_strategy(args.strategy.clone());
+        .with_local_all_reduce_strategy(args.strategy);
     if args.verbose() {
         println!("> run: config:\n{:#?}", config);
     }
@@ -343,8 +342,7 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
         .collect::<Vec<_>>()
         // Wait on all results.
         .into_iter()
-        .map(|rx| rx.recv())
-        .collect::<Result<(), _>>()?;
+        .try_for_each(|rx: Receiver<()>| rx.recv())?;
 
     let shape: Shape = args.shape.into();
 
@@ -375,7 +373,7 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
     if args.verbose() {
         println!("> run: running all_reduce");
     }
-    let reduced = handles
+    let reduced: Vec<Tensor<B, 4>> = handles
         .iter()
         .zip(tensors.into_iter())
         .map(|(h, t)| h.all_reduce(args.op, t))

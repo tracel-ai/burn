@@ -1,6 +1,5 @@
 mod base;
 mod centralized;
-mod monoid_broadcast;
 mod op;
 mod ring;
 mod tree;

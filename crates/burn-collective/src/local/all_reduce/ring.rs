@@ -1,7 +1,7 @@
 use super::tree::all_reduce_sum_tree;
 use crate::PeerId;
-use crate::local::CollectiveTensorMap;
-use crate::local::all_reduce::base;
+use crate::local::tensor_map;
+use crate::local::tensor_map::CollectiveTensorMap;
 use burn_tensor::{Shape, Slice, TensorMetadata, backend::Backend};
 use std::{collections::HashMap, ops::Range};
 
@@ -41,7 +41,7 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     // 2  2  2
 
     // Verify all shapes are the same
-    let shape = base::get_common_shape::<B>(&tensors)
+    let shape = tensor_map::get_common_shape::<B>(&tensors)
         .expect("Cannot aggregate tensors with different sizes");
 
     // Chose an axis

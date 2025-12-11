@@ -1,5 +1,5 @@
 use crate::global::node::base::Node;
-use crate::local::CollectiveTensorMap;
+use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{CollectiveConfig, CollectiveError, PeerId, ReduceOperation, local};
 use burn_communication::websocket::WebSocket;
 use burn_std::Shape;
@@ -42,6 +42,10 @@ impl<B: Backend> AllReduceOp<B> {
         }
     }
 
+    fn peers(&self) -> Vec<PeerId> {
+        self.calls.iter().map(|c| c.caller).collect()
+    }
+
     /// Register a call to all-reduce in this operation.
     ///
     /// # Returns
@@ -74,7 +78,11 @@ impl<B: Backend> AllReduceOp<B> {
     /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
     #[tracing::instrument(
         skip(self, config, global_client),
-        fields(self.op = ?self.op, self.shape = ?self.shape.dims)
+        fields(
+            ?self.op,
+            ?self.shape,
+            self.peers = ?self.peers(),
+        )
     )]
     pub async fn execute(
         mut self,

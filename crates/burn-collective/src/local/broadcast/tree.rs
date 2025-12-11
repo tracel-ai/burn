@@ -1,6 +1,8 @@
-use crate::PeerId;
 use burn_tensor::backend::{Backend, DeviceOps};
 use std::collections::HashMap;
+
+use crate::PeerId;
+use crate::local::tensor_map::CollectiveTensorMap;
 
 /// Performs a broadcast on the provided tensors in a b-tree structure with `arity`.
 ///
@@ -11,7 +13,7 @@ pub(crate) fn broadcast_tree<B: Backend>(
     root: PeerId,
     tensor: B::FloatTensorPrimitive,
     arity: u32,
-) -> HashMap<PeerId, B::FloatTensorPrimitive> {
+) -> CollectiveTensorMap<B> {
     // Convert hash map to vector of key-value pairs because order matters
     let mut devices_vec = vec![];
     let root_device = devices.remove(&root).unwrap();
