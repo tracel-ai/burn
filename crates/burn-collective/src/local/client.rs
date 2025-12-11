@@ -1,8 +1,8 @@
+use crate::local::all_reduce::AllReduceResult;
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     local::{
         BroadcastResult, ReduceResult,
-        all_reduce::AllReduceResult,
         server::{FinishResult, Message, RegisterResult},
     },
 };

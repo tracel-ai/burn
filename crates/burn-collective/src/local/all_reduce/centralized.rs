@@ -13,8 +13,8 @@ use crate::{
 /// Internally, this is just a call to `reduce` followed by a `broadcast`
 #[tracing::instrument(skip(tensors))]
 pub(crate) fn all_reduce_sum_centralized<B: Backend>(
-    tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
-) {
+    tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
+) -> HashMap<PeerId, B::FloatTensorPrimitive> {
     // Get corresponding devices for each peer
     let devices = tensors
         .iter()
@@ -23,8 +23,8 @@ pub(crate) fn all_reduce_sum_centralized<B: Backend>(
     let central_device = *tensors.keys().next().unwrap();
 
     // Reduce to central device
-    let central_tensor = reduce_sum_centralized::<B>(core::mem::take(tensors), &central_device);
+    let central_tensor = reduce_sum_centralized::<B>(tensors, &central_device);
 
     // Broadcast result to all
-    *tensors = broadcast_centralized::<B>(devices, central_device, central_tensor);
+    broadcast_centralized::<B>(devices, central_device, central_tensor)
 }

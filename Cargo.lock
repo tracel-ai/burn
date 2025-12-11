@@ -839,6 +839,7 @@ dependencies = [
  "log",
  "serde",
  "text_placeholder",
+ "tracing",
 ]
 
 [[package]]

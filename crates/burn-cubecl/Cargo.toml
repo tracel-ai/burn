@@ -72,6 +72,7 @@ futures-lite = { workspace = true, features = ["std"] }
 
 # Template
 serde = { workspace = true }
+tracing = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
 [package.metadata.docs.rs]

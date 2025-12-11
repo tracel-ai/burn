@@ -53,6 +53,17 @@ fn parse_all_reduce_strategy(s: &str) -> Result<AllReduceStrategy, String> {
     }
 }
 
+fn parse_reduce_operation(s: &str) -> Result<ReduceOperation, String> {
+    let s = s.trim();
+    if s.eq("sum") {
+        Ok(ReduceOperation::Sum)
+    } else if s.eq("mean") {
+        Ok(ReduceOperation::Mean)
+    } else {
+        Err(format!("unknown reduce operation: {}", s))
+    }
+}
+
 #[derive(Debug, Clone, ValueEnum)]
 pub enum ConsoleFormat {
     Text,
@@ -94,6 +105,10 @@ pub struct Args {
     /// Number of workers per device.
     #[arg(long, default_value = "1")]
     pub workers_per_device: usize,
+
+    /// Reduce operation.
+    #[arg(long, value_parser = parse_reduce_operation, default_value = "sum")]
+    pub op: ReduceOperation,
 }
 
 impl Args {
@@ -333,9 +348,17 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
 
     let shape: Shape = args.shape.into();
 
-    let expected_sum = handles.len() * (handles.len() + 1) / 2;
+    let expected_cell: f32 = {
+        let count = handles.len() as f32;
+        let sum = (count * (count + 1.0)) / 2.0;
+        if args.op == ReduceOperation::Mean {
+            sum / count
+        } else {
+            sum
+        }
+    };
     let expected =
-        Tensor::<B, 4>::full(shape.clone(), expected_sum as f32, &B::Device::default()).to_data();
+        Tensor::<B, 4>::full(shape.clone(), expected_cell, &B::Device::default()).to_data();
 
     if args.verbose() {
         println!("> run: setting up device tensors: {:?}", shape);
@@ -355,7 +378,7 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
     let reduced = handles
         .iter()
         .zip(tensors.into_iter())
-        .map(|(h, t)| h.all_reduce(ReduceOperation::Sum, t))
+        .map(|(h, t)| h.all_reduce(args.op, t))
         // Introduce a sequence point.
         .collect::<Vec<_>>()
         // Wait on all results.
