@@ -86,7 +86,7 @@ where
         let client = R::client(device);
 
         let ty: StorageType = dtype.into();
-        client.properties().features.supports_type(ty.elem_type())
+        client.properties().supports_type(ty.elem_type())
     }
 }
 
