@@ -116,6 +116,13 @@ impl StorageBackend {
     /// - `Ok(bytes)` - Successfully created a zero-copy slice
     /// - `Err(_)` - Backend doesn't support zero-copy or split failed
     pub(crate) fn slice_bytes(&self, start: usize, end: usize) -> Result<Bytes, BurnpackError> {
+        if end < start {
+            return Err(BurnpackError::IoError(format!(
+                "Invalid slice range: end ({}) < start ({})",
+                end, start
+            )));
+        }
+
         match self {
             StorageBackend::Memory(data) => {
                 // Clone the Bytes - cheap if backed by SharedBytesAllocationController
@@ -127,7 +134,7 @@ impl StorageBackend {
                 })?;
 
                 // Split right at (end - start) to get (middle, _)
-                let slice_len = end.saturating_sub(start);
+                let slice_len = end - start;
                 let (middle, _) = right.split(slice_len).map_err(|(_, e)| {
                     BurnpackError::IoError(format!(
                         "Failed to split at length {}: {:?}",
