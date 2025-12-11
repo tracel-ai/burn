@@ -1102,6 +1102,7 @@ name = "burn-std"
 version = "0.20.0-pre.5"
 dependencies = [
  "bytemuck",
+ "bytes",
  "cubecl",
  "cubecl-common",
  "dashmap",

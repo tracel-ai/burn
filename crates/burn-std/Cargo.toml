@@ -32,6 +32,9 @@ cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",
 ] }
+# Enable extra-platforms for portable-atomic support on targets without native atomics (e.g., thumbv6m)
+# This is needed because cubecl-common's shared-bytes feature pulls in bytes
+bytes = { workspace = true }
 
 # Network downloader
 indicatif = { workspace = true, optional = true }
