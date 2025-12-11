@@ -2,7 +2,7 @@ use super::{
     argwhere::argwhere_data, cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign,
 };
 use crate::ExecutionError;
-use crate::tensor::{Bool, BoolTensor, Device, FloatTensor, IntTensor};
+use crate::tensor::{Bool, BoolElem, BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, TensorData, TensorMetadata, element::ElementConversion};
 use alloc::vec::Vec;
 use burn_std::{Shape, Slice};
@@ -162,6 +162,69 @@ pub trait BoolTensorOps<B: Backend> {
         value: BoolTensor<B>,
     ) -> BoolTensor<B>;
 
+    /// Fills the tensor with values from the value tensor if the mask is true at the given
+    /// indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `mask` - The mask.
+    /// * `value` - The value tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the values filled.
+    fn bool_mask_where(
+        tensor: BoolTensor<B>,
+        mask: BoolTensor<B>,
+        value: BoolTensor<B>,
+    ) -> BoolTensor<B>;
+
+    /// Fills the tensor with the given value if the mask is true at the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `mask` - The mask.
+    /// * `value` - The value.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the values filled.
+    fn bool_mask_fill(
+        tensor: BoolTensor<B>,
+        mask: BoolTensor<B>,
+        value: BoolElem<B>,
+    ) -> BoolTensor<B>;
+
+    /// Gather elements from the tensor at the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension to gather from.
+    /// * `tensor` - The tensor.
+    /// * `indices` - The indices.
+    fn bool_gather(dim: usize, tensor: BoolTensor<B>, indices: IntTensor<B>) -> BoolTensor<B>;
+
+    /// Scatter a given value to the tensor at the given indices using boolean or reduction.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension to scatter to.
+    /// * `tensor` - The tensor.
+    /// * `indices` - The indices.
+    /// * `value` - The value.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the values scattered.
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<B>,
+        indices: IntTensor<B>,
+        value: BoolTensor<B>,
+    ) -> BoolTensor<B>;
+
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
     /// # Arguments
@@ -193,7 +256,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the assigned values.
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: BoolTensor<B>,
         dim: usize,
         indices: IntTensor<B>,

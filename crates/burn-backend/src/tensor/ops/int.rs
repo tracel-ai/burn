@@ -78,6 +78,42 @@ impl<B: Backend> BasicOps<B> for Int {
         }
     }
 
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
+        B::int_mask_where(tensor, mask, source)
+    }
+
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        B::int_mask_fill(tensor, mask, value)
+    }
+
+    fn gather(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive {
+        B::int_gather(dim, tensor, indices)
+    }
+
+    fn scatter(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        values: Self::Primitive,
+        update: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        match update {
+            IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
+        }
+    }
+
     fn device(tensor: &Self::Primitive) -> Device<B> {
         B::int_device(tensor)
     }
@@ -259,42 +295,6 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
         B::int_lower_equal_elem(lhs, rhs)
-    }
-
-    fn mask_where(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        source: Self::Primitive,
-    ) -> Self::Primitive {
-        B::int_mask_where(tensor, mask, source)
-    }
-
-    fn mask_fill(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        value: Self::Elem,
-    ) -> Self::Primitive {
-        B::int_mask_fill(tensor, mask, value)
-    }
-
-    fn gather(
-        dim: usize,
-        tensor: Self::Primitive,
-        indices: B::IntTensorPrimitive,
-    ) -> Self::Primitive {
-        B::int_gather(dim, tensor, indices)
-    }
-
-    fn scatter(
-        dim: usize,
-        tensor: Self::Primitive,
-        indices: B::IntTensorPrimitive,
-        values: Self::Primitive,
-        update: IndexingUpdateOp,
-    ) -> Self::Primitive {
-        match update {
-            IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
-        }
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {

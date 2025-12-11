@@ -44,7 +44,7 @@ pub mod module;
 pub mod ops {
     pub use burn_backend::backend::ops::*;
     pub use burn_backend::tensor::{
-        BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
+        BoolElem, BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
     };
 }
 

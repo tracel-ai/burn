@@ -1,5 +1,4 @@
 use burn_tensor::Element;
-use ndarray::LinalgScalar;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -11,7 +10,7 @@ use num_traits::Pow;
 use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar + Signed
+pub trait FloatNdArrayElement: NdArrayElement + Signed
 where
     Self: Sized,
 {
@@ -26,6 +25,7 @@ pub trait NdArrayElement:
     + ndarray::LinalgScalar
     + ndarray::ScalarOperand
     + ExpElement
+    + AddAssignElement
     + num_traits::FromPrimitive
     + core::ops::AddAssign
     + core::cmp::PartialEq
@@ -52,6 +52,26 @@ pub trait ExpElement {
     fn abs_elem(self) -> Self;
     /// Abs for int
     fn int_abs_elem(self) -> Self;
+}
+
+/// The addition assignment operator implemented for ndarray elements.
+pub trait AddAssignElement<Rhs = Self> {
+    /// Performs the addition assignment operation.
+    ///
+    /// For `bool`, this corresponds to logical OR assignment.
+    fn add_assign(&mut self, rhs: Rhs);
+}
+
+impl<E: NdArrayElement> AddAssignElement for E {
+    fn add_assign(&mut self, rhs: Self) {
+        *self += rhs;
+    }
+}
+
+impl AddAssignElement for bool {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self || rhs; // logical OR for bool
+    }
 }
 
 /// A quantized element for the ndarray backend.

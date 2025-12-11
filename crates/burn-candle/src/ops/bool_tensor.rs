@@ -2,7 +2,7 @@ use burn_std::{backtrace::BackTrace, future::DynFut};
 use burn_tensor::{
     Device, Shape, TensorData, TensorMetadata,
     backend::ExecutionError,
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
+    ops::{BoolElem, BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 
 use crate::{
@@ -133,7 +133,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -158,5 +158,53 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         step: usize,
     ) -> BoolTensor<Self> {
         unfold(tensor, dim, size, step)
+    }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        super::base::mask_where_broadcasted(tensor, mask, value)
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        CandleTensor::new(
+            mask.tensor
+                .where_cond(
+                    &super::candle_utils::fill_like::<u8>(value, &tensor.tensor),
+                    &tensor.tensor,
+                )
+                .unwrap(),
+        )
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let tensor = tensor.tensor.contiguous().unwrap();
+        let indices = indices.tensor.contiguous().unwrap();
+        CandleTensor::new(tensor.gather(&indices, dim).unwrap())
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        // TODO: maybe have to convert to int <> bool for scatter_add?
+        CandleTensor::new(
+            tensor
+                .tensor
+                .scatter_add(&indices.tensor, &value.tensor, dim)
+                .unwrap(),
+        )
     }
 }

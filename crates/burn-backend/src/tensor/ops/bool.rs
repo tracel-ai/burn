@@ -87,7 +87,43 @@ impl<B: Backend> BasicOps<B> for Bool {
         update: IndexingUpdateOp,
     ) -> Self::Primitive {
         match update {
-            IndexingUpdateOp::Add => B::bool_select_add(tensor, dim, indices, values),
+            IndexingUpdateOp::Add => B::bool_select_or(tensor, dim, indices, values),
+        }
+    }
+
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
+        B::bool_mask_where(tensor, mask, source)
+    }
+
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        B::bool_mask_fill(tensor, mask, value)
+    }
+
+    fn gather(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive {
+        B::bool_gather(dim, tensor, indices)
+    }
+
+    fn scatter(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        values: Self::Primitive,
+        update: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        match update {
+            IndexingUpdateOp::Add => B::bool_scatter_or(dim, tensor, indices, values),
         }
     }
 

@@ -338,10 +338,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::Gather(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::Gather(desc)))
             .output()
     }
 
@@ -362,10 +359,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         );
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::Scatter(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::Scatter(desc)))
             .output()
     }
 
@@ -380,10 +374,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::Select(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::Select(desc)))
             .output()
     }
 
@@ -404,10 +395,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         );
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::SelectAssign(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::SelectAssign(desc)))
             .output()
     }
 
@@ -449,10 +437,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::MaskWhere(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::MaskWhere(desc)))
             .output()
     }
 
@@ -468,10 +453,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::MaskFill(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::MaskFill(desc)))
             .output()
     }
 

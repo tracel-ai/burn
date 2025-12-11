@@ -207,13 +207,13 @@ mod tests {
         // Test that select_add works for boolean tensors
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
-        let values = TestTensorBool::<1>::from_data([false, false], &device);
+        let values = TestTensorBool::<1>::from_data([false, true], &device);
         let indices = TestTensorInt::from_data([0, 2], &device);
 
         let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
         // Note: select_add uses sum reduction, so:
         // index 0: true OR false = true
-        // index 2: true OR false = true
+        // index 2: true OR true = true
         // index 1: false (unchanged)
         let expected = TensorData::from([true, false, true]);
 

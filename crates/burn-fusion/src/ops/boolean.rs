@@ -4,11 +4,12 @@ use crate::{
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
-    HandleContainer, InitOperationIr, OperationIr, OperationOutput, PermuteOpIr, RepeatDimOpIr,
-    ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
+    GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
+    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::{
-    Device, Element, Shape, Slice, TensorData,
+    Device, Element, IndexingUpdateOp, Shape, Slice, TensorData,
     backend::ExecutionError,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
@@ -658,6 +659,166 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseBool(BaseOperationIr::Unfold(desc.clone())),
                 UnfoldOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct MaskWhereOps<B: FusionBackend> {
+            desc: MaskWhereOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for MaskWhereOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
+                let value = handles.get_bool_tensor::<B>(&self.desc.value);
+                let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
+
+                let output = B::bool_mask_where(tensor, mask, value);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &mask, &value]);
+
+        let client = tensor.client.clone();
+        let desc = MaskWhereOpIr::create(tensor.into_ir(), mask.into_ir(), value.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::MaskWhere(desc.clone())),
+                MaskWhereOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: burn_tensor::ops::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct MaskFillOps<B: FusionBackend> {
+            desc: MaskFillOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for MaskFillOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
+                let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
+
+                let output = B::bool_mask_fill(tensor, mask, self.desc.value.elem());
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &mask]);
+
+        let client = tensor.client.clone();
+        let value = ScalarIr::with_dtype(value, &tensor.dtype);
+        let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::MaskFill(desc.clone())),
+                MaskFillOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct GatherOps<B: FusionBackend> {
+            desc: GatherOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::bool_gather(self.desc.dim, tensor, indices);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &indices]);
+
+        let client = tensor.client.clone();
+        let desc = GatherOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::Gather(desc.clone())),
+                GatherOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct ScatterOps<B: FusionBackend> {
+            desc: ScatterOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let value = handles.get_bool_tensor::<B>(&self.desc.value);
+
+                let output = B::bool_scatter_or(self.desc.dim, tensor, indices, value);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &indices, &value]);
+
+        let client = tensor.client.clone();
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::Scatter(desc.clone())),
+                ScatterOps::<B>::new(desc),
             )
             .output()
     }

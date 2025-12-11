@@ -347,6 +347,88 @@ impl TraceOperationFuser {
                     Some(())
                 })
             }
+            BaseOperationIr::Gather(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let input = build.input_indexed(&desc.tensor)?;
+                    let indices = build.input_indexed(&desc.indices)?;
+                    let output = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::Gather {
+                        input,
+                        indices,
+                        output,
+                        dim: desc.dim as u32,
+                    });
+
+                    Some(())
+                })
+            }
+            BaseOperationIr::Select(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let input = build.input_indexed(&desc.tensor)?;
+                    let indices = build.input_indexed(&desc.indices)?;
+                    let output = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::Select {
+                        input,
+                        indices,
+                        output,
+                        dim: desc.dim as u32,
+                    });
+
+                    Some(())
+                })
+            }
+            BaseOperationIr::MaskWhere(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let cond = build.input(&desc.mask)?;
+                    let rhs = build.input(&desc.tensor)?;
+                    let lhs = build.input(&desc.value)?;
+                    let out = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::ConditionalAssign {
+                        cond,
+                        lhs,
+                        rhs,
+                        out,
+                    });
+
+                    Some(())
+                })
+            }
+            BaseOperationIr::MaskFill(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let cond = build.input(&desc.mask)?;
+                    let lhs = build.scalar(&desc.value, desc.out.dtype);
+                    let rhs = build.input(&desc.tensor)?;
+                    let out = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::ConditionalAssign {
+                        cond,
+                        lhs,
+                        rhs,
+                        out,
+                    });
+
+                    Some(())
+                })
+            }
             _ => false,
         }
     }
@@ -478,48 +560,6 @@ impl TraceOperationFuser {
             NumericOperationIr::EqualElem(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
             }),
-            NumericOperationIr::MaskWhere(desc) => {
-                if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                self.fuser.fuse(|build| {
-                    let cond = build.input(&desc.mask)?;
-                    let rhs = build.input(&desc.tensor)?;
-                    let lhs = build.input(&desc.value)?;
-                    let out = build.output(&desc.out)?;
-
-                    build.fuse_operation(FuseOp::ConditionalAssign {
-                        cond,
-                        lhs,
-                        rhs,
-                        out,
-                    });
-
-                    Some(())
-                })
-            }
-            NumericOperationIr::MaskFill(desc) => {
-                if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                self.fuser.fuse(|build| {
-                    let cond = build.input(&desc.mask)?;
-                    let lhs = build.scalar(&desc.value, desc.out.dtype);
-                    let rhs = build.input(&desc.tensor)?;
-                    let out = build.output(&desc.out)?;
-
-                    build.fuse_operation(FuseOp::ConditionalAssign {
-                        cond,
-                        lhs,
-                        rhs,
-                        out,
-                    });
-
-                    Some(())
-                })
-            }
             NumericOperationIr::Full(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
@@ -530,46 +570,6 @@ impl TraceOperationFuser {
                     let out = build.output(&desc.out)?;
 
                     build.fuse_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
-
-                    Some(())
-                })
-            }
-            NumericOperationIr::Gather(desc) => {
-                if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                self.fuser.fuse(|build| {
-                    let input = build.input_indexed(&desc.tensor)?;
-                    let indices = build.input_indexed(&desc.indices)?;
-                    let output = build.output(&desc.out)?;
-
-                    build.fuse_operation(FuseOp::Gather {
-                        input,
-                        indices,
-                        output,
-                        dim: desc.dim as u32,
-                    });
-
-                    Some(())
-                })
-            }
-            NumericOperationIr::Select(desc) => {
-                if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                self.fuser.fuse(|build| {
-                    let input = build.input_indexed(&desc.tensor)?;
-                    let indices = build.input_indexed(&desc.indices)?;
-                    let output = build.output(&desc.out)?;
-
-                    build.fuse_operation(FuseOp::Select {
-                        input,
-                        indices,
-                        output,
-                        dim: desc.dim as u32,
-                    });
 
                     Some(())
                 })

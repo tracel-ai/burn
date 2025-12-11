@@ -120,4 +120,37 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     ) -> BoolTensor<Self> {
         B::bool_unfold(tensor, dim, size, step)
     }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        source: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_mask_where(tensor, mask, source)
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: B::BoolElem,
+    ) -> BoolTensor<Self> {
+        B::bool_mask_fill(tensor, mask, value)
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_gather(dim, tensor, indices)
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_scatter_or(dim, tensor, indices, value)
+    }
 }

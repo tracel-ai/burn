@@ -137,7 +137,7 @@ where
         kernel::select(tensor, dim, indices)
     }
 
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -157,5 +157,39 @@ where
         step: usize,
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
+    }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::mask_where_auto(tensor, mask, value, BT::dtype())
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: burn_tensor::ops::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        let dtype = tensor.dtype;
+        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), dtype)
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::gather(dim, tensor, indices)
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::scatter(dim, tensor, indices, value, true)
     }
 }
