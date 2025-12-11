@@ -50,7 +50,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Seed the runner.
     fn seed(&self, seed: u64);
-    /// Wheter the type is supported.
+    /// Whether the type is supported.
     fn supports_dtype(&self, dtype: DType) -> bool;
 }
 

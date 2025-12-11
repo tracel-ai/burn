@@ -143,7 +143,7 @@ pub trait Backend:
     {
     }
 
-    /// Wheter the type is supported by the specified device.
+    /// Whether the type is supported by the specified device.
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool;
 }
 
