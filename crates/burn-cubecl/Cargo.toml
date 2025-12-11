@@ -88,6 +88,7 @@ futures-lite = { workspace = true, features = ["std"] }
 
 # Template
 serde = { workspace = true }
+tracing = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.5", optional = true }

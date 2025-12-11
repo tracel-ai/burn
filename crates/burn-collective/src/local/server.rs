@@ -11,13 +11,11 @@ use burn_communication::websocket::{WebSocket, WsServer};
 use burn_tensor::{TensorMetadata, backend::Backend};
 use tokio::runtime::{Builder, Runtime};
 
+use crate::local::all_reduce::{AllReduceOp, AllReduceResult};
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
-    local::{
-        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult,
-        client::LocalCollectiveClient,
-    },
+    local::{BroadcastOp, BroadcastResult, ReduceOp, ReduceResult, client::LocalCollectiveClient},
 };
 
 /// Define the client/server communication on the network

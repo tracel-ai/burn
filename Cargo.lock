@@ -834,6 +834,7 @@ dependencies = [
  "serial_test",
  "spin",
  "text_placeholder",
+ "tracing",
 ]
 
 [[package]]
