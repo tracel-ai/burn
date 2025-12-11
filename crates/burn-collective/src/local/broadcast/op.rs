@@ -122,7 +122,7 @@ impl<B: Backend> BroadcastOp<B> {
         let local_strategy = config.local_broadcast_strategy;
 
         // Get corresponding devices for each peer
-        let devices = self
+        let peer_devices = self
             .calls
             .iter()
             .map(|op| (op.caller, op.device.clone()))
@@ -148,8 +148,12 @@ impl<B: Backend> BroadcastOp<B> {
 
         // Broadcast locally
         let results = match local_strategy {
-            BroadcastStrategy::Tree(arity) => broadcast_tree::<B>(devices, root, tensor, arity),
-            BroadcastStrategy::Centralized => broadcast_centralized::<B>(devices, root, tensor),
+            BroadcastStrategy::Tree(arity) => {
+                broadcast_tree::<B>(peer_devices, root, tensor, arity)
+            }
+            BroadcastStrategy::Centralized => {
+                broadcast_centralized::<B>(peer_devices, root, tensor)
+            }
         };
 
         Ok(results)
