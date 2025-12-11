@@ -182,6 +182,8 @@ impl KeyRemapper {
 ///
 /// This function detects numeric indices in tensor paths and renumbers them
 /// to be contiguous (0, 1, 2, ...) while preserving their relative order.
+/// It handles nested sequential structures by processing ALL numeric indices
+/// in each path independently based on their position context.
 ///
 /// This is useful when loading PyTorch models that have gaps in layer numbering,
 /// such as when using `nn.Sequential` with mixed layer types (e.g., Conv2d + ReLU
@@ -189,7 +191,7 @@ impl KeyRemapper {
 ///
 /// # Example
 ///
-/// Input paths:
+/// Simple case - input paths:
 /// - `fc.0.weight`, `fc.0.bias`
 /// - `fc.2.weight`, `fc.2.bias`
 /// - `fc.4.weight`, `fc.4.bias`
@@ -198,6 +200,18 @@ impl KeyRemapper {
 /// - `fc.0.weight`, `fc.0.bias`
 /// - `fc.1.weight`, `fc.1.bias`
 /// - `fc.2.weight`, `fc.2.bias`
+///
+/// Nested case - input paths:
+/// - `feature.layers.0.conv_block.0.weight`
+/// - `feature.layers.0.conv_block.2.weight`
+/// - `feature.layers.2.conv_block.0.weight`
+/// - `feature.layers.2.conv_block.2.weight`
+///
+/// Output paths:
+/// - `feature.layers.0.conv_block.0.weight`
+/// - `feature.layers.0.conv_block.1.weight`
+/// - `feature.layers.1.conv_block.0.weight`
+/// - `feature.layers.1.conv_block.1.weight`
 ///
 /// # Arguments
 ///
@@ -215,29 +229,40 @@ pub fn map_indices_contiguous(
         return (tensors, Vec::new());
     }
 
-    // Step 1: Collect all paths and identify unique (prefix, index) combinations
-    // For path "fc.0.weight", prefix would be "fc." and suffix would be ".weight"
-    // We group by (prefix, suffix) to find indices that should be renumbered together
+    // Step 1: Collect all paths and find all index positions
+    // For each index position (identified by prefix using ORIGINAL indices),
+    // collect all indices seen at that position.
+    //
+    // Key: prefix using original path (e.g., "feature.layers." or "feature.layers.0.conv_block.")
+    // Value: BTreeMap of original_index -> new_index
+    let mut index_maps: BTreeMap<String, BTreeMap<usize, usize>> = BTreeMap::new();
 
-    // Map: (prefix, suffix) -> BTreeMap<original_index, new_index>
-    // Using BTreeMap to maintain sorted order of indices
-    let mut prefix_indices: BTreeMap<(String, String), BTreeMap<usize, usize>> = BTreeMap::new();
-
-    // First pass: collect all (prefix, index, suffix) tuples
+    // First pass: collect all indices at each position using original prefixes
     for snapshot in &tensors {
         let path = snapshot.full_path();
-        if let Some((prefix, index, suffix)) = parse_indexed_path(&path) {
-            let key = (prefix, suffix);
-            prefix_indices
-                .entry(key)
-                .or_default()
-                .entry(index)
-                .or_insert(usize::MAX); // Placeholder, will be assigned later
+        let parts: Vec<&str> = path.split('.').collect();
+
+        // Check each part for numeric indices
+        for (i, part) in parts.iter().enumerate() {
+            if let Ok(index) = part.parse::<usize>() {
+                // The prefix is everything before this index (using original path)
+                let prefix = if i > 0 {
+                    format!("{}.", parts[..i].join("."))
+                } else {
+                    String::new()
+                };
+
+                index_maps
+                    .entry(prefix)
+                    .or_default()
+                    .entry(index)
+                    .or_insert(usize::MAX); // Placeholder
+            }
         }
     }
 
-    // Second pass: assign contiguous indices for each (prefix, suffix) group
-    for indices in prefix_indices.values_mut() {
+    // Second pass: assign contiguous indices for each position
+    for indices in index_maps.values_mut() {
         let mut sorted_indices: Vec<usize> = indices.keys().cloned().collect();
         sorted_indices.sort();
 
@@ -247,25 +272,13 @@ pub fn map_indices_contiguous(
     }
 
     // Third pass: apply the remapping to all tensors
-    let mut reindexed_snapshots = Vec::new();
+    // We use original prefixes for lookup since that's how we collected indices
+    let mut mapped_snapshots = Vec::new();
     let mut transformations = Vec::new();
 
     for mut snapshot in tensors.drain(..) {
         let original_path = snapshot.full_path();
-        let new_path = if let Some((prefix, index, suffix)) = parse_indexed_path(&original_path) {
-            let key = (prefix.clone(), suffix.clone());
-            if let Some(index_map) = prefix_indices.get(&key) {
-                if let Some(&new_index) = index_map.get(&index) {
-                    format!("{}{}{}", prefix, new_index, suffix)
-                } else {
-                    original_path.clone()
-                }
-            } else {
-                original_path.clone()
-            }
-        } else {
-            original_path.clone()
-        };
+        let new_path = remap_all_indices_with_original_prefix(&original_path, &index_maps);
 
         // Update the snapshot's internal path_stack if the path changed
         if new_path != original_path
@@ -275,41 +288,43 @@ pub fn map_indices_contiguous(
         }
 
         transformations.push((new_path, original_path));
-        reindexed_snapshots.push(snapshot);
+        mapped_snapshots.push(snapshot);
     }
 
-    (reindexed_snapshots, transformations)
+    (mapped_snapshots, transformations)
 }
 
-/// Parse a path to extract (prefix, numeric_index, suffix).
-///
-/// For "fc.2.weight", returns Some(("fc.", 2, ".weight"))
-/// For "encoder.layers.5.attention.weight", returns Some(("encoder.layers.", 5, ".attention.weight"))
-/// For "weight" (no index), returns None
-fn parse_indexed_path(path: &str) -> Option<(String, usize, String)> {
+/// Remap all numeric indices in a path using the provided index maps.
+/// Uses original path prefixes for lookup.
+fn remap_all_indices_with_original_prefix(
+    path: &str,
+    index_maps: &BTreeMap<String, BTreeMap<usize, usize>>,
+) -> String {
     let parts: Vec<&str> = path.split('.').collect();
+    let mut result_parts: Vec<String> = Vec::with_capacity(parts.len());
 
-    // Find the last numeric part (most specific index)
-    // We iterate from the end to find indices like "layers.5.weight" -> index is 5
-    for (i, part) in parts.iter().enumerate().rev() {
+    for (i, part) in parts.iter().enumerate() {
         if let Ok(index) = part.parse::<usize>() {
+            // Build the prefix from ORIGINAL parts (not remapped)
             let prefix = if i > 0 {
                 format!("{}.", parts[..i].join("."))
             } else {
                 String::new()
             };
 
-            let suffix = if i < parts.len() - 1 {
-                format!(".{}", parts[i + 1..].join("."))
-            } else {
-                String::new()
-            };
-
-            return Some((prefix, index, suffix));
+            // Look up the new index using original prefix
+            if let Some(index_map) = index_maps.get(&prefix)
+                && let Some(&new_index) = index_map.get(&index)
+            {
+                result_parts.push(new_index.to_string());
+                continue;
+            }
         }
+        // Not a numeric index or no mapping found, keep as-is
+        result_parts.push((*part).to_string());
     }
 
-    None
+    result_parts.join(".")
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -414,40 +429,6 @@ mod tests {
             transformations[0],
             ("test.weight".to_string(), "test.weight".to_string())
         );
-    }
-
-    #[test]
-    fn test_parse_indexed_path() {
-        // Test basic path with index
-        let result = parse_indexed_path("fc.2.weight");
-        assert_eq!(result, Some(("fc.".to_string(), 2, ".weight".to_string())));
-
-        // Test path with multiple levels before index
-        let result = parse_indexed_path("encoder.layers.5.attention.weight");
-        assert_eq!(
-            result,
-            Some((
-                "encoder.layers.".to_string(),
-                5,
-                ".attention.weight".to_string()
-            ))
-        );
-
-        // Test path with index at the end
-        let result = parse_indexed_path("layers.3");
-        assert_eq!(result, Some(("layers.".to_string(), 3, String::new())));
-
-        // Test path with index at the beginning
-        let result = parse_indexed_path("0.weight");
-        assert_eq!(result, Some((String::new(), 0, ".weight".to_string())));
-
-        // Test path with no index
-        let result = parse_indexed_path("weight");
-        assert_eq!(result, None);
-
-        // Test path with no index (multiple parts)
-        let result = parse_indexed_path("encoder.attention.weight");
-        assert_eq!(result, None);
     }
 
     #[test]
@@ -588,5 +569,106 @@ mod tests {
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.weight")); // 2 -> 1
         assert!(reindexed.iter().any(|v| v.full_path() == "output.weight")); // unchanged
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_nested_sequential() {
+        // Test nested sequential structures like:
+        // feature = nn.Sequential(ConvBlock, ReLU, ConvBlock, ReLU, ConvBlock)
+        // where ConvBlock = nn.Sequential(Conv2d, ReLU, Conv2d)
+        //
+        // This produces paths like:
+        // feature.layers.0.conv_block.0.weight (layer 0, conv 0)
+        // feature.layers.0.conv_block.2.weight (layer 0, conv 2 - skipping ReLU at 1)
+        // feature.layers.2.conv_block.0.weight (layer 2 - skipping ReLU at 1, conv 0)
+        // feature.layers.2.conv_block.2.weight (layer 2, conv 2)
+        let tensors = vec![
+            create_test_tensor_snapshot("feature.layers.0.conv_block.0.weight"),
+            create_test_tensor_snapshot("feature.layers.0.conv_block.2.weight"),
+            create_test_tensor_snapshot("feature.layers.2.conv_block.0.weight"),
+            create_test_tensor_snapshot("feature.layers.2.conv_block.2.weight"),
+        ];
+
+        let (mapped, transformations) = map_indices_contiguous(tensors);
+
+        // Expected mapping:
+        // feature.layers: 0, 2 -> 0, 1
+        // feature.layers.0.conv_block: 0, 2 -> 0, 1
+        // feature.layers.2.conv_block: 0, 2 -> 0, 1
+        //
+        // Result:
+        // feature.layers.0.conv_block.0.weight -> feature.layers.0.conv_block.0.weight
+        // feature.layers.0.conv_block.2.weight -> feature.layers.0.conv_block.1.weight
+        // feature.layers.2.conv_block.0.weight -> feature.layers.1.conv_block.0.weight
+        // feature.layers.2.conv_block.2.weight -> feature.layers.1.conv_block.1.weight
+
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.0.conv_block.0.weight"),
+            "0.0 should stay as 0.0"
+        );
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.0.conv_block.1.weight"),
+            "0.2 should become 0.1"
+        );
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.1.conv_block.0.weight"),
+            "2.0 should become 1.0"
+        );
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.1.conv_block.1.weight"),
+            "2.2 should become 1.1"
+        );
+
+        // Verify specific transformations
+        let t1 = transformations
+            .iter()
+            .find(|(_, old)| old == "feature.layers.2.conv_block.2.weight");
+        assert_eq!(
+            t1.map(|(new, _)| new.as_str()),
+            Some("feature.layers.1.conv_block.1.weight"),
+            "2.2 should map to 1.1"
+        );
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_deeply_nested() {
+        // Test with three levels of nesting
+        let tensors = vec![
+            create_test_tensor_snapshot("a.0.b.0.c.0.weight"),
+            create_test_tensor_snapshot("a.0.b.0.c.2.weight"),
+            create_test_tensor_snapshot("a.0.b.2.c.0.weight"),
+            create_test_tensor_snapshot("a.2.b.0.c.0.weight"),
+        ];
+
+        let (mapped, _) = map_indices_contiguous(tensors);
+
+        // a: 0, 2 -> 0, 1
+        // a.0.b: 0, 2 -> 0, 1
+        // a.2.b: 0 -> 0
+        // a.0.b.0.c: 0, 2 -> 0, 1
+        // a.0.b.2.c: 0 -> 0
+        // a.2.b.0.c: 0 -> 0
+
+        assert!(mapped.iter().any(|v| v.full_path() == "a.0.b.0.c.0.weight"));
+        assert!(
+            mapped.iter().any(|v| v.full_path() == "a.0.b.0.c.1.weight"),
+            "a.0.b.0.c.2 should become a.0.b.0.c.1"
+        );
+        assert!(
+            mapped.iter().any(|v| v.full_path() == "a.0.b.1.c.0.weight"),
+            "a.0.b.2.c.0 should become a.0.b.1.c.0"
+        );
+        assert!(
+            mapped.iter().any(|v| v.full_path() == "a.1.b.0.c.0.weight"),
+            "a.2.b.0.c.0 should become a.1.b.0.c.0"
+        );
     }
 }
