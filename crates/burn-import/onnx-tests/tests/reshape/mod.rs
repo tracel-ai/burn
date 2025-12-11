@@ -7,7 +7,8 @@ include_models!(
     reshape_3d_to_scalar,
     reshape_shape_to_shape,
     reshape_shape_with_neg,
-    reshape_shape_partial
+    reshape_shape_partial,
+    reshape_scalar_to_scalar
 );
 
 #[cfg(test)]
@@ -160,5 +161,24 @@ mod tests {
 
         // Output should be [2, 3] - first two dimensions after slicing
         assert_eq!(output, [2i64, 3]);
+    }
+
+    #[test]
+    fn reshape_scalar_to_scalar_test() {
+        // This test verifies that Reshape(scalar, [-1]) keeps the output as scalar
+        // instead of converting to a rank-1 tensor. This optimization avoids
+        // wasteful tensor creation for single-element values.
+
+        // Initialize the model
+        let device = Default::default();
+        let model: reshape_scalar_to_scalar::Model<TestBackend> =
+            reshape_scalar_to_scalar::Model::new(&device);
+
+        // Run the model with a 1x1 tensor input
+        let input = Tensor::<TestBackend, 2>::from_floats([[42.5]], &device);
+        let output = model.forward(input);
+
+        // Output should be a scalar value (not a 1-element tensor)
+        assert_eq!(output, 42.5f32);
     }
 }

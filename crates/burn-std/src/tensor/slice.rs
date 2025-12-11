@@ -2,6 +2,8 @@
 
 use crate::Shape;
 use crate::indexing::AsIndex;
+use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
@@ -698,10 +700,6 @@ impl FromStr for Slice {
     }
 }
 
-#[allow(unused_imports)]
-use alloc::format;
-use alloc::string::String;
-
 /// Common Parse Error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SliceExpressionError {
@@ -759,8 +757,7 @@ impl SliceExpressionError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alloc::string::ToString;
-    use alloc::vec;
+    use alloc::string::ToString;
 
     #[test]
     fn test_parse_error() {
