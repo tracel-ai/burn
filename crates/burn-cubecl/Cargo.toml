@@ -51,6 +51,7 @@ std = [
     "burn-tensor/std",
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
+    "tracing/std",
 ]
 
 template = []
@@ -74,7 +75,7 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
 ] }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }

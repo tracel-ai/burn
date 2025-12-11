@@ -81,7 +81,7 @@ pub enum TracingMode {
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    /// Supress verbose output.
+    /// Suppress verbose output.
     #[arg(long, action = clap::ArgAction::Set, default_value = None)]
     pub quiet: Option<bool>,
 
