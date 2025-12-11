@@ -465,7 +465,9 @@ fn create_external_data_ref(
         ))
     })?;
 
-    let file_path = external_info.resolve_path(base);
+    let file_path = external_info
+        .resolve_path(base)
+        .map_err(ParseError::VariantNotFound)?;
 
     // Calculate the length if not specified
     // When length is not provided, we need to calculate it from shape and dtype
