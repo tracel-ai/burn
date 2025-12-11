@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate derive_new;
 
+mod external_data;
 mod graph_state;
 pub mod ir;
 pub mod node;

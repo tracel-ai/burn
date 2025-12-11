@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
@@ -7,9 +8,11 @@ use super::ir::{
 };
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
-    attribute_proto::AttributeType, tensor_proto::DataType as DT,
+    attribute_proto::AttributeType,
+    tensor_proto::{DataLocation, DataType as DT},
     tensor_shape_proto::dimension::Value,
 };
+use crate::external_data::ExternalDataInfo;
 use crate::tensor_store::TensorDataRef;
 
 use burn_tensor::DType;
@@ -102,11 +105,15 @@ pub fn element_type_from_proto(dt_i32: i32) -> Result<DType, String> {
         DT::FLOAT => Ok(DType::F32),
         DT::DOUBLE => Ok(DType::F64),
         DT::FLOAT16 => Ok(DType::F16),
+        DT::BFLOAT16 => Ok(DType::BF16),
         DT::INT64 => Ok(DType::I64),
         DT::INT32 => Ok(DType::I32),
+        DT::INT16 => Ok(DType::I16),
+        DT::INT8 => Ok(DType::I8),
+        DT::UINT64 => Ok(DType::U64),
+        DT::UINT32 => Ok(DType::U32),
         DT::UINT16 => Ok(DType::U16),
         DT::UINT8 => Ok(DType::U8),
-        DT::INT8 => Ok(DType::I8),
         DT::BOOL => Ok(DType::Bool),
         DT::STRING => Err("String tensors not supported".to_string()),
         other => Err(format!("unsupported dtype {:?}", other)),
@@ -258,15 +265,30 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
 /// This is the preferred path for mmap loading - it creates TensorDataRef directly
 /// from the TensorProto without going through TensorData, avoiding unnecessary copies.
 /// The tensor bytes remain as references to the mmap'd buffer until actually accessed.
+///
+/// For external data support, pass the base_path (directory containing the ONNX file).
+/// External tensor data will be loaded lazily when the TensorDataRef is accessed.
+#[allow(dead_code)]
 pub fn argument_from_initializer_lazy(
     initializer: TensorProto,
+) -> Result<(Argument, TensorDataRef), ParseError> {
+    argument_from_initializer_lazy_with_context(initializer, None)
+}
+
+/// Create an Argument and TensorDataRef with optional base_path for external data
+///
+/// When `base_path` is provided, external data tensors (data_location == EXTERNAL)
+/// will be resolved relative to that directory and loaded lazily.
+pub fn argument_from_initializer_lazy_with_context(
+    initializer: TensorProto,
+    base_path: Option<&Path>,
 ) -> Result<(Argument, TensorDataRef), ParseError> {
     use crate::ir::ValueSource;
 
     let name = initializer.name.clone();
 
-    // Try to create TensorDataRef directly (zero-copy for raw_data)
-    let data_ref = TensorDataRef::try_from(initializer)?;
+    // Try to create TensorDataRef directly (zero-copy for raw_data, lazy for external)
+    let data_ref = tensor_data_ref_from_proto(initializer, base_path)?;
 
     let arg = if data_ref.shape().is_empty() {
         // rank-0 (scalar)
@@ -296,65 +318,181 @@ pub fn argument_from_initializer_lazy(
 ///
 /// This stores raw bytes directly without copying, deferring conversion
 /// to TensorData until the data is actually accessed.
+///
+/// Note: This does NOT support external data (data_location == EXTERNAL).
+/// Use `tensor_data_ref_from_proto` with a base_path for external data support.
 impl TryFrom<TensorProto> for TensorDataRef {
     type Error = ParseError;
 
     fn try_from(tensor: TensorProto) -> Result<TensorDataRef, Self::Error> {
-        let shape = convert_shape(tensor.dims);
-        let elem =
-            element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
-
-        // Use raw_data directly when available (zero-copy from mmap)
-        // Note: For Bool, raw bytes are stored as u8 (0 or 1) and will be reinterpreted
-        // as bool during to_tensor_data(). TensorData::as_slice handles this via transmute.
-        if !tensor.raw_data.is_empty() {
-            match elem {
-                DType::F32
-                | DType::F64
-                | DType::F16
-                | DType::I32
-                | DType::I64
-                | DType::U16
-                | DType::U8
-                | DType::I8
-                | DType::Bool => Ok(TensorDataRef::new(tensor.raw_data, shape, elem)),
-                _ => Err(ParseError::VariantNotFound(format!(
-                    "Unsupported dtype {:?}",
-                    elem
-                ))),
-            }
-        } else {
-            // Convert typed fields to bytes
-            let raw_bytes = match elem {
-                DType::F32 => vec_to_bytes(&tensor.float_data),
-                DType::F64 => vec_to_bytes(&tensor.double_data),
-                DType::I32 => vec_to_bytes(&tensor.int32_data),
-                DType::I64 => vec_to_bytes(&tensor.int64_data),
-                DType::Bool => {
-                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| (x != 0) as u8).collect();
-                    bytes::Bytes::from(data)
-                }
-                DType::U8 => {
-                    let data: Vec<u8> = tensor.int32_data.iter().map(|&x| x as u8).collect();
-                    bytes::Bytes::from(data)
-                }
-                DType::I8 => {
-                    // Convert i32 to i8 first, then get bytes via bytemuck for clarity
-                    let data: Vec<i8> = tensor.int32_data.iter().map(|&x| x as i8).collect();
-                    vec_to_bytes(&data)
-                }
-                DType::F16 => bytes::Bytes::new(), // Empty
-                DType::U16 => bytes::Bytes::new(), // Empty
-                _ => {
-                    return Err(ParseError::VariantNotFound(format!(
-                        "empty/unsupported payload for {:?}",
-                        elem
-                    )));
-                }
-            };
-            Ok(TensorDataRef::new(raw_bytes, shape, elem))
-        }
+        tensor_data_ref_from_proto(tensor, None)
     }
+}
+
+/// Convert TensorProto to TensorDataRef with optional external data support
+///
+/// This is the main conversion function that handles:
+/// - Embedded data (raw_data or type-specific fields) - zero-copy from mmap
+/// - External data (data_location == EXTERNAL) - lazy loading from external file
+///
+/// # Arguments
+/// * `tensor` - The TensorProto to convert
+/// * `base_path` - Optional base directory for resolving external data paths.
+///   Required when tensor.data_location == EXTERNAL.
+pub fn tensor_data_ref_from_proto(
+    tensor: TensorProto,
+    base_path: Option<&Path>,
+) -> Result<TensorDataRef, ParseError> {
+    let shape = convert_shape(tensor.dims.clone());
+    let elem = element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
+
+    // Check if this tensor uses external data storage
+    if tensor.data_location.enum_value() == Ok(DataLocation::EXTERNAL) {
+        return create_external_data_ref(&tensor, base_path, shape, elem);
+    }
+
+    // Embedded data path: use raw_data directly when available (zero-copy from mmap)
+    // Note: For Bool, raw bytes are stored as u8 (0 or 1) and will be reinterpreted
+    // as bool during to_tensor_data(). TensorData::as_slice handles this via transmute.
+    if !tensor.raw_data.is_empty() {
+        match elem {
+            DType::F32
+            | DType::F64
+            | DType::F16
+            | DType::BF16
+            | DType::I64
+            | DType::I32
+            | DType::I16
+            | DType::I8
+            | DType::U64
+            | DType::U32
+            | DType::U16
+            | DType::U8
+            | DType::Bool => Ok(TensorDataRef::new(tensor.raw_data, shape, elem)),
+            _ => Err(ParseError::VariantNotFound(format!(
+                "Unsupported dtype {:?}",
+                elem
+            ))),
+        }
+    } else {
+        // Convert typed fields to bytes
+        // Per ONNX spec:
+        // - int32_data: INT32, INT16, INT8, UINT16, UINT8, BOOL, FLOAT16, BFLOAT16
+        // - int64_data: INT64
+        // - uint64_data: UINT32, UINT64
+        // - float_data: FLOAT
+        // - double_data: DOUBLE
+        let raw_bytes = match elem {
+            DType::F32 => vec_to_bytes(&tensor.float_data),
+            DType::F64 => vec_to_bytes(&tensor.double_data),
+            DType::I64 => vec_to_bytes(&tensor.int64_data),
+            DType::I32 => vec_to_bytes(&tensor.int32_data),
+            DType::I16 => {
+                let data: Vec<i16> = tensor.int32_data.iter().map(|&x| x as i16).collect();
+                vec_to_bytes(&data)
+            }
+            DType::I8 => {
+                let data: Vec<i8> = tensor.int32_data.iter().map(|&x| x as i8).collect();
+                vec_to_bytes(&data)
+            }
+            DType::U64 => vec_to_bytes(&tensor.uint64_data),
+            DType::U32 => {
+                let data: Vec<u32> = tensor.uint64_data.iter().map(|&x| x as u32).collect();
+                vec_to_bytes(&data)
+            }
+            DType::U16 => {
+                let data: Vec<u16> = tensor.int32_data.iter().map(|&x| x as u16).collect();
+                vec_to_bytes(&data)
+            }
+            DType::U8 => {
+                let data: Vec<u8> = tensor.int32_data.iter().map(|&x| x as u8).collect();
+                bytes::Bytes::from(data)
+            }
+            DType::Bool => {
+                let data: Vec<u8> = tensor.int32_data.iter().map(|&x| (x != 0) as u8).collect();
+                bytes::Bytes::from(data)
+            }
+            DType::F16 => {
+                // F16 stored as u16 bits in int32_data
+                let data: Vec<u16> = tensor.int32_data.iter().map(|&x| x as u16).collect();
+                vec_to_bytes(&data)
+            }
+            DType::BF16 => {
+                // BF16 stored as u16 bits in int32_data
+                let data: Vec<u16> = tensor.int32_data.iter().map(|&x| x as u16).collect();
+                vec_to_bytes(&data)
+            }
+            _ => {
+                return Err(ParseError::VariantNotFound(format!(
+                    "empty/unsupported payload for {:?}",
+                    elem
+                )));
+            }
+        };
+        Ok(TensorDataRef::new(raw_bytes, shape, elem))
+    }
+}
+
+/// Create a TensorDataRef for externally stored tensor data
+///
+/// Parses the external_data field and creates a lazy reference that will
+/// load from the external file when accessed.
+fn create_external_data_ref(
+    tensor: &TensorProto,
+    base_path: Option<&Path>,
+    shape: Vec<usize>,
+    dtype: DType,
+) -> Result<TensorDataRef, ParseError> {
+    // Parse external_data key-value pairs
+    let entries = tensor
+        .external_data
+        .iter()
+        .map(|e| (e.key.as_str(), e.value.as_str()));
+
+    let external_info = ExternalDataInfo::from_proto_entries(entries).map_err(|e| {
+        ParseError::VariantNotFound(format!(
+            "Failed to parse external_data for tensor '{}': {}",
+            tensor.name, e
+        ))
+    })?;
+
+    // Resolve the external file path
+    let base = base_path.ok_or_else(|| {
+        ParseError::VariantNotFound(format!(
+            "Tensor '{}' uses external data but no base_path provided. \
+             External data requires loading from a file path, not bytes.",
+            tensor.name
+        ))
+    })?;
+
+    let file_path = external_info.resolve_path(base);
+
+    // Calculate the length if not specified
+    // When length is not provided, we need to calculate it from shape and dtype
+    let length = external_info.length.unwrap_or_else(|| {
+        let num_elements: usize = if shape.is_empty() {
+            1 // scalar
+        } else {
+            shape.iter().product()
+        };
+        (num_elements * dtype.size()) as u64
+    });
+
+    log::debug!(
+        "Creating external data ref for '{}': file={}, offset={}, length={}",
+        tensor.name,
+        file_path.display(),
+        external_info.offset,
+        length
+    );
+
+    Ok(TensorDataRef::new_external(
+        file_path,
+        external_info.offset,
+        length,
+        shape,
+        dtype,
+    ))
 }
 
 /// Helper to convert a Vec of POD elements to bytes::Bytes
@@ -689,10 +827,13 @@ pub fn extract_node_outer_scope_references(
 ///
 /// If parent_registry is provided, it will be used to ensure unique names across nested subgraphs.
 /// Otherwise, a new registry is created for sibling subgraphs.
+///
+/// The `base_path` is inherited from the parent graph for external data resolution.
 pub fn convert_graph_attributes(
     node_proto: &NodeProto,
     opset_version: usize,
     parent_registry: Option<crate::graph_state::NameRegistry>,
+    base_path: Option<&Path>,
 ) -> Attributes {
     use crate::ir::DeferredGraph;
     use std::sync::Arc;
@@ -713,6 +854,7 @@ pub fn convert_graph_attributes(
                             proto: Arc::new(graph_proto.clone()),
                             opset_version,
                             name_registry: Some(name_registry.clone()),
+                            base_path: base_path.map(|p| p.to_path_buf()),
                         };
                         result.insert(attr.name.clone(), AttributeValue::DeferredGraph(deferred));
                     }
@@ -725,6 +867,7 @@ pub fn convert_graph_attributes(
                             proto: Arc::new(graph_proto.clone()),
                             opset_version,
                             name_registry: Some(name_registry.clone()),
+                            base_path: base_path.map(|p| p.to_path_buf()),
                         })
                         .collect();
                     result.insert(
