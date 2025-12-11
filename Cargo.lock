@@ -643,6 +643,8 @@ dependencies = [
  "burn-train",
  "burn-wgpu",
  "cubecl",
+ "tracing",
+ "tracing-core",
 ]
 
 [[package]]

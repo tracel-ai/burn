@@ -46,7 +46,7 @@ regex = { workspace = true, features = ["default"] }
 rust-format = { workspace = true, features = ["pretty_please", "post_process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }
-tracing-core = { workspace = true, features = ["default"] }
+tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"] }
 syn = { workspace = true, features = ["parsing"] }
 thiserror = { workspace = true, optional = true }
