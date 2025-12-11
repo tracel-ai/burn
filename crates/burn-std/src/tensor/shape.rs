@@ -1,6 +1,12 @@
 //! Tensor shape definition.
 
+#[allow(unused_imports)]
+use alloc::format;
+use alloc::string::String;
+use alloc::string::ToString;
 use alloc::vec::Vec;
+use core::fmt::{Debug, Display, Formatter};
+use core::str::FromStr;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
     slice::{Iter, IterMut, SliceIndex},
@@ -35,6 +41,26 @@ pub enum ShapeError {
     IncompatibleShapes { left: Shape, right: Shape },
     /// Invalid empty shape.
     Empty,
+}
+
+/// Shape Expression Error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShapeExpressionError {
+    /// Parse Error.
+    ParseError {
+        /// The error message.
+        message: String,
+        /// The source expression.
+        source: String,
+    },
+
+    /// Invalid Expression.
+    InvalidExpression {
+        /// The error message.
+        message: String,
+        /// The source expression.
+        source: String,
+    },
 }
 
 impl Shape {
@@ -442,6 +468,59 @@ pub fn calculate_matmul_output(lhs: &Shape, rhs: &Shape) -> Result<Shape, ShapeE
     Ok(shape)
 }
 
+impl Display for Shape {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.dims.fmt(f)
+    }
+}
+
+impl FromStr for Shape {
+    type Err = ShapeExpressionError;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        let mut s = source.trim();
+
+        const DELIMS: [(&str, &str); 2] = [("[", "]"), ("(", ")")];
+
+        for (open, close) in DELIMS {
+            if let Some(p) = s.strip_prefix(open) {
+                if let Some(p) = p.strip_suffix(close) {
+                    s = p.trim();
+                    break;
+                } else {
+                    return Err(ShapeExpressionError::ParseError {
+                        message: "Unbalanced delimiters".to_string(),
+                        source: source.to_string(),
+                    });
+                }
+            }
+        }
+
+        if s.is_empty() {
+            return Ok(Shape::new([]));
+        }
+
+        let dims = s
+            .split(',')
+            .map(|dim_str| {
+                dim_str
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|_| ShapeExpressionError::ParseError {
+                        message: "Unable to parse shape".to_string(),
+                        source: source.to_string(),
+                    })
+            })
+            .collect::<Result<Vec<usize>, ShapeExpressionError>>()?;
+
+        if dims.is_empty() {
+            unreachable!("Split should have returned at least one element");
+        }
+
+        Ok(Shape { dims })
+    }
+}
+
 impl IntoIterator for Shape {
     type Item = usize;
     type IntoIter = alloc::vec::IntoIter<Self::Item>;
@@ -557,7 +636,83 @@ impl From<Shape> for Vec<usize> {
 mod tests {
     use super::*;
     use crate::s;
+    use alloc::string::ToString;
     use alloc::vec;
+
+    #[test]
+    fn test_shape_to_str() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        assert_eq!(shape.to_string(), "[2, 3, 4, 5]");
+    }
+
+    #[test]
+    fn test_shape_from_str() {
+        assert_eq!(
+            "[2, 3, 4, 5]".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+        assert_eq!(
+            "(2, 3, 4, 5)".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+        assert_eq!(
+            "2, 3, 4, 5".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+
+        assert_eq!("[2]".parse::<Shape>().unwrap(), Shape::new([2]));
+        assert_eq!("(2)".parse::<Shape>().unwrap(), Shape::new([2]));
+        assert_eq!("2".parse::<Shape>().unwrap(), Shape::new([2]));
+
+        assert_eq!("[]".parse::<Shape>().unwrap(), Shape::new([]));
+        assert_eq!("".parse::<Shape>().unwrap(), Shape::new([]));
+
+        assert_eq!(
+            "[".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unbalanced delimiters".to_string(),
+                source: "[".to_string()
+            })
+        );
+
+        assert_eq!(
+            "[[1]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[[1]".to_string()
+            })
+        );
+        assert_eq!(
+            "[[1]]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[[1]]".to_string()
+            })
+        );
+        assert_eq!(
+            "[1)".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unbalanced delimiters".to_string(),
+                source: "[1)".to_string()
+            })
+        );
+
+        assert_eq!(
+            "]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "]".to_string()
+            })
+        );
+
+        assert_eq!(
+            "[a]".parse::<Shape>(),
+            Err(ShapeExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[a]".to_string()
+            })
+        );
+    }
 
     #[test]
     fn num_dims_and_rank() {

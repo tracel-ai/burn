@@ -92,15 +92,11 @@ impl NodeProcessor for GatherProcessor {
         // TODO: Validate indices tensor type is int32 or int64 per ONNX spec - Missing type constraint validation
 
         // Extract the input rank for axis normalization
+        // Scalar inputs have effective rank 1 (single element that can be gathered)
         let input_dim = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
             ArgType::Shape(shape_rank) => *shape_rank as i64,
-            other => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor or Shape".to_string(),
-                    actual: format!("{:?}", other),
-                });
-            }
+            ArgType::Scalar(_) => 1, // Scalar is treated as single-element container
         };
 
         // Extract the axis attribute (default: 0 per ONNX spec)
@@ -175,11 +171,10 @@ impl NodeProcessor for GatherProcessor {
                     node.outputs[0].ty = ArgType::Shape(output_shape_rank);
                 }
             }
-            ty => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor or Shape".to_string(),
-                    actual: format!("{:?}", ty),
-                });
+            ArgType::Scalar(dtype) => {
+                // Gathering from a scalar - there's only one element, so output is always scalar
+                // This handles cases like Reshape(scalar, [-1]) -> Scalar followed by Gather
+                node.outputs[0].ty = ArgType::Scalar(*dtype);
             }
         }
 
@@ -188,15 +183,11 @@ impl NodeProcessor for GatherProcessor {
 
     fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the input rank for axis normalization
+        // Scalar inputs have effective rank 1 (single element that can be gathered)
         let input_dim = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
             ArgType::Shape(shape_rank) => *shape_rank as i64,
-            other => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor or Shape".to_string(),
-                    actual: format!("{:?}", other),
-                });
-            }
+            ArgType::Scalar(_) => 1, // Scalar is treated as single-element container
         };
 
         // Extract the axis attribute (default: 0 per ONNX spec)
@@ -474,6 +465,34 @@ mod tests {
                 assert_eq!(*rank, 1, "Expected Shape(1) output for 1D tensor indices");
             }
             other => panic!("Expected Shape(1) output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_scalar_input() {
+        // Test gather with scalar input - output should remain scalar
+        // This tests the Reshape(scalar, [-1]) -> Scalar optimization path
+        let mut node = TestNodeBuilder::new(NodeType::Gather, "test_gather_scalar")
+            .attr_int("axis", 0)
+            .add_input("data", ArgType::Scalar(crate::ir::DType::I64)) // Scalar input
+            .add_input("indices", ArgType::Scalar(crate::ir::DType::I64)) // Scalar indices
+            .add_output(
+                "output",
+                ArgType::Tensor(TensorType::new(crate::ir::DType::I64, 1, None)),
+            ) // Will be updated
+            .build();
+
+        let processor = GatherProcessor;
+        let prefs = OutputPreferences::new();
+        let _config = processor.extract_config(&node, 16).unwrap();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Should output scalar when input is scalar
+        match &node.outputs[0].ty {
+            ArgType::Scalar(dtype) => {
+                assert_eq!(*dtype, crate::ir::DType::I64);
+            }
+            other => panic!("Expected Scalar output, got {:?}", other),
         }
     }
 
