@@ -55,27 +55,27 @@ mod basic_tests {
         assert!(store.validate);
         assert!(!store.allow_partial);
         assert!(store.top_level_key.is_none());
-        // Contiguous reindexing is enabled by default for PyTorch files
-        assert!(store.contiguous_reindex);
+        // Contiguous index mapping is enabled by default for PyTorch files
+        assert!(store.map_indices_contiguous);
     }
 
     #[test]
-    fn test_store_contiguous_reindex_default() {
-        // Verify that contiguous_reindex is enabled by default
+    fn test_store_map_indices_contiguous_default() {
+        // Verify that map_indices_contiguous is enabled by default
         let store = PytorchStore::from_file("model.pth");
         assert!(
-            store.contiguous_reindex,
-            "contiguous_reindex should be enabled by default"
+            store.map_indices_contiguous,
+            "map_indices_contiguous should be enabled by default"
         );
     }
 
     #[test]
-    fn test_store_contiguous_reindex_disabled() {
-        // Verify that we can disable contiguous_reindex
-        let store = PytorchStore::from_file("model.pth").contiguous_reindex(false);
+    fn test_store_map_indices_contiguous_disabled() {
+        // Verify that we can disable map_indices_contiguous
+        let store = PytorchStore::from_file("model.pth").map_indices_contiguous(false);
         assert!(
-            !store.contiguous_reindex,
-            "contiguous_reindex should be disabled after explicit call"
+            !store.map_indices_contiguous,
+            "map_indices_contiguous should be disabled after explicit call"
         );
     }
 
@@ -981,9 +981,9 @@ mod direct_access_tests {
     }
 }
 
-/// Tests for contiguous reindexing feature
+/// Tests for contiguous index mapping feature
 #[cfg(test)]
-mod contiguous_reindex_tests {
+mod map_indices_contiguous_tests {
     use super::*;
     type TestBackend = burn_ndarray::NdArray;
 
@@ -1008,7 +1008,7 @@ mod contiguous_reindex_tests {
     }
 
     #[test]
-    fn test_load_non_contiguous_indexes_with_reindex() {
+    fn test_load_non_contiguous_indexes_with_mapping() {
         // This test uses the non_contiguous_indexes.pt file which has:
         // fc.0.weight, fc.0.bias, fc.2.weight, fc.2.bias, fc.4.weight, ... (non-contiguous)
         // The Burn model expects fc.0, fc.1, fc.2, ... (contiguous)
@@ -1025,9 +1025,9 @@ mod contiguous_reindex_tests {
         // Create model with 5 conv layers (matching the PyTorch model)
         let mut model = SequentialConvModel::<TestBackend>::new(&device, 5);
 
-        // Load with contiguous reindexing enabled (default)
+        // Load with contiguous index mapping enabled (default)
         let mut store = PytorchStore::from_file(&path)
-            .contiguous_reindex(true)
+            .map_indices_contiguous(true)
             .allow_partial(true)
             .validate(false);
 
@@ -1046,7 +1046,7 @@ mod contiguous_reindex_tests {
                 );
 
                 // Verify we have tensors from all 5 layers
-                // With reindexing: fc.0, fc.1, fc.2, fc.3, fc.4
+                // With mapping: fc.0, fc.1, fc.2, fc.3, fc.4
                 for i in 0..5 {
                     let has_weight = apply_result
                         .applied
@@ -1077,18 +1077,18 @@ mod contiguous_reindex_tests {
                     .collect();
                 assert!(
                     missing_fc.is_empty(),
-                    "Should have no missing fc tensors with reindexing. Missing: {:?}",
+                    "Should have no missing fc tensors with index mapping. Missing: {:?}",
                     missing_fc
                 );
             }
-            Err(e) => panic!("Failed to load with reindexing: {}", e),
+            Err(e) => panic!("Failed to load with index mapping: {}", e),
         }
     }
 
     #[test]
-    fn test_load_non_contiguous_indexes_without_reindex() {
+    fn test_load_non_contiguous_indexes_without_mapping() {
         // This test verifies that loading fails or has missing tensors when
-        // contiguous_reindex is disabled
+        // map_indices_contiguous is disabled
 
         let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
 
@@ -1102,9 +1102,9 @@ mod contiguous_reindex_tests {
         // Create model with 5 conv layers
         let mut model = SequentialConvModel::<TestBackend>::new(&device, 5);
 
-        // Load with contiguous reindexing DISABLED
+        // Load with contiguous index mapping DISABLED
         let mut store = PytorchStore::from_file(&path)
-            .contiguous_reindex(false) // Disable reindexing
+            .map_indices_contiguous(false) // Disable index mapping
             .allow_partial(true)
             .validate(false);
 
@@ -1113,15 +1113,15 @@ mod contiguous_reindex_tests {
         match result {
             Ok(apply_result) => {
                 println!(
-                    "Without reindexing - Applied tensors: {:?}",
+                    "Without index mapping - Applied tensors: {:?}",
                     apply_result.applied
                 );
                 println!(
-                    "Without reindexing - Missing tensors: {:?}",
+                    "Without index mapping - Missing tensors: {:?}",
                     apply_result.missing
                 );
 
-                // Without reindexing, we should have missing tensors for fc.1, fc.3
+                // Without index mapping, we should have missing tensors for fc.1, fc.3
                 // because the source has fc.0, fc.2, fc.4, fc.6, fc.8 but model expects fc.0-4
                 let missing_fc: Vec<_> = apply_result
                     .missing
@@ -1131,7 +1131,7 @@ mod contiguous_reindex_tests {
 
                 assert!(
                     !missing_fc.is_empty(),
-                    "Should have missing fc tensors without reindexing (indices 1, 3 don't exist in file)"
+                    "Should have missing fc tensors without index mapping (indices 1, 3 don't exist in file)"
                 );
 
                 // Specifically, fc.1 and fc.3 should be missing
@@ -1155,8 +1155,8 @@ mod contiguous_reindex_tests {
     }
 
     #[test]
-    fn test_reindex_applied_to_keys() {
-        // Verify that the keys returned by the store are reindexed
+    fn test_mapping_applied_to_keys() {
+        // Verify that the keys returned by the store are mapped
         let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
 
         if !path.exists() {
@@ -1164,40 +1164,40 @@ mod contiguous_reindex_tests {
             return;
         }
 
-        // With reindexing enabled (default)
-        let mut store_reindex = PytorchStore::from_file(&path).contiguous_reindex(true);
+        // With index mapping enabled (default)
+        let mut store_mapped = PytorchStore::from_file(&path).map_indices_contiguous(true);
 
-        let keys_reindex = store_reindex.keys().unwrap();
-        println!("Keys with reindexing: {:?}", keys_reindex);
+        let keys_mapped = store_mapped.keys().unwrap();
+        println!("Keys with index mapping: {:?}", keys_mapped);
 
         // Should have contiguous keys: fc.0, fc.1, fc.2, fc.3, fc.4
         assert!(
-            keys_reindex.iter().any(|k| k.starts_with("fc.1.")),
-            "With reindexing, should have fc.1 (from fc.2)"
+            keys_mapped.iter().any(|k| k.starts_with("fc.1.")),
+            "With index mapping, should have fc.1 (from fc.2)"
         );
         assert!(
-            keys_reindex.iter().any(|k| k.starts_with("fc.2.")),
-            "With reindexing, should have fc.2 (from fc.4)"
+            keys_mapped.iter().any(|k| k.starts_with("fc.2.")),
+            "With index mapping, should have fc.2 (from fc.4)"
         );
 
-        // Without reindexing
-        let mut store_no_reindex = PytorchStore::from_file(&path).contiguous_reindex(false);
+        // Without index mapping
+        let mut store_no_mapping = PytorchStore::from_file(&path).map_indices_contiguous(false);
 
-        let keys_no_reindex = store_no_reindex.keys().unwrap();
-        println!("Keys without reindexing: {:?}", keys_no_reindex);
+        let keys_no_mapping = store_no_mapping.keys().unwrap();
+        println!("Keys without index mapping: {:?}", keys_no_mapping);
 
         // Should have original non-contiguous keys: fc.0, fc.2, fc.4, fc.6, fc.8
         assert!(
-            keys_no_reindex.iter().any(|k| k.starts_with("fc.2.")),
-            "Without reindexing, should have original fc.2"
+            keys_no_mapping.iter().any(|k| k.starts_with("fc.2.")),
+            "Without index mapping, should have original fc.2"
         );
         assert!(
-            keys_no_reindex.iter().any(|k| k.starts_with("fc.4.")),
-            "Without reindexing, should have original fc.4"
+            keys_no_mapping.iter().any(|k| k.starts_with("fc.4.")),
+            "Without index mapping, should have original fc.4"
         );
         assert!(
-            !keys_no_reindex.iter().any(|k| k.starts_with("fc.1.")),
-            "Without reindexing, should NOT have fc.1 (not in original file)"
+            !keys_no_mapping.iter().any(|k| k.starts_with("fc.1.")),
+            "Without index mapping, should NOT have fc.1 (not in original file)"
         );
     }
 }

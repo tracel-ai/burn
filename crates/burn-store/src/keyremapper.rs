@@ -178,7 +178,7 @@ impl KeyRemapper {
     }
 }
 
-/// Reindex tensor paths to have contiguous numeric indices.
+/// Map tensor paths to have contiguous numeric indices.
 ///
 /// This function detects numeric indices in tensor paths and renumbers them
 /// to be contiguous (0, 1, 2, ...) while preserving their relative order.
@@ -201,14 +201,14 @@ impl KeyRemapper {
 ///
 /// # Arguments
 ///
-/// * `tensors` - Vec of TensorSnapshots to reindex
+/// * `tensors` - Vec of TensorSnapshots to map
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// * The reindexed Vec of TensorSnapshots with updated paths
+/// * The mapped Vec of TensorSnapshots with updated paths
 /// * A vector of (new_path, original_path) showing the transformations
-pub fn reindex_contiguous(
+pub fn map_indices_contiguous(
     mut tensors: Vec<TensorSnapshot>,
 ) -> (Vec<TensorSnapshot>, Vec<(String, String)>) {
     if tensors.is_empty() {
@@ -451,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reindex_contiguous_basic() {
+    fn test_map_indices_contiguous_basic() {
         // Simulate PyTorch nn.Sequential with Conv2d (0, 2, 4) and ReLU (1, 3, 5)
         // Only Conv2d layers have parameters
         let tensors = vec![
@@ -463,7 +463,7 @@ mod tests {
             create_test_tensor_snapshot("fc.4.bias"),
         ];
 
-        let (reindexed, transformations) = reindex_contiguous(tensors);
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
 
         // Check that indices are now contiguous
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
@@ -489,7 +489,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reindex_contiguous_already_contiguous() {
+    fn test_map_indices_contiguous_already_contiguous() {
         // Already contiguous indices should remain unchanged
         let tensors = vec![
             create_test_tensor_snapshot("fc.0.weight"),
@@ -497,7 +497,7 @@ mod tests {
             create_test_tensor_snapshot("fc.2.weight"),
         ];
 
-        let (reindexed, transformations) = reindex_contiguous(tensors);
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
 
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.weight"));
@@ -511,8 +511,8 @@ mod tests {
     }
 
     #[test]
-    fn test_reindex_contiguous_multiple_prefixes() {
-        // Different prefixes should be reindexed independently
+    fn test_map_indices_contiguous_multiple_prefixes() {
+        // Different prefixes should be mapped independently
         let tensors = vec![
             create_test_tensor_snapshot("encoder.0.weight"),
             create_test_tensor_snapshot("encoder.2.weight"),
@@ -520,7 +520,7 @@ mod tests {
             create_test_tensor_snapshot("decoder.5.weight"),
         ];
 
-        let (reindexed, _) = reindex_contiguous(tensors);
+        let (reindexed, _) = map_indices_contiguous(tensors);
 
         // encoder: 0, 2 -> 0, 1
         assert!(
@@ -548,14 +548,14 @@ mod tests {
     }
 
     #[test]
-    fn test_reindex_contiguous_no_indices() {
+    fn test_map_indices_contiguous_no_indices() {
         // Paths without indices should remain unchanged
         let tensors = vec![
             create_test_tensor_snapshot("encoder.weight"),
             create_test_tensor_snapshot("decoder.bias"),
         ];
 
-        let (reindexed, transformations) = reindex_contiguous(tensors);
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
 
         assert!(reindexed.iter().any(|v| v.full_path() == "encoder.weight"));
         assert!(reindexed.iter().any(|v| v.full_path() == "decoder.bias"));
@@ -566,16 +566,16 @@ mod tests {
     }
 
     #[test]
-    fn test_reindex_contiguous_empty() {
+    fn test_map_indices_contiguous_empty() {
         let tensors: Vec<TensorSnapshot> = vec![];
-        let (reindexed, transformations) = reindex_contiguous(tensors);
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
 
         assert!(reindexed.is_empty());
         assert!(transformations.is_empty());
     }
 
     #[test]
-    fn test_reindex_contiguous_mixed_indexed_and_non_indexed() {
+    fn test_map_indices_contiguous_mixed_indexed_and_non_indexed() {
         // Mix of indexed and non-indexed paths
         let tensors = vec![
             create_test_tensor_snapshot("fc.0.weight"),
@@ -583,7 +583,7 @@ mod tests {
             create_test_tensor_snapshot("output.weight"), // no index
         ];
 
-        let (reindexed, _) = reindex_contiguous(tensors);
+        let (reindexed, _) = map_indices_contiguous(tensors);
 
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
         assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.weight")); // 2 -> 1
