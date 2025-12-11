@@ -69,6 +69,8 @@ std = [
     "burn-store?/std",
     "burn-nn/std",
     "burn-optim/std",
+    "tracing/default",
+    "tracing-core/default",
 ]
 
 network = ["burn-core/network"]
@@ -161,6 +163,9 @@ burn-collective = { path = "../burn-collective", version = "=0.20.0-pre.5", opti
 burn-store = { path = "../burn-store", version = "=0.20.0-pre.5", optional = true, default-features = false }
 burn-nn = { path = "../burn-nn", version = "=0.20.0-pre.5", default-features = false }
 burn-optim = { path = "../burn-optim", version = "=0.20.0-pre.5", default-features = false }
+
+tracing = { workspace = true, features = ["attributes"] }
+tracing-core = { workspace = true }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.5", optional = true, default-features = false }

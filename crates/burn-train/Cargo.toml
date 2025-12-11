@@ -35,7 +35,7 @@ burn-collective = { path = "../burn-collective", version = "=0.20.0-pre.5", opti
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
-tracing-core = { workspace = true, features = ["default"] }
+tracing-core = { workspace = true }
 
 # System Metrics
 nvml-wrapper = { workspace = true, optional = true }
