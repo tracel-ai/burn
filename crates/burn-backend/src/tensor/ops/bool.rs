@@ -163,6 +163,14 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_not_equal(lhs, rhs)
     }
 
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::bool_equal_elem(lhs, rhs)
+    }
+
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::bool_not_equal_elem(lhs, rhs)
+    }
+
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
         B::bool_cat(vectors, dim)
     }

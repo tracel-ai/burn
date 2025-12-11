@@ -5,8 +5,8 @@ use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
-    PermuteOpIr, RepeatDimOpIr, ScalarIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{Device, Element, IndexingUpdateOp, Shape, Slice, TensorData};
@@ -313,6 +313,21 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
+    fn bool_equal_elem(
+        lhs: BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::EqualElem(desc)))
             .output()
     }
 }

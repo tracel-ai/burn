@@ -952,10 +952,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.lhs.dtype,
-                    NumericOperationIr::EqualElem(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::EqualElem(desc.clone())),
                 EqualElemOps::<B>::new(desc),
             )
             .output()

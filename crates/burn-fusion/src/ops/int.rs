@@ -526,10 +526,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(
-                    desc.lhs.dtype,
-                    NumericOperationIr::EqualElem(desc.clone()),
-                ),
+                OperationIr::BaseInt(BaseOperationIr::EqualElem(desc.clone())),
                 EqualElemOps::<B>::new(desc),
             )
             .output()

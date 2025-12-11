@@ -199,12 +199,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        // TODO: maybe have to convert to int <> bool for scatter_add?
         CandleTensor::new(
             tensor
                 .tensor
                 .scatter_add(&indices.tensor, &value.tensor, dim)
                 .unwrap(),
         )
+    }
+
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
+        CandleTensor::new(lhs.tensor.eq(rhs).unwrap())
     }
 }

@@ -265,6 +265,14 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_not_equal(lhs.tensor(), rhs.tensor())
     }
 
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_equal_elem(lhs.tensor(), rhs)
+    }
+
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_not_equal_elem(lhs.tensor(), rhs)
+    }
+
     fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
         B::float_any(tensor.tensor())
     }
@@ -446,12 +454,6 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::float_equal_elem(lhs.tensor(), rhs)
-    }
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::float_not_equal_elem(lhs.tensor(), rhs)
-    }
     fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
         B::float_greater(lhs.tensor(), rhs.tensor())
     }

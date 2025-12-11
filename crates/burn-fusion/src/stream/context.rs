@@ -722,11 +722,6 @@ impl RelativeOps for NumericOperationIr {
                 axis: desc.axis,
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::EqualElem(desc) => NumericOperationIr::EqualElem(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
             NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
@@ -961,6 +956,11 @@ impl RelativeOps for BaseOperationIr {
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::Equal(desc) => BaseOperationIr::Equal(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::EqualElem(desc) => BaseOperationIr::EqualElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),

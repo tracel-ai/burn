@@ -2008,6 +2008,54 @@ where
         Tensor::new(K::not_equal(self.primitive, other.primitive))
     }
 
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The element to compare.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.equal_elem(3.0);
+    ///    println!("{tensor}");
+    ///    // [[false, false, true], [false, false, false]]
+    /// }
+    /// ```
+    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        Tensor::new(K::equal_elem(self.primitive, other.elem()))
+    }
+
+    /// Applies element wise non-equality comparison and returns a boolean tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The element to compare.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.not_equal_elem(3.0);
+    ///    println!("{tensor}");
+    ///    // [[true, true, false], [true, true, true]]
+    /// }
+    /// ```
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        Tensor::new(K::not_equal_elem(self.primitive, other.elem()))
+    }
+
     /// Concatenates all tensors into a new one along the given dimension.
     ///
     /// # Panics

@@ -262,6 +262,9 @@ impl TraceOperationFuser {
             BaseOperationIr::Equal(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
             }),
+            BaseOperationIr::EqualElem(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
+            }),
             BaseOperationIr::Cast(desc) => {
                 self.fuse_unary_op(&desc.input, &desc.out, |input, out| {
                     FuseOp::Assign(UnaryFuseArgs { input, out })
@@ -557,9 +560,6 @@ impl TraceOperationFuser {
                 .fuse_scalar_ops(desc, |lhs, rhs, out| {
                     FuseOp::GreaterEqual(BinaryFuseArgs { lhs, rhs, out })
                 }),
-            NumericOperationIr::EqualElem(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
-                FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
-            }),
             NumericOperationIr::Full(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;

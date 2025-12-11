@@ -304,6 +304,12 @@ pub enum BaseOperationIr {
     Equal(BinaryOpIr),
     /// Operation corresponding to:
     ///
+    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
+    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
+    /// Bool => [equal elem](burn_tensor::ops::BoolTensorOps::bool_equal_elem).
+    EqualElem(ScalarOpIr),
+    /// Operation corresponding to:
+    ///
     /// Float => [repeat dim](burn_tensor::ops::FloatTensorOps::float_repeat_dim).
     /// Int => [repeat dim](burn_tensor::ops::IntTensorOps::int_repeat_dim).
     /// Bool => [repeat dim](burn_tensor::ops::BoolTensorOps::bool_repeat_dim).
@@ -429,11 +435,6 @@ pub enum NumericOperationIr {
     /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
     ProdDim(ReduceDimOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
-    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
-    EqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [greater](burn_tensor::ops::FloatTensorOps::float_greater).
@@ -1591,6 +1592,7 @@ impl BaseOperationIr {
             }
             BaseOperationIr::MaskFill(repr) => Box::new([&repr.tensor, &repr.mask].into_iter()),
             BaseOperationIr::Equal(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            BaseOperationIr::EqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new(repr.tensors.iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.input].into_iter()),
@@ -1617,6 +1619,7 @@ impl BaseOperationIr {
             BaseOperationIr::MaskWhere(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::MaskFill(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Equal(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::EqualElem(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.out].into_iter()),
@@ -1686,6 +1689,9 @@ impl BaseOperationIr {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
+            BaseOperationIr::EqualElem(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+            }
             BaseOperationIr::RepeatDim(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }
@@ -1722,7 +1728,6 @@ impl NumericOperationIr {
             NumericOperationIr::DivScalar(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::Rem(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             NumericOperationIr::RemScalar(repr) => Box::new([&repr.lhs].into_iter()),
-            NumericOperationIr::EqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::GreaterElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::GreaterEqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::LowerElem(repr) => Box::new([&repr.lhs].into_iter()),
@@ -1771,7 +1776,6 @@ impl NumericOperationIr {
             NumericOperationIr::DivScalar(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Rem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::RemScalar(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::EqualElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::GreaterElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::GreaterEqualElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::LowerElem(repr) => Box::new([&repr.out].into_iter()),
@@ -1848,9 +1852,6 @@ impl NumericOperationIr {
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::RemScalar(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::EqualElem(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::GreaterElem(repr) => {

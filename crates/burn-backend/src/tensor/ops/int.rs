@@ -150,6 +150,14 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_not_equal(lhs, rhs)
     }
 
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_equal_elem(lhs, rhs)
+    }
+
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_not_equal_elem(lhs, rhs)
+    }
+
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
         B::int_cat(vectors, dim)
     }
@@ -259,12 +267,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_cummax(tensor, dim)
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::int_equal_elem(lhs, rhs)
-    }
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::int_not_equal_elem(lhs, rhs)
-    }
     fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
         B::int_greater(lhs, rhs)
     }

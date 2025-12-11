@@ -200,4 +200,11 @@ where
             value.bool()
         ))
     }
+
+    fn bool_equal_elem(
+        lhs: burn_tensor::ops::BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        NdArrayBoolOps::equal_elem(lhs.bool(), rhs).into()
+    }
 }

@@ -332,6 +332,33 @@ pub trait BoolTensorOps<B: Backend> {
         B::bool_not(equal_tensor)
     }
 
+    /// Element-wise equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor with the result of the comparison.
+    fn bool_equal_elem(lhs: BoolTensor<B>, rhs: BoolElem<B>) -> BoolTensor<B>;
+
+    /// Element-wise non-equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor with the result of the comparison.
+    fn bool_not_equal_elem(lhs: BoolTensor<B>, rhs: BoolElem<B>) -> BoolTensor<B> {
+        let equal_tensor = B::bool_equal_elem(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
     /// Inverses boolean values.
     ///
     /// # Arguments

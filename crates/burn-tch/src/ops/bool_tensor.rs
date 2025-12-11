@@ -211,4 +211,11 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     ) -> burn_tensor::ops::BoolTensor<Self> {
         TchOps::scatter(dim, tensor, indices, value)
     }
+
+    fn bool_equal_elem(
+        lhs: burn_tensor::ops::BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        TchOps::equal_elem(lhs, rhs.elem::<i64>())
+    }
 }

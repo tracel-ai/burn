@@ -239,10 +239,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericInt(
-                desc.lhs.dtype,
-                NumericOperationIr::EqualElem(desc),
-            ))
+            .register(OperationIr::BaseInt(BaseOperationIr::EqualElem(desc)))
             .output()
     }
 

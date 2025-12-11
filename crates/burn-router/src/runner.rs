@@ -240,6 +240,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::Equal(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_equal)
                 }
+                BaseOperationIr::EqualElem(desc) => {
+                    scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
+                }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
@@ -382,6 +385,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 BaseOperationIr::Equal(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_equal)
+                }
+                BaseOperationIr::EqualElem(desc) => {
+                    scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
                 }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
@@ -526,6 +532,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::bool_equal(lhs, rhs);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::EqualElem(desc) => {
+                    let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
+
+                    let output = B::bool_equal_elem(lhs, desc.rhs.elem());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
 
@@ -620,9 +632,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 NumericOperationIr::ProdDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, B::float_prod_dim)
-                }
-                NumericOperationIr::EqualElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_greater)
@@ -778,9 +787,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 NumericOperationIr::ProdDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, B::int_prod_dim)
-                }
-                NumericOperationIr::EqualElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_greater)

@@ -153,4 +153,11 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     ) -> BoolTensor<Self> {
         B::bool_scatter_or(dim, tensor, indices, value)
     }
+
+    fn bool_equal_elem(
+        lhs: BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_equal_elem(lhs, rhs)
+    }
 }

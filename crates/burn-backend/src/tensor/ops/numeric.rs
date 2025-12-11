@@ -524,53 +524,6 @@ where
     #[cfg_attr(not(doc), doc = "`Tensor::cummax`")]
     /// function, which is more high-level and designed for public use.
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
-    /// Element-wise equality between two tensors.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    ///
-    /// # Returns
-    ///
-    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
-    /// corresponding elements of the input tensors are equal, and false otherwise.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For element-wise equality between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("equal_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::equal_elem`")]
-    /// function, which is more high-level and designed for public use.
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
-
-    /// Element-wise non-equality between two tensors.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    ///
-    /// # Returns
-    ///
-    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
-    /// corresponding elements of the input tensors are equal, and false otherwise.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For element-wise non-equality between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("not_equal_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::not_equal_elem`")]
-    /// function, which is more high-level and designed for public use.
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than comparison between two tensors.
     ///

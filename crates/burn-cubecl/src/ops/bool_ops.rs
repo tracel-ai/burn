@@ -192,4 +192,12 @@ where
     ) -> BoolTensor<Self> {
         kernel::scatter(dim, tensor, indices, value, true)
     }
+
+    fn bool_equal_elem(
+        lhs: BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
+        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), dtype)
+    }
 }

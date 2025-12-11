@@ -5,8 +5,8 @@ use crate::{
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
-    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr,
-    SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
+    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr,
+    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::{
     Device, Element, IndexingUpdateOp, Shape, Slice, TensorData,
@@ -819,6 +819,40 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseBool(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_equal_elem(
+        lhs: BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct EqualElemOps<B: FusionBackend> {
+            desc: ScalarOpIr,
+            _b: PhantomData<B>,
+        }
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for EqualElemOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_bool_tensor::<B>(&self.desc.lhs);
+                let output = B::bool_equal_elem(lhs, self.desc.rhs.elem());
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&lhs]);
+
+        let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::EqualElem(desc.clone())),
+                EqualElemOps::<B>::new(desc),
             )
             .output()
     }

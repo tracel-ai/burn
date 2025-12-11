@@ -1250,6 +1250,16 @@ impl NdArrayBoolOps {
             .into_shared()
     }
 
+    pub(crate) fn equal_elem(lhs: SharedArray<bool>, rhs: bool) -> SharedArray<bool> {
+        #[cfg(feature = "simd")]
+        let lhs = match try_cmp_scalar_simd::<bool, u8, VecEquals>(lhs, rhs.elem()) {
+            Ok(out) => return out,
+            Err(args) => args,
+        };
+
+        lhs.mapv(|a| a == rhs).into_shared()
+    }
+
     pub(crate) fn and(lhs: SharedArray<bool>, rhs: SharedArray<bool>) -> SharedArray<bool> {
         #[cfg(feature = "simd")]
         let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecBitAnd>(lhs, rhs) {
