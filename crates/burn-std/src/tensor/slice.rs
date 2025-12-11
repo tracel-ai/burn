@@ -19,24 +19,29 @@ pub trait SliceArg {
 
 impl<S: Into<Slice> + Clone> SliceArg for &[S] {
     fn into_slices(self, shape: &Shape) -> Vec<Slice> {
-        // TODO: should check that slice len <= shape.num_dims()
+        assert!(
+            self.len() <= shape.num_dims(),
+            "Too many slices provided for shape, got {} but expected at most {}",
+            self.len(),
+            shape.num_dims()
+        );
+
         shape
             .iter()
             .enumerate()
             .map(|(i, dim_size)| {
-                if i >= self.len() {
-                    // Full slice for that dim
+                let slice = if i >= self.len() {
                     Slice::full()
                 } else {
-                    // Apply shape clamping by converting to range and back
-                    let slice = self[i].clone().into();
-                    let clamped_range = slice.to_range(*dim_size);
-                    Slice::new(
-                        clamped_range.start as isize,
-                        Some(clamped_range.end as isize),
-                        slice.step(),
-                    )
-                }
+                    self[i].clone().into()
+                };
+                // Apply shape clamping by converting to range and back
+                let clamped_range = slice.to_range(*dim_size);
+                Slice::new(
+                    clamped_range.start as isize,
+                    Some(clamped_range.end as isize),
+                    slice.step(),
+                )
             })
             .collect::<Vec<_>>()
     }
@@ -914,8 +919,8 @@ mod tests {
         assert_eq!(slices.len(), shape.len());
 
         assert_eq!(slices[0], Slice::new(1, Some(2), 1));
-        assert_eq!(slices[1], Slice::full());
-        assert_eq!(slices[2], Slice::full());
+        assert_eq!(slices[1], Slice::new(0, Some(3), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
 
         let slice = s![1, 0..2];
         let slices = slice.into_slices(&shape);
@@ -924,6 +929,52 @@ mod tests {
 
         assert_eq!(slices[0], Slice::new(1, Some(2), 1));
         assert_eq!(slices[1], Slice::new(0, Some(2), 1));
-        assert_eq!(slices[2], Slice::full());
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+
+        let slice = s![..];
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(3), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    fn into_slices_all_dimensions() {
+        let slice = s![1, ..2, ..];
+        let shape = Shape::new([2, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    fn into_slices_supports_empty_dimensions() {
+        let slice = s![.., 1, ..];
+        let shape = Shape::new([0, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(0, Some(0), 1));
+        assert_eq!(slices[1], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    #[should_panic = "Too many slices provided for shape"]
+    fn into_slices_should_match_shape_rank() {
+        let slice = s![.., 1, ..];
+        let shape = Shape::new([3, 1]);
+
+        let _ = slice.into_slices(&shape);
     }
 }
