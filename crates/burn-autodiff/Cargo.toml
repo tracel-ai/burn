@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["dep:parking_lot"]
+std = ["dep:parking_lot", "tracing/default"]
 export_tests = [] # check checkpointer is_empty in tests
 
 [dependencies]

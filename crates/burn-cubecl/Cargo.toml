@@ -40,6 +40,7 @@ std = [
     "burn-backend/std",
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
+    "tracing/std",
 ]
 
 template = []
@@ -63,7 +64,7 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
 ] }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
 
 derive-new = { workspace = true }
 log = { workspace = true }
