@@ -110,7 +110,7 @@ tokio-tungstenite = "0.28"
 tokio-util = "0.7"
 tracing = { version = "0.1.43", default-features = false }
 tracing-appender = "0.2.3"
-tracing-core = "0.1.34"
+tracing-core = { version = "0.1.34", default-features = false }
 tracing-subscriber = "0.3.20"
 tracing-opentelemetry = "0.32.0"
 opentelemetry = "0.31.0"
