@@ -36,7 +36,8 @@ invalid_html_tags = "deny"
 atomic_float = "1"
 axum = "0.8.5"
 bytemuck = "1.24.0"
-bytes = { version = "1", default-features = false }
+# extra-platforms enables portable-atomic for targets without native atomics (e.g., thumbv7m-none-eabi)
+bytes = { version = "1", default-features = false, features = ["extra-platforms"] }
 candle-core = { version = "0.9.1" }
 ciborium = { version = "0.2", default-features = false }
 clap = { version = "4.5.48", features = ["derive"] }
