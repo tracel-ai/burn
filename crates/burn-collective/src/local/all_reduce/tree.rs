@@ -1,5 +1,5 @@
 use crate::PeerId;
-use crate::local::CollectiveTensorMap;
+use crate::local::tensor_map::CollectiveTensorMap;
 use burn_tensor::backend::{Backend, DeviceOps};
 use std::collections::HashMap;
 

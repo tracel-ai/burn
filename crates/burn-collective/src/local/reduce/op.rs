@@ -1,8 +1,9 @@
-use std::{collections::HashMap, sync::mpsc::SyncSender};
+use std::sync::mpsc::SyncSender;
 
 use burn_communication::websocket::WebSocket;
 use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
 
+use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation, ReduceStrategy,
     local::{reduce_sum_centralized, reduce_sum_tree},
@@ -44,6 +45,10 @@ impl<B: Backend> ReduceOp<B> {
         }
     }
 
+    fn peers(&self) -> Vec<PeerId> {
+        self.calls.iter().map(|c| c.caller).collect()
+    }
+
     /// Register a call to reduce in this operation.
     /// When the last caller registers a reduce, the operation is executed.
     pub fn register_call(
@@ -75,6 +80,14 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
+    #[tracing::instrument(
+        skip(self, config, global_client),
+        fields(
+            ?self.op,
+            ?self.shape,
+            self.peers = ?self.peers(),
+        )
+    )]
     pub async fn execute(
         mut self,
         root: PeerId,
@@ -84,7 +97,7 @@ impl<B: Backend> ReduceOp<B> {
         match self.reduce(config, global_client).await {
             Ok(mut result) => {
                 // Return resulting tensor to root, None to others
-                self.calls.drain(..).for_each(|op| {
+                self.calls.into_iter().for_each(|op| {
                     let msg = if op.caller == root {
                         Ok(result.take())
                     } else {
@@ -99,43 +112,38 @@ impl<B: Backend> ReduceOp<B> {
         }
     }
 
+    #[tracing::instrument(skip(self, config, global_client))]
     async fn reduce(
         &mut self,
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, WebSocket>>,
     ) -> Result<Option<B::FloatTensorPrimitive>, CollectiveError> {
-        let mut tensors = HashMap::new();
-        for op in &self.calls {
-            tensors.insert(op.caller, op.input.clone());
-        }
-        let tensor_count = tensors.len() as f32;
-
-        let local_strategy = config.local_reduce_strategy;
+        let tensors: CollectiveTensorMap<B> = self
+            .calls
+            .iter()
+            .map(|op| (op.caller, op.input.clone()))
+            .collect();
 
         // For Centralized and Tree, we only need to do a reduce here, we'll do a broadcast later
-        let tensors_to_reduce = core::mem::take(&mut tensors);
-        let mut result = match local_strategy {
-            ReduceStrategy::Centralized => {
-                reduce_sum_centralized::<B>(tensors_to_reduce, &self.root)
-            }
-            ReduceStrategy::Tree(arity) => {
-                reduce_sum_tree::<B>(tensors_to_reduce, &self.root, arity)
-            }
+        let mut local_sum = match config.local_reduce_strategy {
+            ReduceStrategy::Centralized => reduce_sum_centralized::<B>(tensors, &self.root),
+            ReduceStrategy::Tree(arity) => reduce_sum_tree::<B>(tensors, &self.root, arity),
         };
 
-        // Do aggregation on global level with the main tensor
+        // Do aggregation on a global level with the main tensor
         let result = if let Some(global_client) = global_client {
             let global_strategy = config.global_reduce_strategy.unwrap();
             global_client
-                .reduce(result, global_strategy, self.root, self.op)
+                .reduce(local_sum, global_strategy, self.root, self.op)
                 .await
                 .map_err(CollectiveError::Global)?
         } else {
             // Mean division locally
             if self.op == ReduceOperation::Mean {
-                result = B::float_div_scalar(result, tensor_count.elem())
+                let local_tensor_count = self.calls.len() as f32;
+                local_sum = B::float_div_scalar(local_sum, local_tensor_count.elem())
             }
-            Some(result)
+            Some(local_sum)
         };
 
         Ok(result)

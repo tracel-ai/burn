@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::mpsc::SyncSender};
 
-use burn_communication::websocket::WebSocket;
-use burn_tensor::backend::Backend;
-
+use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
     BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     local::{broadcast_centralized, broadcast_tree},
     node::base::Node,
 };
+use burn_communication::websocket::WebSocket;
+use burn_tensor::TensorMetadata;
+use burn_tensor::backend::Backend;
 
 /// An on-going broadcast operation
 pub struct BroadcastOp<B: Backend> {
@@ -16,7 +17,21 @@ pub struct BroadcastOp<B: Backend> {
     /// The tensor to broadcast, as defined by the root. Should be defined before all
     /// peers call the operation.
     tensor: Option<B::FloatTensorPrimitive>,
+
+    /// ID of the root (or use the first call's peer).
     root: Option<PeerId>,
+}
+
+impl<B: Backend> BroadcastOp<B> {
+    /// Get the effective root of the broadcast operation.
+    /// If the root is set, return it. Otherwise, return the first caller's peer.
+    pub fn effective_root(&self) -> PeerId {
+        self.root.unwrap_or(self.calls.first().unwrap().caller)
+    }
+
+    pub fn peers(&self) -> Vec<PeerId> {
+        self.calls.iter().map(|c| c.caller).collect()
+    }
 }
 
 /// Struct for each device that calls an broadcast operation
@@ -68,6 +83,14 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     /// Runs the broadcast if the operation is ready. Otherwise, do nothing
+    #[tracing::instrument(
+        skip(self, config, global_client),
+        fields(
+            self.peers = ?self.peers(),
+            self.shape = ?self.tensor.as_ref().map(|t| t.shape()),
+            self.dtype = ?self.tensor.as_ref().map(|t| t.dtype()),
+        )
+    )]
     pub async fn execute(
         mut self,
         config: &CollectiveConfig,
@@ -90,11 +113,12 @@ impl<B: Backend> BroadcastOp<B> {
         }
     }
 
+    #[tracing::instrument(skip(self, config, global_client))]
     async fn broadcast(
         &mut self,
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, WebSocket>>,
-    ) -> Result<HashMap<PeerId, B::FloatTensorPrimitive>, CollectiveError> {
+    ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
         let local_strategy = config.local_broadcast_strategy;
 
         // Get corresponding devices for each peer
@@ -105,7 +129,7 @@ impl<B: Backend> BroadcastOp<B> {
             .collect::<HashMap<PeerId, B::Device>>();
 
         // Chose a root
-        let root = self.root.unwrap_or(self.calls.first().unwrap().caller);
+        let root = self.effective_root();
 
         // Do broadcast on global level with the main tensor
         if let Some(global_client) = &global_client {

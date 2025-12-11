@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use burn_communication::websocket::WebSocket;
-use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
+use burn_tensor::{ElementConversion, backend::Backend};
+use tracing::Instrument;
 
-use crate::local::all_reduce::monoid_broadcast::all_reduce_monoid_broadcast;
+use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
     AllReduceStrategy, CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     local::{
@@ -12,23 +13,6 @@ use crate::{
     },
     node::base::Node,
 };
-
-pub type CollectiveTensorMap<B> = HashMap<PeerId, <B as Backend>::FloatTensorPrimitive>;
-
-/// Get the shape of the tensors. They should all have the same shape, otherwise None is returned.
-pub(crate) fn get_common_shape<B: Backend>(tensors: &CollectiveTensorMap<B>) -> Option<Shape> {
-    let mut it = tensors.values();
-    if let Some(first) = it.next() {
-        let shape = first.shape();
-        for tensor in it {
-            if tensor.shape() != shape {
-                return None;
-            }
-        }
-        return Some(shape);
-    }
-    None
-}
 
 /// Perform an all-reduce with no multi-node operations (global ops)
 #[tracing::instrument(skip(tensors, config))]
@@ -39,24 +23,22 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
 ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
     let local_strategy = &config.local_all_reduce_strategy;
 
-    if false {
-        let mut tensors = match local_strategy {
-            AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
-            AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
-            AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
-        };
+    let mut tensors = match local_strategy {
+        AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
+        AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
+        AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
+    };
 
-        if op == ReduceOperation::Mean {
-            // Apply mean division
-            let tensor_count = tensors.len() as f32;
-            tensors.iter_mut().for_each(|(_, tensor)| {
-                *tensor = B::float_div_scalar(tensor.clone(), tensor_count.elem())
-            });
-        }
-        Ok(tensors)
-    } else {
-        Ok(all_reduce_monoid_broadcast::<B>(tensors, op))
+    if op == ReduceOperation::Mean {
+        let _span = tracing::info_span!("mean_reduction").entered();
+
+        // Apply mean division
+        let tensor_count = tensors.len() as f32;
+        tensors.iter_mut().for_each(|(_, tensor)| {
+            *tensor = B::float_div_scalar(tensor.clone(), tensor_count.elem())
+        });
     }
+    Ok(tensors)
 }
 
 /// Do an all-reduce in a multi-node context
@@ -96,10 +78,14 @@ pub(crate) async fn all_reduce_with_global<B: Backend>(
     };
 
     // Do aggregation on global level with the main tensor
-    main_tensor = global_client
-        .all_reduce(main_tensor, global_strategy.unwrap(), op)
-        .await
-        .map_err(CollectiveError::Global)?;
+    main_tensor = async {
+        global_client
+            .all_reduce(main_tensor, global_strategy.unwrap(), op)
+            .await
+    }
+    .instrument(tracing::info_span!("global_all_reduce"))
+    .await
+    .map_err(CollectiveError::Global)?;
 
     // Broadcast result to all devices
     let tensors = match local_strategy {

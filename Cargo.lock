@@ -658,6 +658,7 @@ dependencies = [
  "parking_lot",
  "portable-atomic",
  "spin",
+ "tracing",
 ]
 
 [[package]]
@@ -675,6 +676,7 @@ dependencies = [
  "rand_distr",
  "serde",
  "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]
@@ -922,6 +924,7 @@ dependencies = [
  "log",
  "serde",
  "spin",
+ "tracing",
 ]
 
 [[package]]

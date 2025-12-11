@@ -23,6 +23,7 @@ memory-checks = ["std"]
 [dependencies]
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5" }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5" }
+tracing = { workspace = true }
 
 hashbrown = { workspace = true }
 derive-new = { workspace = true }
