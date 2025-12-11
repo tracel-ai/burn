@@ -103,7 +103,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// # Returns
     ///
-    /// The empty tensor.
+    /// The tensor filled with the specified value.
     ///
     /// # Remarks
     ///
