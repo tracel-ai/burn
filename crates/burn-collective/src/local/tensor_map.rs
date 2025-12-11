@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 pub type CollectiveTensorMap<B> = HashMap<PeerId, <B as Backend>::FloatTensorPrimitive>;
 
+pub type PeerDeviceMap<B> = HashMap<PeerId, <B as Backend>::Device>;
+
 /// Get the shape of the tensors. They should all have the same shape, otherwise None is returned.
 pub fn get_common_shape<B: Backend>(tensors: &CollectiveTensorMap<B>) -> Option<Shape> {
     let mut it = tensors.values();
@@ -20,4 +22,12 @@ pub fn get_common_shape<B: Backend>(tensors: &CollectiveTensorMap<B>) -> Option<
         return Some(shape);
     }
     None
+}
+
+/// Get the `{ peer_id -> device }` mapping for the given tensors.
+pub fn get_peer_devices<B: Backend>(tensors: &CollectiveTensorMap<B>) -> PeerDeviceMap<B> {
+    tensors
+        .iter()
+        .map(|(id, tensor)| (*id, B::float_device(tensor)))
+        .collect()
 }

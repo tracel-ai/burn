@@ -2,14 +2,14 @@ use burn_tensor::backend::{Backend, DeviceOps};
 use std::collections::HashMap;
 
 use crate::PeerId;
-use crate::local::tensor_map::CollectiveTensorMap;
+use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
 
 /// Performs a broadcast on the provided tensors in a b-tree structure with `arity`.
 ///
 /// Tensor must be on the device in the `devices` map corresponding to the `root` key.
 #[tracing::instrument(skip(devices, tensor))]
 pub(crate) fn broadcast_tree<B: Backend>(
-    mut devices: HashMap<PeerId, B::Device>,
+    mut devices: PeerDeviceMap<B>,
     root: PeerId,
     tensor: B::FloatTensorPrimitive,
     arity: u32,
