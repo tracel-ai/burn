@@ -78,6 +78,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     {
         B::staging(data, device);
     }
+
+    fn supports_dtype(device: &Self::Device, dtype: burn_std::DType) -> bool {
+        B::supports_dtype(device, dtype)
+    }
 }
 
 /// The status of a [fuser](OperationFuser).

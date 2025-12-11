@@ -71,4 +71,9 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         let client = get_client::<R>(device);
         client.sync()
     }
+
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        let client = get_client::<R>(device);
+        client.supports_dtype(dtype)
+    }
 }

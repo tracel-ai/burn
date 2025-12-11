@@ -1,5 +1,6 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
+use burn_std::{FloatDType, IntDType};
+use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -98,30 +99,44 @@ impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
 }
 
 pub(crate) trait IntoKind {
-    fn into_kind(self) -> tch::Kind;
-}
-
-impl IntoKind for FloatDType {
-    fn into_kind(self) -> tch::Kind {
-        match self {
-            FloatDType::F64 => tch::Kind::Double,
-            FloatDType::F32 => tch::Kind::Float,
-            FloatDType::Flex32 => tch::Kind::Float,
-            FloatDType::F16 => tch::Kind::Half,
-            FloatDType::BF16 => tch::Kind::BFloat16,
-        }
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError>;
+    fn into_kind(self) -> tch::Kind
+    where
+        Self: Sized,
+    {
+        self.try_into_kind().unwrap()
     }
 }
 
 impl IntoKind for IntDType {
-    fn into_kind(self) -> tch::Kind {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        let dtype: DType = self.into();
+        dtype.try_into_kind()
+    }
+}
+
+impl IntoKind for FloatDType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        let dtype: DType = self.into();
+        dtype.try_into_kind()
+    }
+}
+
+impl IntoKind for DType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
         match self {
-            IntDType::I64 => tch::Kind::Int64,
-            IntDType::I32 => tch::Kind::Int,
-            IntDType::I16 => tch::Kind::Int16,
-            IntDType::I8 => tch::Kind::Int8,
-            IntDType::U64 => tch::Kind::Uint8,
-            other => panic!("Unsupported dtype {other:?}"),
+            DType::F64 => Ok(tch::Kind::Double),
+            DType::F32 => Ok(tch::Kind::Float),
+            DType::Flex32 => Ok(tch::Kind::Float),
+            DType::F16 => Ok(tch::Kind::Half),
+            DType::BF16 => Ok(tch::Kind::BFloat16),
+            DType::I64 => Ok(tch::Kind::Int64),
+            DType::I32 => Ok(tch::Kind::Int),
+            DType::I16 => Ok(tch::Kind::Int16),
+            DType::I8 => Ok(tch::Kind::Int8),
+            DType::U8 => Ok(tch::Kind::Uint8),
+            DType::Bool => Ok(tch::Kind::Bool),
+            other => Err(tch::TchError::Kind(format!("Unsupported dtype {other:?}"))),
         }
     }
 }
@@ -420,6 +435,8 @@ mod tests {
     use crate::LibTorch;
 
     use super::*;
+    use burn_std::QuantScheme;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::SeedableRng;
     use rand::prelude::StdRng;
@@ -493,6 +510,32 @@ mod tests {
             tensor_2.into_primitive().tensor().tensor.kind(),
             tch::Kind::BFloat16
         );
+    }
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = LibTorch<f32>;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::Bool));
+
+        assert!(!B::supports_dtype(&device, DType::U64));
+        assert!(!B::supports_dtype(&device, DType::U32));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
     }
 }
 

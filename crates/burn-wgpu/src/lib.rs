@@ -111,7 +111,12 @@ pub type Metal<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use burn_cubecl::CubeBackend;
+    use burn_tensor::{
+        DType,
+        backend::{Backend, QTensorPrimitive},
+    };
     #[cfg(feature = "vulkan")]
     pub use half::f16;
     #[cfg(feature = "metal")]
@@ -127,4 +132,60 @@ mod tests {
     burn_cubecl::testgen_all!([f16, f32], [i16, i32], [u32]);
     #[cfg(all(not(feature = "vulkan"), not(feature = "metal")))]
     burn_cubecl::testgen_all!([f32], [i32], [u32]);
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = Wgpu;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::U64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(
+            &device,
+            DType::QFloat(CubeTensor::<TestRuntime>::default_scheme())
+        ));
+        // Registered as supported type but we don't actually use it?
+        assert!(B::supports_dtype(&device, DType::Bool));
+
+        #[cfg(feature = "vulkan")]
+        {
+            assert!(B::supports_dtype(&device, DType::F16));
+            assert!(B::supports_dtype(&device, DType::BF16));
+            assert!(B::supports_dtype(&device, DType::I16));
+            assert!(B::supports_dtype(&device, DType::I8));
+            assert!(B::supports_dtype(&device, DType::U16));
+            assert!(B::supports_dtype(&device, DType::U8));
+
+            assert!(!B::supports_dtype(&device, DType::F64));
+            assert!(!B::supports_dtype(&device, DType::Flex32));
+        }
+
+        #[cfg(feature = "metal")]
+        {
+            assert!(B::supports_dtype(&device, DType::F16));
+            assert!(B::supports_dtype(&device, DType::I16));
+            assert!(B::supports_dtype(&device, DType::U16));
+
+            assert!(!B::supports_dtype(&device, DType::F64));
+            assert!(!B::supports_dtype(&device, DType::Flex32));
+            assert!(!B::supports_dtype(&device, DType::I8));
+            assert!(!B::supports_dtype(&device, DType::U8));
+        }
+
+        #[cfg(not(any(feature = "vulkan", feature = "metal")))]
+        {
+            assert!(B::supports_dtype(&device, DType::F64));
+            assert!(B::supports_dtype(&device, DType::Flex32));
+
+            assert!(!B::supports_dtype(&device, DType::F16));
+            assert!(!B::supports_dtype(&device, DType::BF16));
+            assert!(!B::supports_dtype(&device, DType::I16));
+            assert!(!B::supports_dtype(&device, DType::I8));
+            assert!(!B::supports_dtype(&device, DType::U16));
+            assert!(!B::supports_dtype(&device, DType::U8));
+        }
+    }
 }

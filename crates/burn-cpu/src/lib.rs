@@ -15,9 +15,41 @@ pub type Cpu<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CpuRuntime, F, 
 
 #[cfg(test)]
 mod tests {
-    use burn_cubecl::CubeBackend;
+    use super::*;
+    use burn_cubecl::{CubeBackend, tensor::CubeTensor};
+    use burn_tensor::{
+        DType,
+        backend::{Backend, QTensorPrimitive},
+    };
 
     pub type TestRuntime = cubecl::cpu::CpuRuntime;
 
     burn_cubecl::testgen_all!([f32], [i8, i16, i32, i64], [u32]);
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = Cpu;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16)); // does it actually work?
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U16));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(
+            &device,
+            DType::QFloat(CubeTensor::<TestRuntime>::default_scheme())
+        ));
+
+        // Currently not registered in supported types
+        assert!(!B::supports_dtype(&device, DType::Flex32));
+        assert!(!B::supports_dtype(&device, DType::Bool));
+    }
 }

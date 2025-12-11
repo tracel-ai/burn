@@ -1,3 +1,5 @@
+use crate::IntoKind;
+
 use super::TchTensor;
 use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps, ExecutionError};
@@ -158,5 +160,9 @@ impl<E: TchElement> Backend for LibTorch<E> {
         };
 
         Ok(())
+    }
+
+    fn supports_dtype(_device: &Self::Device, dtype: burn_std::DType) -> bool {
+        dtype.try_into_kind().is_ok()
     }
 }
