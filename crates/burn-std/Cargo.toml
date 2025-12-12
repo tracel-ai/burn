@@ -44,6 +44,10 @@ tokio = { workspace = true, optional = true }
 [dev-dependencies]
 dashmap = { workspace = true }
 
+# Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+bytes = { workspace = true, features = ["extra-platforms"] }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
