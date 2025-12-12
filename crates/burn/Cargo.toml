@@ -152,6 +152,9 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic = { workspace = true }
+portable-atomic-util = { workspace = true }
 
 [dependencies]
 
@@ -181,3 +184,4 @@ burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.5", optional = true,
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5", optional = true, default-features = false }
 
 cubecl = { workspace = true, default-features = false, optional = true }
+

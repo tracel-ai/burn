@@ -38,6 +38,10 @@ rand_distr = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic = { workspace = true }
+portable-atomic-util = { workspace = true }
+
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }
 paste = { workspace = true }
