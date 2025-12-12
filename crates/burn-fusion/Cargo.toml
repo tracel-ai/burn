@@ -33,6 +33,10 @@ log = { workspace = true }
 serde = { workspace = true }
 half = { workspace = true }
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic = { workspace = true }
+portable-atomic-util = { workspace = true }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
