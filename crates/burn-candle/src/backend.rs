@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-#[cfg(feature = "cuda")]
-use burn_std::backtrace::BackTrace;
 use burn_std::{
     backtrace::BackTrace,
     rand::{SeedableRng, StdRng},
@@ -245,7 +243,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
                 device
                     .synchronize()
                     .map_err(|err| ExecutionError::Generic {
-                        context: format!("Can't sync the cuda device: {err}"),
+                        reason: format!("Can't sync the cuda device: {err}"),
                         backtrace: BackTrace::capture(),
                     })?;
             }
