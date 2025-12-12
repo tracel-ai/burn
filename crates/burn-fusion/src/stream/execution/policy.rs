@@ -263,8 +263,8 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use burn_ir::{FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
     use burn_backend::{DType, Shape};
+    use burn_ir::{FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
 
     use super::*;
     use crate::{

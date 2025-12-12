@@ -4,8 +4,8 @@ use crate::{
     FusionBackend, FusionRuntime,
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
 };
-use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 use burn_backend::{TensorData, backend::ExecutionError};
+use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,

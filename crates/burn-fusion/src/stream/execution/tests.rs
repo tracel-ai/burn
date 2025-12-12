@@ -8,11 +8,11 @@
 //! understanding the process of optimizing streams.
 use std::sync::Arc;
 
+use burn_backend::{DType, Shape};
 use burn_ir::{
     BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId,
     TensorIr, TensorStatus, UnaryOpIr,
 };
-use burn_backend::{DType, Shape};
 
 use crate::{
     FuserProperties, FuserStatus, NumOperations, OperationFuser,

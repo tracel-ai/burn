@@ -120,10 +120,10 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
+    use burn_backend::{DType, Shape};
     use burn_ir::{
         BinaryOpIr, NumericOperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr, TensorStatus,
     };
-    use burn_backend::{DType, Shape};
 
     use super::*;
 

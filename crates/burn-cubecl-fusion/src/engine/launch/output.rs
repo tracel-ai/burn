@@ -14,8 +14,8 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use burn_std::DType;
+use burn_std::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 /// Create or reuse handles for the outputs.
