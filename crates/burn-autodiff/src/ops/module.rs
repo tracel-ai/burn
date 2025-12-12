@@ -6,8 +6,9 @@ use crate::graph::NodeId;
 use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
 
-use burn_tensor::backend::Backend;
-use burn_tensor::ops::*;
+use burn_backend::Backend;
+use burn_backend::ops::*;
+use burn_backend::tensor::{FloatTensor, IntTensor};
 
 use super::OpsKind;
 

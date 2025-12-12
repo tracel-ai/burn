@@ -59,6 +59,7 @@ std = [
     "burn-core/std",
     # Backends
     "burn-candle?/std",
+    "burn-cpu?/std",
     "burn-ndarray?/std",
     "burn-wgpu?/std",
     "burn-router?/std",
@@ -104,15 +105,27 @@ vision = ["burn-core/vision"]
 # Backend
 ir = ["burn-ir"]
 autodiff = ["burn-autodiff"]
-fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion", "burn-rocm?/fusion", "burn-cpu?/fusion"]
+fusion = [
+    "ir",
+    "burn-wgpu?/fusion",
+    "burn-cuda?/fusion",
+    "burn-rocm?/fusion",
+    "burn-cpu?/fusion",
+]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
-autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-rocm?/autotune"]
+autotune = [
+    "burn-wgpu?/autotune",
+    "burn-cuda?/autotune",
+    "burn-rocm?/autotune",
+    "burn-cpu?/autotune",
+]
 autotune-checks = [
     "burn-wgpu?/autotune-checks",
     "burn-cuda?/autotune-checks",
     "burn-rocm?/autotune-checks",
+    "burn-cpu?/autotune-checks",
 ]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]

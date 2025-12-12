@@ -461,7 +461,6 @@ pub fn attention<B: Backend>(
     )))
 }
 
-#[cfg(feature = "export_tests")]
 /// Exports naive attention to test backend's attention against
 pub fn naive_attention<B: Backend>(
     query: Tensor<B, 4>,
