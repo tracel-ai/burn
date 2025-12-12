@@ -4,7 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
-use burn_tensor::Shape;
+use burn_backend::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use super::{PoolBackwardArgs, PoolBackwardArgsLaunch};
@@ -86,6 +86,7 @@ fn loop_ranges(
     (oh_start, oh_end, ow_start, ow_end)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     x: CubeTensor<R>,
     grad: CubeTensor<R>,
@@ -94,6 +95,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    _ceil_mode: bool,
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 

@@ -12,7 +12,7 @@ use crate::{
 };
 use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,

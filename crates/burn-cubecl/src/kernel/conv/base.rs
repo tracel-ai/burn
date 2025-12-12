@@ -1,15 +1,16 @@
-use burn_tensor::ops::ConvOptions;
-use cubecl::convolution::components::ConvSetupError;
+use burn_backend::ops::ConvOptions;
+use cubek::{convolution::components::ConvSetupError, matmul::AcceleratedTileKind};
 
 use crate::{
     CubeRuntime,
+    kernel::conv::conv_gemm_simple_sync,
     ops::{permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 
 #[cfg(feature = "autotune")]
 use super::conv_autotune;
-use super::{conv_direct, conv_gemm_cyclic, conv_im2col};
+use super::{conv_direct, conv_im2col};
 
 /// The strategy to be used when launching a convolution kernel.
 pub enum ConvStrategy {
@@ -59,7 +60,19 @@ pub fn conv<R: CubeRuntime, const N: usize>(
         #[cfg(feature = "autotune")]
         ConvStrategy::Autotune => Ok(conv_autotune::<R, N>(input, weight, bias, options)),
         ConvStrategy::Gemm => conv_im2col::<R, N>(input, weight, bias, options),
-        ConvStrategy::ImplicitGemm => conv_gemm_cyclic::<R, N>(input, weight, bias, options),
+        ConvStrategy::ImplicitGemm => {
+            if options.groups != 1 {
+                conv_direct::<R, N>(input, weight, bias, options)
+            } else {
+                conv_gemm_simple_sync::<R, N>(
+                    input,
+                    weight,
+                    bias,
+                    options,
+                    AcceleratedTileKind::Cmma,
+                )
+            }
+        }
     }?;
 
     Ok(permute_nhwc_to_nchw(out))

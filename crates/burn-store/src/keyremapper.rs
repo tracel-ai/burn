@@ -1,3 +1,4 @@
+use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
@@ -177,6 +178,155 @@ impl KeyRemapper {
     }
 }
 
+/// Map tensor paths to have contiguous numeric indices.
+///
+/// This function detects numeric indices in tensor paths and renumbers them
+/// to be contiguous (0, 1, 2, ...) while preserving their relative order.
+/// It handles nested sequential structures by processing ALL numeric indices
+/// in each path independently based on their position context.
+///
+/// This is useful when loading PyTorch models that have gaps in layer numbering,
+/// such as when using `nn.Sequential` with mixed layer types (e.g., Conv2d + ReLU
+/// where only Conv2d has parameters).
+///
+/// # Example
+///
+/// Simple case - input paths:
+/// - `fc.0.weight`, `fc.0.bias`
+/// - `fc.2.weight`, `fc.2.bias`
+/// - `fc.4.weight`, `fc.4.bias`
+///
+/// Output paths:
+/// - `fc.0.weight`, `fc.0.bias`
+/// - `fc.1.weight`, `fc.1.bias`
+/// - `fc.2.weight`, `fc.2.bias`
+///
+/// Nested case - input paths:
+/// - `feature.layers.0.conv_block.0.weight`
+/// - `feature.layers.0.conv_block.2.weight`
+/// - `feature.layers.2.conv_block.0.weight`
+/// - `feature.layers.2.conv_block.2.weight`
+///
+/// Output paths:
+/// - `feature.layers.0.conv_block.0.weight`
+/// - `feature.layers.0.conv_block.1.weight`
+/// - `feature.layers.1.conv_block.0.weight`
+/// - `feature.layers.1.conv_block.1.weight`
+///
+/// # Arguments
+///
+/// * `tensors` - Vec of TensorSnapshots to map
+///
+/// # Returns
+///
+/// A tuple containing:
+/// * The mapped Vec of TensorSnapshots with updated paths
+/// * A vector of (new_path, original_path) showing the transformations
+pub fn map_indices_contiguous(
+    mut tensors: Vec<TensorSnapshot>,
+) -> (Vec<TensorSnapshot>, Vec<(String, String)>) {
+    if tensors.is_empty() {
+        return (tensors, Vec::new());
+    }
+
+    // Step 1: Collect all paths and find all index positions
+    // For each index position (identified by prefix using ORIGINAL indices),
+    // collect all indices seen at that position.
+    //
+    // Key: prefix using original path (e.g., "feature.layers." or "feature.layers.0.conv_block.")
+    // Value: BTreeMap of original_index -> new_index
+    let mut index_maps: BTreeMap<String, BTreeMap<usize, usize>> = BTreeMap::new();
+
+    // First pass: collect all indices at each position using original prefixes
+    for snapshot in &tensors {
+        let path = snapshot.full_path();
+        let parts: Vec<&str> = path.split('.').collect();
+
+        // Check each part for numeric indices
+        for (i, part) in parts.iter().enumerate() {
+            if let Ok(index) = part.parse::<usize>() {
+                // The prefix is everything before this index (using original path)
+                let prefix = if i > 0 {
+                    format!("{}.", parts[..i].join("."))
+                } else {
+                    String::new()
+                };
+
+                index_maps
+                    .entry(prefix)
+                    .or_default()
+                    .entry(index)
+                    .or_insert(usize::MAX); // Placeholder
+            }
+        }
+    }
+
+    // Second pass: assign contiguous indices for each position
+    for indices in index_maps.values_mut() {
+        let mut sorted_indices: Vec<usize> = indices.keys().cloned().collect();
+        sorted_indices.sort();
+
+        for (new_idx, old_idx) in sorted_indices.into_iter().enumerate() {
+            indices.insert(old_idx, new_idx);
+        }
+    }
+
+    // Third pass: apply the remapping to all tensors
+    // We use original prefixes for lookup since that's how we collected indices
+    let mut mapped_snapshots = Vec::new();
+    let mut transformations = Vec::new();
+
+    for mut snapshot in tensors.drain(..) {
+        let original_path = snapshot.full_path();
+        let new_path = remap_all_indices_with_original_prefix(&original_path, &index_maps);
+
+        // Update the snapshot's internal path_stack if the path changed
+        if new_path != original_path
+            && let Some(ref mut path_stack) = snapshot.path_stack
+        {
+            *path_stack = new_path.split('.').map(|s| s.to_string()).collect();
+        }
+
+        transformations.push((new_path, original_path));
+        mapped_snapshots.push(snapshot);
+    }
+
+    (mapped_snapshots, transformations)
+}
+
+/// Remap all numeric indices in a path using the provided index maps.
+/// Uses original path prefixes for lookup.
+fn remap_all_indices_with_original_prefix(
+    path: &str,
+    index_maps: &BTreeMap<String, BTreeMap<usize, usize>>,
+) -> String {
+    let parts: Vec<&str> = path.split('.').collect();
+    let mut result_parts: Vec<String> = Vec::with_capacity(parts.len());
+
+    for (i, part) in parts.iter().enumerate() {
+        if let Ok(index) = part.parse::<usize>() {
+            // Build the prefix from ORIGINAL parts (not remapped)
+            let prefix = if i > 0 {
+                format!("{}.", parts[..i].join("."))
+            } else {
+                String::new()
+            };
+
+            // Look up the new index using original prefix
+            if let Some(index_map) = index_maps.get(&prefix)
+                && let Some(&new_index) = index_map.get(&index)
+            {
+                result_parts.push(new_index.to_string());
+                continue;
+            }
+        }
+        // Not a numeric index or no mapping found, keep as-is
+        result_parts.push((*part).to_string());
+    }
+
+    result_parts.join(".")
+}
+
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
@@ -278,6 +428,247 @@ mod tests {
         assert_eq!(
             transformations[0],
             ("test.weight".to_string(), "test.weight".to_string())
+        );
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_basic() {
+        // Simulate PyTorch nn.Sequential with Conv2d (0, 2, 4) and ReLU (1, 3, 5)
+        // Only Conv2d layers have parameters
+        let tensors = vec![
+            create_test_tensor_snapshot("fc.0.weight"),
+            create_test_tensor_snapshot("fc.0.bias"),
+            create_test_tensor_snapshot("fc.2.weight"),
+            create_test_tensor_snapshot("fc.2.bias"),
+            create_test_tensor_snapshot("fc.4.weight"),
+            create_test_tensor_snapshot("fc.4.bias"),
+        ];
+
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
+
+        // Check that indices are now contiguous
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.bias"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.bias"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.2.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.2.bias"));
+        assert_eq!(reindexed.len(), 6);
+
+        // Check transformations
+        let transform_2_to_1 = transformations
+            .iter()
+            .find(|(_, old)| old == "fc.2.weight")
+            .expect("should find fc.2.weight transformation");
+        assert_eq!(transform_2_to_1.0, "fc.1.weight");
+
+        let transform_4_to_2 = transformations
+            .iter()
+            .find(|(_, old)| old == "fc.4.weight")
+            .expect("should find fc.4.weight transformation");
+        assert_eq!(transform_4_to_2.0, "fc.2.weight");
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_already_contiguous() {
+        // Already contiguous indices should remain unchanged
+        let tensors = vec![
+            create_test_tensor_snapshot("fc.0.weight"),
+            create_test_tensor_snapshot("fc.1.weight"),
+            create_test_tensor_snapshot("fc.2.weight"),
+        ];
+
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
+
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.2.weight"));
+        assert_eq!(reindexed.len(), 3);
+
+        // All transformations should have same old and new paths
+        for (new, old) in &transformations {
+            assert_eq!(new, old);
+        }
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_multiple_prefixes() {
+        // Different prefixes should be mapped independently
+        let tensors = vec![
+            create_test_tensor_snapshot("encoder.0.weight"),
+            create_test_tensor_snapshot("encoder.2.weight"),
+            create_test_tensor_snapshot("decoder.1.weight"),
+            create_test_tensor_snapshot("decoder.5.weight"),
+        ];
+
+        let (reindexed, _) = map_indices_contiguous(tensors);
+
+        // encoder: 0, 2 -> 0, 1
+        assert!(
+            reindexed
+                .iter()
+                .any(|v| v.full_path() == "encoder.0.weight")
+        );
+        assert!(
+            reindexed
+                .iter()
+                .any(|v| v.full_path() == "encoder.1.weight")
+        );
+
+        // decoder: 1, 5 -> 0, 1
+        assert!(
+            reindexed
+                .iter()
+                .any(|v| v.full_path() == "decoder.0.weight")
+        );
+        assert!(
+            reindexed
+                .iter()
+                .any(|v| v.full_path() == "decoder.1.weight")
+        );
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_no_indices() {
+        // Paths without indices should remain unchanged
+        let tensors = vec![
+            create_test_tensor_snapshot("encoder.weight"),
+            create_test_tensor_snapshot("decoder.bias"),
+        ];
+
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
+
+        assert!(reindexed.iter().any(|v| v.full_path() == "encoder.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "decoder.bias"));
+
+        for (new, old) in &transformations {
+            assert_eq!(new, old);
+        }
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_empty() {
+        let tensors: Vec<TensorSnapshot> = vec![];
+        let (reindexed, transformations) = map_indices_contiguous(tensors);
+
+        assert!(reindexed.is_empty());
+        assert!(transformations.is_empty());
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_mixed_indexed_and_non_indexed() {
+        // Mix of indexed and non-indexed paths
+        let tensors = vec![
+            create_test_tensor_snapshot("fc.0.weight"),
+            create_test_tensor_snapshot("fc.2.weight"),
+            create_test_tensor_snapshot("output.weight"), // no index
+        ];
+
+        let (reindexed, _) = map_indices_contiguous(tensors);
+
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.0.weight"));
+        assert!(reindexed.iter().any(|v| v.full_path() == "fc.1.weight")); // 2 -> 1
+        assert!(reindexed.iter().any(|v| v.full_path() == "output.weight")); // unchanged
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_nested_sequential() {
+        // Test nested sequential structures like:
+        // feature = nn.Sequential(ConvBlock, ReLU, ConvBlock, ReLU, ConvBlock)
+        // where ConvBlock = nn.Sequential(Conv2d, ReLU, Conv2d)
+        //
+        // This produces paths like:
+        // feature.layers.0.conv_block.0.weight (layer 0, conv 0)
+        // feature.layers.0.conv_block.2.weight (layer 0, conv 2 - skipping ReLU at 1)
+        // feature.layers.2.conv_block.0.weight (layer 2 - skipping ReLU at 1, conv 0)
+        // feature.layers.2.conv_block.2.weight (layer 2, conv 2)
+        let tensors = vec![
+            create_test_tensor_snapshot("feature.layers.0.conv_block.0.weight"),
+            create_test_tensor_snapshot("feature.layers.0.conv_block.2.weight"),
+            create_test_tensor_snapshot("feature.layers.2.conv_block.0.weight"),
+            create_test_tensor_snapshot("feature.layers.2.conv_block.2.weight"),
+        ];
+
+        let (mapped, transformations) = map_indices_contiguous(tensors);
+
+        // Expected mapping:
+        // feature.layers: 0, 2 -> 0, 1
+        // feature.layers.0.conv_block: 0, 2 -> 0, 1
+        // feature.layers.2.conv_block: 0, 2 -> 0, 1
+        //
+        // Result:
+        // feature.layers.0.conv_block.0.weight -> feature.layers.0.conv_block.0.weight
+        // feature.layers.0.conv_block.2.weight -> feature.layers.0.conv_block.1.weight
+        // feature.layers.2.conv_block.0.weight -> feature.layers.1.conv_block.0.weight
+        // feature.layers.2.conv_block.2.weight -> feature.layers.1.conv_block.1.weight
+
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.0.conv_block.0.weight"),
+            "0.0 should stay as 0.0"
+        );
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.0.conv_block.1.weight"),
+            "0.2 should become 0.1"
+        );
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.1.conv_block.0.weight"),
+            "2.0 should become 1.0"
+        );
+        assert!(
+            mapped
+                .iter()
+                .any(|v| v.full_path() == "feature.layers.1.conv_block.1.weight"),
+            "2.2 should become 1.1"
+        );
+
+        // Verify specific transformations
+        let t1 = transformations
+            .iter()
+            .find(|(_, old)| old == "feature.layers.2.conv_block.2.weight");
+        assert_eq!(
+            t1.map(|(new, _)| new.as_str()),
+            Some("feature.layers.1.conv_block.1.weight"),
+            "2.2 should map to 1.1"
+        );
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_deeply_nested() {
+        // Test with three levels of nesting
+        let tensors = vec![
+            create_test_tensor_snapshot("a.0.b.0.c.0.weight"),
+            create_test_tensor_snapshot("a.0.b.0.c.2.weight"),
+            create_test_tensor_snapshot("a.0.b.2.c.0.weight"),
+            create_test_tensor_snapshot("a.2.b.0.c.0.weight"),
+        ];
+
+        let (mapped, _) = map_indices_contiguous(tensors);
+
+        // a: 0, 2 -> 0, 1
+        // a.0.b: 0, 2 -> 0, 1
+        // a.2.b: 0 -> 0
+        // a.0.b.0.c: 0, 2 -> 0, 1
+        // a.0.b.2.c: 0 -> 0
+        // a.2.b.0.c: 0 -> 0
+
+        assert!(mapped.iter().any(|v| v.full_path() == "a.0.b.0.c.0.weight"));
+        assert!(
+            mapped.iter().any(|v| v.full_path() == "a.0.b.0.c.1.weight"),
+            "a.0.b.0.c.2 should become a.0.b.0.c.1"
+        );
+        assert!(
+            mapped.iter().any(|v| v.full_path() == "a.0.b.1.c.0.weight"),
+            "a.0.b.2.c.0 should become a.0.b.1.c.0"
+        );
+        assert!(
+            mapped.iter().any(|v| v.full_path() == "a.1.b.0.c.0.weight"),
+            "a.2.b.0.c.0 should become a.1.b.0.c.0"
         );
     }
 }

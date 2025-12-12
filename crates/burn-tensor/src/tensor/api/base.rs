@@ -1265,6 +1265,7 @@ where
     ///   - A single range for 1D slicing (e.g., `0..5`, `..`, `2..`)
     ///   - An array of ranges (e.g., `[0..2, 1..4]`)
     ///   - The [`s!`] macro output for advanced slicing with steps
+    ///   - a `&Vec<Slice>` or `&[Slice]`
     ///
     /// # Behavior
     ///
@@ -1333,15 +1334,15 @@ where
     /// - [`slice_dim`](Self::slice_dim) - Slice a single dimension
     ///
     /// [`s!`]: crate::s!
-    pub fn slice<const D2: usize, S>(self, slices: S) -> Self
+    pub fn slice<S>(self, slices: S) -> Self
     where
-        S: SliceArg<D2>,
+        S: SliceArg,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        let slices = slices.into_slices(&shape);
 
         // Validate slices
-        check!(TensorCheck::slice::<D, D2>(&shape, &slices));
+        check!(TensorCheck::slice::<D>(&shape, &slices));
 
         // Calculate output shape and check for empty slices
         let mut output_dims = shape.dims.clone();
@@ -1353,8 +1354,6 @@ where
         if output_dims.contains(&0) {
             return Self::empty(output_dims, &self.device());
         }
-
-        // Use the slice method that supports steps
         Self::new(K::slice(self.primitive, &slices))
     }
 
@@ -1423,12 +1422,12 @@ where
     /// - [`slice_fill`](Self::slice_fill) - Fill a slice with a constant value
     ///
     /// [`s!`]: crate::s!
-    pub fn slice_assign<const D2: usize, S>(self, slices: S, values: Self) -> Self
+    pub fn slice_assign<S>(self, slices: S, values: Self) -> Self
     where
-        S: SliceArg<D2>,
+        S: SliceArg,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        let slices = slices.into_slices(&shape);
 
         // Check if any slice produces 0 elements (empty assignment).
         // Empty assignments are no-ops and would cause issues in backend implementations.
@@ -1441,7 +1440,7 @@ where
             return self;
         }
 
-        check!(TensorCheck::slice_assign::<D, D2>(
+        check!(TensorCheck::slice_assign::<D>(
             &shape,
             &values.shape(),
             &slices
@@ -1509,14 +1508,14 @@ where
     /// - [`slice_assign`](Self::slice_assign) - Assign tensor values to a slice
     ///
     /// [`s!`]: crate::s!
-    pub fn slice_fill<const D2: usize, S, E: ElementConversion>(self, slices: S, value: E) -> Self
+    pub fn slice_fill<S, E: ElementConversion>(self, slices: S, value: E) -> Self
     where
-        S: SliceArg<D2>,
+        S: SliceArg,
     {
         let shape = self.shape();
-        let slices = slices.into_slices(shape.clone());
+        let slices = slices.into_slices(&shape);
 
-        check!(TensorCheck::slice::<D, D2>(&shape, &slices));
+        check!(TensorCheck::slice::<D>(&shape, &slices));
 
         Self::new(K::slice_fill(self.primitive, &slices, value.elem()))
     }
@@ -1666,6 +1665,133 @@ where
         Self::new(K::select_assign(
             self.primitive,
             dim,
+            indices.primitive,
+            values.primitive,
+            update,
+        ))
+    }
+
+    /// Update the given tensor with the value tensor where the mask is true.
+    ///
+    /// This is similar to [mask_fill](Tensor::mask_fill), however the value is a tensor instead of
+    /// a scalar.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let value = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///   let tensor = tensor.mask_where(mask, value);
+    ///   println!("{tensor}");
+    ///   // [[2.0, -2.0, 4.0], [5.0, 2.0, 6.0]]
+    /// }
+    /// ```
+    pub fn mask_where(self, mask: Tensor<B, D, Bool>, value: Self) -> Self {
+        Self::new(K::mask_where(
+            self.primitive,
+            mask.primitive,
+            value.primitive,
+        ))
+    }
+
+    /// Update the given tensor with the value where the mask is true.
+    ///
+    /// This is similar to [mask_where](Tensor::mask_where), however the value is a scalar instead of
+    /// a tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let tensor = tensor.mask_fill(mask, 3.0);
+    ///   println!("{tensor}");
+    ///   // [[3.0, -2.0, 3.0], [5.0, 3.0, 6.0]]
+    /// }
+    /// ```
+    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
+        Self::new(K::mask_fill(self.primitive, mask.primitive, value.elem()))
+    }
+
+    /// Gather tensor elements corresponding to the given indices from the specified dim.
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `output[i, j, k] = input[indices[i, j, k], j, k]; // dim = 0`
+    /// `output[i, j, k] = input[i, indices[i, j, k], k]; // dim = 1`
+    /// `output[i, j, k] = input[i, j, indices[i, j, k]]; // dim = 2`
+    ///
+    /// # Notes
+    ///
+    /// The index tensor should have the same shape as the original tensor except for the dim
+    /// specified.
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
+        check!(TensorCheck::gather::<D>(
+            dim,
+            &self.shape(),
+            &indices.shape()
+        ));
+
+        Self::new(K::gather(dim, self.primitive, indices.primitive))
+    }
+
+    /// Assign the gathered elements corresponding to the given indices along the specified dimension
+    /// from the value tensor to the original tensor using sum reduction.
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `input[indices[i, j, k], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indices[i, j, k], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
+    ///
+    /// # Arguments
+    /// * `dim` - The axis along which to scatter elements.
+    /// * `indices` - The indices of the elements to scatter.
+    /// * `values` - The values to scatter into the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
+    ///
+    /// # Notes
+    ///
+    /// The index tensor should have the same shape as the original tensor except for the specified
+    /// dimension. The value and index tensors should have the same shape.
+    ///
+    /// Other references to the input tensor will not be modified by this operation.
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    pub fn scatter(
+        self,
+        dim: usize,
+        indices: Tensor<B, D, Int>,
+        values: Self,
+        update: IndexingUpdateOp,
+    ) -> Self {
+        check!(TensorCheck::scatter::<D>(
+            dim,
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+
+        Self::new(K::scatter(
+            dim,
+            self.primitive,
             indices.primitive,
             values.primitive,
             update,
@@ -1880,6 +2006,54 @@ where
     pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
         Tensor::new(K::not_equal(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The element to compare.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.equal_elem(3.0);
+    ///    println!("{tensor}");
+    ///    // [[false, false, true], [false, false, false]]
+    /// }
+    /// ```
+    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        Tensor::new(K::equal_elem(self.primitive, other.elem()))
+    }
+
+    /// Applies element wise non-equality comparison and returns a boolean tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The element to compare.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.not_equal_elem(3.0);
+    ///    println!("{tensor}");
+    ///    // [[true, true, false], [true, true, true]]
+    /// }
+    /// ```
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        Tensor::new(K::not_equal_elem(self.primitive, other.elem()))
     }
 
     /// Concatenates all tensors into a new one along the given dimension.

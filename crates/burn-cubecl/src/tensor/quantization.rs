@@ -1,6 +1,6 @@
-use burn_tensor::{DType, Shape, quantization::QParamTensor};
+use burn_backend::{DType, Shape, quantization::QParamTensor};
+use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::{client::ComputeClient, server::Handle};
-use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::CubeRuntime;
 
@@ -8,7 +8,7 @@ use super::CubeTensor;
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
+pub type QParams = burn_backend::quantization::QParams<QParamTensor>;
 
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor

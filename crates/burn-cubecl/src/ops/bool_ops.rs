@@ -3,11 +3,12 @@ use crate::{
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
 };
-use burn_tensor::{Shape, TensorData};
-use burn_tensor::{
-    backend::ExecutionError,
-    ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor},
+use burn_backend::{
+    ExecutionError, Slice,
+    ops::BoolTensorOps,
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
+use burn_backend::{Shape, TensorData, tensor::BoolElem};
 use cubecl::std::scalar::InputScalar;
 use std::ops::Range;
 
@@ -59,7 +60,7 @@ where
         super::reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, slices: &[burn_tensor::Slice]) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         // Check if all steps are 1
         let all_steps_one = slices.iter().all(|info| info.step == 1);
 
@@ -80,7 +81,7 @@ where
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[burn_tensor::Slice],
+        ranges: &[Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         kernel::slice_assign(tensor, ranges, value)
@@ -137,7 +138,7 @@ where
         kernel::select(tensor, dim, indices)
     }
 
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -157,5 +158,44 @@ where
         step: usize,
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
+    }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::mask_where_auto(tensor, mask, value, BT::dtype())
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        let dtype = tensor.dtype;
+        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), dtype)
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::gather(dim, tensor, indices)
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::scatter(dim, tensor, indices, value, true)
+    }
+
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
+        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), dtype)
     }
 }

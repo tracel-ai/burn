@@ -6,11 +6,11 @@ use crate::{
         conv::{ConvStrategy, ConvTranspose2dStrategy},
     },
 };
-use burn_tensor::ops::{
-    BoolTensor, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-    InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+use burn_backend::ops::{
+    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
+    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
-use burn_tensor::ops::{FloatTensor, IntTensor};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 
 impl<R, F, I, BT> ModuleOps<Self> for CubeBackend<R, F, I, BT>
 where
@@ -104,8 +104,16 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        kernel::pool::avg_pool2d(x, kernel_size, stride, padding, count_include_pad)
+        kernel::pool::avg_pool2d(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+        )
     }
 
     fn avg_pool2d_backward(
@@ -115,8 +123,17 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad)
+        kernel::pool::avg_pool2d_backward(
+            x,
+            grad,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+        )
     }
 
     fn max_pool2d(
@@ -125,8 +142,9 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        kernel::pool::max_pool2d(x, kernel_size, stride, padding, dilation)
+        kernel::pool::max_pool2d(x, kernel_size, stride, padding, dilation, ceil_mode)
     }
 
     fn max_pool2d_with_indices(
@@ -135,6 +153,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
         let (output, indices) = kernel::pool::max_pool2d_with_indices(
             x,
@@ -142,6 +161,7 @@ where
             stride,
             padding,
             dilation,
+            ceil_mode,
             I::dtype(),
         );
 
@@ -154,6 +174,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
@@ -165,6 +186,7 @@ where
             stride,
             padding,
             dilation,
+            ceil_mode,
         ))
     }
 

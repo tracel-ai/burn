@@ -2,24 +2,24 @@
 authors = ["Dilshod Tadjibaev (@antimora)"]
 categories = []
 description = "Core types and utilities shared across the Burn ecosystem."
+documentation = "https://docs.rs/burn-std"
 edition.workspace = true
 keywords = []
 license.workspace = true
 name = "burn-std"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-std"
-documentation = "https://docs.rs/burn-std"
 version.workspace = true
 
 [lints]
 workspace = true
 
 [features]
-default = ["std", "cubecl-common/default"]
-std = ["cubecl-common/std", "num-traits/std"]
-doc = ["default"]
 cubecl = ["dep:cubecl"]
+default = ["std", "cubecl-common/default"]
+doc = ["default"]
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
+std = ["cubecl-common/std", "num-traits/std"]
 
 [dependencies]
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
@@ -30,8 +30,11 @@ serde = { workspace = true }
 cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
+    "shared-bytes",
 ] }
-cubecl-quant = { workspace = true }
+# Enable extra-platforms for portable-atomic support on targets without native atomics (e.g., thumbv6m)
+# This is needed because cubecl-common's shared-bytes feature pulls in bytes
+bytes = { workspace = true }
 
 # Network downloader
 indicatif = { workspace = true, optional = true }
@@ -40,6 +43,10 @@ tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }
+
+# Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+bytes = { workspace = true, features = ["extra-platforms"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

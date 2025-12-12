@@ -6,17 +6,17 @@ use crate::{
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    matmul::{
-        AcceleratedTileKind,
-        components::MatmulKind,
-        tune_key::{
-            MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
-        },
-    },
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+};
+use cubek::matmul::{
+    AcceleratedTileKind,
+    components::MatmulKind,
+    tune_key::{
+        MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
+    },
 };
 use serde::{Deserialize, Serialize};
 

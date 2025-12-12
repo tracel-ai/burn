@@ -776,9 +776,9 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice<const D1: usize, const D2: usize>(shape: &Shape, slices: &[Slice]) -> Self {
+    pub(crate) fn slice<const R: usize>(shape: &Shape, slices: &[Slice]) -> Self {
         let mut check = Self::Ok;
-        let n_dims_tensor = D1;
+        let n_dims_tensor = R;
         let n_dims_slices = slices.len();
 
         if n_dims_tensor < n_dims_slices {
@@ -796,7 +796,7 @@ impl TensorCheck {
             );
         }
 
-        for (i, slice) in slices.iter().enumerate().take(D1) {
+        for (i, slice) in slices.iter().enumerate().take(R) {
             let d_tensor = shape[i];
 
             // Check the raw end value before conversion
@@ -835,14 +835,15 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice_assign<const D1: usize, const D2: usize>(
+    pub(crate) fn slice_assign<const R: usize>(
         shape: &Shape,
         shape_value: &Shape,
         slices: &[crate::Slice],
     ) -> Self {
         let mut check = Self::Ok;
+        let n_dims_slices = slices.len();
 
-        if D1 < D2 {
+        if R < n_dims_slices {
             check = check.register(
                 "Slice Assign",
                 TensorError::new(
@@ -851,12 +852,12 @@ impl TensorCheck {
                 )
                 .details(format!(
                     "The slices array must be smaller or equal to the tensor number of \
-                     dimensions. Tensor number of dimensions: {D1}, slices array length {D2}."
+                     dimensions. Tensor number of dimensions: {R}, slices array length {n_dims_slices}."
                 )),
             );
         }
 
-        for (i, slice) in slices.iter().enumerate().take(usize::min(D1, D2)) {
+        for (i, slice) in slices.iter().enumerate().take(usize::min(R, n_dims_slices)) {
             let d_tensor = shape[i];
             let d_tensor_value = shape_value.dims[i];
             let range = slice.to_range(d_tensor);
@@ -1511,14 +1512,14 @@ mod tests {
     #[should_panic]
     fn index_range_exceed_dimension() {
         let slices = vec![Slice::from(0..2), Slice::from(0..4), Slice::from(1..8)];
-        check!(TensorCheck::slice::<3, 3>(&Shape::new([3, 5, 7]), &slices));
+        check!(TensorCheck::slice::<3>(&Shape::new([3, 5, 7]), &slices));
     }
 
     #[test]
     #[should_panic]
     fn index_range_exceed_number_of_dimensions() {
         let slices = vec![Slice::from(0..1), Slice::from(0..1), Slice::from(0..1)];
-        check!(TensorCheck::slice::<2, 3>(&Shape::new([3, 5]), &slices));
+        check!(TensorCheck::slice::<2>(&Shape::new([3, 5]), &slices));
     }
 
     #[test]

@@ -7,7 +7,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
+use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
 
@@ -21,9 +21,11 @@ impl Pool2dDirectStrategyFamily for AvgPoolStrategy {
 
 #[derive(CubeType, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct AvgPoolStrategyConfig {
-    kernel_size_h: u32,
-    kernel_size_w: u32,
     count_include_pad: bool,
+    /// Total padded height (input_height + 2 * padding_0)
+    padded_h: u32,
+    /// Total padded width (input_width + 2 * padding_1)
+    padded_w: u32,
 }
 
 #[cube]
@@ -33,15 +35,13 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     type Indices = ();
 
     fn initialize(
-        #[comptime] config: &Self::Config,
+        #[comptime] _config: &Self::Config,
         #[comptime] line_size: u32,
     ) -> Self::Accumulator {
         let sum = Line::empty(line_size).fill(N::from_int(0));
-        let count = comptime! {if config.count_include_pad {
-            config.kernel_size_h * config.kernel_size_w
-        } else {
-            0u32
-        }};
+        // Count will be set dynamically: either by accumulate (count_include_pad=false)
+        // or by set_padded_count (count_include_pad=true)
+        let count = 0u32;
 
         (sum, count)
     }
@@ -54,11 +54,26 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     ) {
         let (sum, count) = accumulator;
 
+        // Only count valid positions when count_include_pad=false
         if comptime![!config.count_include_pad] {
             *count += 1;
         }
 
         *sum += result;
+    }
+
+    fn count_position(
+        #[comptime] config: &Self::Config,
+        accumulator: &mut Self::Accumulator,
+        ih: u32,
+        iw: u32,
+    ) {
+        // When count_include_pad=true, count positions within padded bounds
+        // (excludes ceil_mode extensions beyond the padded input)
+        if comptime![config.count_include_pad] && ih < config.padded_h && iw < config.padded_w {
+            let (_sum, count) = accumulator;
+            *count += 1;
+        }
     }
 
     fn store(
@@ -79,14 +94,31 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, in_h, in_w] = x.shape.dims();
     let dilation = 1;
 
-    let size_0 =
-        calculate_pool_output_size(kernel_size[0], stride[0], padding[0], dilation, x.shape[2]);
-    let size_1 =
-        calculate_pool_output_size(kernel_size[1], stride[1], padding[1], dilation, x.shape[3]);
+    let size_0 = calculate_pool_output_size(
+        kernel_size[0],
+        stride[0],
+        padding[0],
+        dilation,
+        in_h,
+        ceil_mode,
+    );
+    let size_1 = calculate_pool_output_size(
+        kernel_size[1],
+        stride[1],
+        padding[1],
+        dilation,
+        in_w,
+        ceil_mode,
+    );
+
+    // Padded dimensions (for count_include_pad with ceil_mode)
+    let padded_0 = in_h + 2 * padding[0];
+    let padded_1 = in_w + 2 * padding[1];
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));
     let line_size = max_line_size(&x);
@@ -115,9 +147,9 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         AvgPoolStrategyConfig {
-            kernel_size_h: kernel_size[0] as u32,
-            kernel_size_w: kernel_size[1] as u32,
             count_include_pad,
+            padded_h: padded_0 as u32,
+            padded_w: padded_1 as u32,
         },
         output.dtype.into(),
     )

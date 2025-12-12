@@ -31,7 +31,7 @@ fn swap_slices<B: Backend, const D: usize, K, S>(
     slices2: S,
 ) -> Tensor<B, D, K>
 where
-    S: SliceArg<D> + Clone,
+    S: SliceArg + Clone,
     K: TensorKind<B> + BasicOps<B>,
 {
     let temporary = tensor.clone().slice(slices1.clone());

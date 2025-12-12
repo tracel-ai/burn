@@ -1,7 +1,7 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, tensor::CubeTensor};
-use burn_tensor::{DType, quantization::QTensorPrimitive};
-use cubecl::matmul::{
+use burn_backend::{DType, QTensorPrimitive};
+use cubek::matmul::{
     MatmulInputHandleRef,
     components::{MatmulElems, MatmulSetupError},
     tune_key::MatmulElemType,
@@ -50,7 +50,7 @@ pub fn matmul<R: CubeRuntime>(
 }
 
 pub(crate) fn launch_matmul<R: CubeRuntime>(
-    strategy: &cubecl::matmul::Strategy,
+    strategy: &cubek::matmul::Strategy,
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -120,7 +120,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             quantized: false,
         },
     );
-    cubecl::matmul::launch_ref(
+    cubek::matmul::launch_ref(
         strategy,
         client,
         &lhs_handle,

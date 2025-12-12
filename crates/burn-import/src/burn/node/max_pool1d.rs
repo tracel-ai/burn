@@ -14,6 +14,7 @@ impl NodeCodegen for onnx_ir::max_pool1d::MaxPool1dNode {
         let strides = self.config.stride.to_tokens();
         let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
+        let ceil_mode = self.config.ceil_mode;
 
         Some(Field::new(
             self.name.clone(),
@@ -25,6 +26,7 @@ impl NodeCodegen for onnx_ir::max_pool1d::MaxPool1dNode {
                     .with_stride(#strides)
                     .with_padding(#padding)
                     .with_dilation(#dilation)
+                    .with_ceil_mode(#ceil_mode)
                     .init();
             },
         ))
@@ -55,8 +57,8 @@ mod tests {
     use onnx_ir::max_pool1d::{MaxPool1dConfig, MaxPool1dNode, MaxPool1dNodeBuilder};
     use onnx_ir::padding::PaddingConfig1d;
 
-    fn create_max_pool1d_node(name: &str) -> MaxPool1dNode {
-        let config = MaxPool1dConfig::new(3, 1, 1, PaddingConfig1d::Valid);
+    fn create_max_pool1d_node(name: &str, ceil_mode: bool) -> MaxPool1dNode {
+        let config = MaxPool1dConfig::new(3, 1, 1, PaddingConfig1d::Valid, ceil_mode);
 
         MaxPool1dNodeBuilder::new(name)
             .input_tensor("input", 3, DType::F32)
@@ -67,7 +69,7 @@ mod tests {
 
     #[test]
     fn test_max_pool1d_forward() {
-        let node = create_max_pool1d_node("pool1");
+        let node = create_max_pool1d_node("pool1", false);
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
@@ -79,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_max_pool1d_forward_with_clone() {
-        let node = create_max_pool1d_node("pool1");
+        let node = create_max_pool1d_node("pool1", false);
         let code = codegen_forward_with_clone(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
@@ -87,5 +89,33 @@ mod tests {
             output
         }
         ");
+    }
+
+    #[test]
+    fn test_max_pool1d_field_init_ceil_mode_false() {
+        let node = create_max_pool1d_node("pool1", false);
+        let code = codegen_field_init(&node);
+        assert_snapshot!(code, @r#"
+        let pool1 = MaxPool1dConfig::new(3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Valid)
+            .with_dilation(1)
+            .with_ceil_mode(false)
+            .init();
+        "#);
+    }
+
+    #[test]
+    fn test_max_pool1d_field_init_ceil_mode_true() {
+        let node = create_max_pool1d_node("pool1", true);
+        let code = codegen_field_init(&node);
+        assert_snapshot!(code, @r#"
+        let pool1 = MaxPool1dConfig::new(3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Valid)
+            .with_dilation(1)
+            .with_ceil_mode(true)
+            .init();
+        "#);
     }
 }

@@ -3,8 +3,11 @@
 //! This module contains the OnnxGraph struct which represents a complete
 //! ONNX computational graph with nodes, inputs, and outputs.
 
+use std::collections::HashSet;
+
 use super::argument::Argument;
 use super::node::{Node, RawNode};
+use crate::ir::ValueSource;
 use crate::tensor_store::ValueStore;
 
 /// ONNX graph representation containing fully processed nodes
@@ -76,22 +79,48 @@ impl OnnxGraphBuilder {
             }
         }
 
-        OnnxGraph {
+        let mut graph = OnnxGraph {
             nodes,
             inputs: self.inputs,
             outputs: self.outputs,
             value_store,
-        }
+        };
+
+        // Eliminate dead constants - must happen after subgraphs are built
+        // so we can see all constant references including those in subgraphs
+        eliminate_dead_constants(&mut graph);
+
+        graph
     }
 }
 
 /// Recursively attach value_store to Arguments in all nodes (including subgraphs)
+///
+/// For outer-scope Static arguments (constants converted from parent graph), preserves their
+/// existing value_store since it contains the tensor data they reference.
 fn finalize_arguments_in_nodes(nodes: &mut [Node], value_store: &ValueStore) {
     for node in nodes {
-        // Attach value_store to the node's inputs/outputs
+        // Attach value_store to the node's inputs
         for arg in node.inputs_mut() {
-            arg.set_value_store(value_store.clone());
+            // Preserve value_store for Static arguments that already have a store containing
+            // their data. After to_static() converts a Constant to Static, the name is cleared
+            // but we can check if the existing store has the data_id.
+            let should_preserve = if let crate::ir::ValueSource::Static(data_id) = arg.value_source
+            {
+                // If the argument already has a store that contains this data_id, preserve it
+                arg.value_store
+                    .as_ref()
+                    .map(|store| store.get_tensor_data(data_id).is_some())
+                    .unwrap_or(false)
+            } else {
+                false
+            };
+
+            if !should_preserve {
+                arg.set_value_store(value_store.clone());
+            }
         }
+        // Outputs are always local, so always set the store
         for arg in node.outputs_mut() {
             arg.set_value_store(value_store.clone());
         }
@@ -123,27 +152,39 @@ fn finalize_subgraphs_in_node(node: &mut Node) {
 /// Subgraphs have their own GraphState with their own constants (e.g., conv weights
 /// within an If branch). We must use the subgraph's own value_store to access these
 /// constants, not the parent's value_store.
+///
+/// However, outer-scope Static arguments already have the parent's value_store set,
+/// which contains the tensor data they reference. We must preserve those references.
 fn finalize_subgraph(graph: &mut OnnxGraph) {
     // Use the subgraph's own value_store if it has one
     if let Some(ref vs) = graph.value_store {
         let value_store = vs.clone();
         finalize_arguments_in_nodes(&mut graph.nodes, &value_store);
         for input in &mut graph.inputs {
-            input.set_value_store(value_store.clone());
+            // Preserve value_store for Static arguments that already have a store containing their data
+            let should_preserve =
+                if let crate::ir::ValueSource::Static(data_id) = input.value_source {
+                    input
+                        .value_store
+                        .as_ref()
+                        .map(|store| store.get_tensor_data(data_id).is_some())
+                        .unwrap_or(false)
+                } else {
+                    false
+                };
+
+            if !should_preserve {
+                input.set_value_store(value_store.clone());
+            }
         }
         for output in &mut graph.outputs {
+            // Outputs are always local
             output.set_value_store(value_store.clone());
         }
     }
 }
 
-/// Convert a vector of RawNodes to Nodes, handling subgraphs recursively
-pub fn finalize_graph_nodes(builders: &mut Vec<RawNode>, opset: usize) -> Vec<Node> {
-    let taken_builders = std::mem::take(builders);
-    convert_builders_to_nodes(taken_builders, opset)
-}
-
-/// Convert a vector of RawNodes to Nodes, handling subgraphs recursively
+/// Convert a vector of RawNodes to Nodes
 fn convert_builders_to_nodes(builders: Vec<RawNode>, opset: usize) -> Vec<Node> {
     let registry = crate::processor::get_processor_registry();
 
@@ -152,75 +193,101 @@ fn convert_builders_to_nodes(builders: Vec<RawNode>, opset: usize) -> Vec<Node> 
         .map(|builder| {
             let processor = registry.get(&builder.node_type);
 
-            // For control flow nodes with subgraphs, we need to convert those subgraphs first
-            let builder = convert_subgraphs_in_attributes(builder, opset);
-
-            // Debug: log which node is being converted
             log::debug!(
                 "Converting node '{}' of type {:?}",
                 builder.name,
                 builder.node_type
             );
 
-            // Now build the node
             processor.build_node(builder, opset)
         })
         .collect()
 }
 
-/// Convert any subgraphs in node attributes from OnnxGraphBuilder to OnnxGraph
-fn convert_subgraphs_in_attributes(mut builder: RawNode, opset: usize) -> RawNode {
-    use crate::ir::AttributeValue;
+/// Collect all constant names that are referenced (value_source = Constant) in the graph
+///
+/// This recursively traverses all nodes including subgraphs.
+/// For If/Loop/Scan nodes, we skip outer-scope ref inputs (the scope_ref_names portion)
+/// because those are just pass-through - we check the subgraphs directly for actual refs.
+fn collect_constant_refs(graph: &OnnxGraph, refs: &mut HashSet<String>) {
+    // Check node inputs
+    for node in &graph.nodes {
+        // For If/Loop/Scan, calculate how many outer-scope refs to skip
+        // outer_scope_count = scope_ref_names.len()
+        // onnx_input_count = inputs.len() - outer_scope_count
+        let outer_scope_count = match node {
+            Node::If(n) => n.config.scope_ref_names.len(),
+            Node::Loop(n) => n.config.scope_ref_names.len(),
+            Node::Scan(n) => n.config.scope_ref_names.len(),
+            _ => 0,
+        };
+        let inputs_to_check = node.inputs().len().saturating_sub(outer_scope_count);
 
-    for attr_value in builder.attrs.values_mut() {
-        match attr_value {
-            AttributeValue::GraphBuilder(subgraph_builder) => {
-                // Build value store from subgraph's GraphState
-                let value_store = subgraph_builder
-                    .graph_state
-                    .as_ref()
-                    .map(|gs| gs.borrow().build_value_store());
-
-                // Convert the subgraph's RawNodes to Nodes
-                let nodes =
-                    convert_builders_to_nodes(std::mem::take(&mut subgraph_builder.nodes), opset);
-
-                // Create a new OnnxGraph with converted nodes
-                *attr_value = AttributeValue::Graph(OnnxGraph {
-                    nodes,
-                    inputs: std::mem::take(&mut subgraph_builder.inputs),
-                    outputs: std::mem::take(&mut subgraph_builder.outputs),
-                    value_store,
-                });
+        for input in node.inputs().iter().take(inputs_to_check) {
+            if input.value_source == ValueSource::Constant && !input.name.is_empty() {
+                refs.insert(input.name.clone());
             }
-            AttributeValue::GraphBuilders(subgraph_builders) => {
-                let converted_graphs: Vec<OnnxGraph> = subgraph_builders
-                    .iter_mut()
-                    .map(|subgraph_builder| {
-                        let value_store = subgraph_builder
-                            .graph_state
-                            .as_ref()
-                            .map(|gs| gs.borrow().build_value_store());
+        }
 
-                        let nodes = convert_builders_to_nodes(
-                            std::mem::take(&mut subgraph_builder.nodes),
-                            opset,
-                        );
-
-                        OnnxGraph {
-                            nodes,
-                            inputs: std::mem::take(&mut subgraph_builder.inputs),
-                            outputs: std::mem::take(&mut subgraph_builder.outputs),
-                            value_store,
-                        }
-                    })
-                    .collect();
-
-                *attr_value = AttributeValue::Graphs(converted_graphs);
+        // Recursively check subgraphs
+        match node {
+            Node::If(n) => {
+                collect_constant_refs(&n.config.then_branch, refs);
+                collect_constant_refs(&n.config.else_branch, refs);
+            }
+            Node::Loop(n) => {
+                collect_constant_refs(&n.config.body, refs);
+            }
+            Node::Scan(n) => {
+                collect_constant_refs(&n.config.body, refs);
             }
             _ => {}
         }
     }
 
-    builder
+    // Check graph outputs
+    for output in &graph.outputs {
+        if output.value_source == ValueSource::Constant && !output.name.is_empty() {
+            refs.insert(output.name.clone());
+        }
+    }
+}
+
+/// Eliminate dead constants from the graph
+///
+/// A constant is "dead" if no argument references it (value_source = Constant).
+/// This is called after all subgraphs are built, so we can see all references.
+fn eliminate_dead_constants(graph: &mut OnnxGraph) {
+    // Collect all referenced constant names
+    let mut referenced = HashSet::new();
+    collect_constant_refs(graph, &mut referenced);
+
+    log::debug!(
+        "Dead constant elimination: {} referenced constants",
+        referenced.len()
+    );
+
+    // Remove Constant nodes not in the referenced set
+    let before_count = graph.nodes.len();
+    graph.nodes.retain(|node| {
+        if let Node::Constant(c) = node {
+            let output_name = c.outputs.first().map(|o| o.name.as_str()).unwrap_or("");
+            let keep = referenced.contains(output_name);
+            if !keep {
+                log::debug!(
+                    "Removing dead constant: {} (output: {})",
+                    c.name,
+                    output_name
+                );
+            }
+            keep
+        } else {
+            true
+        }
+    });
+
+    let removed = before_count - graph.nodes.len();
+    if removed > 0 {
+        log::info!("Removed {} dead constants", removed);
+    }
 }

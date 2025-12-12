@@ -1,13 +1,12 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::{BoolTensor, FloatTensor};
-use burn_tensor::{
+use burn_backend::backend::ExecutionError;
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
+use burn_backend::{
     DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
-    backend::Backend,
-    ops::{FloatTensorOps, IntTensor},
+    backend::Backend, ops::FloatTensorOps,
 };
-use half::{bf16, f16};
+use burn_backend::{bf16, f16};
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
@@ -72,19 +71,19 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         Ok(match tensor.tensor.kind() {
             tch::Kind::Half => {
-                let values: Vec<f16> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<f16>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             tch::Kind::Float => {
-                let values: Vec<f32> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<f32>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             tch::Kind::Double => {
-                let values: Vec<f64> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<f64>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             tch::Kind::BFloat16 => {
-                let values: Vec<bf16> = tensor.tensor.try_into().unwrap();
+                let values = Vec::<bf16>::try_from(&tensor).unwrap();
                 TensorData::new(values, shape)
             }
             _ => panic!("Not a valid float kind"),
@@ -229,13 +228,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::select_assign(tensor, dim, indices, value)
     }
 
-    fn float_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+    fn float_slice(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {
         TchOps::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(
         tensor: TchTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: TchTensor,
     ) -> TchTensor {
         TchOps::slice_assign(tensor, slices, value)

@@ -1,12 +1,12 @@
 use burn_fusion::stream::Context;
-use burn_tensor::{DType, quantization::QParamTensor};
+use burn_std::{DType, quantization::QParamTensor};
+use cubecl::quant::scheme::{QuantParam, QuantScheme};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::ElemType,
     prelude::{TensorArg, TensorHandleRef},
 };
-use cubecl_quant::scheme::{QuantParam, QuantScheme};
 use std::marker::PhantomData;
 
 /// Defines a fallback operation when fusion isn't possible.
@@ -17,7 +17,7 @@ pub trait FallbackOperation<R: Runtime>: Send + Sync {
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
+pub type QParams = burn_std::quantization::QParams<QParamTensor>;
 
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {

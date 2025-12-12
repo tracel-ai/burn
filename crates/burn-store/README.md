@@ -22,8 +22,7 @@ interoperability, and advanced tensor management.
 - **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
   predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
-- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM
-  environments
+- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM environments
 
 ### Advanced Features
 
@@ -121,6 +120,39 @@ let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
 burn_model.save_into(&mut store)?;
 ```
 
+### Contiguous Layer Index Mapping
+
+When loading PyTorch models that use `nn.Sequential` with mixed layer types (e.g., Conv2d + ReLU),
+the layer indices may be non-contiguous because only some layers have parameters:
+
+```python
+# PyTorch model with non-contiguous indices
+self.fc = nn.Sequential(
+    nn.Conv2d(...),  # fc.0.weight, fc.0.bias
+    nn.ReLU(),       # No parameters (index 1 skipped)
+    nn.Conv2d(...),  # fc.2.weight, fc.2.bias
+    nn.ReLU(),       # No parameters (index 3 skipped)
+    nn.Conv2d(...),  # fc.4.weight, fc.4.bias
+)
+```
+
+Burn models typically expect contiguous indices (`fc.0`, `fc.1`, `fc.2`). The `map_indices_contiguous`
+feature automatically maps non-contiguous indices to contiguous ones:
+
+```rust
+// PytorchStore: map_indices_contiguous is ON by default
+let mut store = PytorchStore::from_file("model.pth");
+// fc.0 -> fc.0, fc.2 -> fc.1, fc.4 -> fc.2
+
+// Disable if your model already has contiguous indices
+let mut store = PytorchStore::from_file("model.pth")
+    .map_indices_contiguous(false);
+
+// SafetensorsStore: map_indices_contiguous is OFF by default
+let mut store = SafetensorsStore::from_file("model.safetensors")
+    .map_indices_contiguous(true);  // Enable for PyTorch-exported safetensors
+```
+
 ### Tensor Name Remapping
 
 ```rust
@@ -174,6 +206,67 @@ if !result.missing.is_empty() {
 ```
 
 Both BurnpackStore and SafetensorsStore support no-std environments when using byte operations
+
+### Zero-Copy Loading
+
+For embedded models and large model files, zero-copy loading avoids unnecessary memory allocations
+by directly referencing the source data instead of copying it.
+
+#### Embedded Models (Static Data)
+
+```rust
+use burn_store::{ModuleSnapshot, BurnpackStore};
+
+// Embed model weights in the binary at compile time
+static MODEL_DATA: &[u8] = include_bytes!("model.bpk");
+
+// Zero-copy loading - data stays in binary's .rodata section
+let mut store = BurnpackStore::from_static(MODEL_DATA);
+model.load_from(&mut store)?;
+```
+
+The `from_static()` constructor automatically enables zero-copy mode. Tensor data is sliced directly
+from the embedded bytes without heap allocation.
+
+#### File-Based Zero-Copy
+
+```rust
+// Memory-mapped file with zero-copy tensor slicing
+let mut store = BurnpackStore::from_file("large_model.bpk")
+    .zero_copy(true);  // Enable zero-copy slicing
+model.load_from(&mut store)?;
+```
+
+When `zero_copy(true)` is set, the memory-mapped file is wrapped in `bytes::Bytes` via
+`from_owner()`, enabling O(1) slicing operations.
+
+#### In-Memory Zero-Copy
+
+```rust
+use burn_tensor::{AllocationProperty, Bytes};
+
+// Create shared bytes for zero-copy
+let data: Vec<u8> = load_model_bytes();
+let shared = bytes::Bytes::from(data);
+let bytes = Bytes::from_shared(shared, AllocationProperty::Other);
+
+// Load with zero-copy enabled
+let mut store = BurnpackStore::from_bytes(Some(bytes))
+    .zero_copy(true);
+model.load_from(&mut store)?;
+```
+
+#### When to Use Zero-Copy
+
+| Scenario                            | Recommendation                     |
+| ----------------------------------- | ---------------------------------- |
+| Embedded models (`include_bytes!`)  | Use `from_static()` (auto-enabled) |
+| Large model files                   | Use `from_file().zero_copy(true)`  |
+| Repeated loading from same bytes    | Use `from_bytes().zero_copy(true)` |
+| One-time load, release memory after | Use default (copy mode)            |
+
+**Note**: Zero-copy keeps the source data alive as long as any tensor references it. Use copy mode
+(default) if you need to release the source file/memory immediately after loading.
 
 ### Model Surgery and Partial Operations
 
@@ -277,6 +370,47 @@ model.save_into(&mut save_store)?;
 ```
 
 ## Advanced Usage
+
+### Direct Tensor Access
+
+All stores provide methods to directly access tensor snapshots without loading into a model. This is
+useful for inspection, debugging, selective processing, or building custom loading pipelines.
+
+```rust
+use burn_store::{ModuleStore, BurnpackStore, SafetensorsStore, PytorchStore};
+
+// Works with any store type
+let mut store = BurnpackStore::from_file("model.bpk");
+// let mut store = SafetensorsStore::from_file("model.safetensors");
+// let mut store = PytorchStore::from_file("model.pth");
+
+// List all tensor names (ordered)
+let names = store.keys()?;
+println!("Model contains {} tensors:", names.len());
+for name in &names {
+    println!("  - {}", name);
+}
+
+// Get all tensors as a BTreeMap (cached for repeated access)
+let snapshots = store.get_all_snapshots()?;
+for (name, snapshot) in snapshots {
+    println!("{}: {:?} {:?}", name, snapshot.shape, snapshot.dtype);
+}
+
+// Get a specific tensor by name
+if let Some(snapshot) = store.get_snapshot("encoder.layer0.weight")? {
+    // Lazy loading - data is only fetched when to_data() is called
+    let data = snapshot.to_data()?;
+    println!("Shape: {:?}, DType: {:?}", data.shape, data.dtype);
+}
+```
+
+#### Use Cases
+
+- **Model Inspection**: Examine tensor shapes, dtypes, and names without full model instantiation
+- **Selective Loading**: Build custom pipelines that only load specific tensors
+- **Debugging**: Verify tensor values and compare across different model files
+- **Format Conversion**: Read tensors from one format and write to another
 
 ### Custom Filtering with Predicates
 
@@ -390,8 +524,17 @@ The stores provide a fluent API for configuration:
 - `allow_partial(bool)` - Continue on missing tensors
 - `validate(bool)` - Toggle validation
 - `skip_enum_variants(bool)` - Skip enum variant names in paths for PyTorch compatibility
+- `map_indices_contiguous(bool)` - Map non-contiguous layer indices to contiguous (default: `true`
+  for PyTorch, `false` for SafeTensors)
 - `with_top_level_key(key)` - Access nested dict in PyTorch files
 - `overwrite(bool)` - Allow overwriting existing files (Burnpack)
+- `zero_copy(bool)` - Enable zero-copy tensor slicing (Burnpack)
+
+#### Direct Tensor Access
+
+- `keys()` - Get ordered list of all tensor names
+- `get_all_snapshots()` - Get all tensors as a BTreeMap (cached)
+- `get_snapshot(name)` - Get a specific tensor by name
 
 ### Inspecting Burnpack Files
 

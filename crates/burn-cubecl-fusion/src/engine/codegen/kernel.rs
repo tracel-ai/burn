@@ -1,10 +1,10 @@
 use super::{DYN_ELEM_ID, Q_PARAM_DYN_ELEM_ID, Q_STORE_DYN_ELEM_ID, io::*, ir::*};
-use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, StorageType, UIntKind},
     prelude::*,
 };
-use cubecl_quant::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
+use cubek::quantization::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -809,15 +809,15 @@ fn dequantize<C: Float>(
         QuantStore::U32 => ElemType::UInt(UIntKind::U32).into(),
     }]);
     set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(comptime![match scheme.param {
-        cubecl_quant::scheme::QuantParam::F32 =>
+        cubecl::quant::scheme::QuantParam::F32 =>
             StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-        cubecl_quant::scheme::QuantParam::F16 =>
+        cubecl::quant::scheme::QuantParam::F16 =>
             StorageType::Scalar(ElemType::Float(FloatKind::F16)),
-        cubecl_quant::scheme::QuantParam::BF16 =>
+        cubecl::quant::scheme::QuantParam::BF16 =>
             StorageType::Scalar(ElemType::Float(FloatKind::BF16)),
-        cubecl_quant::scheme::QuantParam::UE8M0 =>
+        cubecl::quant::scheme::QuantParam::UE8M0 =>
             StorageType::Scalar(ElemType::Float(FloatKind::UE8M0)),
-        cubecl_quant::scheme::QuantParam::UE4M3 =>
+        cubecl::quant::scheme::QuantParam::UE4M3 =>
             StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }]);
 

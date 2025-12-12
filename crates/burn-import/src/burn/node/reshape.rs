@@ -108,7 +108,34 @@ impl NodeCodegen for onnx_ir::reshape::ReshapeNode {
                         }
                     }
                     ArgType::Scalar(_) => {
-                        panic!("Reshape: unexpected scalar input")
+                        // Scalar input - convert scalar to tensor or pass through
+                        let input_name = arg_to_ident(input_arg);
+
+                        match &output_arg.ty {
+                            ArgType::Tensor(tensor_type) => {
+                                // Create a 1-element tensor from scalar using Tensor::full,
+                                // then reshape to target shape (which must also be 1 element total)
+                                use crate::burn::TensorKind;
+                                let shape_values = shape_values.to_tokens();
+                                let output_rank = tensor_type.rank;
+                                let ones: Vec<_> = (0..output_rank).map(|_| quote! { 1 }).collect();
+                                let kind: TensorKind = tensor_type.dtype.into();
+
+                                quote! {
+                                    let #output = Tensor::<B, #output_rank, #kind>::full([#(#ones),*], #input_name, &*self.device)
+                                        .reshape(#shape_values);
+                                }
+                            }
+                            ArgType::Scalar(_) => {
+                                // Scalar to scalar - just pass through
+                                quote! {
+                                    let #output = #input_name;
+                                }
+                            }
+                            _ => {
+                                panic!("Reshape: scalar input to {:?} not supported", output_arg.ty)
+                            }
+                        }
                     }
                 }
             }
@@ -564,6 +591,65 @@ mod tests {
                     shape_array[3] as usize,
                 ]);
             tensor_out
+        }
+        ");
+    }
+
+    // Scalar -> Tensor reshapes
+    #[test]
+    fn test_reshape_scalar_to_tensor_i64() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![-1]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_scalar("value", DType::I64)
+            .output_tensor("tensor_out", 1, DType::I64)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, value: i64) -> Tensor<B, 1, Int> {
+            let tensor_out = Tensor::<B, 1usize, Int>::full([1], value, &*self.device)
+                .reshape([-1]);
+            tensor_out
+        }
+        ");
+    }
+
+    #[test]
+    fn test_reshape_scalar_to_tensor_f32() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![1]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_scalar("val", DType::F32)
+            .output_tensor("out", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, val: f32) -> Tensor<B, 1> {
+            let out = Tensor::<B, 1usize, Float>::full([1], val, &*self.device).reshape([1]);
+            out
+        }
+        ");
+    }
+
+    #[test]
+    fn test_reshape_scalar_to_scalar() {
+        let config = ReshapeConfig {
+            shape: ReshapeInput::Static(vec![]),
+        };
+        let node = ReshapeNodeBuilder::new("reshape1")
+            .input_scalar("x", DType::F32)
+            .output_scalar("y", DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, x: f32) -> f32 {
+            let y = x;
+            y
         }
         ");
     }

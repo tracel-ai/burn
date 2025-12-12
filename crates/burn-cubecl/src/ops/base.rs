@@ -1,13 +1,12 @@
 use crate::{CubeRuntime, kernel, tensor::CubeTensor};
-use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
-use burn_tensor::{
-    DType, Shape, TensorData,
-    backend::ExecutionError,
-    quantization::{QTensorPrimitive, QuantLevel, params_shape},
+use burn_backend::{
+    DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
+    quantization::{QuantLevel, params_shape},
 };
-use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
+use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
+use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
+use cubecl::quant::scheme::BlockSize;
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
-use cubecl_quant::scheme::BlockSize;
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -94,7 +93,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         qparams.scales.shape.dims.swap(dim1, dim2);
         qparams.scales.strides.swap(dim1, dim2);
 
-        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
     }
 
     tensor
@@ -129,7 +128,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
         qparams.scales.strides = axes.iter().map(|i| qparams.scales.strides[*i]).collect();
         qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
 
-        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
     }
 
     tensor

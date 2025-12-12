@@ -204,7 +204,15 @@ impl NodeProcessor for Conv1dProcessor {
         let mut dilations = vec![1];
         let mut group: usize = 1;
 
-        let weight_shape = node.inputs[1]
+        let weight_arg = &node.inputs[1];
+        log::debug!(
+            "Conv1d '{}' weight arg: name='{}', value_source={:?}, has_store={}",
+            node.name,
+            weight_arg.name,
+            weight_arg.value_source,
+            weight_arg.value_store.is_some()
+        );
+        let weight_shape = weight_arg
             .value()
             .ok_or_else(|| {
                 ProcessError::Custom("Conv1d: weight tensor must be present".to_string())

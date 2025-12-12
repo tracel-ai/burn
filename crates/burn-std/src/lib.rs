@@ -31,7 +31,7 @@ pub use cubecl::flex32;
 #[cfg(feature = "cubecl")]
 mod cube {
     use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
-    use cubecl_quant::scheme::QuantScheme;
+    use cubecl_common::quant::scheme::QuantScheme;
 
     use crate::tensor::DType;
     use crate::tensor::quantization::{QuantStore, QuantValue};

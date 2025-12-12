@@ -12,12 +12,9 @@ use cubecl::{
     io::read_masked,
     ir::StorageType,
     prelude::{barrier::BarrierExpand, *},
-    std::{
-        CubeOption, CubeOptionExpand,
-        tensor::{
-            ViewOperations, ViewOperationsExpand, ViewOperationsMut, ViewOperationsMutExpand,
-            layout::Coords1d,
-        },
+    std::tensor::{
+        ViewOperations, ViewOperationsExpand, ViewOperationsMut, ViewOperationsMutExpand,
+        layout::Coords1d,
     },
 };
 
@@ -134,11 +131,6 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_as_tensor_map_method(&self, scope: &mut Scope) -> CubeOptionExpand<TensorMap<E>> {
-        CubeOption::__expand_new_None(scope)
-    }
-
-    #[allow(clippy::too_many_arguments)]
     fn __expand_tensor_map_load_method(
         &self,
         _scope: &mut Scope,
@@ -250,14 +242,6 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         _size: ExpandElementTyped<u32>,
     ) -> SliceExpand<Line<E>, ReadOnly> {
         todo!()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn __expand_as_tensor_map_method(
-        &self,
-        scope: &mut Scope,
-    ) -> CubeOptionExpand<TensorMap<Line<E>>> {
-        CubeOption::__expand_new_None(scope)
     }
 
     #[allow(clippy::too_many_arguments)]

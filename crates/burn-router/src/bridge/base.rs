@@ -1,4 +1,4 @@
-use burn_tensor::{Shape, backend::DeviceOps};
+use burn_backend::{Shape, backend::DeviceOps};
 
 /// Allows tensors to be transferred between multiple backends.
 pub trait MultiBackendBridge: Send + Sync + 'static {

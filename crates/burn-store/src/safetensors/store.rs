@@ -6,8 +6,9 @@ use crate::{
 };
 
 #[cfg(feature = "std")]
-use crate::KeyRemapper;
+use crate::{KeyRemapper, map_indices_contiguous};
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -121,8 +122,12 @@ impl SafetensorsStore {
             allow_partial: false,
             overwrite: false,
             skip_enum_variants: false,
+            // Contiguous index mapping is off by default for SafeTensors
+            // (SafeTensors files typically have clean, contiguous indices)
+            map_indices_contiguous: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
+            snapshots_cache: None,
         })
     }
 
@@ -137,8 +142,12 @@ impl SafetensorsStore {
             validate: true,
             allow_partial: false,
             skip_enum_variants: false,
+            // Contiguous index mapping is off by default for SafeTensors
+            #[cfg(feature = "std")]
+            map_indices_contiguous: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
+            snapshots_cache: None,
         })
     }
 
@@ -389,6 +398,40 @@ impl SafetensorsStore {
         self
     }
 
+    /// Enable or disable automatic contiguous mapping of layer indices (default: false).
+    ///
+    /// When enabled, non-contiguous numeric indices in tensor paths are renumbered
+    /// to be contiguous. This is useful when loading models that have gaps
+    /// in layer numbering, such as PyTorch models using `nn.Sequential` with mixed
+    /// layer types (e.g., Conv2d layers at indices 0, 2, 4 with ReLU layers at 1, 3, 5).
+    ///
+    /// # Example
+    ///
+    /// With index mapping enabled:
+    /// - `fc.0.weight` → `fc.0.weight`
+    /// - `fc.2.weight` → `fc.1.weight` (gap filled)
+    /// - `fc.4.weight` → `fc.2.weight` (gap filled)
+    ///
+    /// # Arguments
+    ///
+    /// * `map` - `true` to enable contiguous index mapping, `false` to disable
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// // Enable contiguous index mapping for PyTorch-exported safetensors
+    /// let store = SafetensorsStore::from_file("model.safetensors")
+    ///     .map_indices_contiguous(true);
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn map_indices_contiguous(mut self, map: bool) -> Self {
+        match &mut self {
+            Self::File(p) => p.map_indices_contiguous = map,
+            Self::Memory(p) => p.map_indices_contiguous = map,
+        }
+        self
+    }
+
     /// Set whether to overwrite existing files when saving (default: false).
     ///
     /// When set to `false`, attempting to save to an existing file will result in an error.
@@ -471,8 +514,12 @@ pub struct FileStore {
     allow_partial: bool,
     overwrite: bool,
     skip_enum_variants: bool,
+    /// Enable contiguous mapping of layer indices (default: false)
+    map_indices_contiguous: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 /// Memory-based store.
@@ -485,8 +532,13 @@ pub struct MemoryStore {
     validate: bool,
     allow_partial: bool,
     skip_enum_variants: bool,
+    /// Enable contiguous mapping of layer indices (default: false)
+    #[cfg(feature = "std")]
+    map_indices_contiguous: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
 
 impl Default for MemoryStore {
@@ -500,8 +552,11 @@ impl Default for MemoryStore {
             validate: true,
             allow_partial: false,
             skip_enum_variants: false,
+            #[cfg(feature = "std")]
+            map_indices_contiguous: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
+            snapshots_cache: None,
         }
     }
 }
@@ -558,6 +613,13 @@ impl ModuleStore for SafetensorsStore {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
+        // Invalidate cache since we're writing new data
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache = None,
+            Self::Memory(p) => p.snapshots_cache = None,
+        }
+
         // Collect tensor snapshots from module with adapter
         // The to_adapter converts from Burn format to target format for saving
         let to_adapter = match self {
@@ -624,31 +686,8 @@ impl ModuleStore for SafetensorsStore {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
-        // Convert to tensor snapshots with lazy loading
-        #[allow(unused_mut)]
-        let mut snapshots = match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => {
-                // Use safetensors' built-in lazy loading mechanisms
-                safetensors_to_snapshots_lazy_file(&p.path)?
-            }
-            Self::Memory(p) => {
-                let data_arc = p
-                    .data
-                    .clone()
-                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
-                safetensors_to_snapshots_lazy(data_arc)?
-            }
-        };
-
-        // Apply remapping to loaded tensors
-        #[cfg(feature = "std")]
-        {
-            snapshots = match self {
-                Self::File(p) => apply_remapping(snapshots, &p.remapper),
-                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
-            };
-        }
+        // Get snapshots from cache
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 
         // Get the adapter
         let adapter: Box<dyn ModuleAdapter> = match self {
@@ -657,11 +696,20 @@ impl ModuleStore for SafetensorsStore {
             Self::Memory(p) => p.from_adapter.clone(),
         };
 
+        // Get filter (cloned to Option for apply)
+        let filter = self.get_filter();
+        let filter_opt = if filter.is_empty() {
+            None
+        } else {
+            Some(filter.clone())
+        };
+
         // Apply to module with adapter
         // The adapter will be applied during module traversal with proper container info
+        // Filter is applied here during apply, not during cache population
         let result = module.apply(
             snapshots,
-            None,
+            filter_opt,
             Some(adapter),
             self.get_skip_enum_variants(),
         );
@@ -682,6 +730,33 @@ impl ModuleStore for SafetensorsStore {
         }
 
         Ok(result)
+    }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        let cache = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache.as_ref().unwrap(),
+            Self::Memory(p) => p.snapshots_cache.as_ref().unwrap(),
+        };
+        Ok(cache.get(name))
+    }
+
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        let cache = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache.as_ref().unwrap(),
+            Self::Memory(p) => p.snapshots_cache.as_ref().unwrap(),
+        };
+        Ok(cache)
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
     }
 }
 
@@ -732,6 +807,72 @@ impl SafetensorsStore {
             Self::File(p) => p.skip_enum_variants,
             Self::Memory(p) => p.skip_enum_variants,
         }
+    }
+
+    #[cfg(feature = "std")]
+    fn get_map_indices_contiguous(&self) -> bool {
+        match self {
+            Self::File(p) => p.map_indices_contiguous,
+            Self::Memory(p) => p.map_indices_contiguous,
+        }
+    }
+
+    /// Ensure the snapshots cache is populated
+    fn ensure_snapshots_cache(&mut self) -> Result<(), SafetensorsStoreError> {
+        // Check if cache exists
+        let has_cache = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache.is_some(),
+            Self::Memory(p) => p.snapshots_cache.is_some(),
+        };
+
+        if has_cache {
+            return Ok(());
+        }
+
+        // Load snapshots
+        #[allow(unused_mut)]
+        let mut snapshots = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => safetensors_to_snapshots_lazy_file(&p.path)?,
+            Self::Memory(p) => {
+                let data_arc = p
+                    .data
+                    .clone()
+                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
+                safetensors_to_snapshots_lazy(data_arc)?
+            }
+        };
+
+        // Apply remapping (but NOT filtering - that's done at apply time)
+        #[cfg(feature = "std")]
+        {
+            snapshots = match self {
+                Self::File(p) => apply_remapping(snapshots, &p.remapper),
+                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
+            };
+        }
+
+        // Apply contiguous index mapping if enabled
+        // This must be done after remapping so that remapped paths are mapped
+        #[cfg(feature = "std")]
+        if self.get_map_indices_contiguous() {
+            let (mapped, _) = map_indices_contiguous(snapshots);
+            snapshots = mapped;
+        }
+
+        // Build cache as BTreeMap
+        let cache: BTreeMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+
+        // Store cache
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.snapshots_cache = Some(cache),
+            Self::Memory(p) => p.snapshots_cache = Some(cache),
+        }
+
+        Ok(())
     }
 }
 

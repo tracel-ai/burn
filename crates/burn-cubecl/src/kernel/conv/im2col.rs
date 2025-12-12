@@ -1,18 +1,15 @@
-use burn_tensor::{
+use burn_backend::{
     DType, Shape,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
 use core::iter;
-#[cfg(test)]
-use cubecl::convolution::components::ConvSetupError;
-#[cfg(not(test))]
-use cubecl::convolution::components::ConvSetupError;
 use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
     std::tensor::{TensorHandle, into_contiguous_pitched},
 };
+use cubek::convolution::components::ConvSetupError;
 
 use crate::{
     CubeRuntime,
@@ -109,7 +106,7 @@ pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
 ) -> Result<usize, ConvSetupError> {
-    use cubecl::matmul::components::MatmulAvailabilityError;
+    use cubek::matmul::components::MatmulAvailabilityError;
 
     let cube_count_per_batch = out_shape.div_ceil(cubecl::PLANE_DIM_APPROX);
     let max_cube_count = u16::MAX as usize;

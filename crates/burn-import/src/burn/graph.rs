@@ -292,7 +292,6 @@ impl BurnGraph {
     fn register_burnpack_embed(&mut self, file: PathBuf) {
         self.imports.register("burn_store::BurnpackStore");
         self.imports.register("burn_store::ModuleSnapshot");
-        self.imports.register("burn::tensor::Bytes");
 
         let file = file.to_str().unwrap();
         self.default = Some(quote! {
@@ -306,15 +305,18 @@ impl BurnGraph {
             }
             _blank_!();
             impl<B: Backend> Model<B> {
-                /// Load model weights from embedded burnpack data.
+                /// Load model weights from embedded burnpack data (zero-copy at store level).
                 ///
-                /// Note: This currently copies the embedded data to the heap. A future PR will
-                /// implement zero-copy loading. See ZERO_COPY_IMPLEMENTATION.md in burn-store.
-                /// See https://github.com/tracel-ai/burn/issues/4123
+                /// The embedded data stays in the binary's .rodata section without heap allocation.
+                /// Tensor data is sliced directly from the static bytes.
+                ///
+                /// Note: Some backends (e.g., NdArray) may still copy data internally.
+                /// See <https://github.com/tracel-ai/burn/issues/4153> for true backend zero-copy.
+                ///
+                /// See <https://github.com/tracel-ai/burn/issues/4123>
                 pub fn from_embedded(device: &B::Device) -> Self {
                     let mut model = Self::new(device);
-                    let bytes = Bytes::from_bytes_vec(EMBEDDED_STATES.to_vec());
-                    let mut store = BurnpackStore::from_bytes(Some(bytes));
+                    let mut store = BurnpackStore::from_static(EMBEDDED_STATES);
                     model.load_from(&mut store).expect("Failed to load embedded burnpack");
                     model
                 }

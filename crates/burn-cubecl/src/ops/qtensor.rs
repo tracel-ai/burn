@@ -1,14 +1,14 @@
-use burn_tensor::{
-    Bytes, DType, Device, Shape, TensorData, TensorPrimitive,
-    backend::ExecutionError,
-    ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+use burn_backend::{
+    Bytes, DType, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    ops::QTensorOps,
     quantization::{
-        QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
-        QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
+        QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
+        QuantizationParametersPrimitive, params_shape,
     },
+    tensor::{Device, FloatElem, FloatTensor, IntTensor, QuantizedTensor},
 };
+use cubecl::quant::scheme::QuantStore;
 use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
-use cubecl_quant::scheme::QuantStore;
 
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
@@ -263,10 +263,7 @@ where
         unimplemented!()
     }
 
-    fn q_slice(
-        _tensor: QuantizedTensor<Self>,
-        _slices: &[burn_tensor::Slice],
-    ) -> QuantizedTensor<Self> {
+    fn q_slice(_tensor: QuantizedTensor<Self>, _slices: &[Slice]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

@@ -95,6 +95,10 @@ pub(crate) struct GraphState {
     value_info_map: HashMap<String, ArgType>,
     /// Optional shared name registry for ensuring unique names across subgraphs
     name_registry: Option<NameRegistry>,
+    /// Arguments for outer-scope references (from parent graph)
+    /// Used for subgraphs in If/Loop/Scan nodes.
+    /// Stores full Argument to preserve constant values for LSTM weights etc.
+    outer_scope_types: HashMap<String, Argument>,
 }
 
 impl GraphState {
@@ -117,6 +121,29 @@ impl GraphState {
         value_infos: &[ValueInfoProto],
         name_registry: Option<NameRegistry>,
     ) -> Self {
+        Self::new_with_registry_and_outer_scope(
+            inputs,
+            outputs,
+            initializers,
+            value_infos,
+            name_registry,
+            HashMap::new(),
+        )
+    }
+
+    /// Create new GraphState with optional shared name registry and outer scope types
+    ///
+    /// The `outer_scope_types` map provides full Arguments for values that the graph
+    /// references from parent graphs (for subgraphs in If/Loop/Scan nodes).
+    /// Full Arguments are needed to preserve constant values for LSTM weights etc.
+    pub(crate) fn new_with_registry_and_outer_scope(
+        inputs: &[ValueInfoProto],
+        outputs: &[ValueInfoProto],
+        initializers: &[TensorProto],
+        value_infos: &[ValueInfoProto],
+        name_registry: Option<NameRegistry>,
+        outer_scope_types: HashMap<String, Argument>,
+    ) -> Self {
         let mut tensor_store = TensorStore::new();
         let mut constant_map = HashMap::new();
         let mut graph_input_map = HashMap::new();
@@ -132,8 +159,14 @@ impl GraphState {
         );
 
         // Map initializer names to their constant node outputs
+        // Insert both original ONNX names and sanitized names for lookup flexibility
         for (i, initializer) in initializers.iter().enumerate() {
             node_output_map.insert(initializer.name.clone(), (i, 0));
+            // Also insert sanitized name for lookups using sanitized outer-scope references
+            let sanitized = crate::proto_conversion::sanitize_name(&initializer.name);
+            if sanitized != initializer.name {
+                node_output_map.insert(sanitized, (i, 0));
+            }
         }
 
         // Store value_info for intermediate values
@@ -145,7 +178,17 @@ impl GraphState {
 
         let outputs = outputs
             .iter()
-            .map(|x| Argument::try_from(x.clone()).unwrap())
+            .map(|x| {
+                Argument::try_from(x.clone()).unwrap_or_else(|_| {
+                    // Output may not have explicit type info (type will be inferred later)
+                    let sanitized = crate::proto_conversion::sanitize_name(&x.name);
+                    log::debug!(
+                        "Subgraph output '{}' has no type, will be inferred later",
+                        x.name
+                    );
+                    Argument::from_name(sanitized)
+                })
+            })
             .collect::<Vec<Argument>>();
 
         let inputs = inputs
@@ -160,7 +203,46 @@ impl GraphState {
                 // Preserve the original ONNX input name for better generated code usability
                 graph_input_map.insert(x.name.clone(), graph_input_map.len());
 
-                let arg = Argument::try_from(x.clone()).unwrap();
+                // Try to convert from proto, but if no type is available (common for subgraph
+                // inputs that reference outer scope), use the outer scope argument
+                let arg = match Argument::try_from(x.clone()) {
+                    Ok(arg) => arg,
+                    Err(_) => {
+                        // No type in proto - check outer scope
+                        let sanitized = crate::proto_conversion::sanitize_name(&x.name);
+                        if let Some(outer_arg) = outer_scope_types.get(&sanitized) {
+                            log::debug!(
+                                "Subgraph input '{}' has no type, using outer-scope arg: {:?}",
+                                x.name,
+                                outer_arg.ty
+                            );
+                            // Clone the full argument to preserve value_source and value_store
+                            let mut arg = outer_arg.clone();
+                            arg.name = sanitized;
+                            arg
+                        } else {
+                            // Also try with original name
+                            if let Some(outer_arg) = outer_scope_types.get(&x.name) {
+                                log::debug!(
+                                    "Subgraph input '{}' has no type, using outer-scope arg (original name): {:?}",
+                                    x.name,
+                                    outer_arg.ty
+                                );
+                                // Clone the full argument to preserve value_source and value_store
+                                let mut arg = outer_arg.clone();
+                                arg.name = sanitized;
+                                arg
+                            } else {
+                                // No type info available - create unknown type
+                                log::warn!(
+                                    "Subgraph input '{}' has no type and no outer-scope arg",
+                                    x.name
+                                );
+                                Argument::from_name(sanitized)
+                            }
+                        }
+                    }
+                };
                 // arg.name is already set from x.name via try_from
                 Some(arg)
             })
@@ -176,6 +258,7 @@ impl GraphState {
             constant_map: Rc::new(constant_map),
             value_info_map,
             name_registry,
+            outer_scope_types,
         }
     }
 
@@ -195,6 +278,44 @@ impl GraphState {
         // Also check with original name for initializers (they use original names as keys)
         else if let Some(&(node_idx, output_idx)) = self.node_output_map.get(proto_str) {
             self.processed_nodes[node_idx].outputs[output_idx].clone()
+        }
+        // Check outer scope arguments (for subgraphs referencing parent graph values)
+        // Clone the full Argument to preserve value_source and value_store (for constants)
+        else if let Some(outer_arg) = self.outer_scope_types.get(&sanitized) {
+            log::debug!(
+                "Resolving outer-scope reference '{}' with type {:?}, value_source={:?}, has_store={}, original_name='{}'",
+                sanitized,
+                outer_arg.ty,
+                outer_arg.value_source,
+                outer_arg.value_store.is_some(),
+                outer_arg.name
+            );
+            let mut arg = outer_arg.clone();
+            if arg.is_constant() {
+                // Preserve original name for arguments with value_source == Constant.
+                // These reference a Constant node's output, and the name (e.g., "constant12_out1")
+                // is the key used to look up the constant data in the value store.
+            } else {
+                // For Dynamic arguments, use the sanitized ONNX name so code generation
+                // uses the correct variable name within the subgraph.
+                arg.name = sanitized;
+            }
+            arg
+        }
+        // Also check outer scope with original name (fallback for unsanitized lookups)
+        else if let Some(outer_arg) = self.outer_scope_types.get(proto_str) {
+            log::debug!(
+                "Resolving outer-scope reference '{}' (original name) with type {:?}",
+                proto_str,
+                outer_arg.ty
+            );
+            let mut arg = outer_arg.clone();
+            if arg.is_constant() {
+                // Preserve original name for Constant arguments (same logic as above)
+            } else {
+                arg.name = sanitized;
+            }
+            arg
         } else {
             log::warn!("Input {proto_str} not found, should only happen when peeking");
             Argument::from_name(sanitized)

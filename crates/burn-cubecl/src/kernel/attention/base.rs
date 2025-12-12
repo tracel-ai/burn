@@ -1,6 +1,6 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
-use burn_tensor::{DType, Shape};
-use cubecl::attention::{
+use burn_backend::{DType, Shape};
+use cubek::attention::{
     Strategy,
     components::{AttentionSetupError, AttentionStorageTypes},
 };
@@ -31,8 +31,8 @@ pub fn flash_attention<R: CubeRuntime>(
         out: out.dtype.into(),
     };
 
-    cubecl::attention::launch_ref::<R>(
-        &Strategy::Unit(cubecl::attention::kernels::SharedAttentionSettings {
+    cubek::attention::launch_ref::<R>(
+        &Strategy::Unit(cubek::attention::kernels::SharedAttentionSettings {
             tiling_scheme: None,
             reuse_key_value: false,
             two_rows_in_array_tile: false,
