@@ -1,10 +1,9 @@
-use crate::SharedArray;
-use burn_tensor::Element;
+use crate::{NdArrayElement, SharedArray};
 use ndarray::{Array4, Array5};
 
 use super::NdArrayOps;
 
-pub(crate) fn apply_padding_4d<E: Element>(
+pub(crate) fn apply_padding_4d<E: NdArrayElement>(
     x: SharedArray<E>,
     padding: [usize; 2],
     elem: E,
@@ -34,7 +33,7 @@ pub(crate) fn apply_padding_4d<E: Element>(
     x_new
 }
 
-pub(crate) fn apply_padding_5d<E: Element>(
+pub(crate) fn apply_padding_5d<E: NdArrayElement>(
     x: SharedArray<E>,
     padding: [usize; 3],
     elem: E,

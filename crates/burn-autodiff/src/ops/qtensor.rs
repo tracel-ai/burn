@@ -1,9 +1,9 @@
-use burn_tensor::{
-    Device, Shape, TensorData,
-    backend::{Backend, ExecutionError},
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantScheme, QuantizationParametersPrimitive},
+use burn_backend::{
+    Backend, ExecutionError, TensorData,
+    ops::QTensorOps,
+    tensor::{Device, FloatTensor, IntTensor, QuantizationParametersPrimitive, QuantizedTensor},
 };
+use burn_std::{QuantScheme, Shape};
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
@@ -84,7 +84,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
 
     fn q_slice(
         _tensor: QuantizedTensor<Self>,
-        _slices: &[burn_tensor::Slice],
+        _slices: &[burn_std::Slice],
     ) -> QuantizedTensor<Self> {
         unimplemented!()
     }

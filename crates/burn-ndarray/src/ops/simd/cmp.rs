@@ -231,7 +231,7 @@ mod elemwise {
 
     use super::*;
 
-    pub fn try_cmp_scalar_simd<E: NdArrayElement, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
+    pub fn try_cmp_scalar_simd<E: Element, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
         input: SharedArray<E>,
         elem: T,
     ) -> Result<SharedArray<bool>, SharedArray<E>> {

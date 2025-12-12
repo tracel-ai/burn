@@ -175,7 +175,7 @@ where
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value, false)
     }
 
     fn float_select(

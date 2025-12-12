@@ -39,11 +39,6 @@ pub mod fusion;
 /// Module for compiling custom non-jit kernels
 pub mod template;
 
-#[cfg(feature = "export_tests")]
-pub mod tests;
-#[cfg(feature = "export_tests")]
-pub use cubek;
-
 /// Just-in-Time runtime extending the [cube runtime](Runtime).
 pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeServer> {
     /// The device that should also implement [burn_tensor::backend::DeviceOps].

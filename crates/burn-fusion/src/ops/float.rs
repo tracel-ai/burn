@@ -632,7 +632,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Gather(desc.clone())),
+                OperationIr::BaseFloat(BaseOperationIr::Gather(desc.clone())),
                 GatherOps::<B>::new(desc),
             )
             .output()
@@ -677,10 +677,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::Scatter(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
             )
             .output()
@@ -718,7 +715,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Select(desc.clone())),
+                OperationIr::BaseFloat(BaseOperationIr::Select(desc.clone())),
                 SelectOps::<B>::new(desc),
             )
             .output()
@@ -763,10 +760,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::SelectAssign(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::SelectAssign(desc.clone())),
                 SelectAssignOps::<B>::new(desc),
             )
             .output()
@@ -877,10 +871,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::MaskWhere(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::MaskWhere(desc.clone())),
                 MaskWhereOps::<B>::new(desc),
             )
             .output()
@@ -919,10 +910,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::MaskFill(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::MaskFill(desc.clone())),
                 MaskFillOps::<B>::new(desc),
             )
             .output()
@@ -964,10 +952,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.lhs.dtype,
-                    NumericOperationIr::EqualElem(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::EqualElem(desc.clone())),
                 EqualElemOps::<B>::new(desc),
             )
             .output()
