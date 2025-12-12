@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, slice};
 
-use burn_tensor::Element;
+use burn_backend::Element;
 use macerator::{Scalar, Simd, VEq, VOrd, Vector, vload_unaligned};
 use ndarray::ArrayD;
 use seq_macro::seq;

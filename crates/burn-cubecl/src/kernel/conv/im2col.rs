@@ -1,4 +1,4 @@
-use burn_tensor::{
+use burn_backend::{
     DType, Shape,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };

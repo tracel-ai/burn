@@ -1,6 +1,6 @@
 use crate::CubeRuntime;
 use crate::{ops::empty_qtensor_optimized, tensor::CubeTensor};
-use burn_tensor::quantization::QuantScheme;
+use burn_backend::quantization::QuantScheme;
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R>(

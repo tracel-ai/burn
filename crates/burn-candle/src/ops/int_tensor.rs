@@ -1,8 +1,7 @@
-use burn_std::future::DynFut;
-use burn_tensor::{
-    Bool, Device, Distribution, ElementConversion, IntDType, Shape, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, FloatTensor, FloatTensorOps, IntElem, IntTensor, IntTensorOps},
+use burn_backend::{
+    DType, Distribution, ElementConversion, ExecutionError, IntDType, Shape, Slice, TensorData,
+    ops::{FloatTensorOps, IntTensorOps},
+    tensor::{Bool, BoolTensor, Device, FloatTensor, IntElem, IntTensor},
 };
 
 use crate::{
@@ -23,9 +22,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         match data.dtype {
-            burn_tensor::DType::I64 => super::base::from_data::<i64>(data, device),
-            burn_tensor::DType::U32 => super::base::from_data::<u32>(data, device),
-            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            DType::I64 => super::base::from_data::<i64>(data, device),
+            DType::U32 => super::base::from_data::<u32>(data, device),
+            DType::U8 => super::base::from_data::<u8>(data, device),
             _ => unimplemented!("Unsupported dtype for `int_from_data`"),
         }
     }
@@ -42,13 +41,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<Self>, slices: &[burn_tensor::Slice]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         super::base::slice_with_steps(tensor, slices)
     }
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         super::base::slice_assign(tensor, slices, value)

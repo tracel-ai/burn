@@ -1,4 +1,4 @@
-use burn_tensor::Element;
+use burn_backend::Element;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]

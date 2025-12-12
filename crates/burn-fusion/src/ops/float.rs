@@ -5,12 +5,12 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
     unary_float_ops,
 };
-use burn_ir::*;
-use burn_tensor::{
-    Device, Distribution, Element, FloatDType, IndexingUpdateOp, Shape, Slice, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+use burn_backend::{
+    Distribution, Element, ExecutionError, FloatDType, Shape, Slice, TensorData,
+    ops::FloatTensorOps,
+    tensor::{BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntTensor},
 };
+use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
@@ -18,7 +18,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;
         let tensor = B::float_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::float_tensor_handle(tensor);
         let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
@@ -801,7 +801,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         #[derive(new, Debug)]
@@ -2042,11 +2042,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_backend::FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct CastOps<B: FusionBackend> {
             desc: CastOpIr,
-            dtype: burn_tensor::FloatDType,
+            dtype: burn_backend::FloatDType,
             _b: PhantomData<B>,
         }
 

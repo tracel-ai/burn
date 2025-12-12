@@ -123,7 +123,7 @@ mod tests {
     use burn_ir::{
         BinaryOpIr, NumericOperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr, TensorStatus,
     };
-    use burn_tensor::{DType, Shape};
+    use burn_backend::{DType, Shape};
 
     use super::*;
 

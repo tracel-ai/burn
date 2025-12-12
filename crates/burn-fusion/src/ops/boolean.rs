@@ -2,16 +2,16 @@ use crate::{
     Fusion, FusionBackend, get_client,
     stream::{OperationStreams, execution::Operation},
 };
+use burn_backend::{
+    Element, ExecutionError, Shape, Slice, TensorData,
+    ops::BoolTensorOps,
+    tensor::{BoolElem, BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
+};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
     OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr,
     SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
-};
-use burn_tensor::{
-    Device, Element, IndexingUpdateOp, Shape, Slice, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 use std::marker::PhantomData;
 
@@ -103,10 +103,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         tensor.bool_into_data::<B>().await
     }
 
-    fn bool_from_data(data: burn_tensor::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_from_data(data: burn_backend::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<B>(device);
         let tensor = B::bool_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::bool_tensor_handle(tensor);
         let desc = InitOperationIr::create(shape, B::BoolElem::dtype(), || {
@@ -272,7 +272,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
@@ -705,7 +705,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: burn_tensor::ops::BoolElem<Self>,
+        value: BoolElem<Self>,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct MaskFillOps<B: FusionBackend> {
@@ -823,10 +823,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_equal_elem(
-        lhs: BoolTensor<Self>,
-        rhs: burn_tensor::ops::BoolElem<Self>,
-    ) -> BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct EqualElemOps<B: FusionBackend> {
             desc: ScalarOpIr,

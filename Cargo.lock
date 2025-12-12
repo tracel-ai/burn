@@ -704,13 +704,11 @@ dependencies = [
 name = "burn-candle"
 version = "0.20.0-pre.5"
 dependencies = [
- "burn-autodiff",
+ "burn-backend",
  "burn-std",
  "burn-tch",
- "burn-tensor",
  "candle-core",
  "derive-new",
- "half",
 ]
 
 [[package]]
@@ -817,43 +815,27 @@ dependencies = [
 name = "burn-cpu"
 version = "0.20.0-pre.5"
 dependencies = [
+ "burn-backend",
  "burn-cubecl",
  "burn-fusion",
- "burn-tensor",
- "bytemuck",
  "cubecl",
- "derive-new",
- "half",
- "log",
- "paste",
 ]
 
 [[package]]
 name = "burn-cubecl"
 version = "0.20.0-pre.5"
 dependencies = [
- "burn-autodiff",
+ "burn-backend",
  "burn-cubecl-fusion",
  "burn-fusion",
  "burn-ir",
- "burn-ndarray",
  "burn-std",
- "burn-tensor",
- "burn-tensor-testgen",
- "bytemuck",
  "cubecl",
  "cubek",
  "derive-new",
  "futures-lite",
- "half",
- "hashbrown 0.16.1",
  "log",
- "num-traits",
- "paste",
- "rand 0.9.2",
  "serde",
- "serial_test",
- "spin",
  "text_placeholder",
 ]
 
@@ -861,14 +843,13 @@ dependencies = [
 name = "burn-cubecl-fusion"
 version = "0.20.0-pre.5"
 dependencies = [
+ "burn-backend",
  "burn-fusion",
  "burn-ir",
  "burn-std",
- "burn-tensor",
  "cubecl",
  "cubek",
  "derive-new",
- "half",
  "serde",
 ]
 
@@ -876,15 +857,10 @@ dependencies = [
 name = "burn-cuda"
 version = "0.20.0-pre.5"
 dependencies = [
+ "burn-backend",
  "burn-cubecl",
  "burn-fusion",
- "burn-tensor",
- "bytemuck",
  "cubecl",
- "derive-new",
- "half",
- "log",
- "paste",
 ]
 
 [[package]]
@@ -936,11 +912,9 @@ dependencies = [
 name = "burn-fusion"
 version = "0.20.0-pre.5"
 dependencies = [
+ "burn-backend",
  "burn-ir",
- "burn-std",
- "burn-tensor",
  "derive-new",
- "half",
  "hashbrown 0.16.1",
  "log",
  "serde",
@@ -979,7 +953,7 @@ dependencies = [
 name = "burn-ir"
 version = "0.20.0-pre.5"
 dependencies = [
- "burn-tensor",
+ "burn-backend",
  "hashbrown 0.16.1",
  "portable-atomic-util",
  "serde",
@@ -992,12 +966,11 @@ dependencies = [
  "atomic_float",
  "blas-src",
  "burn-autodiff",
+ "burn-backend",
  "burn-ir",
  "burn-std",
- "burn-tensor",
  "bytemuck",
  "const-random",
- "derive-new",
  "itertools 0.14.0",
  "libm",
  "macerator",
@@ -1010,7 +983,6 @@ dependencies = [
  "rand 0.9.2",
  "rayon",
  "seq-macro",
- "spin",
 ]
 
 [[package]]
@@ -1094,22 +1066,17 @@ dependencies = [
 name = "burn-rocm"
 version = "0.20.0-pre.5"
 dependencies = [
+ "burn-backend",
  "burn-cubecl",
  "burn-fusion",
- "burn-tensor",
- "bytemuck",
  "cubecl",
- "derive-new",
- "half",
- "log",
- "paste",
 ]
 
 [[package]]
 name = "burn-router"
 version = "0.20.0-pre.5"
 dependencies = [
- "burn-autodiff",
+ "burn-backend",
  "burn-ir",
  "burn-ndarray",
  "burn-std",
@@ -1168,12 +1135,10 @@ dependencies = [
 name = "burn-tch"
 version = "0.20.0-pre.5"
 dependencies = [
- "burn-std",
- "burn-tensor",
+ "burn-backend",
  "cc",
  "libc",
  "log",
- "rand 0.9.2",
  "tch",
  "torch-sys",
 ]
@@ -1253,12 +1218,10 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.20.0-pre.5"
 dependencies = [
+ "burn-backend",
  "burn-cubecl",
  "burn-fusion",
- "burn-tensor",
  "cubecl",
- "half",
- "paste",
 ]
 
 [[package]]

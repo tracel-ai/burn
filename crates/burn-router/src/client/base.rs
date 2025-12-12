@@ -3,7 +3,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
-use burn_tensor::{
+use burn_backend::{
     TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };

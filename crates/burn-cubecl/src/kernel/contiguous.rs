@@ -1,4 +1,4 @@
-use burn_tensor::{DType, quantization::QTensorPrimitive};
+use burn_backend::{DType, QTensorPrimitive};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::AllocationKind;
 

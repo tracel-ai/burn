@@ -1,12 +1,12 @@
 // Language
 use crate::rand::get_seeded_rng;
 use alloc::vec::Vec;
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::{Distribution, ops::IntTensor};
-use burn_tensor::{IntDType, ops::IntTensorOps};
-use burn_tensor::{TensorMetadata, ops::FloatTensor};
+use burn_backend::backend::ExecutionError;
+use burn_backend::ops::IntTensorOps;
+use burn_backend::tensor::{FloatTensor, IntTensor};
+use burn_backend::{Distribution, IntDType, TensorMetadata};
 
-use burn_tensor::ElementConversion;
+use burn_backend::ElementConversion;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
@@ -18,7 +18,7 @@ use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
 // Workspace crates
 use super::{NdArrayBitOps, NdArrayMathOps, NdArrayOps};
-use burn_tensor::{DType, Shape, TensorData, backend::Backend};
+use burn_backend::{DType, Shape, TensorData, backend::Backend};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps<Self>
     for NdArray<E, I, Q>
@@ -46,7 +46,7 @@ where
         execute_with_int_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
     }
 
-    fn int_slice(tensor: NdArrayTensor, slices: &[burn_tensor::Slice]) -> NdArrayTensor {
+    fn int_slice(tensor: NdArrayTensor, slices: &[burn_backend::Slice]) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
     }
 
@@ -86,7 +86,7 @@ where
 
     fn int_slice_assign(
         tensor: NdArrayTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), |tensor, value| NdArrayOps::slice_assign(

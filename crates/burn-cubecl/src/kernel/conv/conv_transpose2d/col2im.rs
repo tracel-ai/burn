@@ -9,7 +9,7 @@ use crate::{
     ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,
 };
-use burn_tensor::{
+use burn_backend::{
     Shape,
     ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };

@@ -2,9 +2,9 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
+use burn_backend::{Device, DeviceContext, DeviceId, DeviceState};
+use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::device::{Device, DeviceContext, DeviceState};
-use burn_tensor::{TensorData, backend::ExecutionError};
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
@@ -14,7 +14,7 @@ pub struct GlobalFusionClient<R: FusionRuntime> {
 }
 
 impl<R: FusionRuntime> DeviceState for FusionServer<R> {
-    fn init(device_id: burn_std::device::DeviceId) -> Self {
+    fn init(device_id: DeviceId) -> Self {
         let device = FusionDevice::<R>::from_id(device_id);
         FusionServer::new(device)
     }

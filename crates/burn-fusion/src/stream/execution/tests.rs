@@ -12,7 +12,7 @@ use burn_ir::{
     BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId,
     TensorIr, TensorStatus, UnaryOpIr,
 };
-use burn_tensor::{DType, Shape};
+use burn_backend::{DType, Shape};
 
 use crate::{
     FuserProperties, FuserStatus, NumOperations, OperationFuser,

@@ -1,9 +1,9 @@
 use std::ops::Range;
 
-use burn_tensor::{
-    Distribution, IntDType, Shape, TensorData, TensorMetadata,
-    backend::{Backend, ExecutionError},
-    ops::{FloatTensorOps, IntTensor, IntTensorOps},
+use burn_backend::{
+    Backend, Distribution, ExecutionError, IntDType, Shape, TensorData, TensorMetadata,
+    ops::{FloatTensorOps, IntTensorOps},
+    tensor::{IntElem, IntTensor},
 };
 
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
@@ -13,7 +13,7 @@ use super::TchOps;
 impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
-            burn_tensor::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
+            burn_backend::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
             _ => unimplemented!("Unsupported dtype for `int_from_data`"),
         }
     }
@@ -54,13 +54,13 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn int_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+    fn int_slice(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {
         TchOps::slice_with_steps(tensor, slices)
     }
 
     fn int_slice_assign(
         tensor: TchTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: TchTensor,
     ) -> TchTensor {
         TchOps::slice_assign(tensor, slices, value)
@@ -463,24 +463,15 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::bitwise_not(tensor)
     }
 
-    fn bitwise_and_scalar(
-        lhs: IntTensor<Self>,
-        rhs: burn_tensor::ops::IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         TchOps::bitwise_and_scalar(lhs, rhs)
     }
 
-    fn bitwise_or_scalar(
-        lhs: IntTensor<Self>,
-        rhs: burn_tensor::ops::IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         TchOps::bitwise_or_scalar(lhs, rhs)
     }
 
-    fn bitwise_xor_scalar(
-        lhs: IntTensor<Self>,
-        rhs: burn_tensor::ops::IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         TchOps::bitwise_xor_scalar(lhs, rhs)
     }
 
@@ -492,17 +483,11 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::bitwise_right_shift(lhs, rhs)
     }
 
-    fn bitwise_left_shift_scalar(
-        lhs: IntTensor<Self>,
-        rhs: burn_tensor::ops::IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         TchOps::bitwise_left_shift_scalar(lhs, rhs)
     }
 
-    fn bitwise_right_shift_scalar(
-        lhs: IntTensor<Self>,
-        rhs: burn_tensor::ops::IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         TchOps::bitwise_right_shift_scalar(lhs, rhs)
     }
 

@@ -21,8 +21,7 @@ doc = ["default"]
 memory-checks = ["std"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5" }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.5" }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5" }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5" }
 
 hashbrown = { workspace = true }
@@ -30,7 +29,6 @@ derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
-half = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

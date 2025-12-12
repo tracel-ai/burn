@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
-use burn_tensor::{DType, Shape};
+use burn_backend::{DType, Shape};
 use cubek::attention::{
     Strategy,
     components::{AttentionSetupError, AttentionStorageTypes},

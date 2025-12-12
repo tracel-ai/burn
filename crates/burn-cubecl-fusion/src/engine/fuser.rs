@@ -9,7 +9,7 @@ use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::ir::ElemType;
 
 /// The base operation fuser that can be used to fuse [all supported fuse operations](FuseOp).

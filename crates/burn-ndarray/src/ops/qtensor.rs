@@ -1,13 +1,13 @@
 use alloc::{vec, vec::Vec};
 
-use burn_tensor::{
-    DType, Shape, TensorData, TensorMetadata,
-    backend::ExecutionError,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+use burn_backend::{
+    DType, ExecutionError, Shape, TensorData, TensorMetadata,
+    ops::QTensorOps,
     quantization::{
         QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
         QuantizationParametersPrimitive, QuantizedBytes,
     },
+    tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
 
 use crate::{
@@ -289,7 +289,7 @@ where
 
     fn q_slice(
         tensor: QuantizedTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
     ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::slice(

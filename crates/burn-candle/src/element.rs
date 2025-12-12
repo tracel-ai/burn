@@ -1,8 +1,7 @@
 use std::borrow::Borrow;
 
-use burn_tensor::Element;
+use burn_backend::{Element, bf16, f16};
 use candle_core::{FloatDType, Tensor, WithDType};
-use half::{bf16, f16};
 
 /// Candle element
 pub trait CandleElement: Element + WithDType {}

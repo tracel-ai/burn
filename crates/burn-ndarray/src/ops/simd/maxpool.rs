@@ -2,7 +2,7 @@ use core::{marker::PhantomData, mem::transmute};
 
 use crate::{SharedArray, iter_range_par, run_par, sharing::UnsafeSharedRef};
 
-use burn_tensor::{DType, Element, quantization::QuantValue};
+use burn_backend::{DType, Element, quantization::QuantValue};
 use macerator::{Simd, VOrd};
 use ndarray::{Array4, s};
 use nhwc::max_pool2d_nhwc;
