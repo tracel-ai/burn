@@ -2,8 +2,7 @@ use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
     local::{
-        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult,
-        client::LocalCollectiveClient,
+        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult, client::LocalCollectiveClient,
     },
 };
 use burn_communication::websocket::{WebSocket, WsServer};
