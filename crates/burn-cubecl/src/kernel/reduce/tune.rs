@@ -256,6 +256,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run>(
             input,
+            None,
             crate::kernel::reduce::ReduceStrategy::Autotune,
             cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
         )
