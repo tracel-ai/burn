@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 use burn_backend::element::{Element, ElementConversion};
 #[cfg(feature = "simd")]
-use burn_backend::{DType, Slice, quantization::QuantValue};
+use burn_backend::{DType, quantization::QuantValue};
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use ndarray::IntoDimension;
@@ -38,8 +38,8 @@ use crate::{
     },
 };
 use crate::{SharedArray, element::NdArrayElement};
-use burn_backend::Shape;
 use burn_backend::ops::unfold::calculate_unfold_shape;
+use burn_backend::{Shape, Slice};
 use ndarray::Axis;
 use ndarray::Dim;
 use ndarray::IxDyn;
@@ -57,14 +57,14 @@ impl<E> NdArrayOps<E>
 where
     E: Copy + Debug + Element + crate::AddAssignElement,
 {
-    pub fn slice(tensor: SharedArray<E>, slices: &[burn_backend::Slice]) -> SharedArray<E> {
+    pub fn slice(tensor: SharedArray<E>, slices: &[Slice]) -> SharedArray<E> {
         let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         tensor.slice_move(slices.as_slice()).into_shared()
     }
 
     pub fn slice_assign(
         tensor: SharedArray<E>,
-        slices: &[burn_backend::Slice],
+        slices: &[Slice],
         value: SharedArray<E>,
     ) -> SharedArray<E> {
         let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
