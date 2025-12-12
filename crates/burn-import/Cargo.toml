@@ -52,10 +52,6 @@ syn = { workspace = true, features = ["parsing"] }
 thiserror = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic = { workspace = true }
-portable-atomic-util = { workspace = true }
-
 [dev-dependencies]
 insta = { workspace = true }
 pretty_assertions = { workspace = true }
