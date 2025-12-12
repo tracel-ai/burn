@@ -232,7 +232,9 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_reject_absolute_path() {
+        // On Unix, paths starting with / are absolute
         let info = ExternalDataInfo {
             location: PathBuf::from("/etc/passwd"),
             offset: 0,
@@ -241,6 +243,22 @@ mod tests {
         };
 
         let result = info.resolve_path(Path::new("/models/bert"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("absolute paths not allowed"));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_reject_absolute_path() {
+        // On Windows, absolute paths require a drive letter or UNC path
+        let info = ExternalDataInfo {
+            location: PathBuf::from("C:\\Windows\\System32\\config\\SAM"),
+            offset: 0,
+            length: None,
+            checksum: None,
+        };
+
+        let result = info.resolve_path(Path::new("C:\\models\\bert"));
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("absolute paths not allowed"));
     }
@@ -292,20 +310,5 @@ mod tests {
         let result = info.resolve_path(Path::new("/models/bert"));
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("null bytes not allowed"));
-    }
-
-    #[test]
-    #[cfg(windows)]
-    fn test_reject_windows_absolute_path() {
-        let info = ExternalDataInfo {
-            location: PathBuf::from("C:\\Windows\\System32\\config\\SAM"),
-            offset: 0,
-            length: None,
-            checksum: None,
-        };
-
-        let result = info.resolve_path(Path::new("C:\\models\\bert"));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("absolute paths not allowed"));
     }
 }
