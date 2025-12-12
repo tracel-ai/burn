@@ -1,16 +1,3 @@
-use std::{
-    any::{Any, TypeId},
-    collections::HashMap,
-    sync::{
-        Arc, Mutex,
-        mpsc::{Receiver, SyncSender},
-    },
-};
-
-use burn_communication::websocket::{WebSocket, WsServer};
-use burn_tensor::{TensorMetadata, backend::Backend};
-use tokio::runtime::{Builder, Runtime};
-
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
@@ -19,6 +6,19 @@ use crate::{
         client::LocalCollectiveClient,
     },
 };
+use burn_communication::websocket::{WebSocket, WsServer};
+use burn_tensor::{TensorMetadata, backend::Backend};
+use std::sync::{MutexGuard, OnceLock};
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    fmt::Debug,
+    sync::{
+        Arc, Mutex,
+        mpsc::{Receiver, SyncSender},
+    },
+};
+use tokio::runtime::{Builder, Runtime};
 
 /// Define the client/server communication on the network
 type Network = WebSocket;
@@ -36,12 +36,15 @@ pub(crate) struct LocalCollectiveServer<B: Backend> {
     /// Channel receiver for messages from clients
     message_rec: Receiver<Message<B>>,
 
-    /// The collective configuration, must be the same by every peer when calling register
+    /// The collective configuration. Must be the same by every peer when calling register
     config: Option<CollectiveConfig>,
+
     /// The ids passed to each register so far
     peers: Vec<PeerId>,
+
     /// Callbacks for when all registers are done
     callbacks_register: Vec<SyncSender<RegisterResult>>,
+
     /// Map of each peer's id and its device
     devices: HashMap<PeerId, B::Device>,
 
@@ -60,18 +63,21 @@ pub(crate) struct LocalCollectiveServer<B: Backend> {
 
 #[derive(Debug)]
 pub(crate) enum Message<B: Backend> {
+    /// Register a new peer with the collective.
     Register {
         device_id: PeerId,
         device: B::Device,
         config: CollectiveConfig,
         callback: SyncSender<RegisterResult>,
     },
+    /// Perform an all-reduce operation.
     AllReduce {
         device_id: PeerId,
         tensor: B::FloatTensorPrimitive,
         op: ReduceOperation,
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     },
+    /// Perform a reduce operation.
     Reduce {
         device_id: PeerId,
         tensor: B::FloatTensorPrimitive,
@@ -79,11 +85,13 @@ pub(crate) enum Message<B: Backend> {
         root: PeerId,
         callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
     },
+    /// Perform a broadcast operation (one-sender, many-receiver).
     Broadcast {
         device_id: PeerId,
         tensor: Option<B::FloatTensorPrimitive>,
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     },
+    /// Reset the collective server.
     Reset,
     Finish {
         id: PeerId,
@@ -91,44 +99,72 @@ pub(crate) enum Message<B: Backend> {
     },
 }
 
-// HashMap for each server by Backend type
-static STATE: Mutex<Option<HashMap<TypeId, Box<dyn Any + Send + Sync>>>> = Mutex::new(None);
+/// The type-erased box type for [`LocalCollectiveClient<B>`].
+type LocalClientBox = Box<dyn Any + Send + Sync>;
 
-/// Get a client for the local collecive server, starting the server if necessary
-pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
-    let mut state = STATE.lock().unwrap();
+/// Global state map from [`Backend`] to boxed [`LocalCollectiveClient<B>`].
+static BACKEND_CLIENT_MAP: OnceLock<Mutex<HashMap<TypeId, LocalClientBox>>> = OnceLock::new();
 
-    if state.is_none() {
-        *state = Some(HashMap::new());
-    }
-    let hashmap = state.as_mut().unwrap();
-
-    let typeid = core::any::TypeId::of::<B>();
-
-    let val = match hashmap.get(&typeid) {
-        Some(val) => val,
-        None => {
-            let client = LocalCollectiveServer::<B>::start();
-            hashmap.insert(typeid, Box::new(client.clone()));
-            return client;
-        }
-    };
-
-    val.downcast_ref().cloned().unwrap()
+/// Gets a locked mutable view of the `STATE_MAP`.
+pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, LocalClientBox>> {
+    BACKEND_CLIENT_MAP
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap()
 }
 
-// Runtime for servers
-static SERVER_RUNTIME: Mutex<Option<Arc<Runtime>>> = Mutex::new(None);
-
-pub(crate) fn get_server_runtime() -> Arc<Runtime> {
-    let mut server = SERVER_RUNTIME.lock().unwrap();
-    if server.is_none() {
-        // Initialize runtime
-        let _runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
-        *server = Some(_runtime);
+/// Get a [`LocalCollectiveClient`] for the given [`Backend`].
+///
+/// Will start the local collective client/server pair if necessary.
+pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
+    let typeid = TypeId::of::<B>();
+    let mut state_map = get_backend_client_map();
+    match state_map.get(&typeid) {
+        Some(val) => val.downcast_ref().cloned().unwrap(),
+        None => {
+            let client = LocalCollectiveServer::<B>::setup(LocalCollectiveClientConfig::default());
+            state_map.insert(typeid, Box::new(client.clone()));
+            client
+        }
     }
+}
 
-    server.as_ref().unwrap().clone()
+/// Global runtime.
+static SERVER_RUNTIME: OnceLock<Arc<Runtime>> = OnceLock::new();
+
+/// Get the global [`Runtime`].
+pub(crate) fn get_collective_server_runtime() -> Arc<Runtime> {
+    SERVER_RUNTIME
+        .get_or_init(|| {
+            Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("Unable to initialize runtime")
+                .into()
+        })
+        .clone()
+}
+
+/// Configuration for the local collective client/server pair.
+pub struct LocalCollectiveClientConfig {
+    /// Channel capacity for the messaging queue from client to server.
+    pub channel_capacity: usize,
+}
+
+impl Default for LocalCollectiveClientConfig {
+    fn default() -> Self {
+        Self {
+            channel_capacity: 50,
+        }
+    }
+}
+
+impl From<usize> for LocalCollectiveClientConfig {
+    fn from(capacity: usize) -> Self {
+        Self {
+            channel_capacity: capacity,
+        }
+    }
 }
 
 impl<B: Backend> LocalCollectiveServer<B> {
@@ -146,20 +182,22 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    /// Starts the local collective server thread
-    pub(crate) fn start() -> LocalCollectiveClient<B> {
-        let (sender, rec) = std::sync::mpsc::sync_channel::<Message<B>>(50);
+    /// Setup a client/server pair with the given config.
+    pub(crate) fn setup<C>(cfg: C) -> LocalCollectiveClient<B>
+    where
+        C: Into<LocalCollectiveClientConfig>,
+    {
+        let cfg = cfg.into();
+        let (tx, rx) = std::sync::mpsc::sync_channel(cfg.channel_capacity);
 
-        let runtime = get_server_runtime();
-
-        runtime.spawn(async {
-            let typeid = core::any::TypeId::of::<B>();
+        get_collective_server_runtime().spawn(async {
+            let typeid = TypeId::of::<B>();
             log::info!("Starting server for backend: {typeid:?}");
-            let mut aggregator = LocalCollectiveServer::new(rec);
+            let mut server = LocalCollectiveServer::new(rx);
 
             loop {
-                match aggregator.message_rec.recv() {
-                    Ok(message) => aggregator.process_message(message).await,
+                match server.message_rec.recv() {
+                    Ok(message) => server.process_message(message).await,
                     Err(err) => {
                         log::error!(
                             "Error receiving message from local collective server: {err:?}"
@@ -170,7 +208,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             }
         });
 
-        LocalCollectiveClient { channel: sender }
+        LocalCollectiveClient { channel: tx }
     }
 
     async fn process_message(&mut self, message: Message<B>) {
@@ -181,12 +219,8 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 config,
                 callback,
             } => {
-                if let Err(err) = self
-                    .process_register_message(device_id, device, config, &callback)
+                self.process_register_message(device_id, device, config, &callback)
                     .await
-                {
-                    callback.send(Err(err)).unwrap()
-                }
             }
             Message::AllReduce {
                 device_id,
@@ -220,43 +254,30 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    async fn process_finish_message(&mut self, id: PeerId, callback: SyncSender<RegisterResult>) {
-        if !self.peers.contains(&id) {
-            callback
-                .send(Err(CollectiveError::MultipleUnregister))
-                .unwrap();
-            return;
-        }
-
-        // Remove registered with id
-        self.peers.retain(|x| *x != id);
-
-        if self.peers.is_empty()
-            && let Some(mut global_client) = self.global_client.take()
-        {
-            global_client.finish().await;
-        }
-
-        callback.send(Ok(())).unwrap();
-    }
-
     async fn process_register_message(
         &mut self,
         device_id: PeerId,
         device: B::Device,
         config: CollectiveConfig,
         callback: &SyncSender<RegisterResult>,
-    ) -> Result<(), CollectiveError> {
+    ) {
         if !config.is_valid() {
-            return Err(CollectiveError::InvalidConfig);
+            callback.send(Err(CollectiveError::InvalidConfig)).unwrap();
+            return;
         }
         if self.peers.contains(&device_id) {
-            return Err(CollectiveError::MultipleRegister);
+            callback
+                .send(Err(CollectiveError::MultipleRegister))
+                .unwrap();
+            return;
         }
         if self.peers.is_empty() || self.config.is_none() {
             self.config = Some(config);
         } else if *self.config.as_ref().unwrap() != config {
-            return Err(CollectiveError::RegisterParamsMismatch);
+            callback
+                .send(Err(CollectiveError::RegisterParamsMismatch))
+                .unwrap();
+            return;
         }
 
         self.peers.push(device_id);
@@ -290,16 +311,14 @@ impl<B: Backend> LocalCollectiveServer<B> {
                     .map_err(CollectiveError::Global);
             };
 
-            for callback in self.callbacks_register.drain(..) {
-                callback.send(register_result.clone()).unwrap();
-            }
+            // Send results to all callbacks.
+            self.callbacks_register
+                .drain(..)
+                .for_each(|tx| tx.send(register_result.clone()).unwrap());
         }
-
-        Ok(())
     }
 
-    /// Processes an all-reduce request from a client, registers the input tensor and output
-    /// callback
+    /// Processes an Message::AllReduce.
     async fn process_all_reduce_message(
         &mut self,
         peer_id: PeerId,
@@ -341,7 +360,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    /// Processes a reduce request from a client
+    /// Processes a Message::Reduce.
     async fn process_reduce_message(
         &mut self,
         peer_id: PeerId,
@@ -350,7 +369,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         root: PeerId,
         callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
     ) {
-        if !self.peers.contains(&peer_id) {
+        if !self.peers.contains(&root) {
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -389,13 +408,19 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    /// Processes a broadcast request from a client
+    /// Processes a Message::Broadcast.
     async fn process_broadcast_message(
         &mut self,
         caller: PeerId,
         tensor: Option<<B as Backend>::FloatTensorPrimitive>,
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     ) {
+        if self.config.is_none() {
+            callback
+                .send(Err(CollectiveError::RegisterNotFirstOperation))
+                .unwrap();
+            return;
+        }
         if !self.peers.contains(&caller) {
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
@@ -431,11 +456,38 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    // Reinitializes the collective server
+    /// Reinitializes the collective server
     fn reset(&mut self) {
         self.peers.clear();
         self.all_reduce_op = None;
         self.reduce_op = None;
         self.broadcast_op = None;
+    }
+
+    /// Processes a Message::Finish.
+    async fn process_finish_message(&mut self, id: PeerId, callback: SyncSender<RegisterResult>) {
+        if self.config.is_none() {
+            callback
+                .send(Err(CollectiveError::RegisterNotFirstOperation))
+                .unwrap();
+            return;
+        }
+        if !self.peers.contains(&id) {
+            callback
+                .send(Err(CollectiveError::MultipleUnregister))
+                .unwrap();
+            return;
+        }
+
+        // Remove registered with id
+        self.peers.retain(|x| *x != id);
+
+        if self.peers.is_empty()
+            && let Some(mut global_client) = self.global_client.take()
+        {
+            global_client.finish().await;
+        }
+
+        callback.send(Ok(())).unwrap();
     }
 }

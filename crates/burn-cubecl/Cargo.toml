@@ -37,8 +37,6 @@ export_tests = [
     # "autotune-checks",
     "burn-tensor-testgen",
     "serial_test",
-    "burn-autodiff/export_tests",
-    "burn-tensor/export_tests",
     "burn-ndarray",
     "fusion",
     "paste",

@@ -8,3 +8,4 @@ mod reader;
 mod round_trip;
 mod store;
 mod writer;
+mod zero_copy;

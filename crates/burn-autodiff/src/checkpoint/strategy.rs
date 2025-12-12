@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 
 use crate::{graph::ComputingProperty, tensor::AutodiffTensor};
 use alloc::sync::Arc;

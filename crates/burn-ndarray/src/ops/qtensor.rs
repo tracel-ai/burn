@@ -260,7 +260,7 @@ where
     ) -> QuantizedTensor<Self> {
         let qtensor = execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
             execute_with_numeric_dtype!(tensor.qtensor, |qtensor| {
-                NdArrayMathOps::gather(dim, qtensor, indices)
+                NdArrayOps::gather(dim, qtensor, indices)
             })
         });
         NdArrayQTensor {

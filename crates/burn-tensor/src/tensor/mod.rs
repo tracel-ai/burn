@@ -26,7 +26,9 @@ pub mod backend {
 }
 
 /// The container module.
-pub mod container;
+pub mod container {
+    pub use burn_backend::tensor::TensorContainer;
+}
 
 /// The grid module.
 pub mod grid;
@@ -44,7 +46,7 @@ pub mod module;
 pub mod ops {
     pub use burn_backend::backend::ops::*;
     pub use burn_backend::tensor::{
-        BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
+        BoolElem, BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
     };
 }
 

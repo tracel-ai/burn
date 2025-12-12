@@ -130,7 +130,7 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value, false)
     }
 
     fn int_select(

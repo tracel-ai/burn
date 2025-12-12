@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
-    InitOperationIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
+    InitOperationIr, MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr,
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
 };
 use burn_tensor::{
@@ -296,10 +296,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.tensor.dtype,
-                    NumericOperationIr::Gather(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::Gather(desc.clone())),
                 GatherOps::<B>::new(desc),
             )
             .output()
@@ -337,10 +334,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.tensor.dtype,
-                    NumericOperationIr::Select(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::Select(desc.clone())),
                 SelectOps::<B>::new(desc),
             )
             .output()
