@@ -4,10 +4,7 @@ use crate::{
     execute_with_numeric_dtype,
     ops::NdArrayMathOps,
 };
-use burn_tensor::{
-    ElementConversion, TensorMetadata,
-    ops::{ActivationOps, FloatTensor},
-};
+use burn_backend::{ElementConversion, TensorMetadata, ops::ActivationOps, tensor::FloatTensor};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ActivationOps<Self>
     for NdArray<E, I, Q>

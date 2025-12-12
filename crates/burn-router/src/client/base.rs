@@ -1,12 +1,12 @@
 use crate::{RouterTensor, RunnerChannel};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::{DType, future::DynFut};
-use burn_tensor::{
-    TensorData,
+use burn_backend::{
+    DType, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
+use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_std::future::DynFut;
 use core::ops::DerefMut;
 use hashbrown::HashMap;
 use spin::Mutex;

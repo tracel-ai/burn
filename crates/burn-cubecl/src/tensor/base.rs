@@ -1,9 +1,9 @@
 use crate::CubeRuntime;
 use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
+use burn_backend::quantization::QuantScheme;
+use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
 use burn_std::tensor::is_contiguous;
-use burn_tensor::quantization::QTensorPrimitive;
-use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::prelude::{TensorHandleRef, *};
@@ -46,7 +46,7 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         use crate::ops::into_data_sync;
-        use burn_tensor::Tolerance;
+        use burn_backend::Tolerance;
 
         let expected = into_data_sync::<R>(self.clone());
         let actual = into_data_sync::<R>(other);
@@ -102,7 +102,7 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 }
 
 impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
-    fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
+    fn scheme(&self) -> &QuantScheme {
         if let DType::QFloat(scheme) = &self.dtype {
             scheme
         } else {

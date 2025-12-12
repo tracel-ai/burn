@@ -3,8 +3,8 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
+use burn_backend::{DType, Shape, TensorData, TensorMetadata, backend::ExecutionError};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::{DType, Shape, TensorData, TensorMetadata, backend::ExecutionError};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {

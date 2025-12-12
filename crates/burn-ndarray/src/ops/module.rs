@@ -18,7 +18,7 @@ use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
-use burn_tensor::{TensorMetadata, ops::*};
+use burn_backend::{TensorMetadata, ops::*, tensor::FloatTensor};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).

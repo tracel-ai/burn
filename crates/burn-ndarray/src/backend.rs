@@ -5,11 +5,11 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
+use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
+use burn_backend::{Backend, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::stub::Mutex;
-use burn_std::{DType, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
-use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
 use rand::SeedableRng;
 
@@ -25,7 +25,7 @@ pub enum NdArrayDevice {
 
 impl DeviceOps for NdArrayDevice {}
 
-impl burn_std::device::Device for NdArrayDevice {
+impl burn_backend::Device for NdArrayDevice {
     fn from_id(_device_id: DeviceId) -> Self {
         Self::Cpu
     }
@@ -186,7 +186,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::backend::QTensorPrimitive;
+    use burn_backend::QTensorPrimitive;
 
     #[test]
     fn should_support_dtypes() {

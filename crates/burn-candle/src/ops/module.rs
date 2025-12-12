@@ -1,10 +1,11 @@
-use burn_tensor::{
+use burn_backend::{
     Shape,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-        IntTensor, InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
-        ModuleOps, UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+        InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        UnfoldOptions,
     },
+    tensor::{FloatTensor, IntTensor},
 };
 use candle_core::ToUsize2;
 

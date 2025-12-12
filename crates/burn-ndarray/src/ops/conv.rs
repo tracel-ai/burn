@@ -1,4 +1,4 @@
-use burn_tensor::{
+use burn_backend::{
     ElementConversion,
     ops::{
         ConvOptions, ConvTransposeOptions,

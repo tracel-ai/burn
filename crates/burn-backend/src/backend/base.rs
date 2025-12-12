@@ -1,6 +1,7 @@
-use alloc::string::String;
 use burn_std::DType;
-use burn_std::backtrace::BackTrace;
+pub use burn_std::backtrace::BackTrace;
+
+use alloc::string::String;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

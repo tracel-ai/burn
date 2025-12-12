@@ -1,14 +1,8 @@
 use crate::{Tensor, TensorPrimitive, backend::Backend};
+use burn_backend::tensor::quantization;
 
 // We re-export those types.
-pub use burn_backend::{
-    QTensorPrimitive,
-    tensor::{Calibration, QParamTensor, QParams, QuantizationParametersPrimitive, params_shape},
-};
-pub use burn_std::quantization::{
-    BlockSize, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantStore,
-    QuantValue, QuantizedBytes,
-};
+pub use burn_backend::{QTensorPrimitive, quantization::*};
 
 /// The tensor quantization parameters.
 pub type QuantizationParameters<B> = QParams<Tensor<B, 1>>;
@@ -30,7 +24,7 @@ pub fn compute_range<B: Backend, const D: usize>(
 ) -> CalibrationRange<B> {
     let (min, max) = match &tensor.primitive {
         TensorPrimitive::Float(tensor) => {
-            burn_backend::tensor::compute_range::<B>(scheme, tensor.clone(), calibration)
+            quantization::compute_range::<B>(scheme, tensor.clone(), calibration)
         }
         TensorPrimitive::QFloat(_) => unreachable!(),
     };
@@ -48,7 +42,7 @@ pub fn compute_q_params<B: Backend>(
 ) -> QuantizationParameters<B> {
     match (range.min.primitive, range.max.primitive) {
         (TensorPrimitive::Float(min), TensorPrimitive::Float(max)) => {
-            let qparams = burn_backend::tensor::compute_q_params::<B>(scheme, min, max);
+            let qparams = quantization::compute_q_params::<B>(scheme, min, max);
             QuantizationParameters {
                 scales: Tensor::from_primitive(TensorPrimitive::Float(qparams.scales)),
             }

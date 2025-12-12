@@ -4,13 +4,12 @@ use burn_std::{
     quantization::{QuantPropagation, QuantScheme},
 };
 
-use crate::{
-    Backend, ExecutionError, QTensorPrimitive, TensorData, TensorMetadata, TensorPrimitive,
-    tensor::{Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range},
-};
-
 use crate::tensor::{
     BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
+    quantization::{Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range},
+};
+use crate::{
+    Backend, ExecutionError, QTensorPrimitive, TensorData, TensorMetadata, TensorPrimitive,
 };
 
 /// Automatically applies `dequantization -> float operation -> quantization`.

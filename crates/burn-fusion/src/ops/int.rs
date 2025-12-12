@@ -5,12 +5,12 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
     unary_int_ops,
 };
-use burn_ir::*;
-use burn_tensor::{
-    Device, Distribution, Element, IndexingUpdateOp, IntDType, Shape, Slice, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
+use burn_backend::{
+    Distribution, Element, ExecutionError, IntDType, Shape, Slice, TensorData,
+    ops::IntTensorOps,
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntElem, IntTensor},
 };
+use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
@@ -52,7 +52,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;
         let tensor = B::int_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::int_tensor_handle(tensor);
         let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
@@ -154,7 +154,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
@@ -243,10 +243,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(
-                    desc.out.dtype,
-                    NumericOperationIr::MaskWhere(desc.clone()),
-                ),
+                OperationIr::BaseInt(BaseOperationIr::MaskWhere(desc.clone())),
                 MaskWhereOps::<B>::new(desc),
             )
             .output()
@@ -285,7 +282,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::MaskFill(desc.clone())),
+                OperationIr::BaseInt(BaseOperationIr::MaskFill(desc.clone())),
                 MaskFillOps::<B>::new(desc),
             )
             .output()
@@ -322,7 +319,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::Gather(desc.clone())),
+                OperationIr::BaseInt(BaseOperationIr::Gather(desc.clone())),
                 GatherOps::<B>::new(desc),
             )
             .output()
@@ -367,7 +364,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::Scatter(desc.clone())),
+                OperationIr::BaseInt(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
             )
             .output()
@@ -405,7 +402,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::Select(desc.clone())),
+                OperationIr::BaseInt(BaseOperationIr::Select(desc.clone())),
                 SelectOps::<B>::new(desc),
             )
             .output()
@@ -450,10 +447,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(
-                    desc.out.dtype,
-                    NumericOperationIr::SelectAssign(desc.clone()),
-                ),
+                OperationIr::BaseInt(BaseOperationIr::SelectAssign(desc.clone())),
                 SelectAssignOps::<B>::new(desc),
             )
             .output()
@@ -532,10 +526,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericInt(
-                    desc.lhs.dtype,
-                    NumericOperationIr::EqualElem(desc.clone()),
-                ),
+                OperationIr::BaseInt(BaseOperationIr::EqualElem(desc.clone())),
                 EqualElemOps::<B>::new(desc),
             )
             .output()
@@ -1922,11 +1913,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
+    fn int_cast(tensor: IntTensor<Self>, dtype: burn_backend::IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct CastOps<B: FusionBackend> {
             desc: CastOpIr,
-            dtype: burn_tensor::IntDType,
+            dtype: burn_backend::IntDType,
             _b: PhantomData<B>,
         }
 

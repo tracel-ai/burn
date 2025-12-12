@@ -16,15 +16,8 @@ pub type Cpu<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CpuRuntime, F, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_cubecl::{CubeBackend, tensor::CubeTensor};
-    use burn_tensor::{
-        DType,
-        backend::{Backend, QTensorPrimitive},
-    };
-
-    pub type TestRuntime = cubecl::cpu::CpuRuntime;
-
-    burn_cubecl::testgen_all!([f32], [i8, i16, i32, i64], [u32]);
+    use burn_backend::{Backend, DType, QTensorPrimitive};
+    use burn_cubecl::tensor::CubeTensor;
 
     #[test]
     fn should_support_dtypes() {
@@ -45,7 +38,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U8));
         assert!(B::supports_dtype(
             &device,
-            DType::QFloat(CubeTensor::<TestRuntime>::default_scheme())
+            DType::QFloat(CubeTensor::<CpuRuntime>::default_scheme())
         ));
 
         // Currently not registered in supported types

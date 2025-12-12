@@ -112,26 +112,7 @@ pub type Metal<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_cubecl::CubeBackend;
-    use burn_tensor::{
-        DType,
-        backend::{Backend, QTensorPrimitive},
-    };
-    #[cfg(feature = "vulkan")]
-    pub use half::f16;
-    #[cfg(feature = "metal")]
-    pub use half::f16;
-
-    pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
-
-    // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
-    // breaks a lot of tests from precision issues
-    #[cfg(feature = "vulkan")]
-    burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
-    #[cfg(feature = "metal")]
-    burn_cubecl::testgen_all!([f16, f32], [i16, i32], [u32]);
-    #[cfg(all(not(feature = "vulkan"), not(feature = "metal")))]
-    burn_cubecl::testgen_all!([f32], [i32], [u32]);
+    use burn_backend::{Backend, DType, QTensorPrimitive};
 
     #[test]
     fn should_support_dtypes() {
@@ -145,7 +126,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U32));
         assert!(B::supports_dtype(
             &device,
-            DType::QFloat(CubeTensor::<TestRuntime>::default_scheme())
+            DType::QFloat(CubeTensor::<WgpuRuntime>::default_scheme())
         ));
         // Registered as supported type but we don't actually use it?
         assert!(B::supports_dtype(&device, DType::Bool));

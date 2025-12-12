@@ -1,5 +1,5 @@
 use crate::{LibTorch, TchTensor, element::TchElement};
-use burn_tensor::ops::ActivationOps;
+use burn_backend::ops::ActivationOps;
 
 impl<E: TchElement> ActivationOps<Self> for LibTorch<E> {
     fn relu(tensor: TchTensor) -> TchTensor {

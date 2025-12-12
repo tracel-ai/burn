@@ -16,10 +16,10 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{DType, IntDType};
-use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
+use burn_backend::ExecutionError;
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
+use burn_backend::{Distribution, ElementConversion, Shape, TensorData};
 use cubecl::prelude::*;
 use cubecl::{frontend::Numeric, std::scalar::InputScalar};
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -67,7 +67,7 @@ where
         super::reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<Self>, slices: &[burn_tensor::Slice]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         // Check if all steps are 1
         let all_steps_one = slices.iter().all(|info| info.step == 1);
 
@@ -88,7 +88,7 @@ where
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        ranges: &[burn_tensor::Slice],
+        ranges: &[Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         kernel::slice_assign(tensor, ranges, value)
@@ -130,7 +130,7 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value, false)
     }
 
     fn int_select(

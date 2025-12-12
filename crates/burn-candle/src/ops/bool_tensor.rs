@@ -1,8 +1,7 @@
-use burn_std::{backtrace::BackTrace, future::DynFut};
-use burn_tensor::{
-    Device, Shape, TensorData, TensorMetadata,
-    backend::ExecutionError,
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
+use burn_backend::{
+    BackTrace, DType, ExecutionError, Shape, Slice, TensorData, TensorMetadata,
+    ops::BoolTensorOps,
+    tensor::{BoolElem, BoolTensor, Device, FloatTensor, IntTensor},
 };
 
 use crate::{
@@ -46,7 +45,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         match data.dtype {
-            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            DType::U8 => super::base::from_data::<u8>(data, device),
             _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
         }
     }
@@ -71,13 +70,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, slices: &[burn_tensor::Slice]) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         super::base::slice_with_steps(tensor, slices)
     }
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         super::base::slice_assign(tensor, slices, value)
@@ -133,7 +132,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -158,5 +157,56 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         step: usize,
     ) -> BoolTensor<Self> {
         unfold(tensor, dim, size, step)
+    }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        super::base::mask_where_broadcasted(tensor, mask, value)
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        CandleTensor::new(
+            mask.tensor
+                .where_cond(
+                    &super::candle_utils::fill_like::<u8>(value, &tensor.tensor),
+                    &tensor.tensor,
+                )
+                .unwrap(),
+        )
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let tensor = tensor.tensor.contiguous().unwrap();
+        let indices = indices.tensor.contiguous().unwrap();
+        CandleTensor::new(tensor.gather(&indices, dim).unwrap())
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        CandleTensor::new(
+            tensor
+                .tensor
+                .scatter_add(&indices.tensor, &value.tensor, dim)
+                .unwrap(),
+        )
+    }
+
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
+        CandleTensor::new(lhs.tensor.eq(rhs).unwrap())
     }
 }

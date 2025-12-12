@@ -1,4 +1,4 @@
-use burn_tensor::ops::TransactionOps;
+use burn_backend::ops::TransactionOps;
 
 use crate::{LibTorch, TchElement};
 

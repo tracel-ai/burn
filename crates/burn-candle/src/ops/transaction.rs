@@ -1,5 +1,5 @@
-use burn_tensor::{
-    backend::Backend,
+use burn_backend::{
+    Backend,
     ops::{TransactionOps, TransactionPrimitive},
 };
 

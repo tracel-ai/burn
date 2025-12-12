@@ -1,5 +1,11 @@
 use alloc::boxed::Box;
 
+use burn_backend::Element;
+use burn_backend::ops::{
+    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
+    MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+};
+use burn_backend::tensor::{FloatTensor, IntElem, IntTensor};
 use burn_ir::{
     AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
     AdaptiveAvgPool2dOpIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr,
@@ -8,12 +14,6 @@ use burn_ir::{
     InterpolateOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr,
     MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
     OperationIr, OperationOutput,
-};
-use burn_tensor::Element;
-use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-    IntElem, IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices,
-    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
