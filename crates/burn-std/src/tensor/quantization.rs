@@ -10,7 +10,7 @@ use core::any::TypeId;
 use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
-use crate::bytes::Bytes;
+use crate::{DType, Shape, bytes::Bytes};
 
 #[derive(
     Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
@@ -44,6 +44,38 @@ pub enum QuantPropagation {
 pub struct QParams<S> {
     /// The scaling factor.
     pub scales: S,
+}
+
+/// A quantization parameter tensor descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QParamTensor {
+    /// Start of the tensor in the buffer
+    pub offset_start: usize,
+    /// Offset of tensor end from the end of the buffer
+    pub offset_end: usize,
+    /// Shape of the tensor
+    pub shape: Shape,
+    /// Strides of the tensor
+    pub strides: Vec<usize>,
+    /// Data type of the tensor
+    pub dtype: DType,
+}
+
+/// Calculate the shape of the quantization parameters for a given tensor and level
+pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
+    match level {
+        QuantLevel::Tensor => Shape::new([1]),
+        QuantLevel::Block(block_size) => {
+            let mut params_shape = data_shape.clone();
+            let block_size = block_size.to_dim_vec(data_shape.num_dims());
+
+            for (shape, block_size) in params_shape.dims.iter_mut().zip(block_size) {
+                *shape = (*shape).div_ceil(block_size as usize);
+            }
+
+            params_shape
+        }
+    }
 }
 
 /// Quantized data bytes representation.

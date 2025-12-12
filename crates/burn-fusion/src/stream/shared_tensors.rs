@@ -1,5 +1,5 @@
+use burn_backend::StreamId;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::id::StreamId;
 use hashbrown::HashMap;
 
 use super::{OperationStreams, Stream};

@@ -2,43 +2,52 @@
 
 # used to generate model: onnx-tests/tests/gelu/gelu.onnx
 
-import torch
-import torch.nn as nn
-import torch.onnx
-
-class Model(nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
-        self.gelu = nn.GELU()
-
-    def forward(self, x):
-        return self.gelu(x)
+import numpy as np
+import onnx
+from onnx import helper, TensorProto
+from onnx.reference import ReferenceEvaluator
 
 def main():
-    # Set random seed for reproducibility
-    torch.manual_seed(0)
+    # Create a simple ONNX graph with a native GELU op
+    # Using opset 20 where GELU is a native op
 
-    # Export to onnx
-    model = Model()
-    model.eval()
-    device = torch.device("cpu")
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 1, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 4])
+
+    # Create GELU node with default approximate="none" (exact GELU)
+    gelu_node = helper.make_node(
+        'Gelu',
+        inputs=['X'],
+        outputs=['Y'],
+        name='gelu1'
+    )
+
+    graph_def = helper.make_graph(
+        [gelu_node],
+        'gelu_test',
+        [X],
+        [Y]
+    )
+
+    model_def = helper.make_model(graph_def, producer_name='burn-import-test')
+    model_def.opset_import[0].version = 20  # GELU requires opset 20
+
+    # Validate the model
+    onnx.checker.check_model(model_def)
+
+    # Save the model
     onnx_name = "gelu.onnx"
-    test_input = torch.tensor([[[[1.0, 4.0, 9.0, 25.0]]]], device=device)
+    onnx.save(model_def, onnx_name)
+    print(f"Finished exporting model to {onnx_name}")
 
-    torch.onnx.export(model, (test_input), onnx_name,
-                      verbose=False, 
-                      opset_version=16,  
-                    #   opset_version=20, TODO: uncomment this when PyTorch supports it
-                    #  Note: OPSET 20 is required for GELU to be exported otherwise 
-                    # op is broken down into multiple ops
-                      operator_export_type=torch.onnx.OperatorExportTypes.ONNX)
+    # Use reference evaluator to compute expected output
+    test_input = np.array([[[[1.0, 4.0, 9.0, 25.0]]]], dtype=np.float32)
+    print(f"Test input data: {test_input}")
 
-    print("Finished exporting model to {}".format(onnx_name))
-
-    # Output some test data for use in the test
-    print("Test input data: {}".format(test_input))
-    output = model.forward(test_input)
-    print("Test output data: {}".format(output))
+    ref = ReferenceEvaluator(model_def)
+    output = ref.run(None, {'X': test_input})[0]
+    print(f"Test output data: {output}")
+    print(f"Output values for Rust test: {output.flatten().tolist()}")
 
 if __name__ == '__main__':
     main()

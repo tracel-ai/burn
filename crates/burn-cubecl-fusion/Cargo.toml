@@ -18,22 +18,21 @@ workspace = true
 default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 
 autotune = []
-autotune-checks = ["cubecl/autotune-checks"]
+autotune-checks = ["cubecl/autotune-checks", "burn-backend"]
 doc = ["default"]
-std = ["cubecl/std", "burn-tensor/std", "burn-fusion/std"]
+std = ["cubecl/std", "burn-backend?/std", "burn-fusion/std"]
 
 [dependencies]
 burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.5", default-features = false }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5", default-features = false }
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.5" }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5", default-features = false, features = [
-    "cubecl",
-] }
 cubecl = { workspace = true }
 cubek = { workspace = true, features = ["matmul", "reduce", "quantization"] }
 
+# Only for `TensorData` with autotune-checks
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false, optional = true }
+
 derive-new = { workspace = true }
-half = { workspace = true }
 serde = { workspace = true }
 
 [package.metadata.docs.rs]

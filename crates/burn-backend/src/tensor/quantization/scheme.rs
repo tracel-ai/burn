@@ -1,26 +1,8 @@
+pub use burn_std::params_shape;
 use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
 
-use super::Calibration;
-use crate::{
-    Backend, TensorMetadata, element::ElementConversion, tensor::QuantizationParametersPrimitive,
-};
-
-/// Calculate the shape of the quantization parameters for a given tensor and level
-pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
-    match level {
-        QuantLevel::Tensor => Shape::new([1]),
-        QuantLevel::Block(block_size) => {
-            let mut params_shape = data_shape.clone();
-            let block_size = block_size.to_dim_vec(data_shape.num_dims());
-
-            for (shape, block_size) in params_shape.dims.iter_mut().zip(block_size) {
-                *shape = (*shape).div_ceil(block_size as usize);
-            }
-
-            params_shape
-        }
-    }
-}
+use super::{Calibration, QuantizationParametersPrimitive};
+use crate::{Backend, TensorMetadata, element::ElementConversion};
 
 /// Compute the quantization range mapping.
 pub fn compute_range<B: Backend>(

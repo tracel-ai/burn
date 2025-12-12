@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
-use burn_tensor::{DType, calculate_matmul_output};
+use burn_backend::{DType, calculate_matmul_output};
 
 /// Creates an empty output tensor with matmul output shape
 pub fn init_matmul_output<R: CubeRuntime>(

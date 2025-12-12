@@ -1,9 +1,9 @@
-use burn_tensor::DType;
-use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::DType;
+use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::{bf16, f16};
 use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
 use cubecl::prelude::*;
 use cubecl::std::scalar::InputScalar;
-use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use super::tensor::GlobalTensor;

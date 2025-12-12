@@ -1,10 +1,6 @@
 use super::{RouterTensor, RunnerChannel, RunnerClient, get_client};
 use alloc::{format, string::String};
-use burn_tensor::{
-    DType,
-    backend::{Backend, ExecutionError},
-    quantization::{QTensorPrimitive, QuantScheme},
-};
+use burn_backend::{Backend, DType, ExecutionError, QTensorPrimitive, quantization::QuantScheme};
 use core::marker::PhantomData;
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).

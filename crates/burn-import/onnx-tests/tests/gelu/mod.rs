@@ -18,7 +18,7 @@ mod tests {
         let input = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
 
         let output = model.forward(input);
-        let expected = TensorData::from([[[[0.8413f32, 3.9999, 9.0000, 25.0000]]]]);
+        let expected = TensorData::from([[[[0.8413447f32, 3.9998732, 9.0, 25.0]]]]);
 
         output
             .to_data()

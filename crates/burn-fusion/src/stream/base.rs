@@ -1,1 +1,1 @@
-pub use burn_std::id::StreamId;
+pub use burn_backend::StreamId;

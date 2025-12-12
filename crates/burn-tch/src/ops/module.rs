@@ -1,5 +1,5 @@
 use crate::{LibTorch, TchTensor, element::TchElement};
-use burn_tensor::{
+use burn_backend::{
     TensorMetadata,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,

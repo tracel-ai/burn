@@ -2,7 +2,8 @@ use core::{marker::PhantomData, mem::transmute};
 
 use crate::{SharedArray, iter_range_par, run_par, sharing::UnsafeSharedRef};
 
-use burn_tensor::{DType, Element, ElementConversion};
+use burn_backend::DType;
+use burn_backend::{Element, ElementConversion};
 use bytemuck::Zeroable;
 use macerator::{Simd, VAdd, VDiv};
 use ndarray::{Array4, s};

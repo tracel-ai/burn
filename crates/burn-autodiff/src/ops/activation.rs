@@ -11,10 +11,7 @@ use crate::{
     ops::{Backward, Ops, OpsKind, unary},
     retro_unary,
 };
-use burn_tensor::{
-    backend::Backend,
-    ops::{ActivationOps, FloatTensor},
-};
+use burn_backend::{Backend, ops::ActivationOps, tensor::FloatTensor};
 
 impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodiff<B, C> {
     fn gelu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

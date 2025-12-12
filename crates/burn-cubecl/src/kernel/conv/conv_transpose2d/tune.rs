@@ -1,4 +1,4 @@
-use burn_tensor::ops::ConvTransposeOptions;
+use burn_backend::ops::ConvTransposeOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 
 use crate::{

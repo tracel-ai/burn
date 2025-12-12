@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, slice};
 
-use burn_tensor::Element;
+use burn_backend::Element;
 use macerator::{
     Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul, VOrd, VSub, Vector, vload_unaligned,
     vstore_unaligned,

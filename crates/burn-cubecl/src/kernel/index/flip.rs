@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
-use burn_tensor::DType;
+use burn_backend::DType;
 use cubecl::std::scalar::InputScalar;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 

@@ -1,4 +1,4 @@
-use burn_tensor::DType;
+use burn_backend::DType;
 use cubecl::std::scalar::InputScalar;
 
 use super::{MaskFillStrategy, mask_where::MaskWhereStrategy};

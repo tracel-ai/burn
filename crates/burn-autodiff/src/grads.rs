@@ -1,4 +1,7 @@
-use burn_tensor::{TensorMetadata, backend::Backend, container::TensorContainer, ops::FloatTensor};
+use burn_backend::{
+    Backend, TensorMetadata, TensorPrimitive,
+    tensor::{FloatTensor, TensorContainer},
+};
 
 use crate::{
     NodeId,
@@ -72,11 +75,11 @@ impl Gradients {
         if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
             self.container.register::<B>(
                 node_id.value,
-                burn_tensor::TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
+                TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
             );
         } else {
             self.container
-                .register::<B>(node_id.value, burn_tensor::TensorPrimitive::Float(value));
+                .register::<B>(node_id.value, TensorPrimitive::Float(value));
         }
     }
 }

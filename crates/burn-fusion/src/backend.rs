@@ -3,12 +3,11 @@ use crate::{
     client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
-use burn_ir::{BackendIr, OperationIr, TensorHandle};
-use burn_tensor::{
-    Device, Element,
-    backend::{Backend, DeviceOps, ExecutionError},
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+use burn_backend::{
+    Backend, DeviceOps, Element, ExecutionError,
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
+use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 
@@ -74,7 +73,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
-        Iter: Iterator<Item = &'a mut burn_tensor::TensorData>,
+        Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
     {
         B::staging(data, device);
     }
@@ -189,7 +188,7 @@ pub trait FusionBackend:
     type FusionRuntime: FusionRuntime;
 
     /// Cast a float tensor and returns the resulting handle.
-    fn cast_float(tensor: FloatTensor<Self>, dtype: burn_tensor::DType) -> Self::Handle;
+    fn cast_float(tensor: FloatTensor<Self>, dtype: burn_backend::DType) -> Self::Handle;
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;

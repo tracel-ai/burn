@@ -1,7 +1,5 @@
-use burn_tensor::{
-    DType, Element, FloatDType, IntDType, Shape, TensorData, TensorMetadata,
-    quantization::{QTensorPrimitive, QuantScheme},
-};
+use burn_backend::{DType, FloatDType, IntDType, Shape, quantization::QuantScheme};
+use burn_backend::{Element, QTensorPrimitive, TensorData, TensorMetadata};
 
 use crate::{CandleDevice, element::CandleElement};
 

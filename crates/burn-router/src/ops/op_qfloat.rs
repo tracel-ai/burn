@@ -1,8 +1,8 @@
-use burn_tensor::{
-    Device, Shape, Slice, TensorData,
-    backend::ExecutionError,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+use burn_backend::{
+    ExecutionError, Shape, Slice, TensorData,
+    ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
+    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 
 use crate::{BackendRouter, RunnerChannel};

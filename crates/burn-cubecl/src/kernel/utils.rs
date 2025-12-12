@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_backend::Shape;
 use cubecl::{
     prelude::ArrayArg,
     std::{

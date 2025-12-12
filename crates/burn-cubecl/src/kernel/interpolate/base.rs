@@ -3,7 +3,7 @@ use crate::{
     ops::{numeric::empty_device_optimized_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
-use burn_tensor::{
+use burn_backend::{
     Shape,
     ops::{InterpolateMode, InterpolateOptions},
 };

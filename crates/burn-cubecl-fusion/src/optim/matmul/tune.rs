@@ -6,7 +6,7 @@ use crate::{
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},

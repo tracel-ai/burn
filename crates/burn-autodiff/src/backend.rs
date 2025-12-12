@@ -5,9 +5,9 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::{format, string::String};
-use burn_tensor::{
+use burn_backend::{
     backend::{AutodiffBackend, Backend, ExecutionError},
-    ops::{BoolTensor, IntTensor, QuantizedTensor},
+    tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
 use core::marker::PhantomData;
 
@@ -65,7 +65,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
-        Iter: Iterator<Item = &'a mut burn_tensor::TensorData>,
+        Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
     {
         B::staging(data, device);
     }

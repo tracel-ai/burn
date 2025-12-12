@@ -4,6 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::{bf16, f16};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
@@ -106,14 +107,14 @@ impl<N: Numeric> BinaryOp<N> for PowOp {
             if let cubecl::ir::ElemType::Float(kind) = elem {
                 match kind {
                     cubecl::ir::FloatKind::F16 => {
-                        let lhs = <Line<half::f16> as Cast>::__expand_cast_from(scope, lhs);
-                        let rhs = <Line<half::f16> as Cast>::__expand_cast_from(scope, rhs);
+                        let lhs = <Line<f16> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<f16> as Cast>::__expand_cast_from(scope, rhs);
                         let out = Powf::__expand_powf(scope, lhs, rhs);
                         return <Line<N> as Cast>::__expand_cast_from(scope, out);
                     }
                     cubecl::ir::FloatKind::BF16 => {
-                        let lhs = <Line<half::bf16> as Cast>::__expand_cast_from(scope, lhs);
-                        let rhs = <Line<half::bf16> as Cast>::__expand_cast_from(scope, rhs);
+                        let lhs = <Line<bf16> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<bf16> as Cast>::__expand_cast_from(scope, rhs);
                         let out = Powf::__expand_powf(scope, lhs, rhs);
                         return <Line<N> as Cast>::__expand_cast_from(scope, out);
                     }

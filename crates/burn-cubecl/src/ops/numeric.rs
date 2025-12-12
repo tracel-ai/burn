@@ -10,7 +10,7 @@ use crate::{
     },
     ops::max_line_size,
 };
-use burn_tensor::{DType, Shape};
+use burn_backend::{DType, Shape};
 use cubecl::std::{FastDivmod, scalar::InputScalar, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};

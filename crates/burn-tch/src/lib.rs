@@ -12,16 +12,3 @@ mod tensor;
 pub use backend::*;
 pub use element::*;
 pub use tensor::*;
-
-#[cfg(test)]
-mod tests {
-    extern crate alloc;
-
-    type TestBackend = crate::LibTorch<f32>;
-    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
-}

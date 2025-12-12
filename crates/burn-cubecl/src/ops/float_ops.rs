@@ -10,10 +10,10 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
-use burn_tensor::{DType, ElementConversion, FloatDType};
-use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
+use burn_backend::ExecutionError;
+use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use burn_backend::{DType, ElementConversion, FloatDType, Slice};
+use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
 use cubecl::std::scalar::InputScalar;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -187,7 +187,7 @@ where
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value, false)
     }
 
     fn float_select(
@@ -207,7 +207,7 @@ where
         kernel::select_assign(tensor, dim, indices, value, false)
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         // Check if all steps are 1
         let all_steps_one = slices.iter().all(|info| info.step == 1);
 
@@ -228,7 +228,7 @@ where
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[burn_tensor::Slice],
+        ranges: &[Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         kernel::slice_assign(tensor, ranges, value)

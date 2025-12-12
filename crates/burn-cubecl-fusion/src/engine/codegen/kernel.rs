@@ -1,5 +1,5 @@
 use super::{DYN_ELEM_ID, Q_PARAM_DYN_ELEM_ID, Q_STORE_DYN_ELEM_ID, io::*, ir::*};
-use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, StorageType, UIntKind},
     prelude::*,

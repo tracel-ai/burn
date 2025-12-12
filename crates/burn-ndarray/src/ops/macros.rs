@@ -31,7 +31,7 @@ macro_rules! keepdim {
     }};
 }
 
-use burn_tensor::ElementConversion;
+use burn_backend::ElementConversion;
 pub(crate) use keepdim;
 use ndarray::{Axis, Zip};
 

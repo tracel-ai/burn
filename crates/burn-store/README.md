@@ -207,6 +207,67 @@ if !result.missing.is_empty() {
 
 Both BurnpackStore and SafetensorsStore support no-std environments when using byte operations
 
+### Zero-Copy Loading
+
+For embedded models and large model files, zero-copy loading avoids unnecessary memory allocations
+by directly referencing the source data instead of copying it.
+
+#### Embedded Models (Static Data)
+
+```rust
+use burn_store::{ModuleSnapshot, BurnpackStore};
+
+// Embed model weights in the binary at compile time
+static MODEL_DATA: &[u8] = include_bytes!("model.bpk");
+
+// Zero-copy loading - data stays in binary's .rodata section
+let mut store = BurnpackStore::from_static(MODEL_DATA);
+model.load_from(&mut store)?;
+```
+
+The `from_static()` constructor automatically enables zero-copy mode. Tensor data is sliced directly
+from the embedded bytes without heap allocation.
+
+#### File-Based Zero-Copy
+
+```rust
+// Memory-mapped file with zero-copy tensor slicing
+let mut store = BurnpackStore::from_file("large_model.bpk")
+    .zero_copy(true);  // Enable zero-copy slicing
+model.load_from(&mut store)?;
+```
+
+When `zero_copy(true)` is set, the memory-mapped file is wrapped in `bytes::Bytes` via
+`from_owner()`, enabling O(1) slicing operations.
+
+#### In-Memory Zero-Copy
+
+```rust
+use burn_tensor::{AllocationProperty, Bytes};
+
+// Create shared bytes for zero-copy
+let data: Vec<u8> = load_model_bytes();
+let shared = bytes::Bytes::from(data);
+let bytes = Bytes::from_shared(shared, AllocationProperty::Other);
+
+// Load with zero-copy enabled
+let mut store = BurnpackStore::from_bytes(Some(bytes))
+    .zero_copy(true);
+model.load_from(&mut store)?;
+```
+
+#### When to Use Zero-Copy
+
+| Scenario                            | Recommendation                     |
+| ----------------------------------- | ---------------------------------- |
+| Embedded models (`include_bytes!`)  | Use `from_static()` (auto-enabled) |
+| Large model files                   | Use `from_file().zero_copy(true)`  |
+| Repeated loading from same bytes    | Use `from_bytes().zero_copy(true)` |
+| One-time load, release memory after | Use default (copy mode)            |
+
+**Note**: Zero-copy keeps the source data alive as long as any tensor references it. Use copy mode
+(default) if you need to release the source file/memory immediately after loading.
+
 ### Model Surgery and Partial Operations
 
 Burn Store enables sophisticated model surgery operations for selectively loading, saving, and
@@ -467,6 +528,7 @@ The stores provide a fluent API for configuration:
   for PyTorch, `false` for SafeTensors)
 - `with_top_level_key(key)` - Access nested dict in PyTorch files
 - `overwrite(bool)` - Allow overwriting existing files (Burnpack)
+- `zero_copy(bool)` - Enable zero-copy tensor slicing (Burnpack)
 
 #### Direct Tensor Access
 

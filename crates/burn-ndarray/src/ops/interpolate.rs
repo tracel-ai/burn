@@ -1,4 +1,4 @@
-use burn_tensor::ElementConversion;
+use burn_backend::ElementConversion;
 use ndarray::{Array4, ArrayBase, DataOwned};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]

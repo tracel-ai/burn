@@ -136,6 +136,50 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_mask_where(tensor.tensor(), mask, source.tensor()))
+    }
+
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
+    }
+
+    fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_gather(dim, tensor, indices))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_gather(dim, tensor, indices))
+            }
+        }
+    }
+
+    fn scatter(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        update: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        match update {
+            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_scatter_add(
+                dim,
+                tensor.tensor(),
+                indices,
+                values.tensor(),
+            )),
+        }
+    }
+
     fn device(tensor: &Self::Primitive) -> Device<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
@@ -219,6 +263,14 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
         B::float_not_equal(lhs.tensor(), rhs.tensor())
+    }
+
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_equal_elem(lhs.tensor(), rhs)
+    }
+
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_not_equal_elem(lhs.tensor(), rhs)
     }
 
     fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
@@ -402,12 +454,6 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::float_equal_elem(lhs.tensor(), rhs)
-    }
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::float_not_equal_elem(lhs.tensor(), rhs)
-    }
     fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
         B::float_greater(lhs.tensor(), rhs.tensor())
     }
@@ -438,50 +484,6 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
         B::float_lower_equal_elem(lhs.tensor(), rhs)
-    }
-
-    fn mask_where(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        source: Self::Primitive,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_mask_where(tensor.tensor(), mask, source.tensor()))
-    }
-
-    fn mask_fill(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        value: Self::Elem,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
-    }
-
-    fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_gather(dim, tensor, indices))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_gather(dim, tensor, indices))
-            }
-        }
-    }
-
-    fn scatter(
-        dim: usize,
-        tensor: Self::Primitive,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
-        update: IndexingUpdateOp,
-    ) -> Self::Primitive {
-        match update {
-            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_scatter_add(
-                dim,
-                tensor.tensor(),
-                indices,
-                values.tensor(),
-            )),
-        }
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {

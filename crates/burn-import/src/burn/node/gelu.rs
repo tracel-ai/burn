@@ -14,7 +14,7 @@ impl NodeCodegen for onnx_ir::node::gelu::GeluNode {
         let output = arg_to_ident(self.outputs.first().unwrap());
 
         quote! {
-            let #output = #input.gelu();
+            let #output = burn::tensor::activation::gelu(#input);
         }
     }
 }
@@ -35,7 +35,7 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-            let output = input.gelu();
+            let output = burn::tensor::activation::gelu(input);
             output
         }
         ");

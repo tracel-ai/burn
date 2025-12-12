@@ -1,8 +1,8 @@
-use burn_tensor::{
-    DType, Device, Shape, TensorData,
-    backend::{Backend, ExecutionError},
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+use burn_backend::{
+    Backend, DType, ExecutionError, Shape, Slice, TensorData,
+    ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
+    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 
 use crate::{
@@ -78,10 +78,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_slice(
-        _tensor: QuantizedTensor<Self>,
-        _slices: &[burn_tensor::Slice],
-    ) -> QuantizedTensor<Self> {
+    fn q_slice(_tensor: QuantizedTensor<Self>, _slices: &[Slice]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

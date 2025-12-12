@@ -1,6 +1,6 @@
 use alloc::string::String;
+use burn_backend::{DType, Element, Shape, backend::DeviceOps};
 use burn_ir::TensorIr;
-use burn_tensor::{DType, Element, Shape, backend::DeviceOps};
 
 use crate::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 

@@ -1,8 +1,8 @@
 use core::mem;
 
-use burn_tensor::{
-    DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue},
+use burn_backend::{
+    DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
+    quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
@@ -92,8 +92,8 @@ impl_from!(
 #[macro_export]
 macro_rules! execute_with_dtype {
     (($lhs:expr, $rhs:expr),$element:ident,  $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
-        let lhs_dtype = burn_tensor::TensorMetadata::dtype(&$lhs);
-        let rhs_dtype = burn_tensor::TensorMetadata::dtype(&$rhs);
+        let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
+        let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
         match ($lhs, $rhs) {
             $(
                 ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
@@ -548,7 +548,7 @@ impl QTensorPrimitive for NdArrayQTensor {
     }
 
     fn default_scheme() -> QuantScheme {
-        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
+        QuantScheme::default().with_store(burn_backend::quantization::QuantStore::Native)
     }
 }
 
@@ -571,12 +571,12 @@ mod tests {
     use crate::NdArray;
 
     use super::*;
-    use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{
+    use burn_backend::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
         quantization::{QuantStore, QuantizationParametersPrimitive},
     };
+    use burn_std::rand::get_seeded_rng;
 
     #[test]
     fn should_support_into_and_from_data_1d() {

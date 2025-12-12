@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
-use burn_tensor::{DType, Shape};
+use burn_backend::{DType, Shape};
 
 /// Pseudo-random generator with bernoulli distribution
 pub fn random_bernoulli<R: CubeRuntime>(

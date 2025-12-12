@@ -14,7 +14,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::{CubeCount, CubeDim, Runtime, client::ComputeClient, ir::StorageType, prelude::*};
 use cubek::reduce::{
     BoundChecksInner, LineMode, ReduceError,

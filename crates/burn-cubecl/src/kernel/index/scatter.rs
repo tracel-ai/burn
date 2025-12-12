@@ -1,13 +1,13 @@
 use crate::{
     CubeRuntime,
-    kernel::{self},
+    kernel::{self, AddOp, BinaryOp, BinaryOpFamily, OrOp},
     tensor::CubeTensor,
 };
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 #[cube(launch_unchecked)]
-fn scatter_kernel<T: Numeric, I: Int>(
+fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     input: &mut Tensor<T>,
     indices: &Tensor<I>,
     value: &Tensor<T>,
@@ -59,9 +59,11 @@ fn scatter_kernel<T: Numeric, I: Int>(
         let mut index_input = stride_input * result_indices;
         index_input += offset_input;
 
-        let mut result_input = input[index_input];
-        result_input += result_value;
-        input[index_input] = result_input;
+        let value = Op::BinaryOp::<T>::execute(
+            Line::cast_from(input[index_input]),
+            Line::cast_from(result_value),
+        );
+        input[index_input] = value[0];
     }
 }
 
@@ -70,6 +72,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
     value: CubeTensor<R>,
+    is_bool: bool,
 ) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices = kernel::into_contiguous(indices);
@@ -104,8 +107,13 @@ pub(crate) fn scatter<R: CubeRuntime>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
+    let launch = match is_bool {
+        true => scatter_kernel::launch_unchecked::<OrOp, R>,
+        false => scatter_kernel::launch_unchecked::<AddOp, R>,
+    };
+
     unsafe {
-        scatter_kernel::launch_unchecked(
+        launch(
             &indices.client.clone(),
             cube_count,
             cube_dim,

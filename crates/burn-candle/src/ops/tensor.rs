@@ -1,12 +1,12 @@
 use std::borrow::Borrow;
 
-use burn_tensor::{
-    Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+use burn_backend::{
+    DType, Distribution, ElementConversion, ExecutionError, FloatDType, Shape, Slice, TensorData,
+    bf16, f16,
+    ops::FloatTensorOps,
+    tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor},
 };
 use candle_core::{Tensor, backend::BackendStorage, shape};
-use half::{bf16, f16};
 
 use crate::{
     Candle, CandleDevice, CandleTensor, IntoDType,
@@ -18,10 +18,10 @@ use super::base::{cpu_random, expand, permute, sign, unfold};
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
         match data.dtype {
-            burn_tensor::DType::F64 => super::base::from_data::<f64>(data, device),
-            burn_tensor::DType::F32 => super::base::from_data::<f32>(data, device),
-            burn_tensor::DType::F16 => super::base::from_data::<f16>(data, device),
-            burn_tensor::DType::BF16 => super::base::from_data::<bf16>(data, device),
+            DType::F64 => super::base::from_data::<f64>(data, device),
+            DType::F32 => super::base::from_data::<f32>(data, device),
+            DType::F16 => super::base::from_data::<f16>(data, device),
+            DType::BF16 => super::base::from_data::<bf16>(data, device),
             _ => unimplemented!("Unsupported dtype for `float_from_data`"),
         }
     }
@@ -217,13 +217,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         super::base::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         super::base::slice_assign(tensor, slices, value)
@@ -253,11 +253,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(
-            lhs.tensor
-                .eq(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
-                .unwrap(),
-        )
+        CandleTensor::new(lhs.tensor.eq(rhs).unwrap())
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {

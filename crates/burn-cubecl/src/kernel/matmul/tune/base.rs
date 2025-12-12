@@ -1,4 +1,4 @@
-use burn_tensor::DType;
+use burn_backend::DType;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
 use cubek::matmul::{
     AcceleratedTileKind, AsyncPartialReadingStrategy, PartialReadingStrategy, ReadingStrategy,

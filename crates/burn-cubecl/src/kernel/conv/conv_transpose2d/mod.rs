@@ -1,8 +1,6 @@
 mod base;
 mod col2im;
 
-/// Layout swap functions
-pub mod layout_swap;
 mod transpose_direct;
 
 #[cfg(feature = "autotune")]

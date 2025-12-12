@@ -1,8 +1,8 @@
 #![allow(missing_docs)]
 
 use alloc::vec::Vec;
-use burn_tensor::{
-    DType, Distribution, IndexingUpdateOp, Shape, Slice, calculate_matmul_output,
+use burn_backend::{
+    DType, Distribution, Shape, Slice, calculate_matmul_output,
     ops::{
         conv::{
             calculate_conv_output_shape, calculate_conv_transpose_output_shape,
@@ -11,6 +11,7 @@ use burn_tensor::{
         unfold::calculate_unfold_shape,
     },
     quantization::QuantScheme,
+    tensor::IndexingUpdateOp,
 };
 
 use crate::{ScalarIr, TensorId, TensorIr};

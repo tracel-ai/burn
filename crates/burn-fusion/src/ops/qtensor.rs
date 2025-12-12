@@ -1,17 +1,15 @@
 use std::marker::PhantomData;
 
+use burn_backend::{
+    DType, Element, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    ops::QTensorOps,
+    quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
+    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
+};
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
-    InitOperationIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
+    InitOperationIr, MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr,
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
-};
-use burn_tensor::{
-    DType, Device, Element, Shape, Slice, TensorData, TensorPrimitive,
-    backend::ExecutionError,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{
-        QTensorPrimitive, QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
-    },
 };
 
 use crate::{
@@ -26,7 +24,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;
         let tensor = B::q_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::quantized_tensor_handle(tensor);
         let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
@@ -296,10 +294,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.tensor.dtype,
-                    NumericOperationIr::Gather(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::Gather(desc.clone())),
                 GatherOps::<B>::new(desc),
             )
             .output()
@@ -337,10 +332,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.tensor.dtype,
-                    NumericOperationIr::Select(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::Select(desc.clone())),
                 SelectOps::<B>::new(desc),
             )
             .output()

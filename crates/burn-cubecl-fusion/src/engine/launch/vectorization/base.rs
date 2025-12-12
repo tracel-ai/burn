@@ -148,7 +148,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                         overrides.tensor(&tensor_ir.id),
                     );
                     let num_quants = match tensor_ir.dtype {
-                        burn_tensor::DType::QFloat(quant_scheme) => quant_scheme.num_quants() as u8,
+                        burn_std::DType::QFloat(quant_scheme) => quant_scheme.num_quants() as u8,
                         _ => panic!(""),
                     };
                     let val = match val {

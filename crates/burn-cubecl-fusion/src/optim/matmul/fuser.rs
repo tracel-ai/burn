@@ -6,7 +6,7 @@ use crate::{
 };
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{FloatOperationIr, OperationIr};
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::Runtime;
 
 /// Fused element wise operations that are normally memory bound.

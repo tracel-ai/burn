@@ -13,19 +13,8 @@ extern crate alloc;
 
 mod tensor;
 
-#[cfg(feature = "export_tests")]
-#[allow(missing_docs)]
-pub mod tests;
-
-#[cfg(feature = "export_tests")]
-// Re-export the might_panic proc macro for easy access
-pub use burn_tensor_testgen::might_panic;
-
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
-pub use burn_std::stream_id::StreamId;
-
 // Re-exported types
-pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
-pub use burn_std::{Bytes, bf16, f16};
+pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync, try_read_sync};

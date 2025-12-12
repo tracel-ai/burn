@@ -15,6 +15,7 @@ pub use data::*;
 pub mod distribution;
 pub use distribution::*;
 pub mod element;
+pub use element::*;
 
 /// [`Backend`] trait and required types.
 pub mod backend;
@@ -22,6 +23,39 @@ pub use backend::*;
 
 /// Backend tensor primitives and operations.
 pub mod tensor;
+
+// Re-exported types
+pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
+pub use burn_std::{
+    AllocationProperty, Bytes, DType, FloatDType, IntDType, bf16, f16, stream_id::StreamId,
+};
+
+/// Shape definition.
+pub mod shape {
+    pub use burn_std::shape::*;
+}
+pub use shape::*;
+
+/// Slice utilities.
+pub mod slice {
+    pub use burn_std::{s, slice::*};
+}
+pub use slice::*;
+
+/// Indexing utilities.
+pub mod indexing {
+    pub use burn_std::indexing::*;
+}
+pub use indexing::*;
+
+/// Quantization data representation.
+pub mod quantization {
+    pub use crate::tensor::quantization::*;
+    pub use burn_std::quantization::{
+        BlockSize, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantStore,
+        QuantValue, QuantizedBytes,
+    };
+}
 
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {

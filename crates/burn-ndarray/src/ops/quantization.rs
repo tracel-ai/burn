@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use num_traits::{Float, PrimInt};
 
-use burn_tensor::quantization::{BlockSize, QuantValue};
+use burn_backend::quantization::{BlockSize, QuantValue};
 
 // NOTE: this mainly serves as a simple reference implementation.
 // The de/quantization ops should be refactored to use ndarray.
@@ -156,7 +156,7 @@ impl<E: Float + Send + Sync> Eq for SymmetricQuantization<E> {}
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::TensorData;
+    use burn_backend::TensorData;
 
     use super::*;
     use alloc::vec;

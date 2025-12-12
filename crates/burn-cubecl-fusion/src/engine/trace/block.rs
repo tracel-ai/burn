@@ -3,7 +3,7 @@ use crate::engine::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::{DType, quantization::QuantParam};
+use burn_std::{DType, quantization::QuantParam};
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};

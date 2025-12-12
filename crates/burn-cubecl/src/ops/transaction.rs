@@ -1,7 +1,7 @@
-use burn_tensor::{
+use burn_backend::{
     DType, TensorData,
     backend::ExecutionError,
-    ops::{TransactionOps, TransactionPrimitiveData},
+    ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use cubecl::server::{Binding, CopyDescriptor};
 
@@ -15,8 +15,8 @@ where
     BT: BoolElement,
 {
     async fn tr_execute(
-        transaction: burn_tensor::ops::TransactionPrimitive<Self>,
-    ) -> Result<burn_tensor::ops::TransactionPrimitiveData, ExecutionError> {
+        transaction: TransactionPrimitive<Self>,
+    ) -> Result<TransactionPrimitiveData, ExecutionError> {
         let mut client = None;
 
         enum Kind {

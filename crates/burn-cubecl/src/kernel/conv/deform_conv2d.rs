@@ -1,7 +1,7 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::scalar::InputScalar};
 use cubek::convolution::components::ConvSetupError;
 
-use burn_tensor::{
+use burn_backend::{
     Shape,
     ops::{DeformConvOptions, conv::calculate_conv_output_size},
 };

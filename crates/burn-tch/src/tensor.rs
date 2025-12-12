@@ -1,5 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
+use burn_backend::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -91,9 +91,15 @@ impl TensorMetadata for TchTensor {
     }
 }
 
-impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
-    fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
+impl burn_backend::QTensorPrimitive for TchTensor {
+    fn scheme(&self) -> &burn_backend::quantization::QuantScheme {
         unimplemented!("Quantization is not supported")
+    }
+}
+
+impl core::fmt::Display for TchTensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.tensor)
     }
 }
 
@@ -417,82 +423,25 @@ fn f_copy_data<T: TchElement>(
 
 #[cfg(test)]
 mod tests {
+    use burn_backend::ops::FloatTensorOps;
+    use burn_backend::read_sync;
+
     use crate::LibTorch;
 
     use super::*;
-    use burn_tensor::{Distribution, Tensor, TensorPrimitive};
-    use rand::SeedableRng;
-    use rand::prelude::StdRng;
-
-    #[test]
-    fn should_support_into_and_from_data_1d() {
-        let data_expected = TensorData::random::<f32, _, _>(
-            Shape::new([3]),
-            Distribution::Default,
-            &mut StdRng::from_os_rng(),
-        );
-        let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
-
-        let data_actual =
-            Tensor::<LibTorch<f32>, 1>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
-
-        assert_eq!(data_expected, data_actual);
-    }
-
-    #[test]
-    fn should_support_into_and_from_data_2d() {
-        let data_expected = TensorData::random::<f32, _, _>(
-            Shape::new([2, 3]),
-            Distribution::Default,
-            &mut StdRng::from_os_rng(),
-        );
-        let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
-
-        let data_actual =
-            Tensor::<LibTorch<f32>, 2>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
-
-        assert_eq!(data_expected, data_actual);
-    }
-
-    #[test]
-    fn should_not_update_inplace_after_reshape() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.clone();
-
-        let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
-
-        assert_ne!(
-            tensor_3.to_data().as_slice::<f32>().unwrap(),
-            tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
-
-    #[test]
-    fn should_not_update_inplace_after_slice() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.clone();
-
-        let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);
-
-        assert_ne!(
-            tensor_3.to_data().as_slice::<f32>().unwrap(),
-            tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
+    type B = LibTorch<f32>;
 
     #[test]
     fn should_have_bf16_kind() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.cast(DType::BF16);
+        let data = TensorData::from([4.0, 4.0]);
+        let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
+        let tensor_2 = B::float_cast(tensor_1, DType::BF16.into());
 
-        tensor_2
-            .to_data()
-            .assert_eq(&TensorData::from([4.0, 4.0]), false);
+        assert_eq!(tensor_2.tensor.kind(), tch::Kind::BFloat16);
 
-        assert_eq!(
-            tensor_2.into_primitive().tensor().tensor.kind(),
-            tch::Kind::BFloat16
-        );
+        let out = read_sync(B::float_into_data(tensor_2)).unwrap();
+
+        out.assert_eq(&TensorData::from([4.0, 4.0]), false);
     }
 }
 

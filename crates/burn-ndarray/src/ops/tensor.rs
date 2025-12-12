@@ -1,9 +1,9 @@
 // Language
 use alloc::vec::Vec;
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::FloatTensor;
-use burn_tensor::ops::GridSampleOptions;
-use burn_tensor::{TensorMetadata, cast::ToElement};
+use burn_backend::backend::ExecutionError;
+use burn_backend::ops::GridSampleOptions;
+use burn_backend::tensor::FloatTensor;
+use burn_backend::{TensorMetadata, element::cast::ToElement};
 
 // Current crate
 use super::{
@@ -22,8 +22,8 @@ use crate::{execute_with_float_dtype, ops::grid_sample::grid_sample_2d};
 
 // Workspace crates
 use crate::rand::get_seeded_rng;
-use burn_tensor::{Distribution, FloatDType};
-use burn_tensor::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
+use burn_backend::{Distribution, FloatDType};
+use burn_backend::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -170,9 +170,7 @@ where
         indices: NdArrayTensor,
     ) -> FloatTensor<Self> {
         execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::gather(
-                dim, tensor, indices
-            ))
+            execute_with_float_dtype!(tensor, |tensor| NdArrayOps::gather(dim, tensor, indices))
         })
     }
 
@@ -183,7 +181,7 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
+            execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayOps::scatter(
                 dim, tensor, indices, value
             ))
         })
@@ -214,13 +212,13 @@ where
         })
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_backend::Slice]) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
@@ -234,7 +232,7 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayMathOps::mask_where(tensor, mask.bool(), value)
+            NdArrayOps::mask_where(tensor, mask.bool(), value)
         })
     }
 
@@ -243,7 +241,7 @@ where
         mask: NdArrayTensor,
         value: E,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mask_fill(
+        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::mask_fill(
             tensor,
             mask.bool(),
             value.elem()

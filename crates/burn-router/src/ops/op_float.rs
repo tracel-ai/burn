@@ -1,7 +1,13 @@
 use alloc::vec::Vec;
-use burn_tensor::backend::{Backend, ExecutionError};
+use burn_backend::backend::{Backend, ExecutionError};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use burn_backend::tensor::{
+    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+};
+use burn_backend::{
+    Distribution, Element, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps,
+};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
     FlipOpIr, FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
@@ -9,10 +15,6 @@ use burn_ir::{
     ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr,
     ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr,
     UnaryOpIr, UnfoldOpIr,
-};
-use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
-use burn_tensor::{
-    Device, Distribution, Element, FloatDType, IndexingUpdateOp, Shape, Slice, TensorData,
 };
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
@@ -338,10 +340,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::Gather(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::Gather(desc)))
             .output()
     }
 
@@ -362,10 +361,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         );
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::Scatter(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::Scatter(desc)))
             .output()
     }
 
@@ -380,10 +376,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::Select(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::Select(desc)))
             .output()
     }
 
@@ -404,10 +397,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         );
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::SelectAssign(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::SelectAssign(desc)))
             .output()
     }
 
@@ -424,7 +414,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
@@ -449,10 +439,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::MaskWhere(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::MaskWhere(desc)))
             .output()
     }
 
@@ -468,10 +455,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.out.dtype,
-                NumericOperationIr::MaskFill(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::MaskFill(desc)))
             .output()
     }
 
@@ -497,10 +481,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
-                desc.lhs.dtype,
-                NumericOperationIr::EqualElem(desc),
-            ))
+            .register(OperationIr::BaseFloat(BaseOperationIr::EqualElem(desc)))
             .output()
     }
 
@@ -1119,7 +1100,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_backend::FloatDType) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = CastOpIr::create(tensor.into_ir(), dtype.into(), || {
             client.create_empty_handle()

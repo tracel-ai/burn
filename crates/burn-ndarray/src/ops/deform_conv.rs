@@ -1,4 +1,4 @@
-use burn_tensor::ops::{DeformConvOptions, conv::calculate_conv_output_size};
+use burn_backend::ops::{DeformConvOptions, conv::calculate_conv_output_size};
 use core::ops::AddAssign;
 use ndarray::{
     Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim, Ix4,

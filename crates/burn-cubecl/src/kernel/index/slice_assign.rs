@@ -102,7 +102,7 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
 
 pub(crate) fn slice_assign<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-    indices: &[burn_tensor::Slice],
+    indices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
     // Check if any slice has non-unit step
@@ -124,7 +124,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         let last = indices
             .get(ndims - 1)
             .cloned()
-            .unwrap_or(burn_tensor::Slice {
+            .unwrap_or(burn_backend::Slice {
                 start: 0,
                 end: Some(tensor.shape[ndims - 1] as isize),
                 step: 1,
@@ -151,7 +151,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     let mut offsets = SequenceArg::<R, u32>::new();
 
     for i in 0..ndims {
-        let slice = indices.get(i).cloned().unwrap_or(burn_tensor::Slice {
+        let slice = indices.get(i).cloned().unwrap_or(burn_backend::Slice {
             start: 0,
             end: Some(tensor.shape[i] as isize),
             step: 1,
@@ -196,7 +196,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
 /// - etc.
 pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-    slices: &[burn_tensor::Slice],
+    slices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let tensor = match tensor.can_mut() {

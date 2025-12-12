@@ -1,0 +1,11 @@
+[alias]
+test-candle = "test --release --no-default-features --features candle,std"
+test-cpu = "test --release --no-default-features --features cpu,std"
+test-cuda = "test --release --no-default-features --features cuda,std"
+test-ndarray = "test --release --no-default-features --features ndarray,std"
+test-rocm = "test --release --no-default-features --features rocm,std"
+test-router = "test --release --no-default-features --features router,std"
+test-tch = "test --release --no-default-features --features tch,std"
+test-wgpu = "test --release --no-default-features --features wgpu,std"
+test-vulkan = "test --release --no-default-features --features vulkan,std"
+test-metal = "test --release --no-default-features --features metal,std"

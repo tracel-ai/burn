@@ -1,6 +1,6 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, tensor::CubeTensor};
-use burn_tensor::{DType, quantization::QTensorPrimitive};
+use burn_backend::{DType, QTensorPrimitive};
 use cubek::matmul::{
     MatmulInputHandleRef,
     components::{MatmulElems, MatmulSetupError},
