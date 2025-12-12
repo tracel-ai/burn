@@ -115,26 +115,6 @@ mod reduce_ops {
     ) {
         (input.clone(), output.copy(), *dim, *config, *dtypes)
     }
-
-    pub(crate) fn reduce<Run: CubeRuntime>(
-        input: CubeTensor<Run>,
-        output: CubeTensor<Run>,
-        axis: usize,
-        strategy: ReduceStrategy,
-        config: ReduceOperationConfig,
-        dtypes: ReduceDtypes,
-    ) -> Result<(), String> {
-        cubek::reduce::reduce::<Run>(
-            &input.client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            axis,
-            strategy,
-            config,
-            dtypes,
-        )
-        .map_err(|e| format!("{e}"))
-    }
 }
 
 /// Executes autotune on reduce operations.
