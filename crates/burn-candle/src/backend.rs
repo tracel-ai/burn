@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
 
-use burn_backend::BackTrace;
 use burn_backend::{
-    Backend, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive, tensor::Device,
+    BackTrace, Backend, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive, tensor::Device,
 };
 use burn_std::{
     rand::{SeedableRng, StdRng},
@@ -241,7 +240,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
                 device
                     .synchronize()
                     .map_err(|err| ExecutionError::Generic {
-                        context: format!("Can't sync the cuda device: {err}"),
+                        reason: format!("Can't sync the cuda device: {err}"),
                         backtrace: BackTrace::capture(),
                     })?;
             }
