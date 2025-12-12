@@ -91,9 +91,9 @@ impl NodeProcessor for CumSumProcessor {
                 })?;
 
                 // Axis is a scalar (0-D tensor), so it should have exactly one element
-                let axis_value = if axis_vec.is_empty() {
+                let axis_value = if axis_vec.len() != 1 {
                     return Err(ProcessError::Custom(
-                        "CumSum: axis tensor is empty".to_string(),
+                        "CumSum: axis must be a scalar (0-D tensor)".to_string(),
                     ));
                 } else {
                     axis_vec[0]
