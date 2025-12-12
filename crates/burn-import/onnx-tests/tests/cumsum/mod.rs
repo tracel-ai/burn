@@ -5,7 +5,8 @@ include_models!(
     cumsum_exclusive,
     cumsum_reverse,
     cumsum_exclusive_reverse,
-    cumsum_2d
+    cumsum_2d,
+    cumsum_runtime_axis
 );
 
 #[cfg(test)]
@@ -81,6 +82,22 @@ mod tests {
 
         let input = Tensor::<TestBackend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
         let output = model.forward(input);
+        let expected = TensorData::from([[1f32, 3., 6.], [4., 9., 15.]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn cumsum_runtime_axis_test() {
+        // Input: [[1., 2., 3.], [4., 5., 6.]]
+        // Axis: 1 (runtime input as scalar)
+        // Expected output (2D, axis=1): [[1., 3., 6.], [4., 9., 15.]]
+        let device = Default::default();
+        let model: cumsum_runtime_axis::Model<TestBackend> = cumsum_runtime_axis::Model::default();
+
+        let input = Tensor::<TestBackend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        let axis: i64 = 1; // Runtime axis value (scalar)
+        let output = model.forward(input, axis);
         let expected = TensorData::from([[1f32, 3., 6.], [4., 9., 15.]]);
 
         output.to_data().assert_eq(&expected, true);

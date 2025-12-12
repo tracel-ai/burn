@@ -1,10 +1,15 @@
 use super::prelude::*;
 use onnx_ir::cumsum::CumSumAxis;
+use onnx_ir::ir::ArgType;
 
 impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
     fn inputs(&self) -> &[Argument] {
-        // Only the data input (inputs[0]), not axis (handled in config)
-        &self.inputs[..1]
+        match &self.config.axis {
+            // Static axis: only data input needed
+            CumSumAxis::Static(_) => &self.inputs[..1],
+            // Runtime axis: include both data and axis inputs
+            CumSumAxis::Runtime(_) => &self.inputs,
+        }
     }
 
     fn outputs(&self) -> &[Argument] {
@@ -17,58 +22,22 @@ impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
         let exclusive = self.config.exclusive;
         let reverse = self.config.reverse;
 
-        // Extract axis value (static only for now)
-        let axis = match &self.config.axis {
-            CumSumAxis::Static(axis) => axis.to_tokens(),
+        match &self.config.axis {
+            CumSumAxis::Static(axis) => {
+                generate_static_cumsum(&input, &output, *axis, exclusive, reverse)
+            }
             CumSumAxis::Runtime(_) => {
-                panic!("Runtime CumSum axis not yet supported in burn-import")
-            }
-        };
-
-        match (exclusive, reverse) {
-            (false, false) => {
-                // Default: simple cumsum
-                quote! {
-                    let #output = #input.cumsum(#axis);
-                }
-            }
-            (false, true) => {
-                // Reverse only: flip along axis, cumsum, flip back
-                quote! {
-                    let #output = #input.flip([#axis]).cumsum(#axis).flip([#axis]);
-                }
-            }
-            (true, false) => {
-                // Exclusive only: cumsum, then shift (prepend zeros, drop last)
-                // exclusive[i] = sum(input[0..i]) (excludes current element)
-                // Use block scope for temporary variables
-                quote! {
-                    let #output = {
-                        let cumsum_result = #input.cumsum(#axis);
-                        let shape = cumsum_result.shape();
-                        let dim_size = shape.dims[#axis];
-                        let sliced = cumsum_result.narrow(#axis, 0, dim_size - 1);
-                        let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
-                        Tensor::cat(vec![zeros, sliced], #axis)
-                    };
-                }
-            }
-            (true, true) => {
-                // Both exclusive and reverse
-                // Reverse cumsum: output[i] = sum(input[i+1..n])
-                // Use block scope for temporary variables
-                quote! {
-                    let #output = {
-                        let flipped = #input.flip([#axis]);
-                        let cumsum_result = flipped.cumsum(#axis);
-                        let cumsum_back = cumsum_result.flip([#axis]);
-                        let shape = cumsum_back.shape();
-                        let dim_size = shape.dims[#axis];
-                        let sliced = cumsum_back.narrow(#axis, 1, dim_size - 1);
-                        let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
-                        Tensor::cat(vec![sliced, zeros], #axis)
-                    };
-                }
+                let axis_input = arg_to_ident(&self.inputs[1]);
+                // Check if axis is a scalar or a shape array
+                let axis_is_scalar = matches!(&self.inputs[1].ty, ArgType::Scalar(_));
+                generate_runtime_cumsum(
+                    &input,
+                    &output,
+                    &axis_input,
+                    exclusive,
+                    reverse,
+                    axis_is_scalar,
+                )
             }
         }
     }
@@ -82,6 +51,117 @@ impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
     }
 }
 
+/// Generate code for static (compile-time known) axis
+fn generate_static_cumsum(
+    input: &TokenStream,
+    output: &syn::Ident,
+    axis: usize,
+    exclusive: bool,
+    reverse: bool,
+) -> TokenStream {
+    let axis = axis.to_tokens();
+
+    match (exclusive, reverse) {
+        (false, false) => {
+            quote! {
+                let #output = #input.cumsum(#axis);
+            }
+        }
+        (false, true) => {
+            quote! {
+                let #output = #input.flip([#axis]).cumsum(#axis).flip([#axis]);
+            }
+        }
+        (true, false) => {
+            quote! {
+                let #output = {
+                    let cumsum_result = #input.cumsum(#axis);
+                    let shape = cumsum_result.shape();
+                    let dim_size = shape.dims[#axis];
+                    let sliced = cumsum_result.narrow(#axis, 0, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
+                    Tensor::cat(vec![zeros, sliced], #axis)
+                };
+            }
+        }
+        (true, true) => {
+            quote! {
+                let #output = {
+                    let flipped = #input.flip([#axis]);
+                    let cumsum_result = flipped.cumsum(#axis);
+                    let cumsum_back = cumsum_result.flip([#axis]);
+                    let shape = cumsum_back.shape();
+                    let dim_size = shape.dims[#axis];
+                    let sliced = cumsum_back.narrow(#axis, 1, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
+                    Tensor::cat(vec![sliced, zeros], #axis)
+                };
+            }
+        }
+    }
+}
+
+/// Generate code for runtime axis - uses axis value directly since Burn methods accept runtime usize
+fn generate_runtime_cumsum(
+    input: &TokenStream,
+    output: &syn::Ident,
+    axis_input: &syn::Ident,
+    exclusive: bool,
+    reverse: bool,
+    axis_is_scalar: bool,
+) -> TokenStream {
+    // Generate axis extraction code based on whether it's a scalar or array
+    let axis_expr = if axis_is_scalar {
+        quote! { #axis_input as usize }
+    } else {
+        quote! { #axis_input[0] as usize }
+    };
+
+    match (exclusive, reverse) {
+        (false, false) => {
+            quote! {
+                let #output = #input.cumsum(#axis_expr);
+            }
+        }
+        (false, true) => {
+            quote! {
+                let #output = {
+                    let axis = #axis_expr;
+                    #input.flip([axis]).cumsum(axis).flip([axis])
+                };
+            }
+        }
+        (true, false) => {
+            quote! {
+                let #output = {
+                    let axis = #axis_expr;
+                    let cumsum_result = #input.cumsum(axis);
+                    let shape = cumsum_result.shape();
+                    let dim_size = shape.dims[axis];
+                    let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(axis, 0, 1);
+                    Tensor::cat(vec![zeros, sliced], axis)
+                };
+            }
+        }
+        (true, true) => {
+            quote! {
+                let #output = {
+                    let axis = #axis_expr;
+                    let flipped = #input.flip([axis]);
+                    let cumsum_result = flipped.cumsum(axis);
+                    let cumsum_back = cumsum_result.flip([axis]);
+                    let shape = cumsum_back.shape();
+                    let dim_size = shape.dims[axis];
+                    let sliced = cumsum_back.narrow(axis, 1, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(axis, 0, 1);
+                    Tensor::cat(vec![sliced, zeros], axis)
+                };
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::test_helpers::*;
@@ -89,6 +169,7 @@ mod tests {
     use burn::tensor::DType;
     use insta::assert_snapshot;
     use onnx_ir::cumsum::{CumSumConfig, CumSumNode, CumSumNodeBuilder};
+    use onnx_ir::ir::RuntimeInputRef;
 
     fn create_cumsum_node(
         name: &str,
@@ -102,6 +183,26 @@ mod tests {
         CumSumNodeBuilder::new(name)
             .input_tensor("input", rank, DType::F32)
             .input_tensor("axis", 0, DType::I64)
+            .output_tensor("output", rank, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    fn create_runtime_cumsum_node(
+        name: &str,
+        exclusive: bool,
+        reverse: bool,
+        rank: usize,
+    ) -> CumSumNode {
+        let config = CumSumConfig::new(
+            CumSumAxis::Runtime(RuntimeInputRef::new("axis".to_string(), 1)),
+            exclusive,
+            reverse,
+        );
+
+        CumSumNodeBuilder::new(name)
+            .input_tensor("input", rank, DType::F32)
+            .input_shape("axis") // Shape type for runtime axis (rank 1 by default)
             .output_tensor("output", rank, DType::F32)
             .config(config)
             .build()
@@ -208,6 +309,65 @@ mod tests {
                 let sliced = cumsum_result.narrow(1, 0, dim_size - 1);
                 let zeros = sliced.zeros_like().narrow(1, 0, 1);
                 Tensor::cat(vec![zeros, sliced], 1)
+            };
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_cumsum_runtime_axis_rank2() {
+        let node = create_runtime_cumsum_node("cumsum1", false, false, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>, axis: [i64; 1]) -> Tensor<B, 2> {
+            let output = input.cumsum(axis[0] as usize);
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_cumsum_runtime_axis_rank3() {
+        let node = create_runtime_cumsum_node("cumsum1", false, false, 3);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>, axis: [i64; 1]) -> Tensor<B, 3> {
+            let output = input.cumsum(axis[0] as usize);
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_cumsum_runtime_axis_exclusive() {
+        let node = create_runtime_cumsum_node("cumsum1", true, false, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>, axis: [i64; 1]) -> Tensor<B, 2> {
+            let output = {
+                let axis = axis[0] as usize;
+                let cumsum_result = input.cumsum(axis);
+                let shape = cumsum_result.shape();
+                let dim_size = shape.dims[axis];
+                let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
+                let zeros = sliced.zeros_like().narrow(axis, 0, 1);
+                Tensor::cat(vec![zeros, sliced], axis)
+            };
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_cumsum_runtime_axis_reverse() {
+        let node = create_runtime_cumsum_node("cumsum1", false, true, 2);
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 2>, axis: [i64; 1]) -> Tensor<B, 2> {
+            let output = {
+                let axis = axis[0] as usize;
+                input.flip([axis]).cumsum(axis).flip([axis])
             };
             output
         }
