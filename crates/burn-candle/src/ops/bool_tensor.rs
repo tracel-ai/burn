@@ -1,8 +1,7 @@
-use burn_std::{backtrace::BackTrace, future::DynFut};
-use burn_tensor::{
-    Device, Shape, TensorData, TensorMetadata,
-    backend::ExecutionError,
-    ops::{BoolElem, BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
+use burn_backend::{
+    BackTrace, DType, ExecutionError, Shape, Slice, TensorData, TensorMetadata,
+    ops::BoolTensorOps,
+    tensor::{BoolElem, BoolTensor, Device, FloatTensor, IntTensor},
 };
 
 use crate::{
@@ -46,7 +45,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         match data.dtype {
-            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            DType::U8 => super::base::from_data::<u8>(data, device),
             _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
         }
     }
@@ -71,13 +70,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, slices: &[burn_tensor::Slice]) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         super::base::slice_with_steps(tensor, slices)
     }
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         super::base::slice_assign(tensor, slices, value)

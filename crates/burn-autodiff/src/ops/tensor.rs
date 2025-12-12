@@ -21,8 +21,7 @@ use crate::{
 
 use burn_backend::ops::unfold::calculate_unfold_windows;
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata,
-    element::ElementConversion,
+    Backend, ElementConversion, ExecutionError, TensorData, TensorMetadata,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor},
 };

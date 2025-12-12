@@ -1,4 +1,4 @@
-use burn_tensor::{Shape, TensorMetadata};
+use burn_backend::{Shape, TensorMetadata};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};
@@ -33,7 +33,7 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
-    pub fn slice_with_steps(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+    pub fn slice_with_steps(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {
         let storage = tensor.storage.clone();
         let mut tensor = tensor.tensor.shallow_clone();
 
@@ -76,7 +76,7 @@ impl TchOps {
 
     pub fn slice_assign(
         tensor: TchTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: TchTensor,
     ) -> TchTensor {
         // PyTorch's narrow operation only supports contiguous slices (step=1)
@@ -122,7 +122,7 @@ impl TchOps {
 
     /// Generate indices for a slice with potentially non-unit step.
     /// For negative steps, generates indices in reverse order.
-    fn generate_slice_indices(slice: &burn_tensor::Slice, dim_size: usize) -> Vec<i64> {
+    fn generate_slice_indices(slice: &burn_backend::Slice, dim_size: usize) -> Vec<i64> {
         let step = slice.step;
         let range = slice.to_range(dim_size);
 
@@ -150,7 +150,7 @@ impl TchOps {
     /// Uses PyTorch's index_put operation to assign values at specific indices.
     fn slice_assign_with_advanced_indexing(
         mut tensor: tch::Tensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: tch::Tensor,
         dims: &[usize],
     ) -> TchTensor {

@@ -5,7 +5,7 @@ use crate::{
     ops::numeric::{empty_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
-use burn_tensor::{DType, Shape};
+use burn_backend::{DType, Shape};
 use cubecl::{AutotuneKey, client::ComputeClient, features::TypeUsage, ir::StorageType};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, components::instructions::ReduceOperationConfig, shared_sum,
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 /// Autotune key representative of sum versions
 pub struct SumAutotuneKey {
     /// The type of the tensor
-    pub dtype: burn_tensor::DType,
+    pub dtype: burn_backend::DType,
     /// The anchored length of the tensor
     #[autotune(anchor)]
     pub length: usize,

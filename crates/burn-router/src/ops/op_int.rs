@@ -1,7 +1,11 @@
 use alloc::vec::Vec;
-use burn_tensor::backend::{Backend, ExecutionError};
+use burn_backend::backend::{Backend, ExecutionError};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use burn_backend::tensor::{
+    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+};
+use burn_backend::{Distribution, Element, IntDType, Shape, Slice, TensorData, ops::IntTensorOps};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
     GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr,
@@ -9,10 +13,6 @@ use burn_ir::{
     ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr,
     SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
     UnfoldOpIr,
-};
-use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps};
-use burn_tensor::{
-    Device, Distribution, Element, IndexingUpdateOp, IntDType, Shape, Slice, TensorData,
 };
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
@@ -79,7 +79,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
@@ -1011,7 +1011,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
+    fn int_cast(tensor: IntTensor<Self>, dtype: burn_backend::IntDType) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = CastOpIr::create(tensor.into_ir(), dtype.into(), || {
             client.create_empty_handle()

@@ -5,15 +5,12 @@ use crate::{
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
 use alloc::sync::Arc;
+use burn_backend::{Backend, DType, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp};
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{future::DynFut, stub::Mutex};
-use burn_tensor::{
-    DType, Shape, TensorData,
-    backend::{Backend, ExecutionError},
-};
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -197,7 +194,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
+                        IndexingUpdateOp::Add => {
                             B::float_scatter_add(desc.dim, tensor, indices, value)
                         }
                     };
@@ -216,7 +213,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
+                        IndexingUpdateOp::Add => {
                             B::float_select_add(tensor, desc.dim, indices, value)
                         }
                     };
@@ -343,7 +340,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
+                        IndexingUpdateOp::Add => {
                             B::int_scatter_add(desc.dim, tensor, indices, value)
                         }
                     };
@@ -362,7 +359,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
+                        IndexingUpdateOp::Add => {
                             B::int_select_add(tensor, desc.dim, indices, value)
                         }
                     };
@@ -485,7 +482,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
+                        IndexingUpdateOp::Add => {
                             B::bool_scatter_or(desc.dim, tensor, indices, value)
                         }
                     };
@@ -504,7 +501,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
                     let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
+                        IndexingUpdateOp::Add => {
                             B::bool_select_or(tensor, desc.dim, indices, value)
                         }
                     };

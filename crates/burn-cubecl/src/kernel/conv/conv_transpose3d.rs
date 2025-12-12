@@ -9,7 +9,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, ops::ConvTransposeOptions};
+use burn_backend::{Shape, ops::ConvTransposeOptions};
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {

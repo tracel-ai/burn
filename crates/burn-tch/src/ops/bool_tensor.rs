@@ -1,14 +1,16 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use burn_tensor::ElementConversion;
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::IntTensor;
-use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
+use burn_backend::ElementConversion;
+use burn_backend::ExecutionError;
+use burn_backend::tensor::BoolElem;
+use burn_backend::tensor::BoolTensor;
+use burn_backend::tensor::IntTensor;
+use burn_backend::{Backend, Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
-            burn_tensor::DType::Bool => TchTensor::from_data::<bool>(data, (*device).into()),
+            burn_backend::DType::Bool => TchTensor::from_data::<bool>(data, (*device).into()),
             _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
         }
     }
@@ -63,13 +65,13 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+    fn bool_slice(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {
         TchOps::slice_with_steps(tensor, slices)
     }
 
     fn bool_slice_assign(
         tensor: TchTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: TchTensor,
     ) -> TchTensor {
         TchOps::slice_assign(tensor, slices, value)
@@ -163,10 +165,10 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     }
 
     fn bool_mask_where(
-        tensor: burn_tensor::ops::BoolTensor<Self>,
-        mask: burn_tensor::ops::BoolTensor<Self>,
-        value: burn_tensor::ops::BoolTensor<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
         TchTensor::binary_ops_tensor(
             tensor,
             value,
@@ -177,10 +179,10 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     }
 
     fn bool_mask_fill(
-        tensor: burn_tensor::ops::BoolTensor<Self>,
-        mask: burn_tensor::ops::BoolTensor<Self>,
-        value: burn_tensor::ops::BoolElem<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolElem<Self>,
+    ) -> BoolTensor<Self> {
         tensor.unary_ops(
             |mut tensor| {
                 tensor
@@ -197,25 +199,22 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
 
     fn bool_gather(
         dim: usize,
-        tensor: burn_tensor::ops::BoolTensor<Self>,
+        tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+    ) -> BoolTensor<Self> {
         TchOps::gather(dim, tensor, indices)
     }
 
     fn bool_scatter_or(
         dim: usize,
-        tensor: burn_tensor::ops::BoolTensor<Self>,
+        tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
-        value: burn_tensor::ops::BoolTensor<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
         TchOps::scatter(dim, tensor, indices, value)
     }
 
-    fn bool_equal_elem(
-        lhs: burn_tensor::ops::BoolTensor<Self>,
-        rhs: burn_tensor::ops::BoolElem<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
         TchOps::equal_elem(lhs, rhs.elem::<i64>())
     }
 }

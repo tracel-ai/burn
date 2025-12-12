@@ -1,15 +1,18 @@
 use alloc::vec::Vec;
-use burn_tensor::backend::ExecutionError;
+use burn_backend::backend::ExecutionError;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use burn_backend::ops::BoolTensorOps;
+use burn_backend::tensor::{
+    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+};
+use burn_backend::{Element, Shape, Slice, TensorData};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
     PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr,
     SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{Device, Element, IndexingUpdateOp, Shape, Slice, TensorData};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -114,7 +117,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
@@ -267,7 +270,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: burn_tensor::ops::BoolElem<Self>,
+        value: burn_backend::tensor::BoolElem<Self>,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let value = ScalarIr::with_dtype(value, &tensor.dtype);
@@ -318,7 +321,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_equal_elem(
         lhs: BoolTensor<Self>,
-        rhs: burn_tensor::ops::BoolElem<Self>,
+        rhs: burn_backend::tensor::BoolElem<Self>,
     ) -> BoolTensor<Self> {
         let client = lhs.client.clone();
         let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);

@@ -16,8 +16,5 @@ mod tensor;
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
-pub use burn_std::stream_id::StreamId;
-
 // Re-exported types
-pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
-pub use burn_std::{AllocationProperty, Bytes, bf16, f16};
+pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync, try_read_sync};

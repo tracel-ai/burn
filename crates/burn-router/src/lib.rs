@@ -23,7 +23,7 @@ pub use tensor::*;
 pub use types::*;
 
 /// A local channel with a simple byte bridge between backends.
-/// It transfers tensors between backends via the underlying [tensor data](burn_tensor::TensorData).
+/// It transfers tensors between backends via the underlying [tensor data](burn_backend::TensorData).
 pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backends>>;
 
 /// Router backend.

@@ -1,4 +1,4 @@
-use burn_tensor::DType;
+use burn_backend::DType;
 use cubecl::AutotuneKey;
 use serde::{Deserialize, Serialize};
 

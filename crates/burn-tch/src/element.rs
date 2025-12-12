@@ -1,5 +1,5 @@
-use burn_tensor::Element;
-use burn_tensor::{bf16, f16};
+use burn_backend::Element;
+use burn_backend::{bf16, f16};
 
 /// The element type for the tch backend.
 pub trait TchElement: Element + tch::kind::Element {
@@ -16,7 +16,7 @@ impl TchElement for bf16 {
     fn kind() -> tch::Kind {
         let mut kind = <Self as tch::kind::Element>::KIND;
         // Incorrect kind mapping in tch definitions, force bfloat16
-        if matches!(Self::dtype(), burn_tensor::DType::BF16) && kind == tch::Kind::Half {
+        if matches!(Self::dtype(), burn_backend::DType::BF16) && kind == tch::Kind::Half {
             kind = tch::Kind::BFloat16
         }
         kind

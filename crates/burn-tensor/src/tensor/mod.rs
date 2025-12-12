@@ -6,15 +6,14 @@ pub use api::*;
 
 // Re-exported types
 pub use burn_backend::{
-    DataError, TensorData, TensorMetadata, TensorPrimitive, Tolerance,
+    DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata, TensorPrimitive, Tolerance,
     distribution::*,
     element::*,
+    indexing::*,
     ops::TransactionPrimitive,
+    shape::*,
+    slice::*,
     tensor::{Bool, Float, Int, TensorKind},
-};
-pub use burn_std::{
-    DType, FloatDType, IntDType, s,
-    tensor::{indexing::*, shape::*, slice::*},
 };
 
 /// The activation module.

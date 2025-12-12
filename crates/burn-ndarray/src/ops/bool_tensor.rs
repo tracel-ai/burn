@@ -1,9 +1,14 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
-use burn_tensor::{ElementConversion, TensorMetadata};
+use burn_backend::ops::IntTensorOps;
+use burn_backend::tensor::BoolElem;
+use burn_backend::{ElementConversion, TensorMetadata, tensor::FloatTensor};
+use burn_backend::{
+    backend::ExecutionError,
+    ops::BoolTensorOps,
+    tensor::{BoolTensor, IntTensor},
+};
 use ndarray::IntoDimension;
 
 // Current crate
@@ -12,7 +17,7 @@ use crate::{NdArray, execute_with_int_dtype, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SharedArray};
 
 // Workspace crates
-use burn_tensor::{Shape, TensorData, backend::Backend};
+use burn_backend::{Shape, TensorData, backend::Backend};
 
 use super::{NdArrayBoolOps, NdArrayOps};
 
@@ -41,7 +46,7 @@ where
         NdArrayOps::reshape(tensor.bool(), shape).into()
     }
 
-    fn bool_slice(tensor: NdArrayTensor, slices: &[burn_tensor::Slice]) -> NdArrayTensor {
+    fn bool_slice(tensor: NdArrayTensor, slices: &[burn_backend::Slice]) -> NdArrayTensor {
         NdArrayOps::slice(tensor.bool(), slices).into()
     }
 
@@ -74,7 +79,7 @@ where
 
     fn bool_slice_assign(
         tensor: NdArrayTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         NdArrayOps::slice_assign(tensor.bool(), slices, value.bool()).into()
@@ -160,26 +165,26 @@ where
     }
 
     fn bool_mask_where(
-        tensor: burn_tensor::ops::BoolTensor<Self>,
-        mask: burn_tensor::ops::BoolTensor<Self>,
-        value: burn_tensor::ops::BoolTensor<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
         NdArrayOps::mask_where(tensor.bool(), mask.bool(), value.bool()).into()
     }
 
     fn bool_mask_fill(
-        tensor: burn_tensor::ops::BoolTensor<Self>,
-        mask: burn_tensor::ops::BoolTensor<Self>,
-        value: burn_tensor::ops::BoolElem<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolElem<Self>,
+    ) -> BoolTensor<Self> {
         NdArrayOps::mask_fill(tensor.bool(), mask.bool(), value.elem()).into()
     }
 
     fn bool_gather(
         dim: usize,
-        tensor: burn_tensor::ops::BoolTensor<Self>,
-        indices: burn_tensor::ops::IntTensor<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
         execute_with_int_dtype!(indices, |indices| NdArrayOps::gather(
             dim,
             tensor.bool(),
@@ -189,10 +194,10 @@ where
 
     fn bool_scatter_or(
         dim: usize,
-        tensor: burn_tensor::ops::BoolTensor<Self>,
-        indices: burn_tensor::ops::IntTensor<Self>,
-        value: burn_tensor::ops::BoolTensor<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
         execute_with_int_dtype!(indices, |indices| NdArrayOps::scatter(
             dim,
             tensor.bool(),
@@ -201,10 +206,7 @@ where
         ))
     }
 
-    fn bool_equal_elem(
-        lhs: burn_tensor::ops::BoolTensor<Self>,
-        rhs: burn_tensor::ops::BoolElem<Self>,
-    ) -> burn_tensor::ops::BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
         NdArrayBoolOps::equal_elem(lhs.bool(), rhs).into()
     }
 }
