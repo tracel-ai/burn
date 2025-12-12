@@ -12,16 +12,25 @@ use derive_new::new;
 use onnx_ir_derive::NodeBuilder;
 
 use crate::TensorDataExt;
-use crate::ir::{ArgType, Argument, Node, RawNode};
+use crate::ir::{ArgType, Argument, Node, RawNode, RuntimeInputRef};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
+
+/// Represents either a static axis value or a runtime input reference for CumSum.
+#[derive(Debug, Clone)]
+pub enum CumSumAxis {
+    /// Static axis known at compile time (normalized to positive value).
+    Static(usize),
+    /// Runtime axis determined during execution (Shape type - CPU array of i64).
+    Runtime(RuntimeInputRef),
+}
 
 /// Configuration for CumSum operation
 #[derive(Debug, Clone, new)]
 pub struct CumSumConfig {
     /// The axis along which to compute cumulative sum
-    pub axis: usize,
+    pub axis: CumSumAxis,
     /// If true, the j-th output is the sum of the first (j-1) elements (excludes current)
     pub exclusive: bool,
     /// If true, perform cumulative sum in reverse direction
@@ -52,8 +61,9 @@ impl NodeProcessor for CumSumProcessor {
     }
 
     fn lift_constants(&self, node: &mut RawNode, _opset: usize) -> Result<(), ProcessError> {
-        // Lift axis input (input[1]) to static value
-        if node.inputs.len() > 1 {
+        // Try to lift axis input (input[1]) to static value if it's a constant
+        // If it's not a constant, it will remain as a runtime input
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
         Ok(())
@@ -71,50 +81,57 @@ impl NodeProcessor for CumSumProcessor {
     }
 
     fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
-        // Extract axis from input[1] (scalar tensor)
+        // Extract axis from input[1] (scalar tensor) - can be static or runtime
         let axis_input = &node.inputs[1];
-        let axis_vec = axis_input
-            .value()
-            .ok_or_else(|| {
-                ProcessError::Custom("CumSum: axis must be a constant value".to_string())
-            })?
-            .to_i64_vec()
-            .map_err(|e| ProcessError::Custom(format!("CumSum: failed to extract axis: {}", e)))?;
+        let axis = match axis_input.value() {
+            Some(value) => {
+                // Static axis - extract from constant value
+                let axis_vec = value.to_i64_vec().map_err(|e| {
+                    ProcessError::Custom(format!("CumSum: failed to extract axis: {}", e))
+                })?;
 
-        // Axis is a scalar (0-D tensor), so it should have exactly one element
-        let axis_value = if axis_vec.is_empty() {
-            return Err(ProcessError::Custom(
-                "CumSum: axis tensor is empty".to_string(),
-            ));
-        } else {
-            axis_vec[0]
-        };
+                // Axis is a scalar (0-D tensor), so it should have exactly one element
+                let axis_value = if axis_vec.is_empty() {
+                    return Err(ProcessError::Custom(
+                        "CumSum: axis tensor is empty".to_string(),
+                    ));
+                } else {
+                    axis_vec[0]
+                };
 
-        // Get tensor rank for negative axis handling
-        let tensor = match &node.inputs[0].ty {
-            ArgType::Tensor(t) => t,
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
-                    actual: format!("{:?}", node.inputs[0].ty),
-                });
+                // Get tensor rank for negative axis handling
+                let tensor = match &node.inputs[0].ty {
+                    ArgType::Tensor(t) => t,
+                    _ => {
+                        return Err(ProcessError::TypeMismatch {
+                            expected: "Tensor".to_string(),
+                            actual: format!("{:?}", node.inputs[0].ty),
+                        });
+                    }
+                };
+
+                // Handle negative axis
+                let axis_normalized = if axis_value < 0 {
+                    (tensor.rank as i64 + axis_value) as usize
+                } else {
+                    axis_value as usize
+                };
+
+                // Validate axis
+                if axis_normalized >= tensor.rank {
+                    return Err(ProcessError::Custom(format!(
+                        "CumSum: axis {} is out of bounds for tensor of rank {}",
+                        axis_value, tensor.rank
+                    )));
+                }
+
+                CumSumAxis::Static(axis_normalized)
+            }
+            None => {
+                // Runtime axis - create reference to input
+                CumSumAxis::Runtime(RuntimeInputRef::new(axis_input.name.clone(), 1))
             }
         };
-
-        // Handle negative axis
-        let axis = if axis_value < 0 {
-            (tensor.rank as i64 + axis_value) as usize
-        } else {
-            axis_value as usize
-        };
-
-        // Validate axis
-        if axis >= tensor.rank {
-            return Err(ProcessError::Custom(format!(
-                "CumSum: axis {} is out of bounds for tensor of rank {}",
-                axis_value, tensor.rank
-            )));
-        }
 
         // Extract exclusive attribute (default: 0)
         let exclusive = node
@@ -172,7 +189,7 @@ mod tests {
         let node = create_test_node(0, 0, 0, 3);
         let processor = CumSumProcessor;
         let config = processor.extract_config(&node, 14).unwrap();
-        assert_eq!(config.axis, 0);
+        assert!(matches!(config.axis, CumSumAxis::Static(0)));
         assert!(!config.exclusive);
         assert!(!config.reverse);
     }
@@ -182,7 +199,7 @@ mod tests {
         let node = create_test_node(1, 1, 0, 3);
         let processor = CumSumProcessor;
         let config = processor.extract_config(&node, 14).unwrap();
-        assert_eq!(config.axis, 1);
+        assert!(matches!(config.axis, CumSumAxis::Static(1)));
         assert!(config.exclusive);
         assert!(!config.reverse);
     }
@@ -192,7 +209,7 @@ mod tests {
         let node = create_test_node(0, 0, 1, 3);
         let processor = CumSumProcessor;
         let config = processor.extract_config(&node, 14).unwrap();
-        assert_eq!(config.axis, 0);
+        assert!(matches!(config.axis, CumSumAxis::Static(0)));
         assert!(!config.exclusive);
         assert!(config.reverse);
     }
@@ -202,7 +219,7 @@ mod tests {
         let node = create_test_node(2, 1, 1, 3);
         let processor = CumSumProcessor;
         let config = processor.extract_config(&node, 14).unwrap();
-        assert_eq!(config.axis, 2);
+        assert!(matches!(config.axis, CumSumAxis::Static(2)));
         assert!(config.exclusive);
         assert!(config.reverse);
     }
@@ -212,7 +229,27 @@ mod tests {
         let node = create_test_node(-1, 0, 0, 3);
         let processor = CumSumProcessor;
         let config = processor.extract_config(&node, 14).unwrap();
-        assert_eq!(config.axis, 2); // -1 + 3 = 2
+        assert!(matches!(config.axis, CumSumAxis::Static(2))); // -1 + 3 = 2
+    }
+
+    fn create_runtime_cumsum_node() -> RawNode {
+        TestNodeBuilder::new(NodeType::CumSum, "test_cumsum_runtime")
+            .input_tensor_f32("x", 3, Some(vec![2, 3, 4]))
+            .input_tensor_i64("axis", 0, None) // Runtime input - no static value
+            .output_tensor_f32("y", 3, None)
+            .attr_int("exclusive", 0)
+            .attr_int("reverse", 0)
+            .build()
+    }
+
+    #[test]
+    fn test_cumsum_config_runtime_axis() {
+        let node = create_runtime_cumsum_node();
+        let processor = CumSumProcessor;
+        let config = processor.extract_config(&node, 14).unwrap();
+        assert!(matches!(config.axis, CumSumAxis::Runtime(ref r) if r.name == "axis"));
+        assert!(!config.exclusive);
+        assert!(!config.reverse);
     }
 
     #[test]

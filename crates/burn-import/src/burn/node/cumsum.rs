@@ -1,4 +1,5 @@
 use super::prelude::*;
+use onnx_ir::cumsum::CumSumAxis;
 
 impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
     fn inputs(&self) -> &[Argument] {
@@ -13,9 +14,16 @@ impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
     fn forward(&self, scope: &mut ScopeAtPosition<'_>) -> TokenStream {
         let input = scope.arg(self.inputs.first().unwrap());
         let output = arg_to_ident(self.outputs.first().unwrap());
-        let axis = self.config.axis.to_tokens();
         let exclusive = self.config.exclusive;
         let reverse = self.config.reverse;
+
+        // Extract axis value (static only for now)
+        let axis = match &self.config.axis {
+            CumSumAxis::Static(axis) => axis.to_tokens(),
+            CumSumAxis::Runtime(_) => {
+                panic!("Runtime CumSum axis not yet supported in burn-import")
+            }
+        };
 
         match (exclusive, reverse) {
             (false, false) => {
@@ -77,6 +85,7 @@ impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
 #[cfg(test)]
 mod tests {
     use super::super::test_helpers::*;
+    use super::CumSumAxis;
     use burn::tensor::DType;
     use insta::assert_snapshot;
     use onnx_ir::cumsum::{CumSumConfig, CumSumNode, CumSumNodeBuilder};
@@ -88,7 +97,7 @@ mod tests {
         reverse: bool,
         rank: usize,
     ) -> CumSumNode {
-        let config = CumSumConfig::new(axis, exclusive, reverse);
+        let config = CumSumConfig::new(CumSumAxis::Static(axis), exclusive, reverse);
 
         CumSumNodeBuilder::new(name)
             .input_tensor("input", rank, DType::F32)
