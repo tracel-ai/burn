@@ -10,6 +10,7 @@ extern crate derive_new;
 pub mod checkpoint;
 
 pub(crate) mod components;
+pub(crate) mod components_v2;
 
 /// Renderer modules to display metrics and training information.
 pub mod renderer;
@@ -31,6 +32,9 @@ mod evaluator;
 pub use evaluator::*;
 
 pub use components::LearnerComponentTypes;
+pub use components_v2::LearnerComponentTypesV2;
+pub use components_v2::LearnerComponentsMarkerV2;
+pub use components_v2::LearningDataMarkerV2;
 
 #[cfg(test)]
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;

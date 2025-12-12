@@ -7,7 +7,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
+    train::{ClassificationOutput, LearningModel, TrainOutput, TrainStep, ValidStep},
 };
 use guide::data::MnistBatch;
 
@@ -21,6 +21,8 @@ pub struct Model<B: Backend> {
     linear2: Linear<B>,
     activation: Relu,
 }
+
+impl<B: Backend> LearningModel for Model<B> {}
 
 #[derive(Config, Debug)]
 pub struct ModelConfig {

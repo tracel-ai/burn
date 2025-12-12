@@ -1,8 +1,18 @@
-use burn::train::EventProcessorTraining;
+use burn::{
+    data::dataloader::DataLoader,
+    lr_scheduler::composed::ComposedLrScheduler,
+    optim::{Adam, adaptor::OptimizerAdaptor},
+    train::{
+        EventProcessorTraining, LearnerComponentTypesV2, LearnerComponentsMarkerV2, LearnerV2,
+        LearningDataMarkerV2, LearningParadigm, ParadigmComponentMarker,
+        SupervisedComponentsMarkerV2, SupervisedTraining,
+        checkpoint::{AsyncCheckpointer, CheckpointingStrategy},
+    },
+};
 
 use std::{marker::PhantomData, sync::Arc};
 
-use crate::model::ModelConfig;
+use crate::model::{Model, ModelConfig};
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -33,7 +43,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
-    #[config(default = 10)]
+    #[config(default = 2)]
     pub num_epochs: usize,
     #[config(default = 64)]
     pub batch_size: usize,
@@ -68,16 +78,18 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
     let dataset_valid = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
 
-    let dataloader_train = DataLoaderBuilder::new(MnistBatcher::default())
-        .batch_size(config.batch_size)
-        .shuffle(config.seed)
-        .num_workers(config.num_workers)
-        .build(dataset_train);
-    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::default())
-        .batch_size(config.batch_size)
-        .shuffle(config.seed)
-        .num_workers(config.num_workers)
-        .build(dataset_valid);
+    let dataloader_train: Arc<dyn DataLoader<B, _>> =
+        DataLoaderBuilder::new(MnistBatcher::default())
+            .batch_size(config.batch_size)
+            .shuffle(config.seed)
+            .num_workers(config.num_workers)
+            .build(dataset_train);
+    let dataloader_valid: Arc<dyn DataLoader<B::InnerBackend, _>> =
+        DataLoaderBuilder::new(MnistBatcher::default())
+            .batch_size(config.batch_size)
+            .shuffle(config.seed)
+            .num_workers(config.num_workers)
+            .build(dataset_valid);
     let lr_scheduler = ComposedLrSchedulerConfig::new()
         .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
         // Warmup
@@ -91,23 +103,61 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         StoppingCondition::NoImprovementSince { n_epochs: 5 },
     );
 
-    let learner = LearnerBuilder::new(ARTIFACT_DIR)
-        .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .early_stopping(early_stopping)
-        .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            model,
-            config.optimizer.init(),
-            lr_scheduler.init().unwrap(),
-            burn::train::LearningStrategy::CustomSingleDevice(Arc::new(
-                MyCustomLearningStrategy::new(device),
-            )),
-        );
+    // let learner = LearnerBuilder::new(ARTIFACT_DIR)
+    //     .metrics((AccuracyMetric::new(), LossMetric::new()))
+    //     .metric_train_numeric(LearningRateMetric::new())
+    //     .with_file_checkpointer(CompactRecorder::new())
+    //     .early_stopping(early_stopping)
+    //     .num_epochs(config.num_epochs)
+    //     .summary()
+    //     .build(
+    //         model,
+    //         config.optimizer.init(),
+    //         lr_scheduler.init().unwrap(),
+    //         burn::train::LearningStrategy::CustomSingleDevice(Arc::new(
+    //             MyCustomLearningStrategy::new(device),
+    //         )),
+    //     );
 
-    learner.fit(dataloader_train, dataloader_valid);
+    // learner.fit(dataloader_train, dataloader_valid);
+
+    let learner: LearnerV2<
+        LearnerComponentsMarkerV2<
+            B,
+            ComposedLrScheduler,
+            Model<B>,
+            OptimizerAdaptor<Adam, Model<B>, B>,
+            AsyncCheckpointer<_, _>,
+            AsyncCheckpointer<_, _>,
+            AsyncCheckpointer<_, _>,
+        >,
+    > = LearnerV2 {
+        model,
+        optim: config.optimizer.init(),
+        lr_scheduler: lr_scheduler.init().unwrap(),
+    };
+
+    let training = SupervisedTraining::<
+        SupervisedComponentsMarkerV2<
+            ParadigmComponentMarker<_, _, _>,
+            _,
+            LearningDataMarkerV2<_, _, _, _>,
+            Model<B>,
+            OptimizerAdaptor<Adam, Model<B>, B>,
+            ComposedLrScheduler,
+            _,
+        >,
+    >::new(ARTIFACT_DIR, dataloader_train, dataloader_valid, learner)
+    .metrics((AccuracyMetric::new(), LossMetric::new()))
+    .metric_train_numeric(LearningRateMetric::new())
+    .with_file_checkpointer(CompactRecorder::new())
+    .early_stopping(early_stopping)
+    .num_epochs(config.num_epochs)
+    .summary()
+    .train();
+
+    println!("{:?}", training.model);
+    // training.train(learner);
 }
 
 struct MyCustomLearningStrategy<LC: LearnerComponentTypes> {

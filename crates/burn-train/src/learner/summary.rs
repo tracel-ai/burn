@@ -232,6 +232,7 @@ impl Display for LearnerSummary {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct LearnerSummaryConfig {
     pub(crate) directory: PathBuf,
     pub(crate) metrics: Vec<String>,

@@ -108,6 +108,36 @@ pub trait TrainStep<TI, TO> {
     }
 }
 
+pub trait LearningModel {
+    fn optimizev2<B, O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
+    where
+        B: AutodiffBackend,
+        O: Optimizer<Self, B>,
+        Self: AutodiffModule<B>,
+    {
+        optim.step(lr, self, grads)
+    }
+    /// Optimize the current module with the provided gradients and learning rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `optim`: Optimizer used for training this model.
+    /// * `lr`: The learning rate used for this step.
+    /// * `grads`: Multiple gradients associated to each parameter in the current model.
+    ///
+    /// # Returns
+    ///
+    /// The updated model.
+    fn optimize_multiv2<B, O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
+    where
+        B: AutodiffBackend,
+        O: Optimizer<Self, B>,
+        Self: AutodiffModule<B>,
+    {
+        optim.step_multi(lr, self, grads)
+    }
+}
+
 /// Trait to be implemented for validating models.
 pub trait ValidStep<VI, VO> {
     /// Runs a validation step.
