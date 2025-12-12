@@ -1,4 +1,5 @@
-use burn_tensor::{DType, Element, ElementConversion, bf16, f16};
+use burn_backend::{DType, bf16, f16};
+use burn_backend::{Element, ElementConversion};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 

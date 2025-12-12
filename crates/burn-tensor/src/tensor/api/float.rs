@@ -1,4 +1,4 @@
-use burn_backend::tensor::QuantizationParametersPrimitive;
+use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 
 use crate::AsIndex;
 use crate::FloatDType;

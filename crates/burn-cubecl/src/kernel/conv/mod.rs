@@ -19,6 +19,6 @@ pub(crate) use direct::*;
 pub(crate) use im2col::*;
 
 pub use base::{ConvStrategy, conv_forward, conv_weight_backward};
-pub use conv_transpose2d::{ConvTranspose2dStrategy, conv_transpose2d, layout_swap};
+pub use conv_transpose2d::{ConvTranspose2dStrategy, conv_transpose2d};
 
 pub(crate) use tune_key::*;

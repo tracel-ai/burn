@@ -7,8 +7,8 @@ use crate::{
     sharing::UnsafeSharedRef,
 };
 
-use burn_tensor::ElementConversion;
-use burn_tensor::ops::conv::calculate_pool_output_size;
+use burn_backend::ElementConversion;
+use burn_backend::ops::conv::calculate_pool_output_size;
 use ndarray::Array4;
 
 pub(crate) fn max_pool2d<E: FloatNdArrayElement>(

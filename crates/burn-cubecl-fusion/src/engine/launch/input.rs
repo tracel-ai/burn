@@ -6,7 +6,7 @@ use crate::engine::trace::block::FuseBlock;
 use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
-use burn_tensor::quantization::params_shape;
+use burn_std::quantization::params_shape;
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
@@ -69,7 +69,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
 
                     let scheme = match tensor_relative.dtype {
-                        burn_tensor::DType::QFloat(scheme) => scheme,
+                        burn_std::DType::QFloat(scheme) => scheme,
                         _ => unreachable!("Can't have quant data without QFloat"),
                     };
                     let params = handle.params(scheme).unwrap();

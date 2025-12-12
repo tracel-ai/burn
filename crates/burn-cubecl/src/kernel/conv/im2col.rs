@@ -1,5 +1,5 @@
-use burn_tensor::{
-    DType,
+use burn_backend::{
+    DType, Shape,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
 use core::iter;

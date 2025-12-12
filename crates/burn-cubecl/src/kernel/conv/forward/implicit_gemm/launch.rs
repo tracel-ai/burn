@@ -1,4 +1,4 @@
-use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
+use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
     convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, forward},
     matmul::{

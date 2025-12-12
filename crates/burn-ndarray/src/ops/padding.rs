@@ -1,10 +1,9 @@
-use crate::SharedArray;
-use burn_tensor::Element;
+use crate::{NdArrayElement, SharedArray};
 use ndarray::{Array4, Array5};
 
 use super::NdArrayOps;
 
-pub(crate) fn apply_padding_4d<E: Element>(
+pub(crate) fn apply_padding_4d<E: NdArrayElement>(
     x: SharedArray<E>,
     padding: [usize; 2],
     elem: E,
@@ -23,10 +22,10 @@ pub(crate) fn apply_padding_4d<E: Element>(
     x_new = NdArrayOps::slice_assign(
         x_new,
         &[
-            burn_tensor::Slice::from(0..batch_size),
-            burn_tensor::Slice::from(0..input_channels),
-            burn_tensor::Slice::from(padding_height..height + padding_height),
-            burn_tensor::Slice::from(padding_width..width + padding_width),
+            burn_backend::Slice::from(0..batch_size),
+            burn_backend::Slice::from(0..input_channels),
+            burn_backend::Slice::from(padding_height..height + padding_height),
+            burn_backend::Slice::from(padding_width..width + padding_width),
         ],
         x,
     );
@@ -34,7 +33,7 @@ pub(crate) fn apply_padding_4d<E: Element>(
     x_new
 }
 
-pub(crate) fn apply_padding_5d<E: Element>(
+pub(crate) fn apply_padding_5d<E: NdArrayElement>(
     x: SharedArray<E>,
     padding: [usize; 3],
     elem: E,
@@ -60,11 +59,11 @@ pub(crate) fn apply_padding_5d<E: Element>(
     x_new = NdArrayOps::slice_assign(
         x_new,
         &[
-            burn_tensor::Slice::from(0..batch_size),
-            burn_tensor::Slice::from(0..input_channels),
-            burn_tensor::Slice::from(padding_depth..depth + padding_depth),
-            burn_tensor::Slice::from(padding_height..height + padding_height),
-            burn_tensor::Slice::from(padding_width..width + padding_width),
+            burn_backend::Slice::from(0..batch_size),
+            burn_backend::Slice::from(0..input_channels),
+            burn_backend::Slice::from(padding_depth..depth + padding_depth),
+            burn_backend::Slice::from(padding_height..height + padding_height),
+            burn_backend::Slice::from(padding_width..width + padding_width),
         ],
         x,
     );

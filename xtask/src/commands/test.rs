@@ -28,6 +28,25 @@ pub enum CiTestType {
     GcpWgpuRunner,
 }
 
+fn handle_backend_tests(
+    mut args: TestCmdArgs,
+    backend: &str,
+    env: Environment,
+    context: Context,
+) -> anyhow::Result<()> {
+    args.target = Target::AllPackages;
+    args.only.push("burn-backend-tests".to_string());
+    args.no_default_features = true;
+
+    let mut features = vec![String::from(backend)];
+    if !matches!(context, Context::NoStd) {
+        features.push("std".into())
+    }
+    args.features = Some(features);
+
+    base_commands::test::handle_command(args, env, context)
+}
+
 fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
     #[cfg(unix)]
     let filter_err = |e: &&ProcessExitError| {
@@ -81,6 +100,8 @@ pub(crate) fn handle_command(
                     "no-std",
                 )
             })?;
+            handle_backend_tests(args.clone().try_into().unwrap(), "ndarray", env, context)?;
+
             Ok(())
         }
         Context::Std => {
@@ -107,6 +128,13 @@ pub(crate) fn handle_command(
 
                     base_commands::test::handle_command(
                         args.clone().try_into().unwrap(),
+                        env.clone(),
+                        context.clone(),
+                    )?;
+
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        "ndarray",
                         env,
                         context,
                     )?;
@@ -125,25 +153,13 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GcpCudaRunner => {
-                    args.target = Target::AllPackages;
-                    args.only.push("burn-cuda".to_string());
-
-                    base_commands::test::handle_command(
-                        args.clone().try_into().unwrap(),
-                        env,
-                        context,
-                    )?;
+                    handle_backend_tests(args.clone().try_into().unwrap(), "cuda", env, context)?;
                 }
                 CiTestType::GcpVulkanRunner => {
-                    let mut args_vulkan = args.clone();
-                    args_vulkan
-                        .features
-                        .get_or_insert_with(Vec::new)
-                        .push("vulkan".to_string());
+                    handle_backend_tests(args.clone().try_into().unwrap(), "vulkan", env, context)?;
 
-                    let mut args_vulkan = args_vulkan.clone().try_into().unwrap();
-                    handle_wgpu_test("burn-wgpu", &args_vulkan)?;
-
+                    args.target = Target::AllPackages;
+                    let mut args_vulkan: TestCmdArgs = args.clone().try_into().unwrap();
                     args_vulkan.features = Some(vec!["test-vulkan".into()]);
                     handle_wgpu_test("burn-core", &args_vulkan)?;
                     handle_wgpu_test("burn-optim", &args_vulkan)?;
@@ -151,8 +167,9 @@ pub(crate) fn handle_command(
                     handle_wgpu_test("burn-vision", &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
-                    args.target = Target::AllPackages;
+                    handle_backend_tests(args.clone().try_into().unwrap(), "wgpu", env, context)?;
                     // "burn-router" uses "burn-wgpu" for the tests.
+                    args.target = Target::AllPackages;
                     let mut args_wgpu = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
                     handle_wgpu_test("burn-router", &args_wgpu)?;

@@ -3,11 +3,11 @@ use crate::{
     element::BoolElement,
     kernel::{self, conv::ConvTranspose2dStrategy},
 };
-use burn_tensor::ops::{
-    BoolTensor, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-    InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+use burn_backend::ops::{
+    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
+    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
-use burn_tensor::ops::{FloatTensor, IntTensor};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 
 impl<R, F, I, BT> ModuleOps<Self> for CubeBackend<R, F, I, BT>
 where

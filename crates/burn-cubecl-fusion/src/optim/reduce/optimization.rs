@@ -14,7 +14,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::{CubeCount, CubeDim, Runtime, client::ComputeClient, ir::StorageType, prelude::*};
 use cubek::reduce::{
     BoundChecksInner, LineMode, ReduceError,
@@ -22,8 +22,8 @@ use cubek::reduce::{
     init_tensors,
     launch::{ReduceLaunchInfo, ReduceStrategy},
     routines::{
-        CubeReduceBlueprint, PlaneReduceBlueprint, ReduceBlueprint, ReduceBlueprintKind,
-        reduce_kernel_virtual,
+        CubeReduceBlueprint, GlobalReduceBlueprint, PlaneReduceBlueprint, ReduceBlueprint,
+        ReduceBlueprintKind, reduce_kernel_virtual,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -371,7 +371,7 @@ fn launch_reduce<Run: Runtime>(
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     let kind = match (kwargs.strategy.shared, kwargs.strategy.use_planes) {
-        (true, true) => ReduceBlueprintKind::Cube(CubeReduceBlueprint {
+        (true, true) => GlobalReduceBlueprint::Cube(CubeReduceBlueprint {
             accumulator_size: kwargs.info.cube_dim.y,
             bound_checks_inner: kwargs.info.bound_checks_inner,
             use_planes: true,

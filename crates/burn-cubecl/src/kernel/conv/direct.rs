@@ -8,7 +8,7 @@ use crate::{
     ops::max_line_size,
     tensor::CubeTensor,
 };
-use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
+use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,

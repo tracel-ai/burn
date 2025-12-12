@@ -2,8 +2,8 @@ use crate::UnsafeSharedRef;
 use crate::{NdArrayElement, ShapeOps, SharedArray, iter_range_par, ops::NdArrayOps, run_par};
 
 use alloc::{vec, vec::Vec};
-use burn_tensor::ElementConversion;
-use burn_tensor::Shape;
+use burn_backend::ElementConversion;
+use burn_backend::Shape;
 use ndarray::{IxDyn, s};
 
 pub(crate) fn matmul<E: NdArrayElement>(

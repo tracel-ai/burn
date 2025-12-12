@@ -127,14 +127,14 @@ pub trait IntTensorOps<B: Backend> {
     /// The int tensor with the same data as the float tensor.
     fn int_into_float(tensor: IntTensor<B>) -> FloatTensor<B>;
 
-    /// Fills the tensor with values from the source tensor if the mask is true at the given
+    /// Fills the tensor with values from the value tensor if the mask is true at the given
     /// indices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
     /// * `mask` - The mask.
-    /// * `source` - The source tensor.
+    /// * `value` - The value tensor.
     ///
     /// # Returns
     ///
@@ -142,7 +142,7 @@ pub trait IntTensorOps<B: Backend> {
     fn int_mask_where(
         tensor: IntTensor<B>,
         mask: BoolTensor<B>,
-        source: IntTensor<B>,
+        value: IntTensor<B>,
     ) -> IntTensor<B>;
 
     /// Fills the tensor with the given value if the mask is true at the given indices.
