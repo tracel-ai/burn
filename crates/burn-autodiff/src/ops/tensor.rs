@@ -46,10 +46,10 @@ fn unsqueeze_like<B: Backend>(
 }
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
-    #[tracing::instrument(
+    #[cfg_attr(feature = "std", tracing::instrument(
         skip(data),
         fields(?data.shape, ?data.dtype)
-    )]
+    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_from_data(data, device))
     }
@@ -70,14 +70,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AutodiffTensor::new(B::float_ones(shape, device, dtype))
     }
 
-    #[tracing::instrument(
+    #[cfg_attr(feature = "std", tracing::instrument(
         skip(tensor),
         fields(
             from = ?tensor.node,
             shape = ?tensor.shape(),
             dtype = ?tensor.dtype(),
         )
-    )]
+    ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         B::float_into_data(tensor.primitive).await
     }
@@ -86,14 +86,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_device(&tensor.primitive)
     }
 
-    #[tracing::instrument(
+    #[cfg_attr(feature = "std", tracing::instrument(
         skip(tensor),
         fields(
             from = ?tensor.node,
             shape = ?tensor.shape(),
             dtype = ?tensor.dtype(),
         )
-    )]
+    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct ToDevice;

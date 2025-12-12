@@ -37,8 +37,3 @@ burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5", optional = t
 axum = { workspace = true, features = ["ws"], optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
-
-
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic = { workspace = true }
-portable-atomic-util = { workspace = true }

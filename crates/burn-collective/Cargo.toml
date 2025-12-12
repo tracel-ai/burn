@@ -55,10 +55,6 @@ burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.5", optional =
 burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.5", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.5", optional = true }
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic = { workspace = true }
-portable-atomic-util = { workspace = true }
-
 [dev-dependencies]
 serial_test = { workspace = true }
 

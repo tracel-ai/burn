@@ -69,8 +69,10 @@ std = [
     "burn-store?/std",
     "burn-nn/std",
     "burn-optim/std",
-    "tracing/default",
-    "tracing-core/default",
+    "dep:tracing",
+    "tracing?/default",
+    "dep:tracing-core",
+    "tracing-core?/default",
 ]
 
 network = ["burn-core/network"]
@@ -152,10 +154,6 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic = { workspace = true }
-portable-atomic-util = { workspace = true }
-
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
@@ -167,8 +165,8 @@ burn-store = { path = "../burn-store", version = "=0.20.0-pre.5", optional = tru
 burn-nn = { path = "../burn-nn", version = "=0.20.0-pre.5", default-features = false }
 burn-optim = { path = "../burn-optim", version = "=0.20.0-pre.5", default-features = false }
 
-tracing = { workspace = true, features = ["attributes"] }
-tracing-core = { workspace = true }
+tracing = { workspace = true, features = ["attributes"], optional = true }
+tracing-core = { workspace = true, optional = true }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.5", optional = true, default-features = false }
