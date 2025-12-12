@@ -6,7 +6,9 @@ include_models!(
     cumsum_reverse,
     cumsum_exclusive_reverse,
     cumsum_2d,
-    cumsum_runtime_axis
+    cumsum_runtime_axis,
+    cumsum_single_element,
+    cumsum_exclusive_single
 );
 
 #[cfg(test)]
@@ -99,6 +101,39 @@ mod tests {
         let axis: i64 = 1; // Runtime axis value (scalar)
         let output = model.forward(input, axis);
         let expected = TensorData::from([[1f32, 3., 6.], [4., 9., 15.]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn cumsum_single_element_test() {
+        // Edge case: single element tensor
+        // Input: [42.]
+        // Expected output: [42.]
+        let device = Default::default();
+        let model: cumsum_single_element::Model<TestBackend> =
+            cumsum_single_element::Model::default();
+
+        let input = Tensor::<TestBackend, 1>::from_floats([42.], &device);
+        let output = model.forward(input);
+        let expected = TensorData::from([42f32]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn cumsum_exclusive_single_element_test() {
+        // Edge case: exclusive cumsum on single element
+        // Tests dim_size - 1 = 0 case
+        // Input: [42.]
+        // Expected output (exclusive): [0.] (sum of nothing before first element)
+        let device = Default::default();
+        let model: cumsum_exclusive_single::Model<TestBackend> =
+            cumsum_exclusive_single::Model::default();
+
+        let input = Tensor::<TestBackend, 1>::from_floats([42.], &device);
+        let output = model.forward(input);
+        let expected = TensorData::from([0f32]);
 
         output.to_data().assert_eq(&expected, true);
     }

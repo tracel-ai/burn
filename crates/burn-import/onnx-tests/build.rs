@@ -112,6 +112,8 @@ fn main() {
         .input("tests/cumsum/cumsum_exclusive_reverse.onnx")
         .input("tests/cumsum/cumsum_2d.onnx")
         .input("tests/cumsum/cumsum_runtime_axis.onnx")
+        .input("tests/cumsum/cumsum_single_element.onnx")
+        .input("tests/cumsum/cumsum_exclusive_single.onnx")
         .input("tests/depth_to_space/depth_to_space_dcr.onnx")
         .input("tests/depth_to_space/depth_to_space_crd.onnx")
         .input("tests/div/div.onnx")

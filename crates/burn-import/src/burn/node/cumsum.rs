@@ -80,8 +80,9 @@ fn generate_static_cumsum(
                     let cumsum_result = #input.cumsum(#axis);
                     let shape = cumsum_result.shape();
                     let dim_size = shape.dims[#axis];
-                    if dim_size == 0 {
-                        cumsum_result // Empty tensor along axis, return as-is
+                    if dim_size <= 1 {
+                        // For empty or single element, exclusive cumsum is all zeros
+                        cumsum_result.zeros_like()
                     } else {
                         let sliced = cumsum_result.narrow(#axis, 0, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
@@ -100,8 +101,9 @@ fn generate_static_cumsum(
                     let cumsum_back = cumsum_result.flip([#axis]);
                     let shape = cumsum_back.shape();
                     let dim_size = shape.dims[#axis];
-                    if dim_size == 0 {
-                        cumsum_back // Empty tensor along axis, return as-is
+                    if dim_size <= 1 {
+                        // For empty or single element, exclusive reverse cumsum is all zeros
+                        cumsum_back.zeros_like()
                     } else {
                         let sliced = cumsum_back.narrow(#axis, 1, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
@@ -151,8 +153,9 @@ fn generate_runtime_cumsum(
                     let cumsum_result = #input.cumsum(axis);
                     let shape = cumsum_result.shape();
                     let dim_size = shape.dims[axis];
-                    if dim_size == 0 {
-                        cumsum_result // Empty tensor along axis, return as-is
+                    if dim_size <= 1 {
+                        // For empty or single element, exclusive cumsum is all zeros
+                        cumsum_result.zeros_like()
                     } else {
                         let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(axis, 0, 1);
@@ -171,8 +174,9 @@ fn generate_runtime_cumsum(
                     let cumsum_back = cumsum_result.flip([axis]);
                     let shape = cumsum_back.shape();
                     let dim_size = shape.dims[axis];
-                    if dim_size == 0 {
-                        cumsum_back // Empty tensor along axis, return as-is
+                    if dim_size <= 1 {
+                        // For empty or single element, exclusive reverse cumsum is all zeros
+                        cumsum_back.zeros_like()
                     } else {
                         let sliced = cumsum_back.narrow(axis, 1, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(axis, 0, 1);
@@ -276,8 +280,8 @@ mod tests {
                 let cumsum_result = input.cumsum(0);
                 let shape = cumsum_result.shape();
                 let dim_size = shape.dims[0];
-                if dim_size == 0 {
-                    cumsum_result
+                if dim_size <= 1 {
+                    cumsum_result.zeros_like()
                 } else {
                     let sliced = cumsum_result.narrow(0, 0, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(0, 0, 1);
@@ -301,8 +305,8 @@ mod tests {
                 let cumsum_back = cumsum_result.flip([0]);
                 let shape = cumsum_back.shape();
                 let dim_size = shape.dims[0];
-                if dim_size == 0 {
-                    cumsum_back
+                if dim_size <= 1 {
+                    cumsum_back.zeros_like()
                 } else {
                     let sliced = cumsum_back.narrow(0, 1, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(0, 0, 1);
@@ -336,8 +340,8 @@ mod tests {
                 let cumsum_result = input.cumsum(1);
                 let shape = cumsum_result.shape();
                 let dim_size = shape.dims[1];
-                if dim_size == 0 {
-                    cumsum_result
+                if dim_size <= 1 {
+                    cumsum_result.zeros_like()
                 } else {
                     let sliced = cumsum_result.narrow(1, 0, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(1, 0, 1);
@@ -384,8 +388,8 @@ mod tests {
                 let cumsum_result = input.cumsum(axis);
                 let shape = cumsum_result.shape();
                 let dim_size = shape.dims[axis];
-                if dim_size == 0 {
-                    cumsum_result
+                if dim_size <= 1 {
+                    cumsum_result.zeros_like()
                 } else {
                     let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(axis, 0, 1);
