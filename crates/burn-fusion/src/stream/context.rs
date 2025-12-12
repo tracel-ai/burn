@@ -693,48 +693,6 @@ impl RelativeOps for NumericOperationIr {
                 out: desc.out.to_relative(converter),
                 value: desc.value.to_relative(converter),
             }),
-            NumericOperationIr::Gather(desc) => NumericOperationIr::Gather(GatherOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                dim: desc.dim,
-                indices: desc.indices.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::Scatter(desc) => NumericOperationIr::Scatter(ScatterOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                dim: desc.dim,
-                indices: desc.indices.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                update: desc.update,
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::Select(desc) => NumericOperationIr::Select(SelectOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                dim: desc.dim,
-                indices: desc.indices.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::SelectAssign(desc) => {
-                NumericOperationIr::SelectAssign(SelectAssignOpIr {
-                    tensor: desc.tensor.to_relative(converter),
-                    dim: desc.dim,
-                    indices: desc.indices.to_relative(converter),
-                    value: desc.value.to_relative(converter),
-                    update: desc.update,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationIr::MaskWhere(desc) => NumericOperationIr::MaskWhere(MaskWhereOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                mask: desc.mask.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::MaskFill(desc) => NumericOperationIr::MaskFill(MaskFillOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                mask: desc.mask.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
             NumericOperationIr::MeanDim(desc) => NumericOperationIr::MeanDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
@@ -762,11 +720,6 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::ProdDim(desc) => NumericOperationIr::ProdDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::EqualElem(desc) => NumericOperationIr::EqualElem(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
@@ -960,7 +913,54 @@ impl RelativeOps for BaseOperationIr {
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            BaseOperationIr::Gather(desc) => BaseOperationIr::Gather(GatherOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Scatter(desc) => BaseOperationIr::Scatter(ScatterOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                update: desc.update,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Select(desc) => BaseOperationIr::Select(SelectOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::SelectAssign(desc) => {
+                BaseOperationIr::SelectAssign(SelectAssignOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    dim: desc.dim,
+                    indices: desc.indices.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    update: desc.update,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            BaseOperationIr::MaskWhere(desc) => BaseOperationIr::MaskWhere(MaskWhereOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                mask: desc.mask.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::MaskFill(desc) => BaseOperationIr::MaskFill(MaskFillOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                mask: desc.mask.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             BaseOperationIr::Equal(desc) => BaseOperationIr::Equal(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::EqualElem(desc) => BaseOperationIr::EqualElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),

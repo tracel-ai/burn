@@ -205,13 +205,13 @@ fn should_select_add_bool_tensor() {
     // Test that select_add works for boolean tensors
     let device = Default::default();
     let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
-    let values = TestTensorBool::<1>::from_data([false, false], &device);
+    let values = TestTensorBool::<1>::from_data([false, true], &device);
     let indices = TestTensorInt::from_data([0, 2], &device);
 
     let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
     // Note: select_add uses sum reduction, so:
     // index 0: true OR false = true
-    // index 2: true OR false = true
+    // index 2: true OR true = true
     // index 1: false (unchanged)
     let expected = TensorData::from([true, false, true]);
 
@@ -470,4 +470,32 @@ fn should_panic_select_add_negative_dim_out_of_bounds() {
 
     // This should panic because -3 is out of bounds for a 2D tensor
     tensor.select_assign(-3, indices, values, IndexingUpdateOp::Add);
+}
+
+#[test]
+fn should_support_bool_mask_where_ops() {
+    let device = Default::default();
+    let tensor = TestTensorBool::<2>::from_data([[true, false], [false, false]], &device);
+    let mask =
+        TestTensorBool::<2>::from_bool(TensorData::from([[true, false], [false, true]]), &device);
+    let value =
+        TestTensorBool::<2>::from_data(TensorData::from([[false, true], [true, false]]), &device);
+
+    let output = tensor.mask_where(mask, value);
+    let expected = TensorData::from([[false, false], [false, false]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_support_bool_mask_fill_ops() {
+    let device = Default::default();
+    let tensor = TestTensorBool::<2>::from_data([[false, true], [false, false]], &device);
+    let mask =
+        TestTensorBool::<2>::from_bool(TensorData::from([[true, false], [false, true]]), &device);
+
+    let output = tensor.mask_fill(mask, true);
+    let expected = TensorData::from([[true, true], [false, true]]);
+
+    output.into_data().assert_eq(&expected, false);
 }

@@ -97,6 +97,7 @@ fn extract_input_info(input: &Argument) -> InputInfo {
 
 /// Determine the output type based on input and output characteristics
 fn determine_output_type(
+    input: &Argument,
     input_info: &InputInfo,
     output_rank: usize,
     static_shape: Option<Vec<usize>>,
@@ -107,7 +108,19 @@ fn determine_output_type(
         return ArgType::Scalar(input_info.dtype);
     }
 
-    // Case 2: Shape input -> Shape output (optimization)
+    // Case 2: Scalar input reshaped to [1] or [-1] - keep as scalar
+    // This avoids unnecessary scalar -> tensor -> scalar conversions
+    if matches!(input.ty, ArgType::Scalar(_))
+        && output_rank == 1
+        && let Some(shape_values) = get_static_shape(node)
+    {
+        // Shape is [-1] or [1] - effectively a single element, keep as scalar
+        if shape_values.len() == 1 && (shape_values[0] == -1 || shape_values[0] == 1) {
+            return ArgType::Scalar(input_info.dtype);
+        }
+    }
+
+    // Case 3: Shape input -> Shape output (optimization)
     if input_info.is_shape && output_rank == 1 && input_info.dtype == crate::ir::DType::I64 {
         let output_size =
             calculate_shape_output_size(input_info.shape_size.unwrap_or(1), node, &static_shape);
@@ -115,7 +128,7 @@ fn determine_output_type(
         return ArgType::Shape(output_size);
     }
 
-    // Case 3: Regular tensor output
+    // Case 4: Regular tensor output
     ArgType::Tensor(TensorType {
         rank: output_rank,
         static_shape,
@@ -356,7 +369,13 @@ impl NodeProcessor for ReshapeProcessor {
         };
 
         // Set output type
-        node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
+        node.outputs[0].ty = determine_output_type(
+            &node.inputs[0],
+            &input_info,
+            output_rank,
+            static_shape,
+            node,
+        );
 
         Ok(())
     }
@@ -555,6 +574,84 @@ mod tests {
                 assert_eq!(tensor.static_shape, None); // No static shape, just rank
             }
             _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_reshape_scalar_to_neg1_keeps_scalar() {
+        // Test that Reshape(scalar, [-1]) keeps output as Scalar
+        // This optimization avoids unnecessary scalar -> tensor conversion
+        let mut node = TestNodeBuilder::new(NodeType::Reshape, "test_reshape_scalar")
+            .add_input("data", ArgType::Scalar(DType::F32))
+            .input_tensor_i64_data("shape", vec![-1], vec![1])
+            .add_output(
+                "reshaped",
+                ArgType::Tensor(TensorType::new(DType::F32, 1, None)),
+            )
+            .build_with_graph_data(16);
+
+        let processor = ReshapeProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Output should remain scalar, not become a rank-1 tensor
+        match &node.outputs[0].ty {
+            ArgType::Scalar(dtype) => {
+                assert_eq!(*dtype, DType::F32);
+            }
+            other => panic!("Expected Scalar output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_reshape_scalar_to_1_keeps_scalar() {
+        // Test that Reshape(scalar, [1]) keeps output as Scalar
+        let mut node = TestNodeBuilder::new(NodeType::Reshape, "test_reshape_scalar_1")
+            .add_input("data", ArgType::Scalar(DType::I64))
+            .input_tensor_i64_data("shape", vec![1], vec![1])
+            .add_output(
+                "reshaped",
+                ArgType::Tensor(TensorType::new(DType::I64, 1, None)),
+            )
+            .build_with_graph_data(16);
+
+        let processor = ReshapeProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Output should remain scalar
+        match &node.outputs[0].ty {
+            ArgType::Scalar(dtype) => {
+                assert_eq!(*dtype, DType::I64);
+            }
+            other => panic!("Expected Scalar output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_reshape_scalar_to_multi_element_becomes_tensor() {
+        // Test that Reshape(scalar, [2]) does NOT keep scalar (would be invalid)
+        // This ensures the optimization only applies to single-element shapes
+        let mut node = TestNodeBuilder::new(NodeType::Reshape, "test_reshape_scalar_2")
+            .add_input("data", ArgType::Scalar(DType::F32))
+            .input_tensor_i64_data("shape", vec![2], vec![1])
+            .add_output(
+                "reshaped",
+                ArgType::Tensor(TensorType::new(DType::F32, 1, None)),
+            )
+            .build_with_graph_data(16);
+
+        let processor = ReshapeProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Output should be a tensor, not scalar (shape [2] means 2 elements)
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.dtype, DType::F32);
+                assert_eq!(tensor.rank, 1);
+            }
+            other => panic!("Expected Tensor output, got {:?}", other),
         }
     }
 }

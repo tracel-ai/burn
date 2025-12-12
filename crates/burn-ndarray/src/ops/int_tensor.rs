@@ -72,12 +72,12 @@ where
         source: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, source), |tensor, source| {
-            NdArrayMathOps::mask_where(tensor, mask.bool(), source)
+            NdArrayOps::mask_where(tensor, mask.bool(), source)
         })
     }
 
     fn int_mask_fill(tensor: NdArrayTensor, mask: NdArrayTensor, value: I) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::mask_fill(
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::mask_fill(
             tensor,
             mask.bool(),
             value.elem()
@@ -227,9 +227,7 @@ where
 
     fn int_gather(dim: usize, tensor: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, E, |tensor: SharedArray<E>| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |indices| NdArrayMathOps::gather(
-                dim, tensor, indices
-            ))
+            execute_with_int_dtype!(indices, |indices| NdArrayOps::gather(dim, tensor, indices))
         })
     }
 
@@ -240,7 +238,7 @@ where
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |indices| NdArrayMathOps::<I>::scatter(
+            execute_with_int_dtype!(indices, |indices| NdArrayOps::<I>::scatter(
                 dim, tensor, indices, value
             ))
         })

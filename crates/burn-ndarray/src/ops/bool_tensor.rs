@@ -130,7 +130,7 @@ where
         })
     }
 
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: NdArrayTensor,
         dim: usize,
         indices: NdArrayTensor,
@@ -157,5 +157,54 @@ where
 
     fn bool_unfold(tensor: NdArrayTensor, dim: usize, size: usize, step: usize) -> NdArrayTensor {
         NdArrayOps::unfold(tensor.bool(), dim, size, step).into()
+    }
+
+    fn bool_mask_where(
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        mask: burn_tensor::ops::BoolTensor<Self>,
+        value: burn_tensor::ops::BoolTensor<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        NdArrayOps::mask_where(tensor.bool(), mask.bool(), value.bool()).into()
+    }
+
+    fn bool_mask_fill(
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        mask: burn_tensor::ops::BoolTensor<Self>,
+        value: burn_tensor::ops::BoolElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        NdArrayOps::mask_fill(tensor.bool(), mask.bool(), value.elem()).into()
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        indices: burn_tensor::ops::IntTensor<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        execute_with_int_dtype!(indices, |indices| NdArrayOps::gather(
+            dim,
+            tensor.bool(),
+            indices
+        ))
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        indices: burn_tensor::ops::IntTensor<Self>,
+        value: burn_tensor::ops::BoolTensor<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        execute_with_int_dtype!(indices, |indices| NdArrayOps::scatter(
+            dim,
+            tensor.bool(),
+            indices,
+            value.bool()
+        ))
+    }
+
+    fn bool_equal_elem(
+        lhs: burn_tensor::ops::BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        NdArrayBoolOps::equal_elem(lhs.bool(), rhs).into()
     }
 }

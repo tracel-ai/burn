@@ -10,6 +10,8 @@ pub type Device<B> = <B as Backend>::Device;
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 /// Integer element type used by backend.
 pub type IntElem<B> = <B as Backend>::IntElem;
+/// Boolean element type used by backend.
+pub type BoolElem<B> = <B as Backend>::BoolElem;
 
 /// Float tensor primitive type used by the backend.
 pub type FloatTensor<B> = <B as Backend>::FloatTensorPrimitive;

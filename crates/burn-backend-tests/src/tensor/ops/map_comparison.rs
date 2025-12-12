@@ -41,6 +41,30 @@ fn test_int_not_equal_elem() {
 }
 
 #[test]
+fn test_bool_equal_elem() {
+    let tensor_1 = TestTensorBool::<2>::from([[true, false, true], [false, true, false]]);
+
+    let data_actual_cloned = tensor_1.clone().equal_elem(false);
+    let data_actual_inplace = tensor_1.equal_elem(false);
+
+    let data_expected = TensorData::from([[false, true, false], [true, false, true]]);
+    data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+    data_expected.assert_eq(&data_actual_inplace.into_data(), false);
+}
+
+#[test]
+fn test_bool_not_equal_elem() {
+    let tensor_1 = TestTensorBool::<2>::from([[true, false, true], [false, true, false]]);
+
+    let data_actual_cloned = tensor_1.clone().not_equal_elem(true);
+    let data_actual_inplace = tensor_1.not_equal_elem(true);
+
+    let data_expected = TensorData::from([[false, true, false], [true, false, true]]);
+    data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+    data_expected.assert_eq(&data_actual_inplace.into_data(), false);
+}
+
+#[test]
 fn test_greater_elem() {
     greater_elem::<Float, FloatElem>()
 }
