@@ -48,11 +48,6 @@ pub mod indexing {
 }
 pub use indexing::*;
 
-// /// Random data generator utilities.
-// pub mod rand {
-//     pub use burn_std::rand::*;
-// }
-
 /// Quantization data representation.
 pub mod quantization {
     pub use crate::tensor::quantization::*;
