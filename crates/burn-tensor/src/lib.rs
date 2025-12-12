@@ -20,4 +20,4 @@ pub use burn_std::stream_id::StreamId;
 
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
-pub use burn_std::{Bytes, bf16, f16};
+pub use burn_std::{AllocationProperty, Bytes, bf16, f16};
