@@ -262,10 +262,52 @@ pub enum BaseOperationIr {
     SliceAssign(SliceAssignOpIr),
     /// Operation corresponding to:
     ///
+    /// Float => [select](burn_tensor::ops::FloatTensorOps::float_select).
+    /// Int => [select](burn_tensor::ops::IntTensorOps::int_select).
+    /// Bool => [select](burn_tensor::ops::BoolTensorOps::bool_select).
+    Select(SelectOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_add).
+    /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_add).
+    /// Bool => [select assign](burn_tensor::ops::BoolTensorOps::bool_select_or).
+    SelectAssign(SelectAssignOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [mask where](burn_tensor::ops::FloatTensorOps::float_mask_where).
+    /// Int => [mask where](burn_tensor::ops::IntTensorOps::int_mask_where).
+    /// Bool => [mask where](burn_tensor::ops::BoolTensorOps::bool_mask_where).
+    MaskWhere(MaskWhereOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [mask fill](burn_tensor::ops::FloatTensorOps::float_mask_fill).
+    /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
+    /// Bool => [mask fill](burn_tensor::ops::BoolTensorOps::bool_mask_fill).
+    MaskFill(MaskFillOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [gather](burn_tensor::ops::FloatTensorOps::float_gather).
+    /// Int => [gather](burn_tensor::ops::IntTensorOps::int_gather).
+    /// Bool => [gather](burn_tensor::ops::BoolTensorOps::bool_gather).
+    Gather(GatherOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter_add).
+    /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter_add).
+    /// Bool => [scatter](burn_tensor::ops::BoolTensorOps::bool_scatter_or).
+    Scatter(ScatterOpIr),
+    /// Operation corresponding to:
+    ///
     /// Float => [equal](burn_tensor::ops::FloatTensorOps::float_equal).
     /// Int => [equal](burn_tensor::ops::IntTensorOps::int_equal).
     /// Bool => [equal](burn_tensor::ops::BoolTensorOps::bool_equal).
     Equal(BinaryOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
+    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
+    /// Bool => [equal elem](burn_tensor::ops::BoolTensorOps::bool_equal_elem).
+    EqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [repeat dim](burn_tensor::ops::FloatTensorOps::float_repeat_dim).
@@ -365,36 +407,6 @@ pub enum NumericOperationIr {
     Full(FullOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [gather](burn_tensor::ops::FloatTensorOps::float_gather).
-    /// Int => [gather](burn_tensor::ops::IntTensorOps::int_gather).
-    Gather(GatherOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter_add).
-    /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter_add).
-    Scatter(ScatterOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [select](burn_tensor::ops::FloatTensorOps::float_select).
-    /// Int => [select](burn_tensor::ops::IntTensorOps::int_select).
-    Select(SelectOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_add).
-    /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_add).
-    SelectAssign(SelectAssignOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [mask where](burn_tensor::ops::FloatTensorOps::float_mask_where).
-    /// Int => [mask where](burn_tensor::ops::IntTensorOps::int_mask_where).
-    MaskWhere(MaskWhereOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [mask fill](burn_tensor::ops::FloatTensorOps::float_mask_fill).
-    /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
-    MaskFill(MaskFillOpIr),
-    /// Operation corresponding to:
-    ///
     /// Float => [mean dim](burn_tensor::ops::FloatTensorOps::float_mean_dim).
     /// Int => [mean dim](burn_tensor::ops::IntTensorOps::int_mean_dim).
     MeanDim(ReduceDimOpIr),
@@ -423,11 +435,6 @@ pub enum NumericOperationIr {
     /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
     ProdDim(ReduceDimOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
-    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
-    EqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [greater](burn_tensor::ops::FloatTensorOps::float_greater).
@@ -1572,7 +1579,20 @@ impl BaseOperationIr {
             BaseOperationIr::Flip(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.tensor, &repr.value].into_iter()),
+            BaseOperationIr::Gather(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
+            BaseOperationIr::Scatter(repr) => {
+                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
+            }
+            BaseOperationIr::Select(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
+            BaseOperationIr::SelectAssign(repr) => {
+                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
+            }
+            BaseOperationIr::MaskWhere(repr) => {
+                Box::new([&repr.tensor, &repr.mask, &repr.value].into_iter())
+            }
+            BaseOperationIr::MaskFill(repr) => Box::new([&repr.tensor, &repr.mask].into_iter()),
             BaseOperationIr::Equal(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            BaseOperationIr::EqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new(repr.tensors.iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.input].into_iter()),
@@ -1592,7 +1612,14 @@ impl BaseOperationIr {
             BaseOperationIr::Flip(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Scatter(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Select(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::SelectAssign(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::MaskWhere(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::MaskFill(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Equal(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::EqualElem(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.out].into_iter()),
@@ -1631,9 +1658,39 @@ impl BaseOperationIr {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.value.mark_read_only(nodes, &mut output);
             }
+            BaseOperationIr::Gather(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Scatter(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Select(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::SelectAssign(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::MaskWhere(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.mask.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::MaskFill(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.mask.mark_read_only(nodes, &mut output);
+            }
             BaseOperationIr::Equal(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::EqualElem(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::RepeatDim(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
@@ -1671,19 +1728,6 @@ impl NumericOperationIr {
             NumericOperationIr::DivScalar(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::Rem(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             NumericOperationIr::RemScalar(repr) => Box::new([&repr.lhs].into_iter()),
-            NumericOperationIr::Gather(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
-            NumericOperationIr::Scatter(repr) => {
-                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
-            }
-            NumericOperationIr::Select(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
-            NumericOperationIr::SelectAssign(repr) => {
-                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
-            }
-            NumericOperationIr::MaskWhere(repr) => {
-                Box::new([&repr.tensor, &repr.mask, &repr.value].into_iter())
-            }
-            NumericOperationIr::MaskFill(repr) => Box::new([&repr.tensor, &repr.mask].into_iter()),
-            NumericOperationIr::EqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::GreaterElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::GreaterEqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::LowerElem(repr) => Box::new([&repr.lhs].into_iter()),
@@ -1732,13 +1776,6 @@ impl NumericOperationIr {
             NumericOperationIr::DivScalar(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Rem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::RemScalar(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Scatter(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Select(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::SelectAssign(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::MaskWhere(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::MaskFill(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::EqualElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::GreaterElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::GreaterEqualElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::LowerElem(repr) => Box::new([&repr.out].into_iter()),
@@ -1815,36 +1852,6 @@ impl NumericOperationIr {
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::RemScalar(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::Gather(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::Scatter(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::Select(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::SelectAssign(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::MaskWhere(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.mask.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::MaskFill(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.mask.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::EqualElem(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::GreaterElem(repr) => {

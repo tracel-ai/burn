@@ -253,11 +253,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(
-            lhs.tensor
-                .eq(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
-                .unwrap(),
-        )
+        CandleTensor::new(lhs.tensor.eq(rhs).unwrap())
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {

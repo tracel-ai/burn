@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use burn_tensor::ElementConversion;
 use burn_tensor::backend::ExecutionError;
 use burn_tensor::ops::IntTensor;
 use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
@@ -139,7 +140,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn bool_select_add(
+    fn bool_select_or(
         tensor: TchTensor,
         dim: usize,
         indices: TchTensor,
@@ -159,5 +160,62 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         step: usize,
     ) -> IntTensor<Self> {
         TchOps::unfold(tensor, dim, size, step)
+    }
+
+    fn bool_mask_where(
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        mask: burn_tensor::ops::BoolTensor<Self>,
+        value: burn_tensor::ops::BoolTensor<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        TchTensor::binary_ops_tensor(
+            tensor,
+            value,
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+        )
+    }
+
+    fn bool_mask_fill(
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        mask: burn_tensor::ops::BoolTensor<Self>,
+        value: burn_tensor::ops::BoolElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        tensor.unary_ops(
+            |mut tensor| {
+                tensor
+                    .f_masked_fill_(&mask.tensor, value.elem::<i64>())
+                    .unwrap()
+            },
+            |tensor| {
+                tensor
+                    .f_masked_fill(&mask.tensor, value.elem::<i64>())
+                    .unwrap()
+            },
+        )
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        TchOps::gather(dim, tensor, indices)
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: burn_tensor::ops::BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: burn_tensor::ops::BoolTensor<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        TchOps::scatter(dim, tensor, indices, value)
+    }
+
+    fn bool_equal_elem(
+        lhs: burn_tensor::ops::BoolTensor<Self>,
+        rhs: burn_tensor::ops::BoolElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self> {
+        TchOps::equal_elem(lhs, rhs.elem::<i64>())
     }
 }

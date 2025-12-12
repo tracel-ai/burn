@@ -170,9 +170,7 @@ where
         indices: NdArrayTensor,
     ) -> FloatTensor<Self> {
         execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::gather(
-                dim, tensor, indices
-            ))
+            execute_with_float_dtype!(tensor, |tensor| NdArrayOps::gather(dim, tensor, indices))
         })
     }
 
@@ -183,7 +181,7 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
+            execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayOps::scatter(
                 dim, tensor, indices, value
             ))
         })
@@ -234,7 +232,7 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayMathOps::mask_where(tensor, mask.bool(), value)
+            NdArrayOps::mask_where(tensor, mask.bool(), value)
         })
     }
 
@@ -243,7 +241,7 @@ where
         mask: NdArrayTensor,
         value: E,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mask_fill(
+        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::mask_fill(
             tensor,
             mask.bool(),
             value.elem()
