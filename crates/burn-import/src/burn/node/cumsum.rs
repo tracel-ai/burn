@@ -73,18 +73,26 @@ fn generate_static_cumsum(
             }
         }
         (true, false) => {
+            // Exclusive: output[i] = sum(input[0..i]), excludes current element
+            // Shift cumsum right by prepending zeros and dropping last element
             quote! {
                 let #output = {
                     let cumsum_result = #input.cumsum(#axis);
                     let shape = cumsum_result.shape();
                     let dim_size = shape.dims[#axis];
-                    let sliced = cumsum_result.narrow(#axis, 0, dim_size - 1);
-                    let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
-                    Tensor::cat(vec![zeros, sliced], #axis)
+                    if dim_size == 0 {
+                        cumsum_result // Empty tensor along axis, return as-is
+                    } else {
+                        let sliced = cumsum_result.narrow(#axis, 0, dim_size - 1);
+                        let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
+                        Tensor::cat(vec![zeros, sliced], #axis)
+                    }
                 };
             }
         }
         (true, true) => {
+            // Exclusive + Reverse: output[i] = sum(input[i+1..n])
+            // Reverse cumsum, then shift left by dropping first and appending zeros
             quote! {
                 let #output = {
                     let flipped = #input.flip([#axis]);
@@ -92,9 +100,13 @@ fn generate_static_cumsum(
                     let cumsum_back = cumsum_result.flip([#axis]);
                     let shape = cumsum_back.shape();
                     let dim_size = shape.dims[#axis];
-                    let sliced = cumsum_back.narrow(#axis, 1, dim_size - 1);
-                    let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
-                    Tensor::cat(vec![sliced, zeros], #axis)
+                    if dim_size == 0 {
+                        cumsum_back // Empty tensor along axis, return as-is
+                    } else {
+                        let sliced = cumsum_back.narrow(#axis, 1, dim_size - 1);
+                        let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
+                        Tensor::cat(vec![sliced, zeros], #axis)
+                    }
                 };
             }
         }
@@ -132,19 +144,25 @@ fn generate_runtime_cumsum(
             }
         }
         (true, false) => {
+            // Exclusive: output[i] = sum(input[0..i]), excludes current element
             quote! {
                 let #output = {
                     let axis = #axis_expr;
                     let cumsum_result = #input.cumsum(axis);
                     let shape = cumsum_result.shape();
                     let dim_size = shape.dims[axis];
-                    let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
-                    let zeros = sliced.zeros_like().narrow(axis, 0, 1);
-                    Tensor::cat(vec![zeros, sliced], axis)
+                    if dim_size == 0 {
+                        cumsum_result // Empty tensor along axis, return as-is
+                    } else {
+                        let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
+                        let zeros = sliced.zeros_like().narrow(axis, 0, 1);
+                        Tensor::cat(vec![zeros, sliced], axis)
+                    }
                 };
             }
         }
         (true, true) => {
+            // Exclusive + Reverse: output[i] = sum(input[i+1..n])
             quote! {
                 let #output = {
                     let axis = #axis_expr;
@@ -153,9 +171,13 @@ fn generate_runtime_cumsum(
                     let cumsum_back = cumsum_result.flip([axis]);
                     let shape = cumsum_back.shape();
                     let dim_size = shape.dims[axis];
-                    let sliced = cumsum_back.narrow(axis, 1, dim_size - 1);
-                    let zeros = sliced.zeros_like().narrow(axis, 0, 1);
-                    Tensor::cat(vec![sliced, zeros], axis)
+                    if dim_size == 0 {
+                        cumsum_back // Empty tensor along axis, return as-is
+                    } else {
+                        let sliced = cumsum_back.narrow(axis, 1, dim_size - 1);
+                        let zeros = sliced.zeros_like().narrow(axis, 0, 1);
+                        Tensor::cat(vec![sliced, zeros], axis)
+                    }
                 };
             }
         }
@@ -254,9 +276,13 @@ mod tests {
                 let cumsum_result = input.cumsum(0);
                 let shape = cumsum_result.shape();
                 let dim_size = shape.dims[0];
-                let sliced = cumsum_result.narrow(0, 0, dim_size - 1);
-                let zeros = sliced.zeros_like().narrow(0, 0, 1);
-                Tensor::cat(vec![zeros, sliced], 0)
+                if dim_size == 0 {
+                    cumsum_result
+                } else {
+                    let sliced = cumsum_result.narrow(0, 0, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(0, 0, 1);
+                    Tensor::cat(vec![zeros, sliced], 0)
+                }
             };
             output
         }
@@ -275,9 +301,13 @@ mod tests {
                 let cumsum_back = cumsum_result.flip([0]);
                 let shape = cumsum_back.shape();
                 let dim_size = shape.dims[0];
-                let sliced = cumsum_back.narrow(0, 1, dim_size - 1);
-                let zeros = sliced.zeros_like().narrow(0, 0, 1);
-                Tensor::cat(vec![sliced, zeros], 0)
+                if dim_size == 0 {
+                    cumsum_back
+                } else {
+                    let sliced = cumsum_back.narrow(0, 1, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(0, 0, 1);
+                    Tensor::cat(vec![sliced, zeros], 0)
+                }
             };
             output
         }
@@ -306,9 +336,13 @@ mod tests {
                 let cumsum_result = input.cumsum(1);
                 let shape = cumsum_result.shape();
                 let dim_size = shape.dims[1];
-                let sliced = cumsum_result.narrow(1, 0, dim_size - 1);
-                let zeros = sliced.zeros_like().narrow(1, 0, 1);
-                Tensor::cat(vec![zeros, sliced], 1)
+                if dim_size == 0 {
+                    cumsum_result
+                } else {
+                    let sliced = cumsum_result.narrow(1, 0, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(1, 0, 1);
+                    Tensor::cat(vec![zeros, sliced], 1)
+                }
             };
             output
         }
@@ -350,9 +384,13 @@ mod tests {
                 let cumsum_result = input.cumsum(axis);
                 let shape = cumsum_result.shape();
                 let dim_size = shape.dims[axis];
-                let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
-                let zeros = sliced.zeros_like().narrow(axis, 0, 1);
-                Tensor::cat(vec![zeros, sliced], axis)
+                if dim_size == 0 {
+                    cumsum_result
+                } else {
+                    let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
+                    let zeros = sliced.zeros_like().narrow(axis, 0, 1);
+                    Tensor::cat(vec![zeros, sliced], axis)
+                }
             };
             output
         }
