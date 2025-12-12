@@ -2,7 +2,6 @@ use crate::ops::numeric::empty_device_optimized_dtype;
 use crate::{
     CubeRuntime,
     kernel::{
-        conv::div_mod_seq,
         into_contiguous_aligned,
         utils::{linear_view, shape_divmod},
     },
@@ -17,7 +16,12 @@ use cubecl::{
 };
 use cubek::convolution::components::ConvSetupError;
 
-use super::im2col::{ConvParam, ConvParamLaunch};
+#[derive(CubeLaunch, CubeType, Clone)]
+pub(crate) struct ConvParam {
+    pub stride: u32,
+    pub dilation: u32,
+    pub padding: i32,
+}
 
 #[derive(CubeLaunch, CubeType)]
 struct Conv2dArgs {
@@ -310,4 +314,21 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     }?;
 
     Ok(output)
+}
+
+#[cube]
+pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod>) -> (u32, Sequence<u32>) {
+    let rank = comptime![shape.len()];
+    let mut offs = pos;
+    let mut out = Sequence::new();
+
+    #[unroll]
+    for i in 0..rank {
+        let dim = comptime![rank - i - 1];
+        let (rem, offs_local) = shape.index(dim).div_mod(offs);
+        out.push(offs_local);
+        offs = rem;
+    }
+
+    (offs, out.rev())
 }

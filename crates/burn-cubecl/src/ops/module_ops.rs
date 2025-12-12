@@ -1,10 +1,7 @@
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
-    kernel::{
-        self,
-        conv::{ConvStrategy, ConvTranspose2dStrategy},
-    },
+    kernel::{self, conv::ConvTranspose2dStrategy},
 };
 use burn_tensor::ops::{
     BoolTensor, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
@@ -25,7 +22,23 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv::<R, 1>(x, weight, bias, options, ConvStrategy::default()).unwrap()
+        kernel::conv::conv_forward::<R, 1>(x, weight, bias, options, Default::default()).unwrap()
+    }
+
+    fn conv1d_weight_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::conv_weight_backward::<R, 1>(
+            x,
+            output_grad,
+            weight.shape.clone(),
+            options,
+            Default::default(),
+        )
+        .unwrap()
     }
 
     fn conv2d(
@@ -34,7 +47,23 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv::<R, 2>(x, weight, bias, options, ConvStrategy::default()).unwrap()
+        kernel::conv::conv_forward::<R, 2>(x, weight, bias, options, Default::default()).unwrap()
+    }
+
+    fn conv2d_weight_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<2>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::conv_weight_backward::<R, 2>(
+            x,
+            output_grad,
+            weight.shape.clone(),
+            options,
+            Default::default(),
+        )
+        .unwrap()
     }
 
     fn deform_conv2d(
@@ -76,7 +105,23 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv::<R, 3>(x, weight, bias, options, ConvStrategy::Direct).unwrap()
+        kernel::conv::conv_forward::<R, 3>(x, weight, bias, options, Default::default()).unwrap()
+    }
+
+    fn conv3d_weight_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::conv_weight_backward::<R, 3>(
+            x,
+            output_grad,
+            weight.shape.clone(),
+            options,
+            Default::default(),
+        )
+        .unwrap()
     }
 
     fn conv_transpose2d(

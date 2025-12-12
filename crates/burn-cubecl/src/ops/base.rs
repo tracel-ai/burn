@@ -147,6 +147,18 @@ pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor
     permute(tensor, &dims)
 }
 
+/// Permute a shape's dimensions from NCHW to NHWC, or the N-dimensional equivalent
+pub fn permute_nchw_to_nhwc_shape(shape: Shape) -> Shape {
+    let rank = shape.num_dims();
+    let c_dim = 1;
+
+    let mut dims = vec![0];
+    dims.extend(2..rank);
+    dims.push(c_dim);
+
+    shape.permute(&dims).expect("Shape permute should succeed")
+}
+
 /// Permute a tensor's dimensions from NHWC to NCHW, or the N-dimensional equivalent
 pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     let rank = tensor.shape.num_dims();
