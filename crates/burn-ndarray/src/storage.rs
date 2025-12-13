@@ -85,8 +85,11 @@ impl<E: Element> NdArrayStorage<E> {
             return None;
         }
 
-        // Validate size
-        let expected_size = shape.iter().product::<usize>() * mem::size_of::<E>();
+        // Validate size (using checked arithmetic to prevent overflow)
+        let num_elements = shape
+            .iter()
+            .try_fold(1usize, |acc, &dim| acc.checked_mul(dim))?;
+        let expected_size = num_elements.checked_mul(mem::size_of::<E>())?;
         if bytes.len() < expected_size {
             return None;
         }
