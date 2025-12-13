@@ -49,12 +49,14 @@ Burn's approach to ONNX import offers unique advantages:
 
 ## ONNX Compatibility
 
-Burn requires ONNX models to use **opset version 16 or higher**. If your model uses an older
-version, you'll need to upgrade it using the ONNX version converter.
+Burn recommends ONNX models use **opset version 16 or higher** for best compatibility. While models
+with older opset versions may work, opset 16+ ensures access to all supported operators and their
+latest behavior. If you encounter issues with an older model, consider upgrading it using the ONNX
+version converter.
 
 ### Upgrading ONNX Models
 
-There are two simple ways to upgrade your ONNX models to the required opset version:
+There are two simple ways to upgrade your ONNX models to the recommended opset version:
 
 Option 1: Use the provided utility script:
 

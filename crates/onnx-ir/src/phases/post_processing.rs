@@ -12,7 +12,7 @@ use crate::{
     graph_state::GraphState,
     ir::{Argument, NodeType, RawNode},
     processor::get_processor_registry,
-    proto_conversion::MIN_OPSET_VERSION,
+    proto_conversion::DEFAULT_OPSET_VERSION,
 };
 
 /// Result of Identity elimination analysis
@@ -229,7 +229,7 @@ pub(crate) fn post_process(
             // Constant lifting is a best-effort optimization after identity elimination.
             // Not all arguments can be lifted (e.g., already Static, Dynamic), so we log
             // errors but don't fail the pipeline.
-            if let Err(e) = processor.lift_constants(node, MIN_OPSET_VERSION) {
+            if let Err(e) = processor.lift_constants(node, DEFAULT_OPSET_VERSION) {
                 log::debug!(
                     "Could not lift constants for node '{}' (type: {:?}): {:?}",
                     node.name,
