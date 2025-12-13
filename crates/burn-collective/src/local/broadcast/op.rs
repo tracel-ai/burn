@@ -1,14 +1,14 @@
-use std::{collections::HashMap, sync::mpsc::SyncSender};
-
 use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
     BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     local::{broadcast_centralized, broadcast_tree},
     node::base::Node,
 };
-use burn_communication::websocket::WebSocket;
+use burn_communication::Protocol;
+#[allow(unused_imports)]
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
+use std::{collections::HashMap, sync::mpsc::SyncSender};
 
 /// An on-going broadcast operation
 pub struct BroadcastOp<B: Backend> {
@@ -91,20 +91,23 @@ impl<B: Backend> BroadcastOp<B> {
             self.dtype = ?self.tensor.as_ref().map(|t| t.dtype()),
         )
     )]
-    pub async fn execute(
+    pub async fn execute<P: Protocol>(
         mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) {
         // all registered callers have sent a tensor to aggregate
         let tensors = self.broadcast(config, global_client).await;
         match tensors {
             Ok(mut tensors) => {
                 // Return resulting tensors
-                self.calls.drain(..).for_each(|op| {
-                    let result = tensors.remove(&op.caller).unwrap();
+                self.calls.into_iter().for_each(|op| {
+                    let result = tensors
+                        .remove(&op.caller)
+                        .expect("tensor/peer internal missmatch.");
                     op.result_sender.send(Ok(result)).unwrap();
                 });
+                assert_eq!(tensors.len(), 0, "tensor/peer internal missmatch.");
             }
             Err(err) => {
                 // Send error to all subscribers
@@ -114,10 +117,10 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     #[tracing::instrument(skip(self, config, global_client))]
-    async fn broadcast(
+    async fn broadcast<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
         let local_strategy = config.local_broadcast_strategy;
 
@@ -160,8 +163,8 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(&mut self, err: CollectiveError) {
-        self.calls.drain(..).for_each(|op| {
+    pub fn send_err_to_all(self, err: CollectiveError) {
+        self.calls.into_iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
     }

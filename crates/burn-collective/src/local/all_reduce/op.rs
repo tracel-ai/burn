@@ -1,7 +1,7 @@
 use crate::global::node::base::Node;
 use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{CollectiveConfig, CollectiveError, PeerId, ReduceOperation, local};
-use burn_communication::websocket::WebSocket;
+use burn_communication::Protocol;
 use burn_std::Shape;
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
@@ -42,6 +42,7 @@ impl<B: Backend> AllReduceOp<B> {
         }
     }
 
+    /// Get a list of the peers.
     fn peers(&self) -> Vec<PeerId> {
         self.calls.iter().map(|c| c.caller).collect()
     }
@@ -84,20 +85,23 @@ impl<B: Backend> AllReduceOp<B> {
             self.peers = ?self.peers(),
         )
     )]
-    pub async fn execute(
+    pub async fn execute<P: Protocol>(
         mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) {
         // all registered callers have sent a tensor to aggregate
         let tensors = self.all_reduce(config, global_client).await;
         match tensors {
             Ok(mut tensors) => {
                 // Return resulting tensors
-                self.calls.drain(..).for_each(|op| {
-                    let result = tensors.remove(&op.caller).unwrap();
+                self.calls.into_iter().for_each(|op| {
+                    let result = tensors
+                        .remove(&op.caller)
+                        .expect("tensor/peer internal missmatch.");
                     op.result_sender.send(Ok(result)).unwrap();
                 });
+                assert_eq!(tensors.len(), 0, "tensor/peer internal missmatch.");
             }
             Err(err) => {
                 // Send error to all subscribers
@@ -108,27 +112,26 @@ impl<B: Backend> AllReduceOp<B> {
 
     /// Perform an all-reduce operation.
     #[tracing::instrument(skip(self, config, global_client))]
-    async fn all_reduce(
+    async fn all_reduce<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
         let mut tensors = HashMap::new();
         for call in &self.calls {
             tensors.insert(call.caller, call.input.clone());
         }
 
-        let op = self.op;
-        Ok(if let Some(global_client) = global_client.as_mut() {
-            local::all_reduce_with_global::<B>(tensors, op, config, global_client).await?
+        if let Some(global_client) = global_client.as_mut() {
+            local::all_reduce_with_global(tensors, self.op, config, global_client).await
         } else {
-            local::all_reduce_local_only::<B>(tensors, op, config).await?
-        })
+            local::all_reduce_local_only::<B>(tensors, self.op, config).await
+        }
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(&mut self, err: CollectiveError) {
-        self.calls.drain(..).for_each(|op| {
+    pub fn send_err_to_all(self, err: CollectiveError) {
+        self.calls.into_iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
     }

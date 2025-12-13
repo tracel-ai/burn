@@ -1,9 +1,5 @@
 use std::collections::HashMap;
 
-use burn_communication::websocket::WebSocket;
-use burn_tensor::{ElementConversion, backend::Backend};
-use tracing::Instrument;
-
 use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
     AllReduceStrategy, CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
@@ -13,6 +9,9 @@ use crate::{
     },
     node::base::Node,
 };
+use burn_communication::Protocol;
+use burn_tensor::{ElementConversion, backend::Backend};
+use tracing::Instrument;
 
 /// Perform an all-reduce with no multi-node operations (global ops)
 #[tracing::instrument(skip(tensors, config))]
@@ -51,11 +50,11 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
 // reduce-scatter plus an all-gather, so using a Ring strategy locally in a multi-node
 // setup may be unadvantageous.
 #[tracing::instrument(skip(tensors, config, global_client))]
-pub(crate) async fn all_reduce_with_global<B: Backend>(
+pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
     tensors: CollectiveTensorMap<B>,
     op: ReduceOperation,
     config: &CollectiveConfig,
-    global_client: &mut Node<B, WebSocket>,
+    global_client: &mut Node<B, P>,
 ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
     let local_strategy = config.local_all_reduce_strategy;
     let global_strategy = config.global_all_reduce_strategy;
