@@ -1,35 +1,21 @@
-#![allow(unused)]
-
 use crate::event_utils::example_instrumented_event;
+use crate::workers::WorkerHandle;
 use burn::Tensor;
-use burn::collective::{
-    AllReduceStrategy, CollectiveConfig, PeerId, ReduceOperation, all_reduce, register,
-};
-use burn::prelude::{Backend, Device, DeviceOps, TensorData, s};
+use burn::collective::{AllReduceStrategy, CollectiveConfig, ReduceOperation};
+use burn::prelude::{Backend, DeviceOps};
+use burn::tensor::Shape;
 use burn::tensor::backend::DeviceId;
-use burn::tensor::{Distribution, Shape, TensorPrimitive};
 use clap::{Parser, ValueEnum};
-use opentelemetry::global::tracer;
-use opentelemetry::trace::{Tracer, TracerProvider};
-use opentelemetry_otlp::WithExportConfig;
+use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::Sampler;
-use std::env::args;
 use std::error::Error;
 use std::iter::repeat_with;
-use std::num::ParseIntError;
-use std::process::id;
 use std::sync::mpsc::Receiver;
-use std::time::Duration;
-use tokio::io::AsyncWriteExt;
-use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::try_init;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Registry, fmt};
-use crate::workers::WorkerHandle;
 
 mod parsers;
 use parsers::*;
@@ -180,7 +166,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         if args.verbose() {
             println!("> main: shutting down tracing");
         }
-        provider.shutdown();
+        provider.shutdown()?;
     }
 
     Ok(())

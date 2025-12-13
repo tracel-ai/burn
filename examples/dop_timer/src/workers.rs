@@ -67,7 +67,6 @@ pub struct WorkerHandle<B: Backend> {
 impl<B: Backend> WorkerHandle<B> {
     #[tracing::instrument(skip(config))]
     pub fn new(index: usize, device: &B::Device, config: CollectiveConfig) -> Self {
-        let type_id = 0;
         let mut worker: Worker<B> = Worker::new(index, device.clone(), config.clone());
 
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
@@ -87,10 +86,6 @@ impl<B: Backend> WorkerHandle<B> {
 
     pub fn device(&self) -> &B::Device {
         &self.device
-    }
-
-    pub fn to_device<const R: usize>(&self, tensor: Tensor<B, R>) -> Tensor<B, R> {
-        tensor.to_device(&self.device)
     }
 
     pub fn all_reduce(&self, op: ReduceOperation, tensor: Tensor<B, 4>) -> Receiver<Tensor<B, 4>> {
