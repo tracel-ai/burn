@@ -390,7 +390,7 @@ fn test_writer_all_dtypes_round_trip() {
             name
         );
         assert_eq!(
-            tensor_data.bytes.as_ref(),
+            &tensor_data.bytes[..],
             expected_data.as_slice(),
             "Data mismatch for {}",
             name
