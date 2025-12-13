@@ -111,7 +111,7 @@ impl<B: Backend> BroadcastOp<B> {
             }
             Err(err) => {
                 // Send error to all subscribers
-                self.send_err_to_all(err);
+                self.fail(err);
             }
         }
     }
@@ -163,7 +163,7 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(self, err: CollectiveError) {
+    pub fn fail(self, err: CollectiveError) {
         self.calls.into_iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
