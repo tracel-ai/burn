@@ -226,6 +226,7 @@ impl<E: Element> From<ArcArray<E, IxDyn>> for NdArrayStorage<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use burn_std::Bytes;
 
     #[test]
@@ -282,15 +283,41 @@ mod tests {
     }
 
     #[test]
-    fn test_misaligned_bytes_returns_none() {
-        // Create bytes that are misaligned for f32 (needs 4-byte alignment)
-        let data: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    fn test_from_borrowed_validates_alignment() {
+        // Verify that from_borrowed succeeds with properly aligned data.
+        // Note: Testing misaligned data rejection is difficult because standard
+        // allocators return properly aligned memory. The alignment check in
+        // from_borrowed (line 78) handles cases like mmap'd files which may
+        // not be properly aligned for the requested element type.
+
+        let aligned_data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let aligned_bytes = Bytes::from_elems(aligned_data);
+
+        // Verify test setup - should be 4-byte aligned for f32
+        assert_eq!(
+            (aligned_bytes.as_ptr() as usize) % core::mem::align_of::<f32>(),
+            0,
+            "Test setup: f32 data should be properly aligned"
+        );
+
+        let result = NdArrayStorage::<f32>::from_borrowed(aligned_bytes, vec![2, 2]);
+        assert!(
+            result.is_some(),
+            "from_borrowed should succeed for properly aligned data"
+        );
+    }
+
+    #[test]
+    fn test_insufficient_size_returns_none() {
+        // Create bytes that are too small for the requested shape
+        let data: Vec<f32> = vec![1.0, 2.0]; // 8 bytes
         let bytes = Bytes::from_elems(data);
 
-        // Try to create f32 storage - should fail due to alignment
-        // (bytes of u8 might not be 4-byte aligned for f32)
-        // Note: This test may pass or fail depending on allocator alignment
-        let _result = NdArrayStorage::<f32>::from_borrowed(bytes, vec![4]);
-        // We just check it doesn't panic - alignment check may or may not fail
+        // Try to create storage for 4 elements (needs 16 bytes)
+        let result = NdArrayStorage::<f32>::from_borrowed(bytes, vec![4]);
+        assert!(
+            result.is_none(),
+            "from_borrowed should return None when bytes are too small"
+        );
     }
 }
