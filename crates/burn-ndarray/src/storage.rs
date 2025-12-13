@@ -293,8 +293,8 @@ mod tests {
         // Verify that from_borrowed succeeds with properly aligned data.
         // Note: Testing misaligned data rejection is difficult because standard
         // allocators return properly aligned memory. The alignment check in
-        // from_borrowed (line 78) handles cases like mmap'd files which may
-        // not be properly aligned for the requested element type.
+        // from_borrowed handles cases like mmap'd files which may not be
+        // properly aligned for the requested element type.
 
         let aligned_data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
         let aligned_bytes = Bytes::from_elems(aligned_data);
