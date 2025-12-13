@@ -130,9 +130,12 @@ impl<B: Backend> ReduceOp<B> {
 
         // Do aggregation on a global level with the main tensor
         let result = if let Some(global_client) = global_client {
-            let global_strategy = config.global_reduce_strategy.unwrap();
+            let strategy = config
+                .global_reduce_strategy
+                .expect("global_reduce_strategy not defined");
+
             global_client
-                .reduce(local_sum, global_strategy, self.root, self.op)
+                .reduce(local_sum, strategy, self.root, self.op)
                 .await
                 .map_err(CollectiveError::Global)?
         } else {
