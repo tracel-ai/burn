@@ -132,7 +132,7 @@ fn create_key<R: CubeRuntime, const N: usize>(
     };
     let rhs_shape_align = pow2_factor(in_channels).min(rhs_stride_align);
 
-    CubeAutotuneKey::Conv2d(ConvAutotuneKey::new(
+    CubeAutotuneKey::Conv(ConvAutotuneKey::new(
         kernel_size,
         stride.to_vec(),
         padding.to_vec(),

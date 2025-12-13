@@ -1,3 +1,4 @@
+#[allow(unused)]
 pub use super::*;
 
 /// Burn autodiff tests.
