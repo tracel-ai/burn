@@ -970,6 +970,7 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "bytemuck",
+ "bytes",
  "const-random",
  "itertools 0.14.0",
  "libm",

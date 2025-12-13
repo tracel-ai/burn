@@ -82,6 +82,9 @@ rayon = { workspace = true, optional = true }
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
 
+[dev-dependencies]
+bytes = { workspace = true }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
