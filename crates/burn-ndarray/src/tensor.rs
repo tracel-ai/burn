@@ -5,36 +5,55 @@ use burn_backend::{
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 
+use crate::NdArrayStorage;
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
-/// Concrete storage type for ndarray
+/// Concrete storage type for ndarray (owned with COW semantics via Arc)
 pub type SharedArray<E> = ArcArray<E, IxDyn>;
 
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
+///
+/// Supports both owned and borrowed (zero-copy) data via [`NdArrayStorage`].
+/// When data is borrowed from external sources (like burnpack files),
+/// it remains zero-copy until a mutating operation is performed.
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum NdArrayTensor {
-    F64(SharedArray<f64>),
-    F32(SharedArray<f32>),
-    I64(SharedArray<i64>),
-    I32(SharedArray<i32>),
-    I16(SharedArray<i16>),
-    I8(SharedArray<i8>),
-    U64(SharedArray<u64>),
-    U32(SharedArray<u32>),
-    U16(SharedArray<u16>),
-    U8(SharedArray<u8>),
-    Bool(SharedArray<bool>),
+    F64(NdArrayStorage<f64>),
+    F32(NdArrayStorage<f32>),
+    I64(NdArrayStorage<i64>),
+    I32(NdArrayStorage<i32>),
+    I16(NdArrayStorage<i16>),
+    I8(NdArrayStorage<i8>),
+    U64(NdArrayStorage<u64>),
+    U32(NdArrayStorage<u32>),
+    U16(NdArrayStorage<u16>),
+    U8(NdArrayStorage<u8>),
+    Bool(NdArrayStorage<bool>),
 }
 
 impl NdArrayTensor {
+    /// Extract bool array, converting to owned if necessary.
     pub(crate) fn bool(self) -> SharedArray<bool> {
         match self {
-            NdArrayTensor::Bool(arr) => arr,
+            NdArrayTensor::Bool(storage) => storage.into_shared(),
             _ => unimplemented!("Expected bool tensor, got {:?}", self.dtype()),
         }
+    }
+
+    /// Returns true if this tensor uses borrowed (zero-copy) storage.
+    #[inline]
+    pub fn is_borrowed(&self) -> bool {
+        macro_rules! check {
+            ($($variant:ident),*) => {
+                match self {
+                    $(NdArrayTensor::$variant(s) => s.is_borrowed(),)*
+                }
+            };
+        }
+        check!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
     }
 }
 
@@ -69,8 +88,16 @@ where
 
 macro_rules! impl_from {
     ($($ty: ty => $dtype: ident),*) => {
+        // From SharedArray (owned) -> NdArrayTensor
         $(impl From<SharedArray<$ty>> for NdArrayTensor {
            fn from(value: SharedArray<$ty>) -> NdArrayTensor {
+                NdArrayTensor::$dtype(NdArrayStorage::from_owned(value))
+           }
+        })*
+
+        // From NdArrayStorage -> NdArrayTensor
+        $(impl From<NdArrayStorage<$ty>> for NdArrayTensor {
+           fn from(value: NdArrayStorage<$ty>) -> NdArrayTensor {
                 NdArrayTensor::$dtype(value)
            }
         })*
@@ -84,7 +111,10 @@ impl_from!(
     bool => Bool
 );
 
-/// Macro to execute an operation a given element type.
+/// Macro to execute an operation on a given element type.
+///
+/// Extracts the storage from NdArrayTensor, converts to SharedArray, and passes to operation.
+/// Operations that want zero-copy should use `execute_with_storage!` instead.
 ///
 /// # Panics
 /// Since there is no automatic type cast at this time, binary operations for different
@@ -99,7 +129,8 @@ macro_rules! execute_with_dtype {
                 ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
                     #[allow(unused)]
                     type $element = $ty;
-                    $op(lhs, rhs).into()
+                    // Convert storage to SharedArray for compatibility with existing operations
+                    $op(lhs.into_shared(), rhs.into_shared()).into()
                 }
             )*
             _ => panic!(
@@ -126,10 +157,11 @@ macro_rules! execute_with_dtype {
     ($tensor:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
         match $tensor {
             $(
-                $crate::NdArrayTensor::$dtype(lhs) => {
+                $crate::NdArrayTensor::$dtype(storage) => {
                     #[allow(unused)]
                     type $element = $ty;
-                    $op(lhs).into()
+                    // Convert storage to SharedArray for compatibility with existing operations
+                    $op(storage.into_shared()).into()
                 }
             )*
             #[allow(unreachable_patterns)]
@@ -149,6 +181,45 @@ macro_rules! execute_with_dtype {
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool
         ])
+    }};
+}
+
+/// Macro to execute an operation with direct storage access (zero-copy aware).
+///
+/// Unlike `execute_with_dtype!`, this passes `NdArrayStorage<E>` directly to the operation,
+/// allowing it to use `.view()` for zero-copy reads or `.into_shared()` when owned is needed.
+#[macro_export]
+macro_rules! execute_with_storage {
+    (($lhs:expr, $rhs:expr),$element:ident,  $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
+        let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
+        match ($lhs, $rhs) {
+            $(
+                ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op(lhs, rhs).into()
+                }
+            )*
+            _ => panic!(
+                "Data type mismatch (lhs: {:?}, rhs: {:?})",
+                lhs_dtype, rhs_dtype
+            ),
+        }
+    }};
+
+    ($tensor:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $tensor {
+            $(
+                $crate::NdArrayTensor::$dtype(storage) => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op(storage).into()
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {:?}", other.dtype())
+        }
     }};
 }
 
@@ -257,7 +328,9 @@ macro_rules! execute_with_numeric_dtype {
     }};
 }
 
-/// Macro to execute an cat operation on a given set of element types.
+/// Macro to execute a cat operation on a given set of element types.
+///
+/// Uses zero-copy views from storage for concatenation.
 ///
 /// # Panics
 /// Since there is no automatic type cast at this time, binary operations for different
@@ -270,8 +343,9 @@ macro_rules! cat_with_dtype {
                 let tensors = $tensors
                     .iter()
                     .map(|t| {
-                        if let NdArrayTensor::$dtype(tensor) = t {
-                            tensor.view()
+                        if let NdArrayTensor::$dtype(storage) = t {
+                            // Use storage.view() for zero-copy access
+                            storage.view()
                         } else {
                             panic!("Concatenate data type mismatch (expected f32, got f64)")
                         }
@@ -302,9 +376,15 @@ impl TensorMetadata for NdArrayTensor {
     }
 
     fn shape(&self) -> Shape {
-        execute_with_dtype!(self, E, |a: &ArcArray<E, IxDyn>| Shape::from(
-            a.shape().to_vec()
-        ))
+        // Use storage's shape method (works for both borrowed and owned)
+        macro_rules! get_shape {
+            ($($variant:ident),*) => {
+                match self {
+                    $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
+                }
+            };
+        }
+        get_shape!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
     }
 
     fn rank(&self) -> usize {
@@ -375,24 +455,39 @@ mod utils {
                 TensorData::new(vec, shape)
             }
 
+            // Convert storage to owned array before extracting data
             execute_with_dtype!(self, |arr| inner(shape, contiguous, arr))
         }
 
         pub(crate) fn is_contiguous(&self) -> bool {
-            fn inner<E: Element>(array: &ArcArray<E, IxDyn>) -> bool {
-                let shape = array.shape();
-                let mut strides = Vec::with_capacity(array.strides().len());
-
-                for &stride in array.strides() {
-                    if stride <= 0 {
-                        return false;
+            // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
+            // For owned data, we check the strides
+            macro_rules! check_contiguous {
+                ($($variant:ident),*) => {
+                    match self {
+                        $(NdArrayTensor::$variant(storage) => {
+                            match storage {
+                                NdArrayStorage::Borrowed { .. } => {
+                                    // Borrowed data from TensorData is always contiguous
+                                    true
+                                }
+                                NdArrayStorage::Owned(array) => {
+                                    let shape = array.shape();
+                                    let mut strides = Vec::with_capacity(array.strides().len());
+                                    for &stride in array.strides() {
+                                        if stride <= 0 {
+                                            return false;
+                                        }
+                                        strides.push(stride as usize);
+                                    }
+                                    is_contiguous(shape, &strides)
+                                }
+                            }
+                        })*
                     }
-                    strides.push(stride as usize);
-                }
-                is_contiguous(shape, &strides)
+                };
             }
-
-            execute_with_dtype!(self, inner)
+            check_contiguous!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
         }
     }
 }
@@ -457,7 +552,52 @@ macro_rules! reshape {
 
 impl NdArrayTensor {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
-    pub fn from_data(mut data: TensorData) -> NdArrayTensor {
+    ///
+    /// This method attempts zero-copy loading when possible. If the data has properly
+    /// aligned bytes that can be borrowed, it creates a borrowed tensor. Otherwise,
+    /// it falls back to copying the data.
+    ///
+    /// Zero-copy loading works when:
+    /// - The data's bytes are properly aligned for the element type
+    /// - The bytes can be borrowed (e.g., from mmap'd file or static data)
+    pub fn from_data(data: TensorData) -> NdArrayTensor {
+        // Try zero-copy path first
+        if let Some(tensor) = Self::try_from_data_zero_copy(&data) {
+            return tensor;
+        }
+        // Fall back to copying
+        Self::from_data_copy(data)
+    }
+
+    /// Try to create a tensor with zero-copy (borrowed) storage.
+    ///
+    /// Returns `None` if zero-copy is not possible (e.g., misaligned data).
+    fn try_from_data_zero_copy(data: &TensorData) -> Option<NdArrayTensor> {
+        let bytes = data.bytes.clone(); // Cheap clone - just Arc increment
+        let shape = data.shape.clone();
+
+        macro_rules! try_zero_copy {
+            ($data:expr, [$($dtype:ident => $ty:ty),*]) => {
+                match $data.dtype {
+                    $(DType::$dtype => {
+                        NdArrayStorage::<$ty>::from_borrowed(bytes, shape)
+                            .map(|storage| NdArrayTensor::$dtype(storage))
+                    },)*
+                    _ => None, // Unsupported dtype for zero-copy
+                }
+            };
+        }
+
+        try_zero_copy!(data, [
+            F64 => f64, F32 => f32,
+            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+            U64 => u64, U32 => u32, U16 => u16, U8 => u8,
+            Bool => bool
+        ])
+    }
+
+    /// Create a tensor by copying data (fallback path).
+    fn from_data_copy(mut data: TensorData) -> NdArrayTensor {
         let shape = mem::take(&mut data.shape);
 
         macro_rules! execute {
@@ -465,7 +605,7 @@ impl NdArrayTensor {
                 match $data.dtype {
                     $(DType::$dtype => {
                         match data.into_vec::<$ty>() {
-                            // Safety: TensorData checks shape validity on creation, so we don't need to repeat that check here
+                            // Safety: TensorData checks shape validity on creation
                             Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
                             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
                         }.into()

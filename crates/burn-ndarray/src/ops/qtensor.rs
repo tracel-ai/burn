@@ -179,7 +179,7 @@ where
         let shape = tensor.shape();
         let data = match tensor.qtensor {
             NdArrayTensor::I8(qtensor) => {
-                let data = qtensor.into_iter().collect();
+                let data = qtensor.into_shared().into_iter().collect();
                 dequantize(data, shape, scheme, &strategy)
             }
             _ => unreachable!(),

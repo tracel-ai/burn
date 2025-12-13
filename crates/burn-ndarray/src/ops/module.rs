@@ -22,21 +22,22 @@ use burn_backend::{TensorMetadata, ops::*, tensor::FloatTensor};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
+    // Converts NdArrayStorage to SharedArray for compatibility with existing operations.
     (inp($($x:tt),+), opt($($opt:tt),*), $element:ident, $op:expr) => {{
         #[allow(unused_parens, unreachable_patterns)]
         match ($($x),+) {
             ($(NdArrayTensor::F32($x)),+) => {
                 type $element = f32;
                 $op(
-                    $($x),+
-                    $(, $opt.map(|o| match o { NdArrayTensor::F32(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                    $($x.into_shared()),+
+                    $(, $opt.map(|o| match o { NdArrayTensor::F32(val) => val.into_shared(), _ => panic!("Optional argument type mismatch") }))*
                 )
             }
             ($(NdArrayTensor::F64($x)),+) => {
                 type $element = f64;
                 $op(
-                    $($x),+
-                    $(, $opt.map(|o| match o { NdArrayTensor::F64(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                    $($x.into_shared()),+
+                    $(, $opt.map(|o| match o { NdArrayTensor::F64(val) => val.into_shared(), _ => panic!("Optional argument type mismatch") }))*
                 )
             }
             _ => panic!("Data type mismatch"),
