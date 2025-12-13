@@ -35,7 +35,6 @@ define_placeholder_node! {
     ConvNode,
     ConvIntegerNode,
     ConvTransposeNode,
-    CumSumNode,
     DftNode,
     DeformConvNode,
     DequantizeLinearNode,
@@ -161,11 +160,6 @@ impl NodeProcessor for UnsupportedProcessor {
                 outputs: builder.outputs,
             }),
             NodeType::Unique => Node::Unique(UniqueNode {
-                name: builder.name,
-                inputs: builder.inputs,
-                outputs: builder.outputs,
-            }),
-            NodeType::CumSum => Node::CumSum(CumSumNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,

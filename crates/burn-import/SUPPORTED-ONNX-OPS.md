@@ -53,7 +53,7 @@ functionality.
 | [ConvTranspose3d][38]            | ✅             | ✅           |
 | [Cos][39]                        | ✅             | ✅           |
 | [Cosh][40]                       | ✅             | ✅           |
-| [CumSum][41]                     | ❌             | ✅          |
+| [CumSum][41]                     | ✅             | ✅           |
 | [DeformConv][196]                | ❌             | ❌           |
 | [DepthToSpace][42]               | ✅             | ✅           |
 | [DequantizeLinear][43]           | ❌             | ❌           |
