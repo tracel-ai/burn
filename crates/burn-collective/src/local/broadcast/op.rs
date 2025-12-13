@@ -8,7 +8,7 @@ use burn_communication::Protocol;
 #[allow(unused_imports)]
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
-use std::{collections::HashMap, sync::mpsc::SyncSender};
+use std::sync::mpsc::SyncSender;
 
 /// An on-going broadcast operation
 pub struct BroadcastOp<B: Backend> {
@@ -59,7 +59,7 @@ impl<B: Backend> BroadcastOp<B> {
     fn peer_devices(&self) -> PeerDeviceMap<B> {
         self.calls
             .iter()
-            .map(|op| (op.caller, op.device.clone()))
+            .map(|call| (call.caller, call.device.clone()))
             .collect()
     }
 
@@ -107,11 +107,11 @@ impl<B: Backend> BroadcastOp<B> {
         match self.broadcast(config, global_client).await {
             Ok(mut tensors) => {
                 // Return resulting tensors
-                self.calls.into_iter().for_each(|op| {
+                self.calls.iter().for_each(|call| {
                     let result = tensors
-                        .remove(&op.caller)
+                        .remove(&call.caller)
                         .expect("tensor/peer internal mismatch.");
-                    op.result_sender.send(Ok(result)).unwrap();
+                    call.result_sender.send(Ok(result)).unwrap();
                 });
                 assert_eq!(tensors.len(), 0, "tensor/peer internal mismatch.");
             }
@@ -150,22 +150,20 @@ impl<B: Backend> BroadcastOp<B> {
         };
 
         // Broadcast locally
-        let results = match local_strategy {
+        Ok(match local_strategy {
             BroadcastStrategy::Tree(arity) => {
                 broadcast_tree::<B>(peer_devices, root, tensor, arity)
             }
             BroadcastStrategy::Centralized => {
                 broadcast_centralized::<B>(peer_devices, root, tensor)
             }
-        };
-
-        Ok(results)
+        })
     }
 
     /// Send a collective error as result to operation caller
     pub fn fail(self, err: CollectiveError) {
-        self.calls.into_iter().for_each(|op| {
-            op.result_sender.send(Err(err.clone())).unwrap();
+        self.calls.iter().for_each(|call| {
+            call.result_sender.send(Err(err.clone())).unwrap();
         });
     }
 }
