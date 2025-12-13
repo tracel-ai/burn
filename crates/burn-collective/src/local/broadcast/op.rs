@@ -126,20 +126,18 @@ impl<B: Backend> BroadcastOp<B> {
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, P>>,
     ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
-        let local_strategy = config.local_broadcast_strategy;
-
-        let peer_devices = self.peer_devices();
-
-        let root = self.effective_root();
-
         // Do broadcast on global level with the main tensor
         if let Some(global_client) = &global_client {
-            let global_strategy = config.global_broadcast_strategy.unwrap();
-            let global_result = global_client
-                .broadcast(self.tensor.clone(), global_strategy)
-                .await
-                .map_err(CollectiveError::Global)?;
-            self.tensor = Some(global_result)
+            let strategy = config
+                .global_broadcast_strategy
+                .expect("global_broadcast_strategy not defined");
+
+            self.tensor = Some(
+                global_client
+                    .broadcast(self.tensor.clone(), strategy)
+                    .await
+                    .map_err(CollectiveError::Global)?,
+            )
         }
 
         // At this point tensor must be defined
@@ -147,8 +145,11 @@ impl<B: Backend> BroadcastOp<B> {
             return Err(CollectiveError::BroadcastNoTensor);
         };
 
+        let root = self.effective_root();
+        let peer_devices = self.peer_devices();
+
         // Broadcast locally
-        Ok(match local_strategy {
+        Ok(match config.local_broadcast_strategy {
             BroadcastStrategy::Tree(arity) => {
                 broadcast_tree::<B>(peer_devices, root, tensor, arity)
             }
