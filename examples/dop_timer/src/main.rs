@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::event_utils::example_instrumented_event;
 use burn::Tensor;
 use burn::collective::{
     AllReduceStrategy, CollectiveConfig, PeerId, ReduceOperation, all_reduce, register,
@@ -22,47 +23,20 @@ use std::process::id;
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
-use tracing::instrument::WithSubscriber;
-use tracing::{instrument, subscriber};
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::try_init;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Registry, fmt};
+use crate::workers::WorkerHandle;
 
-fn parse_array4(s: &str) -> Result<[usize; 4], String> {
-    let parts: Result<Vec<_>, _> = s.split(',').map(|p| p.trim().parse()).collect();
-    let parts = parts.map_err(|e: ParseIntError| e.to_string())?;
-    parts
-        .try_into()
-        .map_err(|v: Vec<_>| format!("expected 4 values, got {}", v.len()))
-}
+mod parsers;
+use parsers::*;
+mod event_utils;
+mod workers;
 
-fn parse_all_reduce_strategy(s: &str) -> Result<AllReduceStrategy, String> {
-    let s = s.trim();
-    if let Some(depth) = s.strip_prefix("tree:") {
-        let depth = depth.parse::<usize>().map_err(|e| e.to_string())?;
-        Ok(AllReduceStrategy::Tree(depth as u32))
-    } else if s.eq("centralized") {
-        Ok(AllReduceStrategy::Centralized)
-    } else if s.eq("ring") {
-        Ok(AllReduceStrategy::Ring)
-    } else {
-        Err(format!("unknown strategy: {}", s))
-    }
-}
-
-fn parse_reduce_operation(s: &str) -> Result<ReduceOperation, String> {
-    let s = s.trim();
-    if s.eq("sum") {
-        Ok(ReduceOperation::Sum)
-    } else if s.eq("mean") {
-        Ok(ReduceOperation::Mean)
-    } else {
-        Err(format!("unknown reduce operation: {}", s))
-    }
-}
+static APP_NAME: &str = "dop_timer";
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum ConsoleFormat {
@@ -79,6 +53,9 @@ pub enum TracingMode {
     Otel,
 }
 
+/// Timing tool for measuring the performance of collective operations.
+///
+/// Currently only supports `all_reduce`.
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Suppress verbose output.
@@ -120,17 +97,6 @@ impl Args {
         !self.quiet()
     }
 }
-
-#[tracing::instrument]
-fn test_event() {
-    tracing::info!("test event");
-
-    let span = tracing::info_span!("test_span");
-    let _guard = span.enter();
-    tracing::info!("inside span");
-}
-
-static APP_NAME: &str = "reduce_timing";
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
@@ -185,10 +151,30 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         }
     };
 
-    test_event();
+    example_instrumented_event();
+
+    let count = [
+        cfg!(feature = "cuda"),
+        cfg!(feature = "metal"),
+        cfg!(feature = "wgpu"),
+        cfg!(feature = "ndarray"),
+    ]
+    .iter()
+    .filter(|x| **x)
+    .count();
+    assert_eq!(count, 1, "exactly one backend must be enabled");
 
     #[cfg(feature = "cuda")]
     run::<burn::backend::Cuda>(&args)?;
+
+    #[cfg(feature = "metal")]
+    run::<burn::backend::Metal>(&args)?;
+
+    #[cfg(feature = "wgpu")]
+    run::<burn::backend::Wgpu>(&args)?;
+
+    #[cfg(feature = "ndarray")]
+    run::<burn::backend::NdArray>(&args)?;
 
     if let Some(provider) = tracing_provider {
         if args.verbose() {
@@ -200,58 +186,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     Ok(())
 }
 
-struct Worker<B: Backend> {
-    index: usize,
-    id: PeerId,
-    device: B::Device,
-    config: CollectiveConfig,
-}
-
-impl<B: Backend> Worker<B> {
-    pub fn new(index: usize, device: B::Device, config: CollectiveConfig) -> Self {
-        let device = device.clone();
-        let id = index.into();
-        Self {
-            index,
-            id,
-            device,
-            config,
-        }
-    }
-
-    #[tracing::instrument(skip(self, tensor))]
-    pub fn dispatch_all_reduce<const R: usize>(
-        &mut self,
-        tensor: Tensor<B, R>,
-        op: ReduceOperation,
-    ) -> Tensor<B, R> {
-        log::debug!("w={}: dispatch_all_reduce start", self.index);
-        let tensor = Tensor::from_primitive(TensorPrimitive::Float(
-            all_reduce::<B>(self.id, tensor.into_primitive().tensor(), op).unwrap(),
-        ));
-        log::debug!("w={}: dispatch_all_reduce end", self.index);
-        tensor
-    }
-
-    pub fn run(&mut self, rx: Receiver<WorkRequest<B>>) {
-        println!("worker {} started", self.index);
-        while let Ok(command) = rx.recv() {
-            use WorkRequest::*;
-            match command {
-                RegisterRequest { tx } => {
-                    register::<B>(self.id, self.device.clone(), self.config.clone()).unwrap();
-                    tx.send(()).unwrap();
-                }
-                AllReduceRequest { tensor, op, tx } => {
-                    assert_eq!(&tensor.device(), &self.device);
-                    let tensor = self.dispatch_all_reduce(tensor, op);
-                    tx.send(tensor).unwrap();
-                }
-            }
-        }
-    }
-}
-
 pub enum WorkRequest<B: Backend> {
     RegisterRequest {
         tx: std::sync::mpsc::SyncSender<()>,
@@ -261,46 +195,6 @@ pub enum WorkRequest<B: Backend> {
         op: ReduceOperation,
         tx: std::sync::mpsc::SyncSender<Tensor<B, 4>>,
     },
-}
-
-struct WorkerHandle<B: Backend> {
-    device: B::Device,
-    tx: std::sync::mpsc::SyncSender<WorkRequest<B>>,
-    phantom: std::marker::PhantomData<B>,
-}
-
-impl<B: Backend> WorkerHandle<B> {
-    #[tracing::instrument(skip(config))]
-    pub fn new(index: usize, device: &B::Device, config: CollectiveConfig) -> Self {
-        let type_id = 0;
-        let mut worker: Worker<B> = Worker::new(index, device.clone(), config.clone());
-
-        let (tx, rx) = std::sync::mpsc::sync_channel(1);
-        std::thread::spawn(move || worker.run(rx));
-        Self {
-            device: device.clone(),
-            tx,
-            phantom: Default::default(),
-        }
-    }
-
-    pub fn register(&self) -> Receiver<()> {
-        let (tx, rx) = std::sync::mpsc::sync_channel(1);
-        self.tx.send(WorkRequest::RegisterRequest { tx }).unwrap();
-        rx
-    }
-
-    pub fn to_device<const R: usize>(&self, tensor: Tensor<B, R>) -> Tensor<B, R> {
-        tensor.to_device(&self.device)
-    }
-
-    pub fn all_reduce(&self, op: ReduceOperation, tensor: Tensor<B, 4>) -> Receiver<Tensor<B, 4>> {
-        let (tx, rx) = std::sync::mpsc::sync_channel(1);
-        self.tx
-            .send(WorkRequest::AllReduceRequest { tensor, op, tx })
-            .unwrap();
-        rx
-    }
 }
 
 #[allow(unused)]
@@ -366,7 +260,7 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
         .enumerate()
         .map(|(idx, h)| {
             let full_value = idx as f32 + 1.0;
-            Tensor::<B, 4>::full(shape.clone(), full_value, &h.device)
+            Tensor::<B, 4>::full(shape.clone(), full_value, h.device())
         })
         .collect::<Vec<_>>();
 

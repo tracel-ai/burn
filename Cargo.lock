@@ -2796,6 +2796,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dop_timer"
+version = "0.20.0-pre.5"
+dependencies = [
+ "burn",
+ "clap",
+ "log",
+ "opentelemetry",
+ "opentelemetry-aws",
+ "opentelemetry-otlp",
+ "opentelemetry-stdout",
+ "opentelemetry_sdk",
+ "rand 0.9.2",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7127,25 +7146,6 @@ dependencies = [
  "getrandom 0.2.16",
  "libredox",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "reduce_timing"
-version = "0.20.0-pre.5"
-dependencies = [
- "burn",
- "clap",
- "log",
- "opentelemetry",
- "opentelemetry-aws",
- "opentelemetry-otlp",
- "opentelemetry-stdout",
- "opentelemetry_sdk",
- "rand 0.9.2",
- "tokio",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
 ]
 
 [[package]]

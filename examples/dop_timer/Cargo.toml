@@ -1,21 +1,25 @@
 [package]
-name = "reduce_timing"
+name = "dop_timer"
+description = "Distributed operation timer utility."
 edition.workspace = true
 license.workspace = true
 readme.workspace = true
 version.workspace = true
+publish = false
 
 [lints]
 workspace = true
 
 [features]
-default = ["cuda"]
+default = []
+ndarray = ["burn/ndarray"]
 cuda = ["burn/cuda"]
+wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 burn = { path = "../../crates/burn", version = "=0.20.0-pre.5", features = [
-    "train",
     "collective"
 ] }
 
