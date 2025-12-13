@@ -40,6 +40,7 @@ use crate::{
 use crate::{SharedArray, element::NdArrayElement};
 use burn_backend::ops::unfold::calculate_unfold_shape;
 use burn_backend::{Shape, Slice};
+use ndarray::ArrayView;
 use ndarray::Axis;
 use ndarray::Dim;
 use ndarray::IxDyn;
@@ -717,18 +718,21 @@ where
         array.into_shared()
     }
 
-    pub fn mean(tensor: SharedArray<E>) -> SharedArray<E> {
-        let mean = tensor.mean().unwrap();
-        ArrayD::from_elem(IxDyn(&[1]), mean).into_shared()
-    }
-
-    pub fn sum(tensor: SharedArray<E>) -> SharedArray<E> {
-        let sum = tensor.sum();
+    /// Sum all elements - zero-copy for borrowed storage.
+    pub fn sum_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let sum = view.sum();
         ArrayD::from_elem(IxDyn(&[1]), sum).into_shared()
     }
 
-    pub fn prod(tensor: SharedArray<E>) -> SharedArray<E> {
-        let prod = tensor.product();
+    /// Mean of all elements - zero-copy for borrowed storage.
+    pub fn mean_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let mean = view.mean().unwrap();
+        ArrayD::from_elem(IxDyn(&[1]), mean).into_shared()
+    }
+
+    /// Product of all elements - zero-copy for borrowed storage.
+    pub fn prod_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let prod = view.iter().fold(E::one(), |acc, &x| acc * x);
         ArrayD::from_elem(IxDyn(&[1]), prod).into_shared()
     }
 

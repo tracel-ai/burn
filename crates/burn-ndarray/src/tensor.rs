@@ -159,7 +159,7 @@ macro_rules! execute_with_dtype {
                 $crate::NdArrayTensor::$dtype(storage) => {
                     #[allow(unused)]
                     type $element = $ty;
-                    // Convert storage to SharedArray for compatibility with existing operations
+                    // Convert to SharedArray for compatibility with most operations
                     $op(storage.into_shared()).into()
                 }
             )*

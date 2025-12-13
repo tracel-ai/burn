@@ -18,7 +18,7 @@ use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
-use burn_backend::{TensorMetadata, ops::*, tensor::FloatTensor};
+use burn_backend::{ElementConversion, TensorMetadata, ops::*, tensor::FloatTensor};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
@@ -237,7 +237,9 @@ where
         output_grad: FloatTensor<Self>,
         indices: NdArrayTensor,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
-        execute_with_int_dtype!(indices, I, |indices| {
+        execute_with_int_dtype!(indices, IntElem, |idx_s: SharedArray<IntElem>| {
+            // Convert indices from runtime dtype to the expected I type
+            let indices: SharedArray<I> = idx_s.mapv(|x| x.elem()).into_shared();
             module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
                 let output = max_pool2d_backward::<E, I>(
                     x,
