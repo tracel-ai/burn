@@ -106,7 +106,7 @@ impl<B: Backend> ReduceOp<B> {
                 });
             }
             Err(err) => {
-                self.send_err_to_all(err);
+                self.fail(err);
             }
         }
     }
@@ -149,7 +149,7 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(self, err: CollectiveError) {
+    pub fn fail(self, err: CollectiveError) {
         self.calls.into_iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
