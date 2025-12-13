@@ -1,9 +1,20 @@
-use crate::WorkRequest;
+use crate::workers::WorkRequest::{AllReduceRequest, RegisterRequest};
 use burn::Tensor;
 use burn::collective::{CollectiveConfig, PeerId, ReduceOperation, all_reduce};
 use burn::prelude::Backend;
 use burn::tensor::TensorPrimitive;
 use std::sync::mpsc::Receiver;
+
+pub enum WorkRequest<B: Backend> {
+    RegisterRequest {
+        tx: std::sync::mpsc::SyncSender<()>,
+    },
+    AllReduceRequest {
+        tensor: Tensor<B, 4>,
+        op: ReduceOperation,
+        tx: std::sync::mpsc::SyncSender<Tensor<B, 4>>,
+    },
+}
 
 struct Worker<B: Backend> {
     index: usize,
@@ -41,7 +52,6 @@ impl<B: Backend> Worker<B> {
     pub fn run(&mut self, rx: Receiver<WorkRequest<B>>) {
         println!("worker {} started", self.index);
         while let Ok(command) = rx.recv() {
-            use crate::WorkRequest::*;
             use burn::collective::register;
             match command {
                 RegisterRequest { tx } => {

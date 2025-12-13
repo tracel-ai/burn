@@ -172,17 +172,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     Ok(())
 }
 
-pub enum WorkRequest<B: Backend> {
-    RegisterRequest {
-        tx: std::sync::mpsc::SyncSender<()>,
-    },
-    AllReduceRequest {
-        tensor: Tensor<B, 4>,
-        op: ReduceOperation,
-        tx: std::sync::mpsc::SyncSender<Tensor<B, 4>>,
-    },
-}
-
 #[allow(unused)]
 #[tracing::instrument(skip(args))]
 fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
