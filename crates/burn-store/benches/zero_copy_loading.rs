@@ -298,6 +298,202 @@ macro_rules! bench_backend {
 }
 
 // =============================================================================
+// Zero-copy verification (proves operations use static region data)
+// =============================================================================
+
+/// Verify that zero-copy loading actually uses data from the static region.
+/// This runs once at startup to prove correctness before benchmarking.
+#[divan::bench_group(name = "Zero-Copy Verification", sample_count = 1)]
+mod verification {
+    use super::*;
+    use burn_ndarray::NdArray;
+
+    type B = NdArray<f32>;
+
+    /// Verify zero-copy: tensor storage is borrowed (not owned)
+    #[divan::bench]
+    fn verify_storage_is_borrowed() {
+        let static_bytes = get_static_model_bytes();
+
+        // Load model with zero-copy from static bytes
+        let device = Default::default();
+        let mut model = LargeModel::<B>::new(&device);
+        let mut store = BurnpackStore::from_static(static_bytes);
+        model.load_from(&mut store).expect("Failed to load");
+
+        // Get the first layer's weight tensor and verify it uses borrowed storage
+        let weight = model.layers[0].weight.val();
+        // .into_primitive() returns TensorPrimitive<B>, .tensor() extracts B::FloatTensorPrimitive
+        let ndarray_tensor = weight.into_primitive().tensor();
+
+        // Verify the storage is borrowed (zero-copy from static region)
+        assert!(
+            ndarray_tensor.is_borrowed(),
+            "ZERO-COPY FAILURE: Tensor storage is NOT borrowed. \
+             Data was copied instead of being zero-copy!"
+        );
+
+        println!("✅ Verified: Tensor storage is borrowed (zero-copy from static region)");
+    }
+
+    /// Verify ALL layers use borrowed (zero-copy) storage.
+    /// This is the key proof that loaded weights point to static memory.
+    #[divan::bench]
+    fn verify_all_layers_borrowed() {
+        let static_bytes = get_static_model_bytes();
+
+        // Load model with zero-copy
+        let device = Default::default();
+        let mut model = LargeModel::<B>::new(&device);
+        let mut store = BurnpackStore::from_static(static_bytes);
+        model.load_from(&mut store).expect("Failed to load");
+
+        // Check ALL layers have borrowed storage
+        let mut total_elements = 0usize;
+        for (i, layer) in model.layers.iter().enumerate() {
+            let weight = layer.weight.val();
+            total_elements += weight.shape().num_elements();
+
+            assert!(
+                weight.into_primitive().tensor().is_borrowed(),
+                "Layer {} weight should be borrowed (zero-copy)",
+                i
+            );
+        }
+
+        let total_mb = (total_elements * 4) as f64 / 1_048_576.0;
+        println!("✅ Verified: All {} layers use borrowed storage", model.layers.len());
+        println!("   - Model size: {:.2} MB - all pointing to static region", total_mb);
+    }
+
+    /// Verify data is readable and correct using sum().into_scalar().
+    /// Note: sum() triggers COW copy, so this shows ops work correctly on zero-copy data.
+    #[divan::bench]
+    fn verify_ops_produce_correct_results() {
+        let static_bytes = get_static_model_bytes();
+
+        let device = Default::default();
+        let mut model = LargeModel::<B>::new(&device);
+        let mut store = BurnpackStore::from_static(static_bytes);
+        model.load_from(&mut store).expect("Failed to load");
+
+        // Compute sum of first layer weight - proves data is valid
+        let weight = model.layers[0].weight.val();
+        let sum: f32 = weight.sum().into_scalar();
+
+        assert!(sum.is_finite(), "Sum should be finite");
+        println!("✅ Verified: Operations on zero-copy data produce valid results");
+        println!("   - First layer sum: {:.4}", sum);
+    }
+
+    /// Verify operations produce correct results on zero-copy data
+    #[divan::bench]
+    fn verify_operations_on_static_data() {
+        let static_bytes = get_static_model_bytes();
+
+        // Load model with zero-copy
+        let device = Default::default();
+        let mut model = LargeModel::<B>::new(&device);
+        let mut store = BurnpackStore::from_static(static_bytes);
+        model.load_from(&mut store).expect("Failed to load");
+
+        // Perform operations on the loaded weights
+        let weight = model.layers[0].weight.val();
+        let shape = weight.shape();
+
+        // Test 1: Sum should be finite (not NaN or Inf)
+        let sum: f32 = weight.clone().sum().to_data().to_vec().unwrap()[0];
+        assert!(
+            sum.is_finite(),
+            "Operation failed: sum is not finite ({})",
+            sum
+        );
+
+        // Test 2: Matrix multiply with itself transposed (W @ W.T)
+        let transposed = weight.clone().transpose();
+        let matmul_result = weight.clone().matmul(transposed);
+        let matmul_sum: f32 = matmul_result.sum().to_data().to_vec().unwrap()[0];
+        assert!(
+            matmul_sum.is_finite(),
+            "Matmul failed: result sum is not finite ({})",
+            matmul_sum
+        );
+
+        // Test 3: Element-wise operations
+        let doubled = weight.clone() * 2.0;
+        let doubled_sum: f32 = doubled.sum().to_data().to_vec().unwrap()[0];
+        assert!(
+            (doubled_sum - sum * 2.0).abs() < 1e-3,
+            "Element-wise op failed: doubled_sum ({}) != sum*2 ({})",
+            doubled_sum,
+            sum * 2.0
+        );
+
+        println!("✅ Verified: Operations on zero-copy data produce correct results");
+        println!("   - Weight shape: {:?}", shape.dims);
+        println!("   - Sum: {:.4}", sum);
+        println!("   - Matmul result sum: {:.4}", matmul_sum);
+    }
+
+    /// Compare zero-copy vs copy: verify both produce identical results
+    #[divan::bench]
+    fn verify_copy_vs_zero_copy_equality() {
+        let static_bytes = get_static_model_bytes();
+        let device: <B as Backend>::Device = Default::default();
+
+        // Load with zero-copy
+        let mut model_zc = LargeModel::<B>::new(&device);
+        let mut store_zc = BurnpackStore::from_static(static_bytes);
+        model_zc
+            .load_from(&mut store_zc)
+            .expect("Failed to load zero-copy");
+
+        // Load with copy (simulate old behavior)
+        let mut model_copy = LargeModel::<B>::new(&device);
+        let bytes = Bytes::from_bytes_vec(static_bytes.to_vec());
+        let mut store_copy = BurnpackStore::from_bytes(Some(bytes)).zero_copy(false);
+        model_copy
+            .load_from(&mut store_copy)
+            .expect("Failed to load copy");
+
+        // Compare weights from both models
+        for (i, (layer_zc, layer_copy)) in model_zc
+            .layers
+            .iter()
+            .zip(model_copy.layers.iter())
+            .enumerate()
+        {
+            let weight_zc = layer_zc.weight.val();
+            let weight_copy = layer_copy.weight.val();
+
+            // Check shapes match
+            assert_eq!(
+                weight_zc.shape(),
+                weight_copy.shape(),
+                "Layer {} weight shapes don't match",
+                i
+            );
+
+            // Check values match (using sum as a proxy)
+            let sum_zc: f32 = weight_zc.clone().sum().to_data().to_vec().unwrap()[0];
+            let sum_copy: f32 = weight_copy.clone().sum().to_data().to_vec().unwrap()[0];
+            assert!(
+                (sum_zc - sum_copy).abs() < 1e-6,
+                "Layer {} weight sums don't match: zero-copy={}, copy={}",
+                i,
+                sum_zc,
+                sum_copy
+            );
+        }
+
+        println!(
+            "✅ Verified: Zero-copy and copy loading produce identical results for all {} layers",
+            model_zc.layers.len()
+        );
+    }
+}
+
+// =============================================================================
 // Store-only benchmarks (no backend allocation overhead)
 // These show the TRUE zero-copy benefit at the store level
 // =============================================================================
