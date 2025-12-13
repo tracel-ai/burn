@@ -1,4 +1,4 @@
-use crate::local::tensor_map::CollectiveTensorMap;
+use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
 use crate::{
     BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     local::{broadcast_centralized, broadcast_tree},
@@ -116,6 +116,14 @@ impl<B: Backend> BroadcastOp<B> {
         }
     }
 
+    fn peer_devices(&self) -> PeerDeviceMap<B> {
+        self
+            .calls
+            .iter()
+            .map(|op| (op.caller, op.device.clone()))
+            .collect()
+    }
+
     #[tracing::instrument(skip(self, config, global_client))]
     async fn broadcast<P: Protocol>(
         &mut self,
@@ -124,14 +132,8 @@ impl<B: Backend> BroadcastOp<B> {
     ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
         let local_strategy = config.local_broadcast_strategy;
 
-        // Get corresponding devices for each peer
-        let peer_devices = self
-            .calls
-            .iter()
-            .map(|op| (op.caller, op.device.clone()))
-            .collect::<HashMap<PeerId, B::Device>>();
+        let peer_devices = self.peer_devices();
 
-        // Chose a root
         let root = self.effective_root();
 
         // Do broadcast on global level with the main tensor
