@@ -1,7 +1,6 @@
-use std::sync::mpsc::SyncSender;
-
-use burn_communication::websocket::WebSocket;
+use burn_communication::Protocol;
 use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
+use std::sync::mpsc::SyncSender;
 
 use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
@@ -88,11 +87,11 @@ impl<B: Backend> ReduceOp<B> {
             self.peers = ?self.peers(),
         )
     )]
-    pub async fn execute(
+    pub async fn execute<P: Protocol>(
         mut self,
         root: PeerId,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) {
         match self.reduce(config, global_client).await {
             Ok(mut result) => {
@@ -113,10 +112,10 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     #[tracing::instrument(skip(self, config, global_client))]
-    async fn reduce(
+    async fn reduce<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) -> Result<Option<B::FloatTensorPrimitive>, CollectiveError> {
         let tensors: CollectiveTensorMap<B> = self
             .calls
@@ -150,8 +149,8 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(&mut self, err: CollectiveError) {
-        self.calls.drain(..).for_each(|op| {
+    pub fn send_err_to_all(self, err: CollectiveError) {
+        self.calls.into_iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
     }
