@@ -1,13 +1,14 @@
-use std::{collections::HashMap, sync::mpsc::SyncSender};
-
-use burn_communication::websocket::WebSocket;
-use burn_tensor::backend::Backend;
-
+use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
 use crate::{
     BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     local::{broadcast_centralized, broadcast_tree},
     node::base::Node,
 };
+use burn_communication::Protocol;
+#[allow(unused_imports)]
+use burn_tensor::TensorMetadata;
+use burn_tensor::backend::Backend;
+use std::sync::mpsc::SyncSender;
 
 /// An on-going broadcast operation
 pub struct BroadcastOp<B: Backend> {
@@ -16,6 +17,8 @@ pub struct BroadcastOp<B: Backend> {
     /// The tensor to broadcast, as defined by the root. Should be defined before all
     /// peers call the operation.
     tensor: Option<B::FloatTensorPrimitive>,
+
+    /// ID of the root (or use the first call's peer).
     root: Option<PeerId>,
 }
 
@@ -39,6 +42,23 @@ impl<B: Backend> BroadcastOp<B> {
             tensor: None,
             root: None,
         }
+    }
+
+    /// Get the effective root of the broadcast operation.
+    /// If the root is set, return it. Otherwise, return the first caller's peer.
+    pub fn effective_root(&self) -> PeerId {
+        self.root.unwrap_or(self.calls.first().unwrap().caller)
+    }
+
+    pub fn peers(&self) -> Vec<PeerId> {
+        self.calls.iter().map(|c| c.caller).collect()
+    }
+
+    fn peer_devices(&self) -> PeerDeviceMap<B> {
+        self.calls
+            .iter()
+            .map(|call| (call.caller, call.device.clone()))
+            .collect()
     }
 
     /// Register a call to reduce in this operation.
@@ -68,53 +88,56 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     /// Runs the broadcast if the operation is ready. Otherwise, do nothing
-    pub async fn execute(
+    #[tracing::instrument(
+        skip(self, config, global_client),
+        fields(
+            self.peers = ?self.peers(),
+            self.shape = ?self.tensor.as_ref().map(|t| t.shape()),
+            self.dtype = ?self.tensor.as_ref().map(|t| t.dtype()),
+        )
+    )]
+    pub async fn execute<P: Protocol>(
         mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) {
         // all registered callers have sent a tensor to aggregate
-        let tensors = self.broadcast(config, global_client).await;
-        match tensors {
+        match self.broadcast(config, global_client).await {
             Ok(mut tensors) => {
                 // Return resulting tensors
-                self.calls.drain(..).for_each(|op| {
-                    let result = tensors.remove(&op.caller).unwrap();
-                    op.result_sender.send(Ok(result)).unwrap();
+                self.calls.iter().for_each(|call| {
+                    let result = tensors
+                        .remove(&call.caller)
+                        .expect("tensor/peer internal mismatch.");
+                    call.result_sender.send(Ok(result)).unwrap();
                 });
+                assert_eq!(tensors.len(), 0, "tensor/peer internal mismatch.");
             }
             Err(err) => {
                 // Send error to all subscribers
-                self.send_err_to_all(err);
+                self.fail(err);
             }
         }
     }
 
-    async fn broadcast(
+    #[tracing::instrument(skip(self, config, global_client))]
+    async fn broadcast<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
-    ) -> Result<HashMap<PeerId, B::FloatTensorPrimitive>, CollectiveError> {
-        let local_strategy = config.local_broadcast_strategy;
-
-        // Get corresponding devices for each peer
-        let devices = self
-            .calls
-            .iter()
-            .map(|op| (op.caller, op.device.clone()))
-            .collect::<HashMap<PeerId, B::Device>>();
-
-        // Chose a root
-        let root = self.root.unwrap_or(self.calls.first().unwrap().caller);
-
+        global_client: &mut Option<Node<B, P>>,
+    ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
         // Do broadcast on global level with the main tensor
         if let Some(global_client) = &global_client {
-            let global_strategy = config.global_broadcast_strategy.unwrap();
-            let global_result = global_client
-                .broadcast(self.tensor.clone(), global_strategy)
-                .await
-                .map_err(CollectiveError::Global)?;
-            self.tensor = Some(global_result)
+            let strategy = config
+                .global_broadcast_strategy
+                .expect("global_broadcast_strategy not defined");
+
+            self.tensor = Some(
+                global_client
+                    .broadcast(self.tensor.clone(), strategy)
+                    .await
+                    .map_err(CollectiveError::Global)?,
+            )
         }
 
         // At this point tensor must be defined
@@ -122,19 +145,24 @@ impl<B: Backend> BroadcastOp<B> {
             return Err(CollectiveError::BroadcastNoTensor);
         };
 
-        // Broadcast locally
-        let results = match local_strategy {
-            BroadcastStrategy::Tree(arity) => broadcast_tree::<B>(devices, root, tensor, arity),
-            BroadcastStrategy::Centralized => broadcast_centralized::<B>(devices, root, tensor),
-        };
+        let root = self.effective_root();
+        let peer_devices = self.peer_devices();
 
-        Ok(results)
+        // Broadcast locally
+        Ok(match config.local_broadcast_strategy {
+            BroadcastStrategy::Tree(arity) => {
+                broadcast_tree::<B>(peer_devices, root, tensor, arity)
+            }
+            BroadcastStrategy::Centralized => {
+                broadcast_centralized::<B>(peer_devices, root, tensor)
+            }
+        })
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(&mut self, err: CollectiveError) {
-        self.calls.drain(..).for_each(|op| {
-            op.result_sender.send(Err(err.clone())).unwrap();
+    pub fn fail(self, err: CollectiveError) {
+        self.calls.iter().for_each(|call| {
+            call.result_sender.send(Err(err.clone())).unwrap();
         });
     }
 }

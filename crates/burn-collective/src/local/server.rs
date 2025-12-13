@@ -356,7 +356,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                     self.all_reduce_op = Some(all_reduce_op)
                 }
             }
-            Err(err) => all_reduce_op.send_err_to_all(err),
+            Err(err) => all_reduce_op.fail(err),
         }
     }
 
@@ -404,7 +404,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                     self.reduce_op = Some(reduce_op)
                 }
             }
-            Err(err) => reduce_op.send_err_to_all(err),
+            Err(err) => reduce_op.fail(err),
         }
     }
 
@@ -452,7 +452,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                     self.broadcast_op = Some(broadcast_op)
                 }
             }
-            Err(err) => broadcast_op.send_err_to_all(err),
+            Err(err) => broadcast_op.fail(err),
         }
     }
 

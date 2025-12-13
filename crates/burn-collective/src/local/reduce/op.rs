@@ -1,7 +1,6 @@
-use std::{collections::HashMap, sync::mpsc::SyncSender};
-
-use burn_communication::websocket::WebSocket;
+use burn_communication::Protocol;
 use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
+use std::sync::mpsc::SyncSender;
 
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation, ReduceStrategy,
@@ -44,6 +43,10 @@ impl<B: Backend> ReduceOp<B> {
         }
     }
 
+    fn peers(&self) -> Vec<PeerId> {
+        self.calls.iter().map(|c| c.caller).collect()
+    }
+
     /// Register a call to reduce in this operation.
     /// When the last caller registers a reduce, the operation is executed.
     pub fn register_call(
@@ -75,16 +78,24 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
-    pub async fn execute(
+    #[tracing::instrument(
+        skip(self, config, global_client),
+        fields(
+            ?self.op,
+            ?self.shape,
+            self.peers = ?self.peers(),
+        )
+    )]
+    pub async fn execute<P: Protocol>(
         mut self,
         root: PeerId,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) {
         match self.reduce(config, global_client).await {
             Ok(mut result) => {
                 // Return resulting tensor to root, None to others
-                self.calls.drain(..).for_each(|op| {
+                self.calls.iter().for_each(|op| {
                     let msg = if op.caller == root {
                         Ok(result.take())
                     } else {
@@ -94,56 +105,54 @@ impl<B: Backend> ReduceOp<B> {
                 });
             }
             Err(err) => {
-                self.send_err_to_all(err);
+                self.fail(err);
             }
         }
     }
 
-    async fn reduce(
+    #[tracing::instrument(skip(self, config, global_client))]
+    async fn reduce<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,
-        global_client: &mut Option<Node<B, WebSocket>>,
+        global_client: &mut Option<Node<B, P>>,
     ) -> Result<Option<B::FloatTensorPrimitive>, CollectiveError> {
-        let mut tensors = HashMap::new();
-        for op in &self.calls {
-            tensors.insert(op.caller, op.input.clone());
-        }
-        let tensor_count = tensors.len() as f32;
-
-        let local_strategy = config.local_reduce_strategy;
+        let tensors = self
+            .calls
+            .iter()
+            .map(|call| (call.caller, call.input.clone()))
+            .collect();
 
         // For Centralized and Tree, we only need to do a reduce here, we'll do a broadcast later
-        let tensors_to_reduce = core::mem::take(&mut tensors);
-        let mut result = match local_strategy {
-            ReduceStrategy::Centralized => {
-                reduce_sum_centralized::<B>(tensors_to_reduce, &self.root)
-            }
-            ReduceStrategy::Tree(arity) => {
-                reduce_sum_tree::<B>(tensors_to_reduce, &self.root, arity)
-            }
+        let mut local_sum = match config.local_reduce_strategy {
+            ReduceStrategy::Centralized => reduce_sum_centralized::<B>(tensors, &self.root),
+            ReduceStrategy::Tree(arity) => reduce_sum_tree::<B>(tensors, &self.root, arity),
         };
 
-        // Do aggregation on global level with the main tensor
+        // Do aggregation on a global level with the main tensor
         let result = if let Some(global_client) = global_client {
-            let global_strategy = config.global_reduce_strategy.unwrap();
+            let strategy = config
+                .global_reduce_strategy
+                .expect("global_reduce_strategy not defined");
+
             global_client
-                .reduce(result, global_strategy, self.root, self.op)
+                .reduce(local_sum, strategy, self.root, self.op)
                 .await
                 .map_err(CollectiveError::Global)?
         } else {
             // Mean division locally
             if self.op == ReduceOperation::Mean {
-                result = B::float_div_scalar(result, tensor_count.elem())
+                let local_tensor_count = self.calls.len() as f32;
+                local_sum = B::float_div_scalar(local_sum, local_tensor_count.elem())
             }
-            Some(result)
+            Some(local_sum)
         };
 
         Ok(result)
     }
 
     /// Send a collective error as result to operation caller
-    pub fn send_err_to_all(&mut self, err: CollectiveError) {
-        self.calls.drain(..).for_each(|op| {
+    pub fn fail(self, err: CollectiveError) {
+        self.calls.iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
     }
