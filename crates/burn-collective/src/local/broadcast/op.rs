@@ -22,18 +22,6 @@ pub struct BroadcastOp<B: Backend> {
     root: Option<PeerId>,
 }
 
-impl<B: Backend> BroadcastOp<B> {
-    /// Get the effective root of the broadcast operation.
-    /// If the root is set, return it. Otherwise, return the first caller's peer.
-    pub fn effective_root(&self) -> PeerId {
-        self.root.unwrap_or(self.calls.first().unwrap().caller)
-    }
-
-    pub fn peers(&self) -> Vec<PeerId> {
-        self.calls.iter().map(|c| c.caller).collect()
-    }
-}
-
 /// Struct for each device that calls an broadcast operation
 pub struct BroadcastOpCall<B: Backend> {
     /// Id of the caller of the operation
@@ -54,6 +42,16 @@ impl<B: Backend> BroadcastOp<B> {
             tensor: None,
             root: None,
         }
+    }
+
+    /// Get the effective root of the broadcast operation.
+    /// If the root is set, return it. Otherwise, return the first caller's peer.
+    pub fn effective_root(&self) -> PeerId {
+        self.root.unwrap_or(self.calls.first().unwrap().caller)
+    }
+
+    pub fn peers(&self) -> Vec<PeerId> {
+        self.calls.iter().map(|c| c.caller).collect()
     }
 
     fn peer_devices(&self) -> PeerDeviceMap<B> {
