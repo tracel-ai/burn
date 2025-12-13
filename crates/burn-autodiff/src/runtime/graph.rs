@@ -52,7 +52,7 @@ pub struct GraphLocator {
 ///
 /// Each `Graph` contains an [AutodiffServer] and the original [NodeId] where the server was
 /// first created.
-pub(crate) struct Graph {
+struct Graph {
     origin: NodeId,
     state: Mutex<GraphState>,
 }
@@ -121,12 +121,41 @@ impl AutodiffClient for GraphMutexClient {
     }
 }
 
-struct GraphCleaner<'a> {
+pub(crate) struct GraphCleaner<'a> {
     guard: MutexGuard<'a, Option<GraphLocator>>,
 }
 
 impl<'a> GraphCleaner<'a> {
-    fn cleanup_orphaned_entries() {
+    pub(crate) fn cleanup_orphaned_entries() {
+        // extra cleanup procedure
+        {
+            let graphs_to_visit = {
+                let graph_locator = crate::runtime::graph::STATE.lock();
+                let graph_locator = graph_locator.as_ref().unwrap();
+                let mut graphs_to_visit = HashMap::new();
+                for (_node_id, graph) in &graph_locator.graphs {
+                    graphs_to_visit
+                        .entry(graph.origin)
+                        .or_insert_with(|| Arc::clone(graph));
+                }
+                graphs_to_visit
+            };
+
+            let mut cleaner = crate::runtime::graph::GraphCleaner::init();
+            for (_graph_origin, graph) in graphs_to_visit {
+                let mut state = graph.state.lock();
+                let server = &mut state.server;
+                server
+                    .memory_management
+                    .free_unavailable_nodes(|node_id: &NodeId| {
+                        server.steps.remove(node_id);
+                        server.actions_builder.remove(node_id);
+                        cleaner.clean(node_id);
+                    });
+            }
+            drop(cleaner);
+        }
+
         let graphs = {
             // Get the available graphs and release the lock
             match STATE.lock().as_ref() {
@@ -185,7 +214,7 @@ impl GraphLocator {
     /// # Returns
     ///
     /// An `Arc<Graph>` representing the selected or merged graph.
-    pub(crate) fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
+    fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         match self.analyse(node, parents) {
             GraphAnalysis::NoCollision(graph) => {
                 if graph.origin != node {
