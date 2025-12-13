@@ -75,7 +75,7 @@ impl<E: Element> NdArrayStorage<E> {
     pub fn from_borrowed(bytes: Bytes, shape: Vec<usize>) -> Option<Self> {
         // Validate alignment
         let ptr = bytes.as_ptr();
-        if ptr as usize % mem::align_of::<E>() != 0 {
+        if !(ptr as usize).is_multiple_of(mem::align_of::<E>()) {
             return None;
         }
 
