@@ -98,10 +98,10 @@ impl<B: Backend> AllReduceOp<B> {
                 self.calls.into_iter().for_each(|op| {
                     let result = tensors
                         .remove(&op.caller)
-                        .expect("tensor/peer internal missmatch.");
+                        .expect("tensor/peer internal mismatch.");
                     op.result_sender.send(Ok(result)).unwrap();
                 });
-                assert_eq!(tensors.len(), 0, "tensor/peer internal missmatch.");
+                assert_eq!(tensors.len(), 0, "tensor/peer internal mismatch.");
             }
             Err(err) => {
                 // Send error to all subscribers
