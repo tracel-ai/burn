@@ -56,6 +56,13 @@ impl<B: Backend> BroadcastOp<B> {
         }
     }
 
+    fn peer_devices(&self) -> PeerDeviceMap<B> {
+        self.calls
+            .iter()
+            .map(|op| (op.caller, op.device.clone()))
+            .collect()
+    }
+
     /// Register a call to reduce in this operation.
     /// When the last caller registers a reduce, the operation is executed.
     pub fn register_call(
@@ -97,8 +104,7 @@ impl<B: Backend> BroadcastOp<B> {
         global_client: &mut Option<Node<B, P>>,
     ) {
         // all registered callers have sent a tensor to aggregate
-        let tensors = self.broadcast(config, global_client).await;
-        match tensors {
+        match self.broadcast(config, global_client).await {
             Ok(mut tensors) => {
                 // Return resulting tensors
                 self.calls.into_iter().for_each(|op| {
@@ -114,14 +120,6 @@ impl<B: Backend> BroadcastOp<B> {
                 self.fail(err);
             }
         }
-    }
-
-    fn peer_devices(&self) -> PeerDeviceMap<B> {
-        self
-            .calls
-            .iter()
-            .map(|op| (op.caller, op.device.clone()))
-            .collect()
     }
 
     #[tracing::instrument(skip(self, config, global_client))]

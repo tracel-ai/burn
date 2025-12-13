@@ -91,8 +91,7 @@ impl<B: Backend> AllReduceOp<B> {
         global_client: &mut Option<Node<B, P>>,
     ) {
         // all registered callers have sent a tensor to aggregate
-        let tensors = self.all_reduce(config, global_client).await;
-        match tensors {
+        match self.all_reduce(config, global_client).await {
             Ok(mut tensors) => {
                 // Return resulting tensors
                 self.calls.into_iter().for_each(|op| {
