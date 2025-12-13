@@ -5,8 +5,9 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
+use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{Backend, DeviceId, DeviceOps};
+use burn_backend::{Backend, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::stub::Mutex;
 use core::marker::PhantomData;
@@ -87,6 +88,47 @@ where
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }
+
+    fn supports_dtype(_device: &Self::Device, dtype: DType) -> bool {
+        match dtype {
+            DType::F64
+            | DType::F32
+            | DType::Flex32
+            | DType::I64
+            | DType::I32
+            | DType::I16
+            | DType::I8
+            | DType::U64
+            | DType::U32
+            | DType::U16
+            | DType::U8
+            | DType::Bool => true,
+            DType::F16 | DType::BF16 => false,
+            DType::QFloat(scheme) => {
+                match scheme {
+                    QuantScheme {
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        mode: QuantMode::Symmetric,
+                        #[cfg(not(feature = "export_tests"))]
+                            value: QuantValue::Q8F | QuantValue::Q8S,
+                        // For tests, "native" sub-byte quant serves as a reference for value equality.
+                        // Values are stored as i8 regardless.
+                        #[cfg(feature = "export_tests")]
+                            value:
+                            QuantValue::Q8F
+                            | QuantValue::Q8S
+                            | QuantValue::Q4F
+                            | QuantValue::Q4S
+                            | QuantValue::Q2F
+                            | QuantValue::Q2S,
+                        store: QuantStore::Native,
+                        ..
+                    } => true,
+                    _scheme => false,
+                }
+            }
+        }
+    }
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q>
@@ -138,5 +180,42 @@ where
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         HandleKind::Quantized(tensor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::QTensorPrimitive;
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = NdArray<f32>;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U16));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::Bool));
+        assert!(B::supports_dtype(
+            &device,
+            DType::QFloat(NdArrayQTensor::default_scheme())
+        ));
+
+        assert!(!B::supports_dtype(&device, DType::F16));
+        assert!(!B::supports_dtype(&device, DType::BF16));
+        // QuantStore::U32 not supported
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
     }
 }

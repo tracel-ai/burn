@@ -4,7 +4,7 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, DeviceOps, Element, ExecutionError,
+    Backend, DType, DeviceOps, Element, ExecutionError,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
@@ -76,6 +76,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
     {
         B::staging(data, device);
+    }
+
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        B::supports_dtype(device, dtype)
     }
 }
 
@@ -188,7 +192,7 @@ pub trait FusionBackend:
     type FusionRuntime: FusionRuntime;
 
     /// Cast a float tensor and returns the resulting handle.
-    fn cast_float(tensor: FloatTensor<Self>, dtype: burn_backend::DType) -> Self::Handle;
+    fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle;
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;

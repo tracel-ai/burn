@@ -4,6 +4,7 @@ use burn_communication::{
 };
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::{Runner, RunnerClient};
+use burn_std::DType;
 use burn_tensor::TensorData;
 use core::marker::PhantomData;
 use std::sync::Arc;
@@ -35,6 +36,7 @@ pub enum ProcessorTask {
     ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     Seed(u64),
+    SupportsDType(ConnectionId, DType, Callback<TaskResponse>),
     Close,
 }
 
@@ -109,6 +111,16 @@ where
                         break;
                     }
                     ProcessorTask::Seed(seed) => runner.seed(seed),
+                    ProcessorTask::SupportsDType(id, dtype, callback) => {
+                        let result = runner.supports_dtype(dtype);
+                        callback
+                            .send(TaskResponse {
+                                content: TaskResponseContent::SupportsDType(result),
+                                id,
+                            })
+                            .await
+                            .unwrap();
+                    }
                 }
             }
         });

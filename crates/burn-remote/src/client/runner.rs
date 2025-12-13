@@ -73,7 +73,7 @@ impl RunnerClient for RemoteClient {
                     _ => panic!("Invalid message type"),
                 },
                 Err(e) => Err(ExecutionError::Generic {
-                    reason: format!("Failed to sync: {:?}", e),
+                    reason: format!("Failed to read tensor: {:?}", e),
                     backtrace: BackTrace::capture(),
                 }),
             }
@@ -116,6 +116,18 @@ impl RunnerClient for RemoteClient {
 
     fn create_empty_handle(&self) -> burn_ir::TensorId {
         self.sender.new_tensor_id()
+    }
+
+    fn supports_dtype(&self, dtype: burn_std::DType) -> bool {
+        let fut = self.sender.send_async(ComputeTask::SupportsDType(dtype));
+
+        match self.runtime.block_on(fut) {
+            Ok(response) => match response {
+                TaskResponseContent::SupportsDType(res) => res,
+                _ => panic!("Invalid message type"),
+            },
+            Err(e) => panic!("Failed to check dtype support: {:?}", e),
+        }
     }
 }
 

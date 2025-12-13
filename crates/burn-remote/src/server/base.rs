@@ -158,6 +158,9 @@ where
                 ComputeTask::Seed(seed) => {
                     stream.seed(seed).await;
                 }
+                ComputeTask::SupportsDType(dtype) => {
+                    stream.supports_dtype(connection_id, dtype).await
+                }
             }
         }
 
