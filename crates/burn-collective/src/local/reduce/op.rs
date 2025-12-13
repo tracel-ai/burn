@@ -2,7 +2,6 @@ use burn_communication::Protocol;
 use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
 use std::sync::mpsc::SyncSender;
 
-use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation, ReduceStrategy,
     local::{reduce_sum_centralized, reduce_sum_tree},
@@ -96,7 +95,7 @@ impl<B: Backend> ReduceOp<B> {
         match self.reduce(config, global_client).await {
             Ok(mut result) => {
                 // Return resulting tensor to root, None to others
-                self.calls.into_iter().for_each(|op| {
+                self.calls.iter().for_each(|op| {
                     let msg = if op.caller == root {
                         Ok(result.take())
                     } else {
@@ -117,10 +116,10 @@ impl<B: Backend> ReduceOp<B> {
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, P>>,
     ) -> Result<Option<B::FloatTensorPrimitive>, CollectiveError> {
-        let tensors: CollectiveTensorMap<B> = self
+        let tensors = self
             .calls
             .iter()
-            .map(|op| (op.caller, op.input.clone()))
+            .map(|call| (call.caller, call.input.clone()))
             .collect();
 
         // For Centralized and Tree, we only need to do a reduce here, we'll do a broadcast later
@@ -150,7 +149,7 @@ impl<B: Backend> ReduceOp<B> {
 
     /// Send a collective error as result to operation caller
     pub fn fail(self, err: CollectiveError) {
-        self.calls.into_iter().for_each(|op| {
+        self.calls.iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
     }

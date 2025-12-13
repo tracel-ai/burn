@@ -5,7 +5,6 @@ use burn_communication::Protocol;
 use burn_std::Shape;
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
-use std::collections::HashMap;
 use std::sync::mpsc::SyncSender;
 
 /// An on-going all-reduce operation
@@ -94,11 +93,11 @@ impl<B: Backend> AllReduceOp<B> {
         match self.all_reduce(config, global_client).await {
             Ok(mut tensors) => {
                 // Return resulting tensors
-                self.calls.into_iter().for_each(|op| {
+                self.calls.iter().for_each(|call| {
                     let result = tensors
-                        .remove(&op.caller)
+                        .remove(&call.caller)
                         .expect("tensor/peer internal mismatch.");
-                    op.result_sender.send(Ok(result)).unwrap();
+                    call.result_sender.send(Ok(result)).unwrap();
                 });
                 assert_eq!(tensors.len(), 0, "tensor/peer internal mismatch.");
             }
@@ -116,10 +115,11 @@ impl<B: Backend> AllReduceOp<B> {
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, P>>,
     ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
-        let mut tensors = HashMap::new();
-        for call in &self.calls {
-            tensors.insert(call.caller, call.input.clone());
-        }
+        let tensors = self
+            .calls
+            .iter()
+            .map(|call| (call.caller, call.input.clone()))
+            .collect();
 
         if let Some(global_client) = global_client.as_mut() {
             local::all_reduce_with_global(tensors, self.op, config, global_client).await
@@ -130,7 +130,7 @@ impl<B: Backend> AllReduceOp<B> {
 
     /// Send a collective error as result to operation caller
     pub fn fail(self, err: CollectiveError) {
-        self.calls.into_iter().for_each(|op| {
+        self.calls.iter().for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
     }
