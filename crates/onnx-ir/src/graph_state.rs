@@ -9,11 +9,14 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
     rc::Rc,
 };
 
 use crate::ir::{ArgType, Argument, DataId, NodeType, RawNode, TensorData};
-use crate::proto_conversion::{argument_from_initializer, argument_from_initializer_lazy};
+use crate::proto_conversion::{
+    argument_from_initializer, argument_from_initializer_lazy_with_context,
+};
 use crate::protos::{TensorProto, ValueInfoProto};
 use crate::tensor_store::TensorDataRef;
 
@@ -99,6 +102,10 @@ pub(crate) struct GraphState {
     /// Used for subgraphs in If/Loop/Scan nodes.
     /// Stores full Argument to preserve constant values for LSTM weights etc.
     outer_scope_types: HashMap<String, Argument>,
+    /// Base path for resolving external tensor data files.
+    /// This is the directory containing the ONNX file.
+    /// Required for models using external data storage (>2GB models).
+    base_path: Option<PathBuf>,
 }
 
 impl GraphState {
@@ -110,16 +117,17 @@ impl GraphState {
         initializers: &[TensorProto],
         value_infos: &[ValueInfoProto],
     ) -> Self {
-        Self::new_with_registry(inputs, outputs, initializers, value_infos, None)
+        Self::new_with_registry(inputs, outputs, initializers, value_infos, None, None)
     }
 
-    /// Create new GraphState with optional shared name registry
+    /// Create new GraphState with optional shared name registry and base path
     pub(crate) fn new_with_registry(
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
         value_infos: &[ValueInfoProto],
         name_registry: Option<NameRegistry>,
+        base_path: Option<&Path>,
     ) -> Self {
         Self::new_with_registry_and_outer_scope(
             inputs,
@@ -128,14 +136,18 @@ impl GraphState {
             value_infos,
             name_registry,
             HashMap::new(),
+            base_path,
         )
     }
 
-    /// Create new GraphState with optional shared name registry and outer scope types
+    /// Create new GraphState with optional shared name registry, outer scope types, and base path
     ///
     /// The `outer_scope_types` map provides full Arguments for values that the graph
     /// references from parent graphs (for subgraphs in If/Loop/Scan nodes).
     /// Full Arguments are needed to preserve constant values for LSTM weights etc.
+    ///
+    /// The `base_path` is the directory containing the ONNX file, used for resolving
+    /// external tensor data paths (for models >2GB).
     pub(crate) fn new_with_registry_and_outer_scope(
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
@@ -143,6 +155,7 @@ impl GraphState {
         value_infos: &[ValueInfoProto],
         name_registry: Option<NameRegistry>,
         outer_scope_types: HashMap<String, Argument>,
+        base_path: Option<&Path>,
     ) -> Self {
         let mut tensor_store = TensorStore::new();
         let mut constant_map = HashMap::new();
@@ -156,6 +169,7 @@ impl GraphState {
             &mut tensor_store,
             &mut constant_map,
             name_registry.as_ref(),
+            base_path,
         );
 
         // Map initializer names to their constant node outputs
@@ -259,7 +273,13 @@ impl GraphState {
             value_info_map,
             name_registry,
             outer_scope_types,
+            base_path: base_path.map(|p| p.to_path_buf()),
         }
+    }
+
+    /// Get the base path for external data resolution
+    pub(crate) fn base_path(&self) -> Option<&Path> {
+        self.base_path.as_deref()
     }
 
     /// Get the value of an input from the original input name. Used during proto conversion
@@ -510,25 +530,29 @@ fn create_constant_node(
 ///
 /// Uses the zero-copy lazy path when possible (raw_data available),
 /// falling back to the standard path for edge cases (scalars, empty tensors).
+///
+/// For external data support, `base_path` should be the directory containing the ONNX file.
 fn process_initializers(
     initializers: &[TensorProto],
     tensor_store: &mut TensorStore,
     constant_map: &mut HashMap<String, DataId>,
     name_registry: Option<&NameRegistry>,
+    base_path: Option<&Path>,
 ) -> Vec<RawNode> {
     initializers
         .iter()
         .enumerate()
         .map(|(idx, initializer)| {
-            // Try the zero-copy lazy path first (preserves mmap references)
-            let (arg, lazy_data) = match argument_from_initializer_lazy(initializer.clone()) {
-                Ok((arg, lazy_data)) => (arg, lazy_data),
-                Err(_) => {
-                    // Fallback to standard path for edge cases (scalars, empty tensors)
-                    let (arg, data) = argument_from_initializer(initializer);
-                    (arg, TensorDataRef::from(data))
-                }
-            };
+            // Try the zero-copy lazy path first (preserves mmap references, supports external data)
+            let (arg, lazy_data) =
+                match argument_from_initializer_lazy_with_context(initializer.clone(), base_path) {
+                    Ok((arg, lazy_data)) => (arg, lazy_data),
+                    Err(_) => {
+                        // Fallback to standard path for edge cases (scalars, empty tensors)
+                        let (arg, data) = argument_from_initializer(initializer);
+                        (arg, TensorDataRef::from(data))
+                    }
+                };
 
             let data_id = tensor_store.store(lazy_data);
 

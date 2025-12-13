@@ -149,10 +149,12 @@ fn convert_nodes_impl(
             };
 
             // Convert graph attributes - now creates DeferredGraph instead of building immediately
+            let base_path = state_rc.borrow().base_path().map(|p| p.to_path_buf());
             let graph_attrs = crate::proto_conversion::convert_graph_attributes(
                 node_proto,
                 opset_version,
                 Some(parent_registry),
+                base_path.as_deref(),
             );
             // Merge graph attributes with existing attributes
             for (key, value) in graph_attrs {

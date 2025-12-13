@@ -59,10 +59,19 @@ fn test_unreferenced_constant_removal() {
 #[test]
 fn test_multiple_data_types() {
     // Test that different data types are preserved through the pipeline
+    // The fixture covers: F32, F64, F16, BF16, I8, I16, I32, I64, U8, U16, U32, U64, Bool
     let graph = load_onnx("data_types.onnx");
 
-    assert_eq!(graph.inputs.len(), 4, "Expected 4 inputs");
-    assert_eq!(graph.outputs.len(), 5, "Expected 5 outputs");
+    assert_eq!(
+        graph.inputs.len(),
+        12,
+        "Expected 12 inputs (all numeric dtypes)"
+    );
+    assert_eq!(
+        graph.outputs.len(),
+        13,
+        "Expected 13 outputs (all dtypes + bool)"
+    );
 
     // Verify type diversity
     let input_types = get_input_dtypes(&graph);
@@ -70,8 +79,8 @@ fn test_multiple_data_types() {
 
     println!("Unique data types: {}", unique_types.len());
     assert!(
-        unique_types.len() >= 3,
-        "Should have multiple data types (F32, F64, I32, I64)"
+        unique_types.len() >= 10,
+        "Should have all supported numeric data types"
     );
 }
 

@@ -254,6 +254,9 @@ impl OnnxGraphBuilder {
     ) -> Result<OnnxGraph, Error> {
         let path_str = source_path.map(|p| p.display().to_string());
 
+        // Get the base directory for external data resolution
+        let base_path = source_path.and_then(|p| p.parent());
+
         let model: ModelProto =
             Message::parse_from_tokio_bytes(&buffer).map_err(|e| Error::InvalidFormat {
                 path: path_str.clone(),
@@ -282,7 +285,7 @@ impl OnnxGraphBuilder {
             });
         }
 
-        let graph = build_graph(&model)?;
+        let graph = build_graph_with_base_path(&model, base_path)?;
 
         if let Some(path) = path_str {
             log::info!("Finished parsing ONNX file: {}", path);
@@ -301,9 +304,27 @@ impl OnnxGraphBuilder {
 /// Returns an error if:
 /// - Missing opset version for default domain
 /// - Type inference fails
+#[allow(dead_code)]
 pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, Error> {
+    build_graph_with_base_path(model, None)
+}
+
+/// Build IR graph from ONNX model with base path for external data support
+///
+/// The `base_path` is the directory containing the ONNX file, used for resolving
+/// external tensor data paths (for models >2GB).
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Missing opset version for default domain
+/// - Type inference fails
+pub fn build_graph_with_base_path(
+    model: &ModelProto,
+    base_path: Option<&Path>,
+) -> Result<OnnxGraph, Error> {
     let opset_version = extract_opset_version(model)?;
-    build_graph_from_proto(&model.graph, opset_version)
+    build_graph_from_proto_with_base_path(&model.graph, opset_version, base_path)
 }
 
 /// Build IR graph from ONNX GraphProto (for subgraphs)
@@ -311,11 +332,25 @@ pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, Error> {
 /// # Errors
 ///
 /// Returns an error if node conversion or type inference fails
+#[allow(dead_code)]
 pub fn build_graph_from_proto(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
 ) -> Result<OnnxGraph, Error> {
-    build_graph_from_proto_with_registry(graph, opset_version, None)
+    build_graph_from_proto_with_base_path(graph, opset_version, None)
+}
+
+/// Build IR graph from ONNX GraphProto with base path for external data
+///
+/// # Errors
+///
+/// Returns an error if node conversion or type inference fails
+pub fn build_graph_from_proto_with_base_path(
+    graph: &crate::protos::GraphProto,
+    opset_version: usize,
+    base_path: Option<&Path>,
+) -> Result<OnnxGraph, Error> {
+    build_graph_from_proto_with_registry(graph, opset_version, None, base_path)
 }
 
 /// Build IR graph with shared name registry (for sibling subgraphs)
@@ -327,8 +362,10 @@ pub fn build_graph_from_proto_with_registry(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
+    base_path: Option<&Path>,
 ) -> Result<OnnxGraph, Error> {
-    let graph_builder = build_graph_builder_from_proto(graph, opset_version, name_registry)?;
+    let graph_builder =
+        build_graph_builder_from_proto(graph, opset_version, name_registry, base_path)?;
 
     log::debug!(" PHASE 6: Node Conversion (RawNode -> Node) ");
     Ok(graph_builder.convert_to_graph(opset_version))
@@ -346,12 +383,14 @@ pub(crate) fn build_graph_builder_from_proto(
     graph: &crate::protos::GraphProto,
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
+    base_path: Option<&Path>,
 ) -> Result<crate::ir::OnnxGraphBuilder, Error> {
     build_graph_builder_from_proto_with_outer_scope(
         graph,
         opset_version,
         name_registry,
         crate::ir::OuterScopeTypes::new(),
+        base_path,
     )
 }
 
@@ -361,6 +400,9 @@ pub(crate) fn build_graph_builder_from_proto(
 /// The `outer_scope` map provides types for values that the subgraph references
 /// but doesn't define internally.
 ///
+/// The `base_path` is the directory containing the ONNX file, used for resolving
+/// external tensor data paths (for models >2GB).
+///
 /// # Errors
 ///
 /// Returns an error if node conversion or type inference fails
@@ -369,12 +411,14 @@ pub(crate) fn build_graph_builder_from_proto_with_outer_scope(
     opset_version: usize,
     name_registry: Option<crate::graph_state::NameRegistry>,
     outer_scope: crate::ir::OuterScopeTypes,
+    base_path: Option<&Path>,
 ) -> Result<crate::ir::OnnxGraphBuilder, Error> {
     log::debug!(" PHASE 1: Initialization ");
     let state_rc = initialization::initialize_from_graph_with_registry_and_outer_scope(
         graph,
         name_registry,
         outer_scope,
+        base_path,
     );
 
     log::debug!(" PHASE 2: Node Conversion (Proto -> RawNode) ");

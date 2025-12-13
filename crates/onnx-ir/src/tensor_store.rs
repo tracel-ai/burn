@@ -3,36 +3,83 @@
 //! This module provides tensor data storage that enables zero-copy parsing
 //! from memory-mapped ONNX files. Tensor data is stored as raw bytes references
 //! and only converted to `TensorData` when accessed.
+//!
+//! Supports both embedded data (in the ONNX protobuf) and external data
+//! (stored in separate files for models >2GB).
 
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use burn_tensor::DType;
 
 use crate::ir::{DataId, TensorData};
 
-/// A reference to tensor data via cheaply cloneable `bytes::Bytes`.
+/// Source of tensor data - either embedded in protobuf or stored externally
+#[derive(Debug, Clone)]
+pub enum TensorDataSource {
+    /// Embedded data: raw bytes already in memory (mmap'd or copied from protobuf)
+    Embedded(bytes::Bytes),
+
+    /// External data: load lazily from file when needed
+    /// Used for large models (>2GB) that store weights in separate files
+    External {
+        /// Absolute path to external data file
+        file_path: PathBuf,
+        /// Byte offset within the file
+        offset: u64,
+        /// Number of bytes to read
+        length: u64,
+    },
+}
+
+/// A reference to tensor data that may be embedded or external.
 ///
-/// This enables zero-copy parsing from mmap'd ONNX files - the raw bytes
-/// reference the mmap'd buffer directly, and copying only happens when
-/// the tensor data is actually accessed via `to_tensor_data()`.
+/// This enables:
+/// - Zero-copy parsing from mmap'd ONNX files (embedded data)
+/// - Lazy loading of external tensor data (for models >2GB)
+///
+/// Data is only materialized when `to_tensor_data()` is called, at which point:
+/// - Embedded: bytes are copied to aligned heap memory
+/// - External: file is read (or mmap'd) and bytes are copied
 #[derive(Debug, Clone)]
 pub struct TensorDataRef {
-    /// Raw bytes from protobuf (zero-copy slice of mmap'd buffer)
-    raw_bytes: bytes::Bytes,
     /// Shape of the tensor
     shape: Vec<usize>,
     /// Data type of elements
     dtype: DType,
+    /// Where the actual bytes come from
+    source: TensorDataSource,
 }
 
 impl TensorDataRef {
-    /// Create new tensor data reference from raw bytes
+    /// Create new tensor data reference from embedded raw bytes
     pub fn new(raw_bytes: bytes::Bytes, shape: Vec<usize>, dtype: DType) -> Self {
         Self {
-            raw_bytes,
             shape,
             dtype,
+            source: TensorDataSource::Embedded(raw_bytes),
+        }
+    }
+
+    /// Create new tensor data reference from external file location
+    pub fn new_external(
+        file_path: PathBuf,
+        offset: u64,
+        length: u64,
+        shape: Vec<usize>,
+        dtype: DType,
+    ) -> Self {
+        Self {
+            shape,
+            dtype,
+            source: TensorDataSource::External {
+                file_path,
+                offset,
+                length,
+            },
         }
     }
 
@@ -46,14 +93,106 @@ impl TensorDataRef {
         self.dtype
     }
 
-    /// Get the tensor data, copying bytes to an aligned buffer.
+    /// Get the tensor data, loading from source and copying to an aligned buffer.
     ///
-    /// This is the point where data is copied from the mmap'd buffer
-    /// to heap memory. This copy is necessary for correctness: mmap'd buffers may not
+    /// For embedded data: copies from mmap'd buffer to heap memory.
+    /// For external data: reads from file (with optional mmap) and copies to heap.
+    ///
+    /// This copy is necessary for correctness: mmap'd buffers may not
     /// have proper alignment for multi-byte types (e.g., f32, i64), so copying to a
     /// heap-allocated Vec<u8> ensures alignment for safe typed access.
     pub fn to_tensor_data(&self) -> TensorData {
-        TensorData::from_bytes_vec(self.raw_bytes.to_vec(), self.shape.clone(), self.dtype)
+        let bytes = match &self.source {
+            TensorDataSource::Embedded(raw_bytes) => raw_bytes.to_vec(),
+            TensorDataSource::External {
+                file_path,
+                offset,
+                length,
+            } => Self::load_external_data(file_path, *offset, *length),
+        };
+        TensorData::from_bytes_vec(bytes, self.shape.clone(), self.dtype)
+    }
+
+    /// Load tensor data from an external file
+    ///
+    /// Uses mmap when the feature is enabled, otherwise falls back to standard file I/O.
+    fn load_external_data(file_path: &PathBuf, offset: u64, length: u64) -> Vec<u8> {
+        #[cfg(feature = "mmap")]
+        {
+            if let Ok(data) = Self::load_external_mmap(file_path, offset, length) {
+                return data;
+            }
+            // Fall through to standard I/O on mmap failure
+            log::debug!(
+                "mmap failed for {}, falling back to standard I/O",
+                file_path.display()
+            );
+        }
+
+        // Standard file I/O fallback
+        Self::load_external_read(file_path, offset, length)
+    }
+
+    /// Load external data using memory mapping (zero-copy until we need aligned buffer)
+    #[cfg(feature = "mmap")]
+    fn load_external_mmap(
+        file_path: &PathBuf,
+        offset: u64,
+        length: u64,
+    ) -> std::io::Result<Vec<u8>> {
+        let file = File::open(file_path)?;
+
+        // SAFETY: We're mapping a read-only file
+        let mmap = unsafe { memmap2::Mmap::map(&file)? };
+
+        let start = offset as usize;
+        let end = start + length as usize;
+
+        if end > mmap.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "External data range {}..{} exceeds file size {}",
+                    start,
+                    end,
+                    mmap.len()
+                ),
+            ));
+        }
+
+        Ok(mmap[start..end].to_vec())
+    }
+
+    /// Load external data using standard file I/O
+    fn load_external_read(file_path: &PathBuf, offset: u64, length: u64) -> Vec<u8> {
+        let mut file = File::open(file_path).unwrap_or_else(|e| {
+            panic!(
+                "Failed to open external data file '{}': {}",
+                file_path.display(),
+                e
+            )
+        });
+
+        file.seek(SeekFrom::Start(offset)).unwrap_or_else(|e| {
+            panic!(
+                "Failed to seek to offset {} in '{}': {}",
+                offset,
+                file_path.display(),
+                e
+            )
+        });
+
+        let mut buffer = vec![0u8; length as usize];
+        file.read_exact(&mut buffer).unwrap_or_else(|e| {
+            panic!(
+                "Failed to read {} bytes from '{}': {}",
+                length,
+                file_path.display(),
+                e
+            )
+        });
+
+        buffer
     }
 }
 
@@ -67,9 +206,9 @@ impl From<TensorData> for TensorDataRef {
         // burn_tensor::Bytes implements Deref<[u8]>, so we can copy to bytes::Bytes
         let raw_bytes = bytes::Bytes::copy_from_slice(&tensor_data.bytes);
         Self {
-            raw_bytes,
             shape: tensor_data.shape,
             dtype: tensor_data.dtype,
+            source: TensorDataSource::Embedded(raw_bytes),
         }
     }
 }
