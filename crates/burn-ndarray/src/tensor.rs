@@ -307,7 +307,7 @@ macro_rules! cat_with_dtype {
                             // Use storage.view() for zero-copy access
                             storage.view()
                         } else {
-                            panic!("Concatenate data type mismatch (expected f32, got f64)")
+                            panic!("Concatenate data type mismatch (expected {:?}, got {:?})", $tensors[0].dtype(), t.dtype())
                         }
                     })
                     .collect::<Vec<_>>();
