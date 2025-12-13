@@ -2,8 +2,21 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use crate::Shape;
+use crate::tensor::quantization::{
+    QPARAM_ALIGN, QuantParam, QuantScheme, QuantStore, QuantValue, params_shape,
+};
 use crate::{bf16, f16};
+
+/// Returns the byte size of a quantization parameter type.
+// TODO: Add `size_bytes()` method to `QuantParam` in cubecl and use it here.
+const fn quant_param_size(param: QuantParam) -> usize {
+    match param {
+        QuantParam::F32 => core::mem::size_of::<f32>(),
+        QuantParam::F16 | QuantParam::BF16 => core::mem::size_of::<f16>(),
+        QuantParam::UE8M0 | QuantParam::UE4M3 => core::mem::size_of::<u8>(),
+    }
+}
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +151,39 @@ impl DType {
             DType::QFloat(_) => "qfloat",
         }
     }
+
+    /// Returns the total byte size for tensor data with the given shape.
+    ///
+    /// For regular (non-quantized) types, this is simply `shape.product() * self.size()`.
+    ///
+    /// For quantized types (`QFloat`), this accounts for:
+    /// - The quantized values (packed according to the quantization scheme)
+    /// - Alignment padding (values are aligned to 4-byte boundary)
+    /// - Quantization parameters (scale values appended to the data)
+    pub fn data_bytes(&self, shape: &[usize]) -> usize {
+        const BITS_PER_BYTE: usize = 8;
+
+        let num_elements: usize = shape.iter().product();
+
+        match self {
+            DType::QFloat(scheme) => {
+                // Calculate value bytes using scheme's packing information
+                let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
+                let value_bytes =
+                    num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
+
+                // Calculate number of quantization parameters (scales)
+                let num_params =
+                    params_shape(&Shape::from(shape.to_vec()), scheme.level).num_elements();
+
+                let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
+                let scale_bytes = num_params * quant_param_size(scheme.param);
+
+                aligned_value_bytes + scale_bytes
+            }
+            _ => num_elements * self.size(),
+        }
+    }
 }
 
 #[allow(missing_docs)]
@@ -216,5 +262,123 @@ impl From<IntDType> for DType {
             IntDType::U16 => DType::U16,
             IntDType::U8 => DType::U8,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tensor::quantization::QuantLevel;
+
+    #[test]
+    fn test_data_bytes_regular_types() {
+        // Test that data_bytes returns shape.product() * size() for regular types
+        let shape = &[2, 3, 4]; // 24 elements
+
+        assert_eq!(DType::F64.data_bytes(shape), 24 * 8);
+        assert_eq!(DType::F32.data_bytes(shape), 24 * 4);
+        assert_eq!(DType::F16.data_bytes(shape), 24 * 2);
+        assert_eq!(DType::BF16.data_bytes(shape), 24 * 2);
+        assert_eq!(DType::I64.data_bytes(shape), 24 * 8);
+        assert_eq!(DType::I32.data_bytes(shape), 24 * 4);
+        assert_eq!(DType::I16.data_bytes(shape), 24 * 2);
+        assert_eq!(DType::I8.data_bytes(shape), 24 * 1);
+        assert_eq!(DType::U64.data_bytes(shape), 24 * 8);
+        assert_eq!(DType::U32.data_bytes(shape), 24 * 4);
+        assert_eq!(DType::U16.data_bytes(shape), 24 * 2);
+        assert_eq!(DType::U8.data_bytes(shape), 24 * 1);
+        assert_eq!(DType::Bool.data_bytes(shape), 24 * 1);
+    }
+
+    #[test]
+    fn test_data_bytes_quantized_tensor_level() {
+        use crate::tensor::quantization::QuantParam;
+
+        // Q8S with tensor-level quantization
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_level(QuantLevel::Tensor)
+            .with_param(QuantParam::F32);
+        let dtype = DType::QFloat(scheme);
+
+        // Shape [512, 512] = 262144 elements
+        // Values: 262144 bytes (1 byte per Q8S element)
+        // Aligned: 262144 (already aligned to 4)
+        // Scale: 4 bytes (1 f32 for tensor-level)
+        // Total: 262144 + 4 = 262148
+        let shape = &[512, 512];
+        assert_eq!(dtype.data_bytes(shape), 262148);
+
+        // Shape [5] = 5 elements
+        // Values: 5 bytes
+        // Aligned: 8 bytes (5 rounded up to multiple of 4)
+        // Scale: 4 bytes
+        // Total: 8 + 4 = 12
+        let shape = &[5];
+        assert_eq!(dtype.data_bytes(shape), 12);
+    }
+
+    #[test]
+    fn test_data_bytes_quantized_block_level() {
+        use crate::tensor::quantization::QuantParam;
+
+        // Q8S with block-level quantization (block size 32)
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_level(QuantLevel::block([32]))
+            .with_param(QuantParam::F32);
+        let dtype = DType::QFloat(scheme);
+
+        // Shape [128, 128] = 16384 elements
+        // Values: 16384 bytes (1 byte per Q8S element)
+        // Aligned: 16384 (already aligned to 4)
+        // Block size [32] expands to [32, 1] for 2D tensor (last dim is 1)
+        // Num blocks: ceil(128/32) * ceil(128/1) = 4 * 128 = 512
+        // Scale: 512 * 4 = 2048 bytes
+        // Total: 16384 + 2048 = 18432
+        let shape = &[128, 128];
+        assert_eq!(dtype.data_bytes(shape), 18432);
+
+        // 1D tensor with block size [32]
+        // Shape [128] = 128 elements
+        // Values: 128 bytes
+        // Aligned: 128 (already aligned)
+        // Block size [32] => [32] for 1D
+        // Num blocks: ceil(128/32) = 4
+        // Scale: 4 * 4 = 16 bytes
+        // Total: 128 + 16 = 144
+        let shape = &[128];
+        assert_eq!(dtype.data_bytes(shape), 144);
+    }
+
+    #[test]
+    fn test_data_bytes_quantized_u32_store() {
+        use crate::tensor::quantization::QuantParam;
+
+        // Q8S with U32 store (values packed 4 per u32)
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::U32)
+            .with_level(QuantLevel::Tensor)
+            .with_param(QuantParam::F32);
+        let dtype = DType::QFloat(scheme);
+
+        // Shape [16] = 16 elements
+        // Values: 16 elements / 4 per u32 = 4 u32s = 16 bytes
+        // Aligned: 16 bytes (already aligned)
+        // Scale: 4 bytes
+        // Total: 16 + 4 = 20
+        let shape = &[16];
+        assert_eq!(dtype.data_bytes(shape), 20);
+
+        // Shape [17] = 17 elements
+        // Values: ceil(17/4) = 5 u32s = 20 bytes
+        // Aligned: 20 bytes
+        // Scale: 4 bytes
+        // Total: 20 + 4 = 24
+        let shape = &[17];
+        assert_eq!(dtype.data_bytes(shape), 24);
     }
 }

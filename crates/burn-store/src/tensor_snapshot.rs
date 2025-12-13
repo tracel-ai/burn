@@ -226,9 +226,12 @@ impl TensorSnapshot {
         }
     }
 
-    /// Get the size of the tensor data in bytes without materializing it
+    /// Get the size of the tensor data in bytes without materializing it.
+    ///
+    /// For quantized tensors, this includes both the quantized values and the
+    /// quantization parameters (scale, etc.) that are appended to the data.
     pub fn data_len(&self) -> usize {
-        self.shape.iter().product::<usize>() * self.dtype.size()
+        self.dtype.data_bytes(&self.shape)
     }
 
     /// Clone the data function for lazy composition
