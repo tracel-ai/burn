@@ -1,5 +1,5 @@
+use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
-use burn_tensor::ops::ConvOptions;
 use cubecl::{
     ir::StorageType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},

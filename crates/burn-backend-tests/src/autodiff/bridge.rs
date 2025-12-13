@@ -19,8 +19,8 @@ fn test_full_precision() {
 
     let mut grads = x7.backward();
 
-    let x1_grad = x1.grad(&mut grads);
-    let x2_grad = x2.grad(&mut grads);
+    let x1_grad = x1.grad(&grads);
+    let x2_grad = x2.grad(&grads);
 
     assert!(x1_grad.is_some());
     assert!(x2_grad.is_some());

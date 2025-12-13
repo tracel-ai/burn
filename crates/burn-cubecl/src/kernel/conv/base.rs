@@ -1,4 +1,5 @@
 use burn_backend::ops::ConvOptions;
+use burn_std::Shape;
 use cubek::{convolution::components::ConvSetupError, matmul::AcceleratedTileKind};
 
 #[cfg(feature = "autotune")]

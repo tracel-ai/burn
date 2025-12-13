@@ -2333,7 +2333,6 @@ dependencies = [
  "cubecl-common",
  "cubek-random",
  "cubek-reduce",
- "cubek-std",
  "half",
  "serde",
 ]
@@ -2369,18 +2368,6 @@ dependencies = [
  "num-traits",
  "serde",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "cubek-std"
-version = "0.0.1"
-dependencies = [
- "bytemuck",
- "cubecl",
- "cubecl-common",
- "cubek-random",
- "half",
- "serde",
 ]
 
 [[package]]

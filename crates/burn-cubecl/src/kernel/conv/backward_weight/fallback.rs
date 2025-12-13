@@ -1,5 +1,5 @@
+use burn_backend::{TensorMetadata, ops::ConvOptions};
 use burn_std::{Shape, Slice};
-use burn_tensor::{TensorMetadata, ops::ConvOptions};
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{

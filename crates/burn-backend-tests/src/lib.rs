@@ -1,3 +1,5 @@
+#![allow(clippy::bool_assert_comparison, reason = "more clear")]
+
 extern crate alloc;
 
 #[cfg(feature = "std")]

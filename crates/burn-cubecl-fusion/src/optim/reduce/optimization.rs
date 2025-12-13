@@ -15,16 +15,18 @@ use crate::{
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
-use cubecl::{CubeCount, CubeDim, Runtime, client::ComputeClient, ir::StorageType, prelude::*};
+use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*};
+use cubek::reduce::ReduceDtypes;
+use cubek::reduce::routines::cube::CubeRoutine;
+use cubek::reduce::routines::plane::PlaneRoutine;
+use cubek::reduce::routines::unit::UnitRoutine;
+use cubek::reduce::routines::{ReduceLaunchSettings, ReduceLineSettings, ReduceProblem, Routine};
 use cubek::reduce::{
-    BoundChecksInner, LineMode, ReduceError,
+    LineMode, ReduceError,
     components::instructions::ReduceOperationConfig,
     init_tensors,
-    launch::{ReduceLaunchInfo, ReduceStrategy},
-    routines::{
-        CubeReduceBlueprint, GlobalReduceBlueprint, PlaneReduceBlueprint, ReduceBlueprint,
-        ReduceBlueprintKind, reduce_kernel_virtual,
-    },
+    launch::{ReduceStrategy, reduce_kernel_virtual},
+    routines::ReduceBlueprint,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -107,6 +109,12 @@ pub enum FusedReduceError {
     Reduce(ReduceError),
     InvalidSelection(Box<&'static str>),
     InvalidInput,
+}
+
+impl From<ReduceError> for FusedReduceError {
+    fn from(value: ReduceError) -> Self {
+        Self::Reduce(value)
+    }
 }
 
 impl<R: Runtime> ReduceOptimizationTuneArg<R> {
@@ -258,11 +266,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
-        self.strategy
-            .validate(client)
-            .map_err(FusedReduceError::Reduce)?;
-
-        let strategy = self.strategy;
         let shape = match &config_read.ref_layout {
             RefLayout::Concrete(FuseArg::Output(..)) => {
                 outputs.shape_ref(&config_read.ref_layout, config_read.rank as usize)
@@ -280,40 +283,48 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             false => LineMode::Perpendicular,
         };
 
-        let launch_info = ReduceLaunchInfo {
-            cube_count: CubeCount::new_single(),
-            cube_dim: CubeDim::new_single(),
+        let settings = ReduceLineSettings {
             line_mode,
-            line_size_input: config_read.width as u32,
-            line_size_output: config_write.width as u32,
-            bound_checks: false,
-            bound_checks_inner: if strategy.use_planes {
-                BoundChecksInner::Branch
-            } else {
-                BoundChecksInner::Mask
+            line_size_input: config_read.width,
+            line_size_output: config_write.width,
+        };
+        let problem = ReduceProblem {
+            vector_size: shape[self.reduce.axis] as u32,
+            vector_count: reduce_count,
+            axis: self.reduce.axis as u32,
+            dtypes: ReduceDtypes {
+                input: self.reduce.op.input.dtype.into(),
+                output: self.reduce.op.out.dtype.into(),
+                accumulation: self.reduce.acc.into_elem().into(),
             },
-        }
-        .generate_cube_dim(client, strategy.use_planes)
-        .generate_cube_count::<R>(reduce_count, &strategy);
+        };
 
-        if let CubeCount::Static(x, y, z) = launch_info.cube_count {
-            let (max_x, max_y, max_z) = R::max_cube_count();
-            if x > max_x || y > max_y || z > max_z {
-                return Err(FusedReduceError::Reduce(ReduceError::CubeCountTooLarge));
+        let (blueprint, settings) = match self.strategy.clone() {
+            ReduceStrategy::FullUnit(strategy) => {
+                let routine = UnitRoutine;
+                routine.prepare(client, problem, settings, strategy)?
             }
-        }
+            ReduceStrategy::FullPlane(strategy) => {
+                let routine = PlaneRoutine;
+                routine.prepare(client, problem, settings, strategy)?
+            }
+            ReduceStrategy::FullCube(strategy) => {
+                let routine = CubeRoutine;
+                routine.prepare(client, problem, settings, strategy)?
+            }
+        };
 
         let kwargs = ReduceKwArgs {
             client,
             inputs,
             outputs,
             axis: self.reduce.axis as u32,
-            strategy: &strategy,
-            info: launch_info,
             config_fuse_read: config_read.clone(),
             config_fuse_write: config_write.clone(),
             input: self.reduce.input.clone(),
             output: self.reduce.output.clone(),
+            blueprint,
+            settings,
         };
         let result = launch_reduce_mixed_precision(
             kwargs,
@@ -335,8 +346,8 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     inputs: GlobalArgsLaunch<'a, Run>,
     outputs: GlobalArgsLaunch<'a, Run>,
     axis: u32,
-    strategy: &'b ReduceStrategy,
-    info: ReduceLaunchInfo,
+    blueprint: ReduceBlueprint,
+    settings: ReduceLaunchSettings,
     config_fuse_read: FuseBlockConfig,
     config_fuse_write: FuseBlockConfig,
     input: FuseArg,
@@ -370,38 +381,15 @@ fn launch_reduce<Run: Runtime>(
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
-    let kind = match (kwargs.strategy.shared, kwargs.strategy.use_planes) {
-        (true, true) => GlobalReduceBlueprint::Cube(CubeReduceBlueprint {
-            accumulator_size: kwargs.info.cube_dim.y,
-            bound_checks_inner: kwargs.info.bound_checks_inner,
-            use_planes: true,
-        }),
-        (true, false) => ReduceBlueprintKind::Cube(CubeReduceBlueprint {
-            accumulator_size: kwargs.info.cube_dim.num_elems(),
-            bound_checks_inner: kwargs.info.bound_checks_inner,
-            use_planes: false,
-        }),
-        (false, true) => ReduceBlueprintKind::Plane(PlaneReduceBlueprint {
-            bound_checks_inner: kwargs.info.bound_checks_inner,
-        }),
-        (false, false) => ReduceBlueprintKind::Unit,
-    };
-
-    let blueprint = ReduceBlueprint {
-        line_mode: kwargs.info.line_mode,
-        bound_checks: kwargs.info.bound_checks,
-        kind,
-    };
-
     unsafe {
         reduce_kernel::launch_unchecked::<Run>(
             kwargs.client,
-            kwargs.info.cube_count,
-            kwargs.info.cube_dim,
+            kwargs.settings.cube_count,
+            kwargs.settings.cube_dim,
             FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
             ScalarArg::new(kwargs.axis),
-            blueprint,
+            kwargs.blueprint,
             inst,
             dtype_input.into(),
             dtype_output.into(),

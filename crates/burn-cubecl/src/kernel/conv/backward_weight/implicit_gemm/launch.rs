@@ -1,5 +1,5 @@
+use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
-use burn_tensor::ops::ConvOptions;
 use cubek::{
     convolution::{ConvolutionArgs, Strategy, backward_weight, components::ConvSetupError},
     matmul::{
