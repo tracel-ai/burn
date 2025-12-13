@@ -17,7 +17,7 @@ fn test_full_precision() {
     let x6 = x5.cast(dtype);
     let x7 = x6 * x1.clone() / x2.clone();
 
-    let mut grads = x7.backward();
+    let grads = x7.backward();
 
     let x1_grad = x1.grad(&grads);
     let x2_grad = x2.grad(&grads);

@@ -10,11 +10,9 @@ fn test_split_evenly_divisible() {
     let split_tensors = tensors.split(2, 0);
     assert_eq!(split_tensors.len(), 3);
 
-    let expected = vec![
-        TensorData::from([[0, 1], [2, 3]]),
+    let expected = [TensorData::from([[0, 1], [2, 3]]),
         TensorData::from([[4, 5], [6, 7]]),
-        TensorData::from([[8, 9], [10, 11]]),
-    ];
+        TensorData::from([[8, 9], [10, 11]])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -29,11 +27,9 @@ fn test_split_not_evenly_divisible() {
     let split_tensors = tensors.split(2, 0);
     assert_eq!(split_tensors.len(), 3);
 
-    let expected = vec![
-        TensorData::from([[0, 1], [2, 3]]),
+    let expected = [TensorData::from([[0, 1], [2, 3]]),
         TensorData::from([[4, 5], [6, 7]]),
-        TensorData::from([[8, 9]]),
-    ];
+        TensorData::from([[8, 9]])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -48,10 +44,8 @@ fn test_split_along_dim1() {
     let split_tensors = tensors.split(2, 1);
     assert_eq!(split_tensors.len(), 2);
 
-    let expected = vec![
-        TensorData::from([[0, 1], [3, 4]]),
-        TensorData::from([[2], [5]]),
-    ];
+    let expected = [TensorData::from([[0, 1], [3, 4]]),
+        TensorData::from([[2], [5]])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -66,7 +60,7 @@ fn test_split_split_size_larger_than_tensor_size() {
     let split_tensors = tensors.split(10, 0);
     assert_eq!(split_tensors.len(), 1);
 
-    let expected = vec![TensorData::from([0, 1, 2, 3, 4])];
+    let expected = [TensorData::from([0, 1, 2, 3, 4])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -129,10 +123,8 @@ fn test_split_3d_tensor_along_dim0() {
     let split_tensors = tensors.split(2, 0);
     assert_eq!(split_tensors.len(), 2);
 
-    let expected = vec![
-        TensorData::from([[[0, 1], [2, 3]], [[4, 5], [6, 7]]]),
-        TensorData::from([[[8, 9], [10, 11]], [[12, 13], [14, 15]]]),
-    ];
+    let expected = [TensorData::from([[[0, 1], [2, 3]], [[4, 5], [6, 7]]]),
+        TensorData::from([[[8, 9], [10, 11]], [[12, 13], [14, 15]]])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -150,10 +142,8 @@ fn test_split_3d_tensor_along_dim1() {
     let split_tensors = tensors.split(2, 1);
     assert_eq!(split_tensors.len(), 2);
 
-    let expected = vec![
-        TensorData::from([[[0, 1], [2, 3]], [[6, 7], [8, 9]]]),
-        TensorData::from([[[4, 5]], [[10, 11]]]),
-    ];
+    let expected = [TensorData::from([[[0, 1], [2, 3]], [[6, 7], [8, 9]]]),
+        TensorData::from([[[4, 5]], [[10, 11]]])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -168,11 +158,9 @@ fn test_split_with_sizes() {
     let split_tensors = tensors.split_with_sizes(vec![2, 3, 1], 0);
     assert_eq!(split_tensors.len(), 3);
 
-    let expected = vec![
-        TensorData::from([0, 1]),
+    let expected = [TensorData::from([0, 1]),
         TensorData::from([2, 3, 4]),
-        TensorData::from([5]),
-    ];
+        TensorData::from([5])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);
@@ -198,7 +186,7 @@ fn test_split_with_sizes_zero_length() {
     let split_tensors = tensors.split_with_sizes(vec![0, 1, 2], 0);
     assert_eq!(split_tensors.len(), 2);
 
-    let expected = vec![TensorData::from([0]), TensorData::from([1, 2])];
+    let expected = [TensorData::from([0]), TensorData::from([1, 2])];
 
     for (index, tensor) in split_tensors.iter().enumerate() {
         tensor.to_data().assert_eq(&expected[index], false);

@@ -279,7 +279,8 @@ fn test_float_matmul_vecmat_transposed_fused() {
     let d_model = 32;
 
     // Guard int arange limits
-    if (IntElem::MAX as i64) < seq_length * d_model * batch {
+    #[allow(clippy::absurd_extreme_comparisons)]
+    if IntElem::MAX < seq_length * d_model * batch {
         return;
     }
     if FloatElem::MAX.elem::<f64>() < 269493.0 {

@@ -226,7 +226,7 @@ fn test_iter_dim_double_end() {
 
 #[test]
 fn test_iter_dim_single_element() {
-    let input = TestTensorInt::<1>::arange(0..(4 * 1 * 3), &Default::default()).reshape([4, 1, 3]);
+    let input = TestTensorInt::<1>::arange(0..(4 * 3), &Default::default()).reshape([4, 1, 3]);
 
     let mut iter = input.clone().iter_dim(1);
     iter.next()

@@ -58,7 +58,7 @@ fn test_nonzero_2d() {
         .into_iter()
         .map(|t| t.into_data())
         .collect::<Vec<_>>();
-    let data_expected = vec![TensorData::from([1, 2, 2]), TensorData::from([1, 0, 1])];
+    let data_expected = [TensorData::from([1, 2, 2]), TensorData::from([1, 0, 1])];
 
     assert_eq!(data_actual.len(), 2);
     for (idx, actual) in data_actual.iter().enumerate() {
@@ -78,11 +78,9 @@ fn test_nonzero_3d() {
         .into_iter()
         .map(|t| t.into_data())
         .collect::<Vec<_>>();
-    let data_expected = vec![
-        TensorData::from([0, 1, 1, 1, 1]),
+    let data_expected = [TensorData::from([0, 1, 1, 1, 1]),
         TensorData::from([1, 0, 0, 1, 1]),
-        TensorData::from([1, 0, 2, 0, 1]),
-    ];
+        TensorData::from([1, 0, 2, 0, 1])];
 
     assert_eq!(data_actual.len(), 3);
     for (idx, actual) in data_actual.iter().enumerate() {

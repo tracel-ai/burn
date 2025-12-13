@@ -319,7 +319,7 @@ mod store_only {
                 // Just iterate through all tensor snapshots, calling to_data() on each
                 // This forces the store to read and materialize all tensor data
                 let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
-                for (_, snapshot) in snapshots {
+                for snapshot in snapshots.values() {
                     let _data = snapshot.to_data().expect("Failed to get tensor data");
                 }
             });
@@ -336,7 +336,7 @@ mod store_only {
             .bench(|| {
                 let mut store = BurnpackStore::from_file(&bp_path).zero_copy(true);
                 let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
-                for (_, snapshot) in snapshots {
+                for snapshot in snapshots.values() {
                     let _data = snapshot.to_data().expect("Failed to get tensor data");
                 }
             });
@@ -355,7 +355,7 @@ mod store_only {
                 let bytes = Bytes::from_bytes_vec(static_bytes.to_vec());
                 let mut store = BurnpackStore::from_bytes(Some(bytes)).zero_copy(false);
                 let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
-                for (_, snapshot) in snapshots {
+                for snapshot in snapshots.values() {
                     let _data = snapshot.to_data().expect("Failed to get tensor data");
                 }
             });
@@ -372,7 +372,7 @@ mod store_only {
             .bench(|| {
                 let mut store = BurnpackStore::from_static(static_bytes);
                 let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
-                for (_, snapshot) in snapshots {
+                for snapshot in snapshots.values() {
                     let _data = snapshot.to_data().expect("Failed to get tensor data");
                 }
             });
