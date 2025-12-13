@@ -468,7 +468,8 @@ mod utils {
                         $(NdArrayTensor::$variant(storage) => {
                             match storage {
                                 NdArrayStorage::Borrowed { .. } => {
-                                    // Borrowed data from TensorData is always contiguous
+                                    // Borrowed storage requires contiguous row-major data
+                                    // (see NdArrayStorage::from_borrowed documentation)
                                     true
                                 }
                                 NdArrayStorage::Owned(array) => {

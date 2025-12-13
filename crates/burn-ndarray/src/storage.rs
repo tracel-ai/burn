@@ -67,11 +67,17 @@ impl<E: Element> Clone for NdArrayStorage<E> {
 impl<E: Element> NdArrayStorage<E> {
     /// Create borrowed storage from external bytes.
     ///
-    /// Returns `None` if the data is not properly aligned for type `E`.
+    /// Returns `None` if the data is not properly aligned for type `E` or if
+    /// the bytes are too small for the requested shape.
     ///
-    /// # Safety Requirements
+    /// # Requirements
     ///
-    /// The `Bytes` must contain valid data for the element type and shape.
+    /// The caller must ensure that:
+    /// - The `Bytes` contain valid data for the element type `E`
+    /// - The data is contiguous in row-major (C) order matching the provided shape
+    ///
+    /// These requirements are upheld when loading from `TensorData` (burnpack, etc.)
+    /// which always stores data contiguously in row-major order.
     pub fn from_borrowed(bytes: Bytes, shape: Vec<usize>) -> Option<Self> {
         // Validate alignment
         let ptr = bytes.as_ptr();
