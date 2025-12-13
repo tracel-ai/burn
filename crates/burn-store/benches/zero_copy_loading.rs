@@ -362,8 +362,14 @@ mod verification {
         }
 
         let total_mb = (total_elements * 4) as f64 / 1_048_576.0;
-        println!("✅ Verified: All {} layers use borrowed storage", model.layers.len());
-        println!("   - Model size: {:.2} MB - all pointing to static region", total_mb);
+        println!(
+            "✅ Verified: All {} layers use borrowed storage",
+            model.layers.len()
+        );
+        println!(
+            "   - Model size: {:.2} MB - all pointing to static region",
+            total_mb
+        );
     }
 
     /// Verify data is readable and correct using sum().into_scalar().
