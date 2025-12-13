@@ -67,8 +67,8 @@ impl<E: Element> Clone for NdArrayStorage<E> {
 impl<E: Element> NdArrayStorage<E> {
     /// Create borrowed storage from external bytes.
     ///
-    /// Returns `None` if the data is not properly aligned for type `E` or if
-    /// the bytes are too small for the requested shape.
+    /// Returns the bytes and shape back on failure (misaligned or too small),
+    /// enabling zero-copy even for native allocations by avoiding defensive cloning.
     ///
     /// # Requirements
     ///
@@ -78,23 +78,30 @@ impl<E: Element> NdArrayStorage<E> {
     ///
     /// These requirements are upheld when loading from `TensorData` (burnpack, etc.)
     /// which always stores data contiguously in row-major order.
-    pub fn from_borrowed(bytes: Bytes, shape: Vec<usize>) -> Option<Self> {
+    pub fn from_borrowed(bytes: Bytes, shape: Vec<usize>) -> Result<Self, (Bytes, Vec<usize>)> {
         // Validate alignment
         let ptr = bytes.as_ptr();
         if !(ptr as usize).is_multiple_of(mem::align_of::<E>()) {
-            return None;
+            return Err((bytes, shape));
         }
 
         // Validate size (using checked arithmetic to prevent overflow)
-        let num_elements = shape
+        let num_elements = match shape
             .iter()
-            .try_fold(1usize, |acc, &dim| acc.checked_mul(dim))?;
-        let expected_size = num_elements.checked_mul(mem::size_of::<E>())?;
+            .try_fold(1usize, |acc, &dim| acc.checked_mul(dim))
+        {
+            Some(n) => n,
+            None => return Err((bytes, shape)),
+        };
+        let expected_size = match num_elements.checked_mul(mem::size_of::<E>()) {
+            Some(s) => s,
+            None => return Err((bytes, shape)),
+        };
         if bytes.len() < expected_size {
-            return None;
+            return Err((bytes, shape));
         }
 
-        Some(Self::Borrowed { bytes, shape })
+        Ok(Self::Borrowed { bytes, shape })
     }
 
     /// Create owned storage from an ArcArray.
@@ -311,13 +318,13 @@ mod tests {
 
         let result = NdArrayStorage::<f32>::from_borrowed(aligned_bytes, vec![2, 2]);
         assert!(
-            result.is_some(),
+            result.is_ok(),
             "from_borrowed should succeed for properly aligned data"
         );
     }
 
     #[test]
-    fn test_insufficient_size_returns_none() {
+    fn test_insufficient_size_returns_err() {
         // Create bytes that are too small for the requested shape
         let data: Vec<f32> = vec![1.0, 2.0]; // 8 bytes
         let bytes = Bytes::from_elems(data);
@@ -325,8 +332,157 @@ mod tests {
         // Try to create storage for 4 elements (needs 16 bytes)
         let result = NdArrayStorage::<f32>::from_borrowed(bytes, vec![4]);
         assert!(
-            result.is_none(),
-            "from_borrowed should return None when bytes are too small"
+            result.is_err(),
+            "from_borrowed should return Err when bytes are too small"
+        );
+    }
+
+    // ==========================================================================
+    // Zero-copy hardening tests
+    // These tests verify the zero-copy guarantee is maintained. If any of these
+    // fail, it indicates a regression in zero-copy functionality.
+    // ==========================================================================
+
+    #[test]
+    fn test_zero_copy_native_allocation() {
+        // CRITICAL: Verify that native allocations (Bytes::from_elems) are zero-copy
+        // on initial load. The view() must return a pointer to the SAME memory.
+        //
+        // Note: Native allocations copy on clone (this is expected), but the initial
+        // load is still zero-copy, avoiding an extra copy in the common case where
+        // the tensor is used without cloning.
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data);
+        let original_ptr = bytes.as_ptr();
+
+        let storage =
+            NdArrayStorage::<f32>::from_borrowed(bytes, vec![2, 2]).expect("should create");
+
+        // Initial load must be zero-copy
+        let view = storage.view();
+        let view_ptr = view.as_ptr() as *const u8;
+
+        assert_eq!(
+            original_ptr, view_ptr,
+            "ZERO-COPY REGRESSION: native allocation view() must return pointer to original bytes"
+        );
+
+        // Verify data integrity
+        assert_eq!(view[[0, 0]], 1.0);
+        assert_eq!(view[[0, 1]], 2.0);
+        assert_eq!(view[[1, 0]], 3.0);
+        assert_eq!(view[[1, 1]], 4.0);
+    }
+
+    #[test]
+    fn test_zero_copy_shared_bytes_pointer_identity() {
+        // CRITICAL: Test with SharedBytesAllocationController for true zero-copy.
+        // This simulates the actual burnpack/mmap loading path.
+        use burn_std::AllocationProperty;
+
+        // Create static-like data using bytes::Bytes
+        let data: &[u8] = &[
+            0, 0, 128, 63, // 1.0f32 in little-endian
+            0, 0, 0, 64, // 2.0f32
+            0, 0, 64, 64, // 3.0f32
+            0, 0, 128, 64, // 4.0f32
+        ];
+        let shared = bytes::Bytes::from_static(data);
+        let original_ptr = shared.as_ptr();
+
+        // Create Bytes with SharedBytesAllocationController
+        let bytes = Bytes::from_shared(shared, AllocationProperty::Other);
+
+        let storage =
+            NdArrayStorage::<f32>::from_borrowed(bytes, vec![2, 2]).expect("should create");
+
+        // Verify pointer identity
+        let view_ptr = storage.view().as_ptr() as *const u8;
+        assert_eq!(
+            original_ptr, view_ptr,
+            "ZERO-COPY REGRESSION: SharedBytes view must point to original static data"
+        );
+
+        // Clone should also share the same memory
+        let cloned = storage.clone();
+        let cloned_ptr = cloned.view().as_ptr() as *const u8;
+        assert_eq!(
+            original_ptr, cloned_ptr,
+            "ZERO-COPY REGRESSION: SharedBytes clone must share memory"
+        );
+    }
+
+    #[test]
+    fn test_clone_borrowed_stays_borrowed() {
+        // Verify that cloning borrowed storage produces another borrowed storage.
+        // Note: The underlying Bytes may or may not share memory depending on
+        // the allocation controller (native allocations copy, file-backed may share).
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data);
+
+        let storage =
+            NdArrayStorage::<f32>::from_borrowed(bytes, vec![2, 2]).expect("should create");
+        let cloned = storage.clone();
+
+        // Both should still be borrowed (the storage type is preserved)
+        assert!(
+            storage.is_borrowed(),
+            "ZERO-COPY REGRESSION: original should remain borrowed after clone"
+        );
+        assert!(
+            cloned.is_borrowed(),
+            "ZERO-COPY REGRESSION: clone should be borrowed type"
+        );
+
+        // Both should report not unique (important for COW behavior)
+        assert!(
+            !storage.is_unique(),
+            "ZERO-COPY REGRESSION: original should not be unique after clone"
+        );
+        assert!(
+            !cloned.is_unique(),
+            "ZERO-COPY REGRESSION: clone should not be unique"
+        );
+
+        // Data should be identical
+        assert_eq!(storage.view(), cloned.view(), "Clone should have same data");
+    }
+
+    #[test]
+    fn test_zero_copy_triggers_copy_on_mutation() {
+        // Verify that into_owned() on borrowed data creates a NEW allocation
+        // (this is the "copy" in copy-on-write)
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data);
+        let original_ptr = bytes.as_ptr();
+
+        let storage =
+            NdArrayStorage::<f32>::from_borrowed(bytes, vec![2, 2]).expect("should create");
+
+        assert!(storage.is_borrowed(), "should start as borrowed");
+
+        let owned = storage.into_owned();
+        let owned_ptr = owned.as_ptr() as *const u8;
+
+        assert_ne!(
+            original_ptr, owned_ptr,
+            "into_owned() on borrowed data MUST allocate new memory (copy-on-write)"
+        );
+    }
+
+    #[test]
+    fn test_borrowed_reports_not_unique() {
+        // CRITICAL: Borrowed storage must report is_unique() == false
+        // This is what triggers copy-on-write in mutation operations
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data);
+        let storage =
+            NdArrayStorage::<f32>::from_borrowed(bytes, vec![2, 2]).expect("should create");
+
+        assert!(
+            !storage.is_unique(),
+            "ZERO-COPY REGRESSION: borrowed storage MUST report is_unique() == false \
+             to trigger copy-on-write. If this is true, mutations will corrupt shared data!"
         );
     }
 }
