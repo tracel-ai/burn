@@ -210,7 +210,7 @@ fn test_writer_all_dtypes() {
         let tensor = metadata
             .tensors
             .get(&name)
-            .expect(&format!("Missing tensor: {}", name));
+            .unwrap_or_else(|| panic!("Missing tensor: {}", name));
         assert_eq!(tensor.dtype, expected_dtype, "DType mismatch for {}", name);
         assert_eq!(tensor.shape, vec![1], "Shape mismatch for {}", name);
 
@@ -374,10 +374,10 @@ fn test_writer_all_dtypes_round_trip() {
     for (name, expected_dtype, expected_data, expected_shape) in expected_results {
         let snapshot = reader
             .get_tensor_snapshot(name)
-            .expect(&format!("Failed to get tensor snapshot: {}", name));
+            .unwrap_or_else(|e| panic!("Failed to get tensor snapshot {}: {}", name, e));
         let tensor_data = snapshot
             .to_data()
-            .expect(&format!("Failed to read tensor data: {}", name));
+            .unwrap_or_else(|e| panic!("Failed to read tensor data {}: {}", name, e));
 
         assert_eq!(
             tensor_data.dtype, expected_dtype,
