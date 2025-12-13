@@ -114,7 +114,6 @@ impl_from!(
 /// Macro to execute an operation on a given element type.
 ///
 /// Extracts the storage from NdArrayTensor, converts to SharedArray, and passes to operation.
-/// Operations that want zero-copy should use `execute_with_storage!` instead.
 ///
 /// # Panics
 /// Since there is no automatic type cast at this time, binary operations for different
@@ -181,45 +180,6 @@ macro_rules! execute_with_dtype {
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool
         ])
-    }};
-}
-
-/// Macro to execute an operation with direct storage access (zero-copy aware).
-///
-/// Unlike `execute_with_dtype!`, this passes `NdArrayStorage<E>` directly to the operation,
-/// allowing it to use `.view()` for zero-copy reads or `.into_shared()` when owned is needed.
-#[macro_export]
-macro_rules! execute_with_storage {
-    (($lhs:expr, $rhs:expr),$element:ident,  $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
-        let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
-        let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
-        match ($lhs, $rhs) {
-            $(
-                ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
-                    #[allow(unused)]
-                    type $element = $ty;
-                    $op(lhs, rhs).into()
-                }
-            )*
-            _ => panic!(
-                "Data type mismatch (lhs: {:?}, rhs: {:?})",
-                lhs_dtype, rhs_dtype
-            ),
-        }
-    }};
-
-    ($tensor:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
-        match $tensor {
-            $(
-                $crate::NdArrayTensor::$dtype(storage) => {
-                    #[allow(unused)]
-                    type $element = $ty;
-                    $op(storage).into()
-                }
-            )*
-            #[allow(unreachable_patterns)]
-            other => unimplemented!("unsupported dtype: {:?}", other.dtype())
-        }
     }};
 }
 
