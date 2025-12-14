@@ -300,12 +300,9 @@ mod tests {
 
     #[test]
     fn test_from_borrowed_validates_alignment() {
-        // Verify that from_borrowed succeeds with properly aligned data.
-        // Note: Testing misaligned data rejection is difficult because standard
-        // allocators return properly aligned memory. The alignment check in
-        // from_borrowed handles cases like mmap'd files which may not be
-        // properly aligned for the requested element type.
+        use burn_std::AllocationProperty;
 
+        // Test 1: Properly aligned data should succeed
         let aligned_data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
         let aligned_bytes = Bytes::from_elems(aligned_data);
 
@@ -320,6 +317,33 @@ mod tests {
         assert!(
             result.is_ok(),
             "from_borrowed should succeed for properly aligned data"
+        );
+
+        // Test 2: Misaligned data should fail
+        // Create a buffer with 1 byte padding at start to force misalignment for f32
+        let padded: &[u8] = &[
+            0, // 1 byte padding to misalign
+            0, 0, 128, 63, // 1.0f32 in little-endian
+            0, 0, 0, 64, // 2.0f32
+            0, 0, 64, 64, // 3.0f32
+            0, 0, 128, 64, // 4.0f32
+        ];
+        let shared = bytes::Bytes::from_static(padded);
+        // Slice starting at offset 1 to get misaligned pointer for f32
+        let sliced = shared.slice(1..17); // 16 bytes = 4 f32s, but misaligned
+        let misaligned_bytes = Bytes::from_shared(sliced, AllocationProperty::Other);
+
+        // Verify test setup - should NOT be 4-byte aligned
+        assert_ne!(
+            (misaligned_bytes.as_ptr() as usize) % core::mem::align_of::<f32>(),
+            0,
+            "Test setup: sliced data should be misaligned for f32"
+        );
+
+        let result = NdArrayStorage::<f32>::from_borrowed(misaligned_bytes, vec![4]);
+        assert!(
+            result.is_err(),
+            "from_borrowed should return Err for misaligned data"
         );
     }
 
