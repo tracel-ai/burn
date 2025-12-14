@@ -300,11 +300,19 @@ where
         })
     }
     fn int_argmax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::argmax::<I>(array, dim))
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::argmax_view::<I>(
+            array.view(),
+            dim
+        ))
     }
 
     fn int_argmin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::argmin::<I>(array, dim))
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::argmin_view::<I>(
+            array.view(),
+            dim
+        ))
     }
 
     fn int_clamp_min(tensor: NdArrayTensor, min: I) -> NdArrayTensor {

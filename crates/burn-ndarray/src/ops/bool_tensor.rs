@@ -209,4 +209,16 @@ where
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
         NdArrayBoolOps::equal_elem(lhs.bool(), rhs).into()
     }
+
+    fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        // Use view() for zero-copy on borrowed storage with short-circuit evaluation
+        let result = NdArrayBoolOps::any_view(tensor.bool().view());
+        NdArrayTensor::from_data(TensorData::new(vec![result], Shape::new([1])))
+    }
+
+    fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        // Use view() for zero-copy on borrowed storage with short-circuit evaluation
+        let result = NdArrayBoolOps::all_view(tensor.bool().view());
+        NdArrayTensor::from_data(TensorData::new(vec![result], Shape::new([1])))
+    }
 }

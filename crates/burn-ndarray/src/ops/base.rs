@@ -756,6 +756,16 @@ where
         ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
     }
 
+    /// Argmax along dimension - zero-copy for borrowed storage.
+    pub fn argmax_view<I: NdArrayElement>(view: ArrayView<'_, E, IxDyn>, dim: usize) -> SharedArray<I> {
+        arg_view(view, dim, CmpType::Max)
+    }
+
+    /// Argmin along dimension - zero-copy for borrowed storage.
+    pub fn argmin_view<I: NdArrayElement>(view: ArrayView<'_, E, IxDyn>, dim: usize) -> SharedArray<I> {
+        arg_view(view, dim, CmpType::Min)
+    }
+
     pub fn mean_dim(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
         let ndims = tensor.shape().num_dims();
         match ndims {
@@ -1315,6 +1325,16 @@ impl NdArrayBoolOps {
             .map_collect(|&lhs, &rhs| lhs || rhs)
             .into_shared()
     }
+
+    /// Any element is true - zero-copy for borrowed storage.
+    pub fn any_view(view: ArrayView<'_, bool, IxDyn>) -> bool {
+        view.iter().any(|&x| x)
+    }
+
+    /// All elements are true - zero-copy for borrowed storage.
+    pub fn all_view(view: ArrayView<'_, bool, IxDyn>) -> bool {
+        view.iter().all(|&x| x)
+    }
 }
 
 enum CmpType {
@@ -1327,10 +1347,19 @@ fn arg<E: NdArrayElement, I: NdArrayElement>(
     dim: usize,
     cmp: CmpType,
 ) -> SharedArray<I> {
-    let mut reshape = tensor.shape().to_vec();
+    arg_view(tensor.view(), dim, cmp)
+}
+
+/// View-based argmax/argmin - zero-copy for borrowed storage.
+fn arg_view<E: NdArrayElement, I: NdArrayElement>(
+    view: ArrayView<'_, E, IxDyn>,
+    dim: usize,
+    cmp: CmpType,
+) -> SharedArray<I> {
+    let mut reshape = view.shape().to_vec();
     reshape[dim] = 1;
 
-    let output = tensor.map_axis(Axis(dim), |arr| {
+    let output = view.map_axis(Axis(dim), |arr| {
         // Find the min/max value in the array, and return its index.
         let (_e, idx) = arr.indexed_iter().fold((arr[0], 0usize), |acc, (idx, e)| {
             let cmp = match cmp {

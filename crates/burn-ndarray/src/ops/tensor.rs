@@ -391,14 +391,16 @@ where
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor {
+        // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::argmax::<I>(array, dim)
+            NdArrayMathOps::argmax_view::<I>(array.view(), dim)
         })
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor {
+        // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::argmin::<I>(array, dim)
+            NdArrayMathOps::argmin_view::<I>(array.view(), dim)
         })
     }
 
