@@ -45,11 +45,11 @@ pub enum TracingMode {
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Suppress verbose output.
-    #[arg(long, action = clap::ArgAction::Set, default_value = None)]
+    #[arg(long, action = clap::ArgAction::Set)]
     pub quiet: Option<bool>,
 
     /// Enable tracing.
-    #[arg(long, value_enum, default_value = None)]
+    #[arg(long, value_enum)]
     pub tracing: Option<TracingMode>,
 
     /// Output format for console tracing.
