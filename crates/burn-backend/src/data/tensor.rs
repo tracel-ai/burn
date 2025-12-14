@@ -184,7 +184,7 @@ impl TensorData {
         // Create a properly aligned Vec<E> and copy bytes into it
         let mut result = Vec::<E>::with_capacity(num_elements);
         // Safety: We're copying raw bytes into a Vec<E> where E: Element (which requires Pod).
-        // The source bytes represent valid E values (same dtype was checked earlier).
+        // Caller (into_vec) verified E::dtype() == self.dtype before calling this function.
         unsafe {
             core::ptr::copy_nonoverlapping(
                 bytes.as_ptr(),
