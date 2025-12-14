@@ -186,7 +186,11 @@ impl TensorData {
         // Safety: We're copying raw bytes into a Vec<E> where E: Element (which requires Pod).
         // The source bytes represent valid E values (same dtype was checked earlier).
         unsafe {
-            core::ptr::copy_nonoverlapping(bytes.as_ptr(), result.as_mut_ptr() as *mut u8, bytes.len());
+            core::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                result.as_mut_ptr() as *mut u8,
+                bytes.len(),
+            );
             result.set_len(num_elements);
         }
         Ok(result)
