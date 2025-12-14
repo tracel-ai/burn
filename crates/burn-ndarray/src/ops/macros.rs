@@ -4,19 +4,21 @@ macro_rules! keepdim {
         $self:expr,
         mean
     ) => {{
-        let tensor: SharedArray<E> = mean_dim($self.clone(), $dim);
+        // Get shape first (via reference), then pass ownership to avoid clone
         let mut shape = $self.shape().into_shape();
         shape[$dim] = 1;
-        NdArrayOps::reshape(tensor.clone(), shape)
+        let tensor: SharedArray<E> = mean_dim($self, $dim);
+        NdArrayOps::reshape(tensor, shape)
     }};
     (
         $dim:expr,
         $self:expr,
         sum
     ) => {{
-        let tensor: SharedArray<E> = sum_dim($self.clone(), $dim);
+        // Get shape first (via reference), then pass ownership to avoid clone
         let mut shape = $self.shape().into_shape();
         shape[$dim] = 1;
+        let tensor: SharedArray<E> = sum_dim($self, $dim);
         NdArrayOps::reshape(tensor, shape)
     }};
     (
@@ -24,9 +26,10 @@ macro_rules! keepdim {
         $self:expr,
         prod
     ) => {{
-        let tensor: SharedArray<E> = prod_dim($self.clone(), $dim);
+        // Get shape first (via reference), then pass ownership to avoid clone
         let mut shape = $self.shape().into_shape();
         shape[$dim] = 1;
+        let tensor: SharedArray<E> = prod_dim($self, $dim);
         NdArrayOps::reshape(tensor, shape)
     }};
 }

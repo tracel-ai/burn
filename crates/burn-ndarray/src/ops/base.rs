@@ -89,7 +89,8 @@ where
     }
 
     pub fn mask_fill(tensor: SharedArray<E>, mask: SharedArray<bool>, value: E) -> SharedArray<E> {
-        let mut output = tensor.clone();
+        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
+        let mut output = tensor.into_owned();
         let broadcast_mask = mask.broadcast(output.dim()).unwrap();
         Zip::from(&mut output)
             .and(&broadcast_mask)
@@ -221,7 +222,9 @@ where
             .into_shared();
 
         // Transform column-major layout into row-major (standard) layout. (fix #1053)
-        Self::reshape(array.clone(), array.shape().into_shape())
+        // Get shape first (via reference), then pass ownership to avoid clone
+        let shape = array.shape().into_shape();
+        Self::reshape(array, shape)
     }
 
     pub fn cat(tensors: Vec<SharedArray<E>>, dim: usize) -> SharedArray<E> {
@@ -685,22 +688,18 @@ where
     }
 
     pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
-        if E::dtype().is_float() {
-            let array =
-                lhs.clone() - (lhs / rhs.clone()).mapv_into(|a| (a.to_f64()).floor().elem()) * rhs;
-            array.into_shared()
-        } else {
-            let mut out = lhs.clone();
-            Zip::from(&mut out)
-                .and(&lhs)
-                .and(&rhs)
-                .for_each(|out_elem, &a, &b| {
-                    let (a_f, b_f) = (a.to_f64(), b.to_f64());
-                    let r = a_f - b_f * (a_f / b_f).floor();
-                    *out_elem = r.elem();
-                });
-            out.into_shared()
-        }
+        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
+        let mut out = lhs.into_owned();
+        Zip::from(&mut out)
+            .and(&rhs)
+            .for_each(|out_elem, &b| {
+                // Read value before overwriting (same element position)
+                let a_f = (*out_elem).to_f64();
+                let b_f = b.to_f64();
+                let r = a_f - b_f * (a_f / b_f).floor();
+                *out_elem = r.elem();
+            });
+        out.into_shared()
     }
 
     pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>
