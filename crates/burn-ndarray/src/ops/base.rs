@@ -757,12 +757,18 @@ where
     }
 
     /// Argmax along dimension - zero-copy for borrowed storage.
-    pub fn argmax_view<I: NdArrayElement>(view: ArrayView<'_, E, IxDyn>, dim: usize) -> SharedArray<I> {
+    pub fn argmax_view<I: NdArrayElement>(
+        view: ArrayView<'_, E, IxDyn>,
+        dim: usize,
+    ) -> SharedArray<I> {
         arg_view(view, dim, CmpType::Max)
     }
 
     /// Argmin along dimension - zero-copy for borrowed storage.
-    pub fn argmin_view<I: NdArrayElement>(view: ArrayView<'_, E, IxDyn>, dim: usize) -> SharedArray<I> {
+    pub fn argmin_view<I: NdArrayElement>(
+        view: ArrayView<'_, E, IxDyn>,
+        dim: usize,
+    ) -> SharedArray<I> {
         arg_view(view, dim, CmpType::Min)
     }
 
