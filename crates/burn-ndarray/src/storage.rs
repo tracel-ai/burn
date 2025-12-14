@@ -320,22 +320,24 @@ mod tests {
         );
 
         // Test 2: Misaligned data should fail
-        // Create a buffer with 1 byte padding at start to force misalignment for f32
-        let padded: &[u8] = &[
-            0, // 1 byte padding to misalign
-            0, 0, 128, 63, // 1.0f32 in little-endian
-            0, 0, 0, 64, // 2.0f32
-            0, 0, 64, 64, // 3.0f32
-            0, 0, 128, 64, // 4.0f32
-        ];
-        let shared = bytes::Bytes::from_static(padded);
-        // Slice starting at offset 1 to get misaligned pointer for f32
-        let sliced = shared.slice(1..17); // 16 bytes = 4 f32s, but misaligned
+        // Create a buffer large enough to find a misaligned offset
+        // (static data placement varies by platform, so we find an offset dynamically)
+        let buffer: &[u8] = &[0u8; 32];
+        let shared = bytes::Bytes::from_static(buffer);
+        let base = shared.as_ptr() as usize;
+        let align = core::mem::align_of::<f32>();
+
+        // Find an offset in 1..align that produces misalignment (at least one must exist)
+        let misalign_offset = (1..align)
+            .find(|&off| (base + off) % align != 0)
+            .expect("Should find a misaligned offset");
+
+        let sliced = shared.slice(misalign_offset..(misalign_offset + 16));
         let misaligned_bytes = Bytes::from_shared(sliced, AllocationProperty::Other);
 
         // Verify test setup - should NOT be 4-byte aligned
         assert_ne!(
-            (misaligned_bytes.as_ptr() as usize) % core::mem::align_of::<f32>(),
+            (misaligned_bytes.as_ptr() as usize) % align,
             0,
             "Test setup: sliced data should be misaligned for f32"
         );
