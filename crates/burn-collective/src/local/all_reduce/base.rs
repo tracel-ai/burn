@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
-use crate::local::tensor_map::CollectiveTensorMap;
+use crate::local::tensor_map::{CollectiveTensorMap, get_peer_devices};
 use crate::{
-    AllReduceStrategy, CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
+    AllReduceStrategy, CollectiveConfig, CollectiveError, ReduceOperation,
     local::{
         all_reduce_sum_centralized, all_reduce_sum_ring, all_reduce_sum_tree,
         broadcast_centralized, broadcast_tree, reduce_sum_centralized, reduce_sum_tree,
@@ -22,7 +20,7 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
 ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
     let local_strategy = &config.local_all_reduce_strategy;
 
-    let mut tensors = match local_strategy {
+    let mut reduced_tensors = match local_strategy {
         AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
         AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
         AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
@@ -32,12 +30,14 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
         let _span = tracing::info_span!("mean_reduction").entered();
 
         // Apply mean division
-        let tensor_count = tensors.len() as f32;
-        tensors.iter_mut().for_each(|(_, tensor)| {
-            *tensor = B::float_div_scalar(tensor.clone(), tensor_count.elem())
-        });
+        let div = (reduced_tensors.len() as f32).elem();
+
+        reduced_tensors = reduced_tensors
+            .into_iter()
+            .map(|(id, t)| (id, B::float_div_scalar(t, div)))
+            .collect();
     }
-    Ok(tensors)
+    Ok(reduced_tensors)
 }
 
 /// Do an all-reduce in a multi-node context
@@ -56,19 +56,12 @@ pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
     config: &CollectiveConfig,
     global_client: &mut Node<B, P>,
 ) -> Result<CollectiveTensorMap<B>, CollectiveError> {
-    let local_strategy = config.local_all_reduce_strategy;
-    let global_strategy = config.global_all_reduce_strategy;
-
-    // Get corresponding devices for each peer
-    let devices = tensors
-        .iter()
-        .map(|(id, tensor)| (*id, B::float_device(tensor)))
-        .collect::<HashMap<PeerId, B::Device>>();
+    let peer_devices = get_peer_devices::<B>(&tensors);
 
     // For Centralized and Tree, we only need to do a reduce here, we'll do a broadcast later
     let main_device = *tensors.keys().next().unwrap();
 
-    let mut main_tensor = match local_strategy {
+    let mut main_tensor = match config.local_all_reduce_strategy {
         AllReduceStrategy::Centralized => reduce_sum_centralized::<B>(tensors, &main_device),
         AllReduceStrategy::Tree(arity) => reduce_sum_tree::<B>(tensors, &main_device, arity),
         AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors)
@@ -78,8 +71,12 @@ pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
 
     // Do aggregation on global level with the main tensor
     main_tensor = async {
+        let global_strategy = config
+            .global_all_reduce_strategy
+            .expect("global_all_reduce_strategy must be set");
+
         global_client
-            .all_reduce(main_tensor, global_strategy.unwrap(), op)
+            .all_reduce(main_tensor, global_strategy, op)
             .await
     }
     .instrument(tracing::info_span!("global_all_reduce"))
@@ -87,14 +84,14 @@ pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
     .map_err(CollectiveError::Global)?;
 
     // Broadcast result to all devices
-    let tensors = match local_strategy {
+    let tensors = match config.local_all_reduce_strategy {
         AllReduceStrategy::Tree(arity) => {
-            broadcast_tree::<B>(devices, main_device, main_tensor, arity)
+            broadcast_tree::<B>(peer_devices, main_device, main_tensor, arity)
         }
         // If we chose the ring strategy and we must still broadcast the global result,
         // we use the centralized strategy for broadcasting, but the tree may be better.
         AllReduceStrategy::Centralized | AllReduceStrategy::Ring => {
-            broadcast_centralized::<B>(devices, main_device, main_tensor)
+            broadcast_centralized::<B>(peer_devices, main_device, main_tensor)
         }
     };
 
