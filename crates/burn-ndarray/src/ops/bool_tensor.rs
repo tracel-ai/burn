@@ -51,7 +51,7 @@ where
 
     fn bool_into_int(tensor: NdArrayTensor) -> NdArrayTensor {
         // Use mapv directly instead of collecting to Vec and going through TensorData
-        let int_array: SharedArray<I> = tensor.bool().mapv(|b| (b as i32).elem()).into_shared();
+        let int_array: SharedArray<I> = tensor.bool().mapv(|b| b.elem()).into_shared();
         int_array.into()
     }
 
@@ -102,7 +102,7 @@ where
     }
 
     fn bool_into_float(tensor: NdArrayTensor) -> FloatTensor<Self> {
-        let arr: SharedArray<E> = tensor.bool().mapv(|a| (a as i32).elem()).into_shared();
+        let arr: SharedArray<E> = tensor.bool().mapv(|b| b.elem()).into_shared();
         arr.into()
     }
 
