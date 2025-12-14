@@ -1,7 +1,6 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::ops::IntTensorOps;
 use burn_backend::tensor::BoolElem;
 use burn_backend::{ElementConversion, TensorMetadata, tensor::FloatTensor};
 use burn_backend::{
@@ -51,12 +50,9 @@ where
     }
 
     fn bool_into_int(tensor: NdArrayTensor) -> NdArrayTensor {
-        let shape = tensor.shape();
-        let values = tensor.bool().into_iter().collect();
-        NdArray::<E, I>::int_from_data(
-            TensorData::new(values, shape).convert::<I>(),
-            &NdArrayDevice::Cpu,
-        )
+        // Use mapv directly instead of collecting to Vec and going through TensorData
+        let int_array: SharedArray<I> = tensor.bool().mapv(|b| (b as i32).elem()).into_shared();
+        int_array.into()
     }
 
     fn bool_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {

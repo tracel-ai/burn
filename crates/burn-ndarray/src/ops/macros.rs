@@ -62,7 +62,8 @@ where
 {
     let axis = Axis(dim);
     let shape = tensor.shape().to_vec();
-    let mut result = tensor.to_owned();
+    // Use into_owned() instead of to_owned() - only copies if shared, avoids copy if unique
+    let mut result = tensor.into_owned();
     let dim_size = shape[dim];
 
     for i in 1..dim_size {
