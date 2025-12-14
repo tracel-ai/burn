@@ -691,7 +691,7 @@ where
         // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
         let mut out = lhs.into_owned();
         Zip::from(&mut out).and(&rhs).for_each(|out_elem, &b| {
-            // Read value before overwriting (same element position)
+            // out_elem holds lhs value; read it before overwriting with remainder
             let a_f = (*out_elem).to_f64();
             let b_f = b.to_f64();
             let r = a_f - b_f * (a_f / b_f).floor();
