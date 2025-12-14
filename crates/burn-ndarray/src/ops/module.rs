@@ -239,6 +239,7 @@ where
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
         execute_with_int_dtype!(indices, IntElem, |idx_s: SharedArray<IntElem>| {
             // Convert indices from runtime dtype to the expected I type
+            // (pool indices are bounded by tensor dimensions, so conversion is safe)
             let indices: SharedArray<I> = idx_s.mapv(|x| x.elem()).into_shared();
             module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
                 let output = max_pool2d_backward::<E, I>(
