@@ -736,6 +736,26 @@ where
         ArrayD::from_elem(IxDyn(&[1]), prod).into_shared()
     }
 
+    /// Max of all elements - zero-copy for borrowed storage.
+    pub fn max_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let max = view
+            .iter()
+            .copied()
+            .reduce(|a, b| if a > b { a } else { b })
+            .expect("Cannot compute max of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
+    }
+
+    /// Min of all elements - zero-copy for borrowed storage.
+    pub fn min_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let min = view
+            .iter()
+            .copied()
+            .reduce(|a, b| if a < b { a } else { b })
+            .expect("Cannot compute min of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
+    }
+
     pub fn mean_dim(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
         let ndims = tensor.shape().num_dims();
         match ndims {

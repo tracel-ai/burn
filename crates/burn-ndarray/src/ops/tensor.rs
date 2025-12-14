@@ -427,6 +427,20 @@ where
         })
     }
 
+    fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::max_view(array.view())
+        })
+    }
+
+    fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::min_view(array.view())
+        })
+    }
+
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
             array.mapv_into(|a: FloatElem| a.log1p_elem()).into_shared()

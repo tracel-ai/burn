@@ -228,6 +228,20 @@ where
         execute_with_int_dtype!(tensor, |array| NdArrayMathOps::mean_dim(array, dim))
     }
 
+    fn int_max(tensor: NdArrayTensor) -> NdArrayTensor {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::max_view(
+            array.view()
+        ))
+    }
+
+    fn int_min(tensor: NdArrayTensor) -> NdArrayTensor {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::min_view(
+            array.view()
+        ))
+    }
+
     fn int_cumsum(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |array| NdArrayMathOps::cumsum(array, dim))
     }
