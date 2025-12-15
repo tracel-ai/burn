@@ -23,6 +23,8 @@ export_tests = [] # check checkpointer is_empty in tests
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.5", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false }
 
+tracing = { workspace = true, optional = true }
+
 derive-new = { workspace = true }
 spin = { workspace = true }
 parking_lot = { workspace = true, optional = true }
