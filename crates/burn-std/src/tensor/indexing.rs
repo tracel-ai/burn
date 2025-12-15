@@ -262,63 +262,6 @@ where
     Ok(_idx as usize)
 }
 
-/// Canonicalizes and bounds checks an index with negative indexing support.
-///
-/// ## Arguments
-///
-/// * `name` - The name of the index (for error messages).
-/// * `size_name` - The name of the size (for error messages).
-/// * `idx` - The index to canonicalize.
-/// * `size` - The size of the index range.
-/// * `wrap_scalar` - If true, treat 0-size ranges as having size 1.
-///
-/// ## Returns
-///
-/// The canonicalized index.
-///
-/// ## Panics
-///
-/// * If `wrap_scalar` is false and the size is 0.
-/// * If the index is out of range for the dimension size.
-#[inline(always)]
-#[must_use]
-pub fn canonicalize_named_index<I>(
-    name: &str,
-    size_name: &str,
-    idx: I,
-    size: usize,
-    wrap_scalar: bool,
-) -> usize
-where
-    I: AsIndex,
-{
-    let idx = idx.index();
-
-    let _size = if size > 0 {
-        size
-    } else {
-        if !wrap_scalar {
-            panic!("{name} {idx} used when {size_name} is 0");
-        }
-        1
-    };
-
-    if idx >= 0 && (idx as usize) < _size {
-        return idx as usize;
-    }
-
-    let _idx = if idx < 0 { idx + _size as isize } else { idx };
-
-    if _idx < 0 || (_idx as usize) >= _size {
-        let rank = _size as isize;
-        let lower = -rank;
-        let upper = rank - 1;
-        panic!("{name} {idx} out of range: ({lower}..={upper})");
-    }
-
-    _idx as usize
-}
-
 /// Wraps a dimension index to be within the bounds of the dimension size.
 ///
 /// ## Arguments
