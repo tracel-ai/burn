@@ -1,6 +1,6 @@
 //! A module for indexing utility machinery.
 
-use crate::errors::BoundsError;
+pub use crate::errors::BoundsError;
 #[allow(unused_imports)]
 use alloc::format;
 #[allow(unused_imports)]
