@@ -7,7 +7,6 @@ use crate::canonicalize_dim;
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
-#[allow(unused_imports)]
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
@@ -127,9 +126,9 @@ impl Shape {
     ///
     /// ```rust
     ///
-    /// use burn_tensor::Shape;
+    /// use burn_std::Shape;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let shape = Shape::new([2, 3, 4]);
     ///
     ///     let flattened = shape.flatten_dims(1, 2);
