@@ -170,6 +170,18 @@ pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor
     permute(tensor, &dims)
 }
 
+/// Permute a shape's dimensions from NHWC to NCHW, or the N-dimensional equivalent
+pub fn permute_nhwc_to_nchw_shape(shape: Shape) -> Shape {
+    let rank = shape.num_dims();
+    let c_dim = rank - 1;
+
+    let mut dims = vec![0];
+    dims.push(c_dim);
+    dims.extend(1..c_dim);
+
+    shape.permute(&dims).expect("Shape permute should succeed")
+}
+
 pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
     let ndims_in = tensor.shape.num_dims();
     let ndims_out = target_shape.num_dims();

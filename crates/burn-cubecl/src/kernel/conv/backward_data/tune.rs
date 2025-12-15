@@ -10,13 +10,13 @@ use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
-        backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+        backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
     },
     tensor::CubeTensor,
 };
 
 /// Executes autotune on conv2d operations
-pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
+pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
     weight_shape: Shape,
@@ -30,42 +30,42 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
             .with(Tunable::new(
                 "wgrad_fallback",
-                conv_weight_backward_fallback::<R, N>,
+                conv_data_backward_fallback::<R, N>,
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                    dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_sync_mma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
+                    dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_cmma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                    dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_mma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
+                    dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_cmma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                    dgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_mma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
+                    dgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
     });
