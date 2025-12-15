@@ -384,7 +384,7 @@ where
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
-            Some(<Self as Backend>::IntElem::dtype()),
+            Some(tensor.dtype),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
@@ -395,7 +395,7 @@ where
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
-            Some(<Self as Backend>::IntElem::dtype()),
+            Some(tensor.dtype),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMin,
