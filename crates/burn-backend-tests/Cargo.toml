@@ -82,8 +82,8 @@ cube = [
 quantization = []
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.20.0-pre.5", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.5" }
+burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.5", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.5" }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.5", default-features = false, features = [
