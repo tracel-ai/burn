@@ -1,7 +1,7 @@
 //! A module for indexing utility machinery.
 
 #[allow(unused_imports)]
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use core::fmt::Debug;
 
 /// Helper trait for implementing indexing with support for negative indices.
