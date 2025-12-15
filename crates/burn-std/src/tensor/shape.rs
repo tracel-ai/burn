@@ -125,7 +125,6 @@ impl Shape {
     /// # Example
     ///
     /// ```rust
-    ///
     /// use burn_std::Shape;
     ///
     /// fn example() {
