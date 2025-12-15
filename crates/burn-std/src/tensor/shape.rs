@@ -1,9 +1,13 @@
 //! Tensor shape definition.
 
+use super::indexing::ravel_index;
+use super::{AsIndex, Slice, SliceArg};
+use crate::canonicalize_dim;
 #[allow(unused_imports)]
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
 use core::str::FromStr;
@@ -12,9 +16,6 @@ use core::{
     slice::{Iter, IterMut, SliceIndex},
 };
 use serde::{Deserialize, Serialize};
-
-use super::indexing::ravel_index;
-use super::{AsIndex, Slice, SliceArg};
 
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -103,6 +104,58 @@ impl Shape {
     pub fn flatten(mut self) -> Self {
         self.dims = [self.num_elements()].into();
         self
+    }
+
+    /// Flatten the shape along a given range of dimensions.
+    ///
+    /// This function collapses the specified range of dimensions into a single dimension,
+    /// effectively flattening the tensor in that range.
+    ///
+    /// # Arguments
+    ///
+    /// - `start_dim`: The starting dimension of the range to be flattened,
+    ///   supports negative indexing.
+    /// - `end_dim`: The ending dimension of the range to be flattened (inclusive),
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// A new `Shape` instance with the specified range of dimensions flattened.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_std::Shape;
+    ///
+    /// fn example() {
+    ///     let shape = Shape::new([2, 3, 4]);
+    ///
+    ///     let flattened = shape.flatten_dims(1, 2);
+    ///     println!("{flattened}");
+    ///     // [2, 12]
+    /// }
+    /// ```
+    pub fn flatten_dims(self, start_dim: impl AsIndex, end_dim: impl AsIndex) -> Self {
+        let rank = self.rank();
+        let start = canonicalize_dim(start_dim, rank, false);
+        let end = canonicalize_dim(end_dim, rank, false);
+
+        assert!(
+            start <= end,
+            "start_dim ({start}) must be <= than end_dim ({end})"
+        );
+
+        let existing = self.dims;
+
+        let flattened_size = existing[start..=end].iter().product();
+
+        let new_rank = rank - (end - start);
+        let mut dims = vec![0; new_rank];
+        dims[..start].copy_from_slice(&existing[..start]);
+        dims[start] = flattened_size;
+        dims[start + 1..].copy_from_slice(&existing[end + 1..]);
+
+        Self { dims }
     }
 
     /// Compute the ravel index for the given coordinates.
@@ -1290,5 +1343,12 @@ mod tests {
                 right: reshaped
             })
         );
+    }
+
+    #[test]
+    fn test_flatten_dims() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        let flattened = shape.flatten_dims(-2, 3);
+        assert_eq!(flattened, Shape::new([2, 3, 20]));
     }
 }
