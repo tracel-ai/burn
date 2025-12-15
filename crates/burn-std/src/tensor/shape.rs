@@ -3,8 +3,6 @@
 use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
 use crate::canonicalize_dim;
-#[allow(unused_imports)]
-use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;

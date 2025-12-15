@@ -1506,7 +1506,14 @@ where
 
         check!(TensorCheck::slice::<D>(&shape, &slices));
 
-        Self::new(K::slice_fill(self.primitive, &slices, value.elem()))
+        let slice_shape = shape.slice(&slices).unwrap();
+        let value = Tensor::<B, 1, K>::from_data_dtype(
+            [value.elem::<K::Elem>()],
+            &self.device(),
+            self.dtype(),
+        );
+        let value = value.expand(slice_shape);
+        self.slice_assign(&slices, value)
     }
 
     /// Returns a new tensor with the specified dimension sliced.
@@ -1570,7 +1577,10 @@ where
         check!(TensorCheck::check_dim::<D>(dim));
         let slice: Slice = slice.into();
 
-        Self::new(K::slice_dim(self.primitive, dim, &slice))
+        let mut slices = vec![Slice::full(); D];
+        slices[dim] = slice;
+
+        self.slice(&slices)
     }
 
     /// Returns the device of the current tensor.
