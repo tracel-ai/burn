@@ -100,6 +100,10 @@ impl Numeric for CpuMemory {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(bytes2gb(self.ram_bytes_used))
     }
+
+    fn running_value(&self) -> super::NumericEntry {
+        NumericEntry::Value(bytes2gb(self.ram_bytes_used))
+    }
 }
 
 fn bytes2gb(bytes: u64) -> f64 {

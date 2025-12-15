@@ -105,6 +105,10 @@ impl PerplexityState {
             count: self.total_tokens,
         }
     }
+
+    fn running_value(&self) -> NumericEntry {
+        self.value()
+    }
 }
 
 /// The perplexity metric.
@@ -241,6 +245,10 @@ impl<B: Backend> Metric for PerplexityMetric<B> {
 impl<B: Backend> Numeric for PerplexityMetric<B> {
     fn value(&self) -> NumericEntry {
         self.state.value()
+    }
+
+    fn running_value(&self) -> super::NumericEntry {
+        self.state.running_value()
     }
 }
 

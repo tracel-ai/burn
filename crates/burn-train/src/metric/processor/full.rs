@@ -85,9 +85,14 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 update
                     .entries_numeric
                     .into_iter()
-                    .for_each(|(entry, value)| {
-                        self.renderer
-                            .update_test(name.clone(), MetricState::Numeric(entry, value))
+                    .for_each(|numeric_update| {
+                        self.renderer.update_test(
+                            name.clone(),
+                            MetricState::Numeric(
+                                numeric_update.entry,
+                                numeric_update.numeric_entry,
+                            ),
+                        )
                     });
 
                 self.renderer.render_test(progress);
@@ -137,9 +142,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                 update
                     .entries_numeric
                     .into_iter()
-                    .for_each(|(entry, value)| {
-                        self.renderer
-                            .update_train(MetricState::Numeric(entry, value))
+                    .for_each(|numeric_update| {
+                        self.renderer.update_train(MetricState::Numeric(
+                            numeric_update.entry,
+                            numeric_update.numeric_entry,
+                        ))
                     });
 
                 self.renderer.render_train(progress);
@@ -149,7 +156,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Train,
-                        self.metrics.best_metric_entries_train(),
                     )));
                 self.metrics.end_epoch_train();
             }
@@ -180,9 +186,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                 update
                     .entries_numeric
                     .into_iter()
-                    .for_each(|(entry, value)| {
-                        self.renderer
-                            .update_valid(MetricState::Numeric(entry, value))
+                    .for_each(|numeric_update| {
+                        self.renderer.update_train(MetricState::Numeric(
+                            numeric_update.entry,
+                            numeric_update.numeric_entry,
+                        ))
                     });
 
                 self.renderer.render_valid(progress);
@@ -192,7 +200,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Valid,
-                        self.metrics.best_metric_entries_valid(),
                     )));
                 self.metrics.end_epoch_valid();
             }

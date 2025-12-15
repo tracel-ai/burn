@@ -96,4 +96,8 @@ impl Numeric for CpuUse {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(self.current)
     }
+
+    fn running_value(&self) -> super::NumericEntry {
+        NumericEntry::Value(self.current)
+    }
 }
