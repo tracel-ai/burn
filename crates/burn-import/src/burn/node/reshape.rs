@@ -115,17 +115,38 @@ impl NodeCodegen for onnx_ir::reshape::ReshapeNode {
 
                         match &output_arg.ty {
                             ArgType::Tensor(tensor_type) => {
-                                // Create a 1-element tensor from scalar using Tensor::full,
+                                // Create a 1-element tensor from scalar with explicit dtype,
                                 // then reshape to target shape (which must also be 1 element total)
-                                use crate::burn::TensorKind;
                                 let shape_values = shape_values.to_tokens();
                                 let output_rank = tensor_type.rank;
-                                let ones: Vec<_> = (0..output_rank).map(|_| quote! { 1 }).collect();
-                                let kind: TensorKind = tensor_type.dtype.into();
+                                let dtype_tokens = tensor_type.dtype.to_tokens();
 
-                                quote! {
-                                    let #output = Tensor::<B, #output_rank, #kind>::full([#(#ones),*], #input_name, &*self.device)
-                                        .reshape(#shape_values);
+                                if tensor_type.dtype.is_float() {
+                                    quote! {
+                                        let #output = Tensor::<B, #output_rank>::from_data_dtype(
+                                            burn::tensor::TensorData::from([#input_name as f64]),
+                                            &*self.device,
+                                            #dtype_tokens
+                                        ).reshape(#shape_values);
+                                    }
+                                } else if tensor_type.dtype.is_int() || tensor_type.dtype.is_uint()
+                                {
+                                    quote! {
+                                        let #output = Tensor::<B, #output_rank, Int>::from_data_dtype(
+                                            burn::tensor::TensorData::from([#input_name as i64]),
+                                            &*self.device,
+                                            #dtype_tokens
+                                        ).reshape(#shape_values);
+                                    }
+                                } else {
+                                    // Bool
+                                    quote! {
+                                        let #output = Tensor::<B, #output_rank, Bool>::from_data_dtype(
+                                            burn::tensor::TensorData::from([#input_name != 0]),
+                                            &*self.device,
+                                            #dtype_tokens
+                                        ).reshape(#shape_values);
+                                    }
                                 }
                             }
                             ArgType::Scalar(_) => {
@@ -619,7 +640,15 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, value: i64) -> Tensor<B, 1, Int> {
-            let tensor_out = Tensor::<B, 1usize, Int>::full([1], value, &*self.device)
+            let tensor_out = Tensor::<
+                B,
+                1usize,
+                Int,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([value as i64]),
+                    &*self.device,
+                    burn::tensor::DType::I64,
+                )
                 .reshape([-1]);
             tensor_out
         }
@@ -639,7 +668,15 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, val: f32) -> Tensor<B, 1> {
-            let out = Tensor::<B, 1usize, Float>::full([1], val, &*self.device).reshape([1]);
+            let out = Tensor::<
+                B,
+                1usize,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([val as f64]),
+                    &*self.device,
+                    burn::tensor::DType::F32,
+                )
+                .reshape([1]);
             out
         }
         ");

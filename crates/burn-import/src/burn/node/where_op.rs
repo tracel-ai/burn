@@ -120,11 +120,37 @@ fn where_input_as_tensor(
             }
         }
         ArgType::Scalar(_) => {
-            // Convert scalar to full tensor with broadcast_rank dimensions
+            // Convert scalar to tensor with shape [1, 1, ...] (broadcast_rank dimensions)
+            // Use from_data_dtype with reshape and expand to ensure correct dtype
             let name = arg_to_ident(arg);
             let shape_vec: Vec<_> = (0..broadcast_rank).map(|_| quote! { 1 }).collect();
-            quote! {
-                Tensor::from_data([[#(#shape_vec),*]; 1], &*self.device).mul_scalar(#name)
+            let dtype_tokens = target_dtype.to_tokens();
+
+            if target_dtype.is_float() {
+                quote! {
+                    Tensor::<B, 1>::from_data_dtype(
+                        burn::tensor::TensorData::from([#name as f64]),
+                        &*self.device,
+                        #dtype_tokens
+                    ).reshape([#(#shape_vec),*])
+                }
+            } else if target_dtype.is_int() || target_dtype.is_uint() {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data_dtype(
+                        burn::tensor::TensorData::from([#name as i64]),
+                        &*self.device,
+                        #dtype_tokens
+                    ).reshape([#(#shape_vec),*])
+                }
+            } else {
+                // Bool
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Bool>::from_data_dtype(
+                        burn::tensor::TensorData::from([#name != 0]),
+                        &*self.device,
+                        #dtype_tokens
+                    ).reshape([#(#shape_vec),*])
+                }
             }
         }
         ArgType::Shape(_) => {
