@@ -101,7 +101,7 @@ impl Numeric for CpuMemory {
         NumericEntry::Value(bytes2gb(self.ram_bytes_used))
     }
 
-    fn running_value(&self) -> super::NumericEntry {
+    fn running_value(&self) -> NumericEntry {
         NumericEntry::Value(bytes2gb(self.ram_bytes_used))
     }
 }

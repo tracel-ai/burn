@@ -247,7 +247,7 @@ impl<B: Backend> Numeric for PerplexityMetric<B> {
         self.state.value()
     }
 
-    fn running_value(&self) -> super::NumericEntry {
+    fn running_value(&self) -> NumericEntry {
         self.state.running_value()
     }
 }

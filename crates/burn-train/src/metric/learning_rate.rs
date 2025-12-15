@@ -61,7 +61,7 @@ impl Numeric for LearningRateMetric {
         self.state.current_value()
     }
 
-    fn running_value(&self) -> super::NumericEntry {
+    fn running_value(&self) -> NumericEntry {
         self.state.running_value()
     }
 }
