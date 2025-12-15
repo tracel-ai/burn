@@ -758,6 +758,7 @@ impl SliceExpressionError {
 mod tests {
     use super::*;
     use alloc::string::ToString;
+    use alloc::vec;
 
     #[test]
     fn test_parse_error() {
