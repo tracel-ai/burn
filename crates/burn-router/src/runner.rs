@@ -1419,17 +1419,19 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
     }
 
     fn sync(&self) -> Result<(), ExecutionError> {
-        let device = self.device.clone();
-        B::sync(&device)
+        B::sync(&self.device)
     }
 
     fn seed(&self, seed: u64) {
-        let device = self.device.clone();
-        B::seed(&device, seed)
+        B::seed(&self.device, seed)
     }
 
     fn create_empty_handle(&self) -> TensorId {
         let mut ctx = self.context.lock().unwrap();
         ctx.create_empty_handle()
+    }
+
+    fn supports_dtype(&self, dtype: DType) -> bool {
+        B::supports_dtype(&self.device, dtype)
     }
 }

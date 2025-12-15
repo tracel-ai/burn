@@ -2,7 +2,7 @@ use crate::{RouterTensor, RunnerChannel};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    TensorData,
+    DType, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
@@ -50,6 +50,8 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Seed the runner.
     fn seed(&self, seed: u64);
+    /// Whether the type is supported.
+    fn supports_dtype(&self, dtype: DType) -> bool;
 }
 
 pub(crate) struct RunnerClientLocator {

@@ -1,9 +1,6 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{DType, Shape};
-use cubek::attention::{
-    Strategy,
-    components::{AttentionSetupError, AttentionStorageTypes},
-};
+use cubek::attention::launch::{AttentionGlobalTypes, AttentionSetupError, Strategy};
 
 /// Launch a flash attention kernel
 pub fn flash_attention<R: CubeRuntime>(
@@ -23,7 +20,7 @@ pub fn flash_attention<R: CubeRuntime>(
     let out_shape = Shape::new([num_batches, num_heads, seq_q, val_dim]);
 
     let out = empty_device_dtype::<R>(client.clone(), device.clone(), out_shape, out_dtype);
-    let dtypes = AttentionStorageTypes {
+    let dtypes = AttentionGlobalTypes {
         query: query.dtype.into(),
         key: key.dtype.into(),
         value: value.dtype.into(),
@@ -31,19 +28,23 @@ pub fn flash_attention<R: CubeRuntime>(
         out: out.dtype.into(),
     };
 
-    cubek::attention::launch_ref::<R>(
-        &Strategy::Unit(cubek::attention::kernels::SharedAttentionSettings {
-            tiling_scheme: None,
-            reuse_key_value: false,
-            two_rows_in_array_tile: false,
-        }),
+    cubek::attention::launch::launch_ref::<R>(
+        Strategy::Unit(cubek::attention::launch::RoutineStrategy::Inferred(())),
         client,
         &query.as_handle_ref(),
         &key.as_handle_ref(),
         &value.as_handle_ref(),
         &mask.as_ref().map(|mask| mask.as_handle_ref()),
         &out.as_handle_ref(),
-        dtypes,
+        &dtypes,
+        cubek::attention::launch::AttentionOptions {
+            causal: true,
+            accumulator_precision: cubek::attention::launch::AccumulatorPrecision::Strict(
+                cubecl::ir::StorageType::Scalar(cubecl::ir::ElemType::Float(
+                    cubecl::ir::FloatKind::F32,
+                )),
+            ),
+        },
     )?;
 
     Ok(out)

@@ -316,7 +316,7 @@ define_node_enum! {
     Unique => unsupported::UniqueNode,
     Trilu => trilu::TriluNode,
     Mod => modulo::ModNode,
-    CumSum => unsupported::CumSumNode,
+    CumSum => cumsum::CumSumNode,
 
     // UNSUPPORTED / PLACEHOLDER OPERATIONS (not yet implemented in burn-import)
     AffineGrid => unsupported::AffineGridNode,

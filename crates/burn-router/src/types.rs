@@ -165,10 +165,19 @@ macro_rules! impl_multi_backend_types {
                 }
 
                 fn create_empty_handle(&self) -> TensorId {
-                            match self {
+                    match self {
                         Self::$DefaultBackend(runner) => runner.create_empty_handle(),
                         $(
                             Self::$OtherBackend(runner) => runner.create_empty_handle(),
+                        )+
+                    }
+                }
+
+                fn supports_dtype(&self, dtype: burn_std::DType) -> bool {
+                    match self {
+                        Self::$DefaultBackend(runner) => runner.supports_dtype(dtype),
+                        $(
+                            Self::$OtherBackend(runner) => runner.supports_dtype(dtype),
                         )+
                     }
                 }
