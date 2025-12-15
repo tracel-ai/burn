@@ -74,7 +74,7 @@ pub fn sum<Run: CubeRuntime>(
             Ok(output)
         }
         SumStrategy::Chained(strategy) => {
-            reduce::<Run>(tensor, strategy, ReduceOperationConfig::Sum)
+            reduce::<Run>(tensor, strategy, ReduceOperationConfig::Sum, None)
         }
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run>(&client, tensor)),
@@ -113,12 +113,13 @@ pub fn reduce<Run: CubeRuntime>(
     mut tensor: CubeTensor<Run>,
     strategy: KernelReduceStrategy,
     config: ReduceOperationConfig,
+    out_dtype: Option<DType>,
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape);
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run>(tensor, axis, strategy.clone(), config)?;
+        tensor = reduce_dim::<Run>(tensor, axis, strategy.clone(), config, out_dtype)?;
     }
     // reshape to scalar tensor
     tensor.shape = Shape::new([1]);
@@ -144,8 +145,9 @@ pub fn reduce_dim<Run: CubeRuntime>(
     dim: usize,
     strategy: KernelReduceStrategy,
     config: ReduceOperationConfig,
+    out_dtype: Option<DType>,
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
-    let dtypes = config.precision(input.dtype.into());
+    let dtypes = config.precision(input.dtype.into(), out_dtype.map(Into::into));
     let client = input.client.clone();
     let output = init_reduce_output::<Run>(&input, dim, &dtypes).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
