@@ -274,10 +274,10 @@ where
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Sum,
-            None,
         )
         .unwrap()
     }
@@ -285,9 +285,9 @@ where
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         reduce::reduce(
             tensor,
+            None,
             Default::default(),
             ReduceOperationConfig::Prod,
-            None,
         )
         .unwrap()
     }
@@ -295,25 +295,25 @@ where
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Prod,
-            None,
         )
         .unwrap()
     }
 
     fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Max, None).unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperationConfig::Max).unwrap()
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Max,
-            None,
         )
         .unwrap()
     }
@@ -321,9 +321,9 @@ where
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         reduce::reduce(
             tensor,
+            None,
             Default::default(),
             ReduceOperationConfig::MaxAbs,
-            None,
         )
         .unwrap()
     }
@@ -331,25 +331,25 @@ where
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::MaxAbs,
-            None,
         )
         .unwrap()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Min, None).unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperationConfig::Min).unwrap()
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Min,
-            None,
         )
         .unwrap()
     }
@@ -357,10 +357,10 @@ where
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Mean,
-            None,
         )
         .unwrap()
     }
@@ -382,23 +382,25 @@ where
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
         reduce::reduce_dim(
             tensor,
+            Some(dtype),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
-            Some(I::dtype()),
         )
         .unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
         reduce::reduce_dim(
             tensor,
+            Some(dtype),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMin,
-            Some(I::dtype()),
         )
         .unwrap()
     }

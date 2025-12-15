@@ -74,7 +74,7 @@ pub fn sum<Run: CubeRuntime>(
             Ok(output)
         }
         SumStrategy::Chained(strategy) => {
-            reduce::<Run>(tensor, strategy, ReduceOperationConfig::Sum, None)
+            reduce::<Run>(tensor, None, strategy, ReduceOperationConfig::Sum)
         }
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run>(&client, tensor)),
@@ -111,15 +111,15 @@ impl Default for SumStrategy {
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
 pub fn reduce<Run: CubeRuntime>(
     mut tensor: CubeTensor<Run>,
+    output_dtype: Option<DType>,
     strategy: KernelReduceStrategy,
     config: ReduceOperationConfig,
-    out_dtype: Option<DType>,
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape);
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run>(tensor, axis, strategy.clone(), config, out_dtype)?;
+        tensor = reduce_dim::<Run>(tensor, output_dtype, axis, strategy.clone(), config)?;
     }
     // reshape to scalar tensor
     tensor.shape = Shape::new([1]);
@@ -142,12 +142,20 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
 pub fn reduce_dim<Run: CubeRuntime>(
     input: CubeTensor<Run>,
+    output_dtype: Option<DType>,
     dim: usize,
     strategy: KernelReduceStrategy,
     config: ReduceOperationConfig,
-    out_dtype: Option<DType>,
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
-    let dtypes = config.precision(input.dtype.into(), out_dtype.map(Into::into));
+    debug_assert!(
+        !matches!(
+            config,
+            ReduceOperationConfig::ArgMax | ReduceOperationConfig::ArgMin
+        ) || output_dtype.is_some(),
+        "The `output_dtype` has to be `Some` only when the `config` is `ArgMax` or `ArgMin`.
+        "
+    );
+    let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
     let client = input.client.clone();
     let output = init_reduce_output::<Run>(&input, dim, &dtypes).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {

@@ -10,8 +10,8 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
-use burn_backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use burn_backend::{Backend, ExecutionError};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
@@ -290,31 +290,31 @@ where
     }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Max, None).unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperationConfig::Max).unwrap()
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Max,
-            None,
         )
         .unwrap()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(tensor, Default::default(), ReduceOperationConfig::Min, None).unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperationConfig::Min).unwrap()
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Min,
-            None,
         )
         .unwrap()
     }
@@ -322,9 +322,9 @@ where
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         reduce::reduce(
             tensor,
+            None,
             Default::default(),
             ReduceOperationConfig::MaxAbs,
-            None,
         )
         .unwrap()
     }
@@ -332,10 +332,10 @@ where
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::MaxAbs,
-            None,
         )
         .unwrap()
     }
@@ -343,10 +343,10 @@ where
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Sum,
-            None,
         )
         .unwrap()
     }
@@ -354,10 +354,10 @@ where
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Mean,
-            None,
         )
         .unwrap()
     }
@@ -381,9 +381,9 @@ where
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         reduce::reduce(
             tensor,
+            None,
             Default::default(),
             ReduceOperationConfig::Prod,
-            None,
         )
         .unwrap()
     }
@@ -391,10 +391,10 @@ where
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            None,
             dim,
             Default::default(),
             ReduceOperationConfig::Prod,
-            None,
         )
         .unwrap()
     }
@@ -475,10 +475,10 @@ where
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            Some(<Self as Backend>::IntElem::dtype()),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
-            Some(I::dtype()),
         )
         .unwrap()
     }
@@ -486,10 +486,10 @@ where
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
+            Some(<Self as Backend>::IntElem::dtype()),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMin,
-            Some(I::dtype()),
         )
         .unwrap()
     }

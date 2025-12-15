@@ -1,6 +1,7 @@
 use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
+#[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
 use crate::engine::launch::FuseTraceLauncher;
 use crate::engine::launch::runner::{TraceRunner, Vectorization};
@@ -30,6 +31,9 @@ use cubek::reduce::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+#[cfg(not(feature = "autotune"))]
+use cubek::reduce::routines::{RoutineStrategy, unit::UnitStrategy};
 
 pub struct ReduceOptimization<R: Runtime> {
     info: Arc<ReduceOptimizationInfo<R>>,
@@ -208,7 +212,13 @@ impl<R: Runtime> ReduceOptimization<R> {
         fused_reduce_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if arg.execute_fused_reduce::<BT>(context).is_err() {
+        if arg
+            .execute_fused::<BT>(
+                context,
+                ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
+            )
+            .is_err()
+        {
             arg.execute_fallback::<BT>(context);
         }
     }

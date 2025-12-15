@@ -257,7 +257,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::CumSum,
-            Box::new(crate::node::unsupported::UnsupportedProcessor),
+            Box::new(crate::node::cumsum::CumSumProcessor),
         );
 
         // Convolution operations

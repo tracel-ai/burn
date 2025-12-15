@@ -196,9 +196,9 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run>(
             input,
+            None,
             crate::kernel::reduce::KernelReduceStrategy::Autotune,
             cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
-            None,
         )
         .map_err(|e| e.to_string())
     }
