@@ -1,11 +1,9 @@
 pub use burn_backend::tensor::Numeric;
 
+use crate::alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 
-use crate::alloc::borrow::ToOwned;
-
 use crate::IndexingUpdateOp;
-use crate::canonicalize_dim;
 use crate::{
     AsIndex, Bool, Distribution, Element, ElementConversion, Int, Shape, Tensor, backend::Backend,
     check, check::TensorCheck,
@@ -384,7 +382,7 @@ where
     /// }
     /// ```
     pub fn mean_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
@@ -445,7 +443,7 @@ where
     /// }
     /// ```
     pub fn sum_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
     }
@@ -514,7 +512,7 @@ where
         // TODO: remove idims when squeeze_dims uses AsIndex.
         let idims = dims
             .iter()
-            .map(|&dim| canonicalize_dim(dim, D, false) as isize)
+            .map(|&dim| (dim.expect_dim(D)) as isize)
             .collect::<Vec<_>>();
         self.sum_dims(dims).squeeze_dims::<D2>(&idims)
     }
@@ -570,7 +568,7 @@ where
     /// }
     /// ```
     pub fn prod_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
         Self::new(K::prod_dim(self.primitive, dim))
     }
@@ -983,7 +981,7 @@ where
     /// }
     /// ```
     pub fn max_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
         Tensor::new(K::max_dim(self.primitive, dim))
     }
@@ -1039,7 +1037,7 @@ where
     /// }
     /// ```
     pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<B, D, Int>) {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
         let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
@@ -1128,7 +1126,7 @@ where
     /// }
     /// ```
     pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
@@ -1232,7 +1230,7 @@ where
     /// }
     /// ```
     pub fn min_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
         Tensor::new(K::min_dim(self.primitive, dim))
     }
@@ -1288,7 +1286,7 @@ where
     /// }
     /// ```
     pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<B, D, Int>) {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim(D);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 
         let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);

@@ -1,5 +1,4 @@
 use crate::backend::Backend;
-use crate::canonicalize_dim;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{AsIndex, Numeric};
 
@@ -51,10 +50,10 @@ where
 // Notes:
 // - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
 //   than broadcasted elemwise multiply; benchmarking needed to confirm.
-pub fn outer_dim<B: Backend, const D: usize, const R: usize, I: AsIndex, K>(
+pub fn outer_dim<B: Backend, const D: usize, const R: usize, Dim: AsIndex, K>(
     lhs: Tensor<B, D, K>,
     rhs: Tensor<B, D, K>,
-    dim: I,
+    dim: Dim,
 ) -> Tensor<B, R, K>
 where
     K: BasicOps<B> + Numeric<B>,
@@ -65,7 +64,7 @@ where
         "`outer` with D={D} expects R={} (got R={R})",
         D + 1
     );
-    let dim = canonicalize_dim(dim, D, false);
+    let dim = dim.expect_dim(D);
 
     // (..., i, 1, ...)
     let x = lhs.unsqueeze_dim::<R>(dim + 1);
