@@ -16,6 +16,10 @@ pub mod id;
 pub mod tensor;
 pub use tensor::*;
 
+/// Common Errors.
+pub mod errors;
+pub use errors::*;
+
 /// Network utilities.
 #[cfg(feature = "network")]
 pub mod network;
