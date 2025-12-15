@@ -69,6 +69,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     {
         B::staging(data, device);
     }
+
+    fn supports_dtype(device: &Self::Device, dtype: burn_std::DType) -> bool {
+        B::supports_dtype(device, dtype)
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
