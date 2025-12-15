@@ -5,7 +5,7 @@ use crate::{
     node::base::Node,
 };
 use burn_communication::Protocol;
-#[allow(unused_imports)]  // TensorMetadata is used by tracing::instrument.
+#[allow(unused_imports)] // TensorMetadata is used by tracing::instrument.
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
 use std::sync::mpsc::SyncSender;
