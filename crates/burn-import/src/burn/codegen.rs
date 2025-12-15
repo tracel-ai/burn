@@ -117,7 +117,11 @@ impl ToTokens for PaddingConfig3d {
     }
 }
 
-/// DType for specifying tensor element types in generated code
+/// DType for specifying tensor element types in generated code.
+///
+/// Note: Flex32 and QFloat are intentionally not supported as they are Burn-specific
+/// runtime types that cannot come from ONNX models. Flex32 is a GPU optimization type
+/// and QFloat requires quantization schemes not representable in ONNX.
 impl ToTokens for DType {
     fn to_tokens(&self) -> TokenStream {
         match self {
@@ -134,7 +138,12 @@ impl ToTokens for DType {
             DType::U32 => quote! { burn::tensor::DType::U32 },
             DType::U64 => quote! { burn::tensor::DType::U64 },
             DType::Bool => quote! { burn::tensor::DType::Bool },
-            _ => panic!("Unsupported dtype for code generation: {:?}", self),
+            // Flex32 and QFloat are Burn-specific runtime types not present in ONNX models
+            _ => panic!(
+                "Unsupported dtype for ONNX code generation: {:?}. \
+                 Flex32 and QFloat are Burn-specific runtime types.",
+                self
+            ),
         }
     }
 }
