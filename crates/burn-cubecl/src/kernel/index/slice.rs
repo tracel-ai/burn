@@ -4,7 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use burn_tensor::Slice;
+use burn_backend::Slice;
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,

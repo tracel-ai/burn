@@ -4,7 +4,7 @@ use crate::{
     graph::StepBoxed,
     tensor::{AutodiffTensor, NodeRefCount},
 };
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 
 /// Client used to communicate with the autodiff server.
 pub trait AutodiffClient: Send + Clone {

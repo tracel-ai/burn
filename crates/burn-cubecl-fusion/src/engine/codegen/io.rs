@@ -1,6 +1,6 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
-use burn_tensor::quantization::QuantScheme;
+use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,

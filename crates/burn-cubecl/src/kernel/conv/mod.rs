@@ -20,7 +20,7 @@ pub(crate) use im2col::*;
 pub(crate) use implicit_gemm::*;
 
 pub use base::{ConvStrategy, conv};
-pub use conv_transpose2d::{ConvTranspose2dStrategy, conv_transpose2d, layout_swap};
+pub use conv_transpose2d::{ConvTranspose2dStrategy, conv_transpose2d};
 
 #[cfg(feature = "autotune")]
 pub(crate) use tune::*;

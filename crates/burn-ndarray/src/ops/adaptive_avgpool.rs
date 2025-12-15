@@ -1,7 +1,7 @@
 use crate::{
     SharedArray, element::FloatNdArrayElement, iter_range_par, run_par, sharing::UnsafeSharedRef,
 };
-use burn_tensor::ElementConversion;
+use burn_backend::ElementConversion;
 use ndarray::Array4;
 
 #[cfg(not(feature = "std"))]

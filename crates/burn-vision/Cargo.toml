@@ -21,17 +21,16 @@ workspace = true
 [features]
 candle = ["burn-candle"]
 cubecl-backend = ["cubecl", "burn-cubecl"]
-default = ["ndarray", "cubecl-backend", "fusion", "std", "export-tests"]
-export-tests = ["burn-tensor-testgen"]
+default = ["ndarray", "cubecl-backend", "fusion", "std"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
 std = []
 tch = ["burn-tch"]
 
 # Test features
-test-cpu = ["export-tests"]
-test-cuda = ["cubecl-backend", "export-tests"]
-test-wgpu = ["cubecl-backend", "export-tests"]
+test-cpu = []
+test-cuda = ["cubecl-backend", ]
+test-wgpu = ["cubecl-backend", ]
 test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
 test-metal = ["burn-wgpu/metal", "test-wgpu"]
 

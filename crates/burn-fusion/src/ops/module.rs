@@ -2,15 +2,16 @@ use crate::{
     Fusion, FusionBackend,
     stream::{OperationStreams, execution::Operation},
 };
-use burn_ir::*;
-use burn_tensor::{
+use burn_backend::{
     Element,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-        IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+        InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
     },
+    tensor::{FloatTensor, IntTensor},
 };
+use burn_ir::*;
 use std::marker::PhantomData;
 
 macro_rules! make_ops {

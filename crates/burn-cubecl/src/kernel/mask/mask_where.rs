@@ -1,4 +1,4 @@
-use burn_tensor::DType;
+use burn_backend::DType;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 use crate::{

@@ -1,4 +1,5 @@
 use super::args::FusedMatmulInputLaunch;
+#[cfg(feature = "autotune")]
 use super::tune::fused_matmul_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
@@ -169,7 +170,10 @@ impl<R: Runtime> MatmulOptimization<R> {
         fused_matmul_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if arg.execute_fused::<BT, Simple>(context).is_err() {
+        if arg
+            .execute_fused::<BT>(context, FusedMatmulSelector::default())
+            .is_err()
+        {
             arg.execute_fallback::<BT>(context);
         }
     }

@@ -1,5 +1,5 @@
-use burn_tensor::ElementConversion;
-use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+use burn_backend::ElementConversion;
+use burn_backend::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;

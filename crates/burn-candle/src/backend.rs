@@ -1,21 +1,17 @@
 use std::marker::PhantomData;
 
-#[cfg(feature = "cuda")]
-use burn_std::backtrace::BackTrace;
+use burn_backend::{
+    BackTrace, Backend, DType, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive,
+    tensor::Device,
+};
 use burn_std::{
-    backtrace::BackTrace,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
-};
-use burn_tensor::{
-    Device,
-    backend::{Backend, DeviceId, DeviceOps, ExecutionError},
-    quantization::QTensorPrimitive,
 };
 use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    CandleTensor,
+    CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -180,8 +176,8 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
-impl burn_std::device::Device for CandleDevice {
-    fn to_id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_backend::Device for CandleDevice {
+    fn to_id(&self) -> burn_backend::DeviceId {
         match self {
             CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),
             CandleDevice::Metal(device) => DeviceId::new(1, device.index as u32),
@@ -245,7 +241,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
                 device
                     .synchronize()
                     .map_err(|err| ExecutionError::Generic {
-                        context: format!("Can't sync the cuda device: {err}"),
+                        reason: format!("Can't sync the cuda device: {err}"),
                         backtrace: BackTrace::capture(),
                     })?;
             }
@@ -262,5 +258,42 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         }
 
         Ok(())
+    }
+
+    fn supports_dtype(_device: &Device<Self>, dtype: DType) -> bool {
+        dtype.try_into_dtype().is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn_std::QuantScheme;
+
+    use super::*;
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = Candle<f32>;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U8));
+
+        assert!(!B::supports_dtype(&device, DType::U64));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(&device, DType::I32));
+        assert!(!B::supports_dtype(&device, DType::I16));
+        assert!(!B::supports_dtype(&device, DType::I8));
+        assert!(!B::supports_dtype(&device, DType::Bool));
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
     }
 }

@@ -1,14 +1,18 @@
 use alloc::vec::Vec;
-use burn_tensor::backend::ExecutionError;
+use burn_backend::backend::ExecutionError;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use burn_backend::ops::BoolTensorOps;
+use burn_backend::tensor::{
+    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+};
+use burn_backend::{Element, Shape, Slice, TensorData};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
-    InitOperationIr, OperationIr, OperationOutput, PermuteOpIr, RepeatDimOpIr, ShapeOpIr,
-    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
+    PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{Device, Element, Shape, Slice, TensorData};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -113,7 +117,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
@@ -245,6 +249,88 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Unfold(desc)))
+            .output()
+    }
+
+    fn bool_mask_where(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = MaskWhereOpIr::create(tensor.into_ir(), mask.into_ir(), value.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::MaskWhere(desc)))
+            .output()
+    }
+
+    fn bool_mask_fill(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: burn_backend::tensor::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let value = ScalarIr::with_dtype(value, &tensor.dtype);
+        let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::MaskFill(desc)))
+            .output()
+    }
+
+    fn bool_gather(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = GatherOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::Gather(desc)))
+            .output()
+    }
+
+    fn bool_scatter_or(
+        dim: usize,
+        tensor: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
+    fn bool_equal_elem(
+        lhs: BoolTensor<Self>,
+        rhs: burn_backend::tensor::BoolElem<Self>,
+    ) -> BoolTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::EqualElem(desc)))
             .output()
     }
 }
