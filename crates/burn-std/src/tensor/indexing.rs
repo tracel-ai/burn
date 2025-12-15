@@ -1,6 +1,8 @@
 //! A module for indexing utility machinery.
 
 #[allow(unused_imports)]
+use alloc::format;
+#[allow(unused_imports)]
 use alloc::string::{String, ToString};
 use core::fmt::Debug;
 
