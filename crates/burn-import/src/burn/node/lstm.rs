@@ -212,6 +212,10 @@ fn collect_lstm_snapshots(
 }
 
 /// Create a TensorSnapshot from TensorData.
+///
+/// Converts the data to the target dtype to preserve the original precision.
+/// This is important because intermediate tensor operations use f64 for precision,
+/// but we need to store the data in the original dtype (e.g., F16, F32).
 fn create_snapshot_from_data(
     data: burn::tensor::TensorData,
     path: &str,
@@ -221,6 +225,10 @@ fn create_snapshot_from_data(
     use burn::module::ParamId;
     use burn_store::TensorSnapshotError;
     use std::rc::Rc;
+
+    // Convert data back to the original dtype
+    // This is necessary because we use f64 for intermediate operations to preserve precision
+    let data = data.convert_dtype(dtype);
 
     let shape = data.shape.clone();
     let path_stack: Vec<String> = path.split('.').map(String::from).collect();
