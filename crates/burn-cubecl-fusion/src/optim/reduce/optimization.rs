@@ -1,6 +1,7 @@
 use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
+#[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
 use crate::engine::launch::FuseTraceLauncher;
 use crate::engine::launch::runner::{TraceRunner, Vectorization};
@@ -208,7 +209,16 @@ impl<R: Runtime> ReduceOptimization<R> {
         fused_reduce_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if arg.execute_fused_reduce::<BT>(context).is_err() {
+        if arg
+            .execute_fused::<BT>(
+                context,
+                ReduceStrategy {
+                    shared: false,
+                    use_planes: false,
+                },
+            )
+            .is_err()
+        {
             arg.execute_fallback::<BT>(context);
         }
     }
