@@ -187,7 +187,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                     .entries_numeric
                     .into_iter()
                     .for_each(|numeric_update| {
-                        self.renderer.update_train(MetricState::Numeric(
+                        self.renderer.update_valid(MetricState::Numeric(
                             numeric_update.entry,
                             numeric_update.numeric_entry,
                         ))
