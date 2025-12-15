@@ -1507,7 +1507,11 @@ where
         check!(TensorCheck::slice::<D>(&shape, &slices));
 
         let slice_shape = shape.slice(&slices).unwrap();
-        let value = Self::from_data_dtype([value.elem::<K::Elem>()], &self.device(), self.dtype());
+        let value = Tensor::<B, 1, K>::from_data_dtype(
+            [value.elem::<K::Elem>()],
+            &self.device(),
+            self.dtype(),
+        );
         let value = value.expand(slice_shape);
         self.slice_assign(&slices, value)
     }
