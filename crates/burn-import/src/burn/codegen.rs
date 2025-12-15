@@ -1,6 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
+use onnx_ir::ir::DType;
 use onnx_ir::node::padding::{PaddingConfig1d, PaddingConfig2d, PaddingConfig3d};
 
 // ============================================================================
@@ -112,6 +113,28 @@ impl ToTokens for PaddingConfig3d {
                 let padding3 = padding3.to_tokens();
                 quote! { PaddingConfig3d::Explicit(#padding1, #padding2, #padding3) }
             }
+        }
+    }
+}
+
+/// DType for specifying tensor element types in generated code
+impl ToTokens for DType {
+    fn to_tokens(&self) -> TokenStream {
+        match self {
+            DType::F16 => quote! { burn::tensor::DType::F16 },
+            DType::BF16 => quote! { burn::tensor::DType::BF16 },
+            DType::F32 => quote! { burn::tensor::DType::F32 },
+            DType::F64 => quote! { burn::tensor::DType::F64 },
+            DType::I8 => quote! { burn::tensor::DType::I8 },
+            DType::I16 => quote! { burn::tensor::DType::I16 },
+            DType::I32 => quote! { burn::tensor::DType::I32 },
+            DType::I64 => quote! { burn::tensor::DType::I64 },
+            DType::U8 => quote! { burn::tensor::DType::U8 },
+            DType::U16 => quote! { burn::tensor::DType::U16 },
+            DType::U32 => quote! { burn::tensor::DType::U32 },
+            DType::U64 => quote! { burn::tensor::DType::U64 },
+            DType::Bool => quote! { burn::tensor::DType::Bool },
+            _ => panic!("Unsupported dtype for code generation: {:?}", self),
         }
     }
 }

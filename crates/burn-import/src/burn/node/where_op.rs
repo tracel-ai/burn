@@ -19,12 +19,13 @@ impl NodeCodegen for onnx_ir::where_op::WhereNode {
         match &output_arg.ty {
             ArgType::Tensor(out_tensor) => {
                 let broadcast_rank = out_tensor.rank;
+                let target_dtype = out_tensor.dtype;
 
-                // Get condition as tensor
-                let cond = where_input_as_tensor(condition_arg, broadcast_rank, scope);
+                // Get condition as tensor (condition uses Bool dtype, not target dtype)
+                let cond = where_input_as_tensor(condition_arg, broadcast_rank, DType::Bool, scope);
 
                 // Get y as tensor
-                let y_tensor = where_input_as_tensor(y_arg, broadcast_rank, scope);
+                let y_tensor = where_input_as_tensor(y_arg, broadcast_rank, target_dtype, scope);
 
                 // Check if x is a scalar - if so, use mask_fill
                 if let ArgType::Scalar(_) = &x_arg.ty {
@@ -34,7 +35,8 @@ impl NodeCodegen for onnx_ir::where_op::WhereNode {
                     }
                 } else {
                     // x is tensor or shape - use mask_where
-                    let x_tensor = where_input_as_tensor(x_arg, broadcast_rank, scope);
+                    let x_tensor =
+                        where_input_as_tensor(x_arg, broadcast_rank, target_dtype, scope);
                     quote! {
                         let #output = #y_tensor.mask_where(#cond, #x_tensor);
                     }
@@ -100,6 +102,7 @@ impl NodeCodegen for onnx_ir::where_op::WhereNode {
 fn where_input_as_tensor(
     arg: &Argument,
     broadcast_rank: usize,
+    target_dtype: DType,
     scope: &mut super::super::scope::ScopeAtPosition<'_>,
 ) -> TokenStream {
     match &arg.ty {
@@ -125,10 +128,15 @@ fn where_input_as_tensor(
             }
         }
         ArgType::Shape(_) => {
-            // Convert shape to tensor (rank 1)
+            // Convert shape to tensor (rank 1) with explicit dtype to match target tensor
             let name = arg_to_ident(arg);
+            let dtype_tokens = target_dtype.to_tokens();
             let tensor = quote! {
-                Tensor::<B, 1, burn::tensor::Int>::from_data(&#name as &[_], &*self.device)
+                Tensor::<B, 1, burn::tensor::Int>::from_data_dtype(
+                    burn::tensor::TensorData::from(&#name as &[i64]),
+                    &*self.device,
+                    #dtype_tokens
+                )
             };
 
             if broadcast_rank > 1 {

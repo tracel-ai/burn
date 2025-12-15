@@ -42,12 +42,26 @@ impl NodeCodegen for onnx_ir::comparison::GreaterOrEqualNode {
                 // L >= R == R <= L
                 quote! { #rhs_value.lower_equal_elem(#lhs_value) }
             }
-            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
-                Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs_value as &[_], &*self.device).greater_equal(#rhs_value)
-            },
-            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
-                #lhs_value.greater_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs_value as &[_], &*self.device))
-            },
+            (ArgType::Shape(_), ArgType::Tensor(tensor_type)) => {
+                let dtype_tokens = tensor_type.dtype.to_tokens();
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data_dtype(
+                        burn::tensor::TensorData::from(&#lhs_value as &[i64]),
+                        &*self.device,
+                        #dtype_tokens
+                    ).greater_equal(#rhs_value)
+                }
+            }
+            (ArgType::Tensor(tensor_type), ArgType::Shape(_)) => {
+                let dtype_tokens = tensor_type.dtype.to_tokens();
+                quote! {
+                    #lhs_value.greater_equal(Tensor::<B, 1, burn::tensor::Int>::from_data_dtype(
+                        burn::tensor::TensorData::from(&#rhs_value as &[i64]),
+                        &*self.device,
+                        #dtype_tokens
+                    ))
+                }
+            }
             (lhs, rhs) => panic!("greater_equal is not supported for {lhs:?} > {rhs:?}"),
         };
 

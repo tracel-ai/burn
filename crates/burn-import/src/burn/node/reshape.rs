@@ -92,15 +92,17 @@ impl NodeCodegen for onnx_ir::reshape::ReshapeNode {
                                     }
                                 }
                             }
-                            ArgType::Tensor(_) => {
+                            ArgType::Tensor(output_tensor) => {
                                 // Convert Shape to Tensor first, then reshape
                                 let shape_values = shape_values.to_tokens();
+                                let dtype_tokens = output_tensor.dtype.to_tokens();
                                 quote! {
                                     let #output = {
                                         let shape_array = #input_name as [i64; #input_rank];
-                                        Tensor::<B, 1, Int>::from_data(
+                                        Tensor::<B, 1, Int>::from_data_dtype(
                                             TensorData::from(shape_array),
-                                            &self.device
+                                            &self.device,
+                                            #dtype_tokens
                                         )
                                     }.reshape(#shape_values);
                                 }
@@ -470,7 +472,15 @@ mod tests {
         pub fn forward(&self, dims: [i64; 1]) -> Tensor<B, 1, Int> {
             let tensor_dims = {
                 let shape_array = dims as [i64; 1usize];
-                Tensor::<B, 1, Int>::from_data(TensorData::from(shape_array), &self.device)
+                Tensor::<
+                    B,
+                    1,
+                    Int,
+                >::from_data_dtype(
+                    TensorData::from(shape_array),
+                    &self.device,
+                    burn::tensor::DType::I64,
+                )
             }
                 .reshape([3]);
             tensor_dims
