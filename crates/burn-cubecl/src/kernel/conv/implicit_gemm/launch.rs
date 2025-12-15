@@ -1,6 +1,6 @@
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
-    convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, launch_ref},
+    convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, forward::launch_ref},
     matmul::{
         AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy, components::MatmulElems,
         tune_key::MatmulElemType,
