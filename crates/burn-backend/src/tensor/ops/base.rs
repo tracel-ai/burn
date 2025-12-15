@@ -244,63 +244,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         value: Self::Primitive,
     ) -> Self::Primitive;
 
-    /// Fills the tensor elements corresponding to the given slices with the given value.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `slices` - The slices specifying ranges and steps for each dimension.
-    /// * `value` - The value to fill.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the filled values at the specified slice positions.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For filling values in a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("slice_fill"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::slice_fill`")]
-    /// function, which is more high-level and designed for public use.
-    fn slice_fill(tensor: Self::Primitive, slices: &[Slice], value: Self::Elem) -> Self::Primitive {
-        let slice_shape = tensor.shape().slice(slices).unwrap();
-        let value = Self::from_data_dtype(
-            TensorData::from([value]),
-            &Self::device(&tensor),
-            Self::dtype(&tensor),
-        );
-        let value = Self::expand(value, slice_shape);
-        Self::slice_assign(tensor, slices, value)
-    }
-
-    /// Slices the tensor along a given dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to slice.
-    /// * `dim` - The dimension along which to slice.
-    /// * `slice` - The slice information containing range and step.
-    ///
-    /// # Returns
-    ///
-    /// The sliced tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    fn slice_dim(tensor: Self::Primitive, dim: usize, slice: &Slice) -> Self::Primitive {
-        let mut slices = vec![Slice::full(); tensor.shape().num_dims()];
-        slices[dim] = *slice;
-
-        Self::slice(tensor, &slices)
-    }
-
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
     /// # Arguments
