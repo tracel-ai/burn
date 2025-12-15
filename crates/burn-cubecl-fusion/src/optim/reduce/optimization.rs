@@ -32,6 +32,9 @@ use cubek::reduce::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+#[cfg(not(feature = "autotune"))]
+use cubek::reduce::routines::{RoutineStrategy, unit::UnitStrategy};
+
 pub struct ReduceOptimization<R: Runtime> {
     info: Arc<ReduceOptimizationInfo<R>>,
 }
@@ -212,10 +215,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         if arg
             .execute_fused::<BT>(
                 context,
-                ReduceStrategy {
-                    shared: false,
-                    use_planes: false,
-                },
+                ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
             )
             .is_err()
         {
