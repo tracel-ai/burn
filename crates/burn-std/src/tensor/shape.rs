@@ -2,7 +2,6 @@
 
 use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
-use crate::canonicalize_dim;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
@@ -135,8 +134,8 @@ impl Shape {
     /// ```
     pub fn flatten_dims(self, start_dim: impl AsIndex, end_dim: impl AsIndex) -> Self {
         let rank = self.rank();
-        let start = canonicalize_dim(start_dim, rank, false);
-        let end = canonicalize_dim(end_dim, rank, false);
+        let start = start_dim.expect_dim(rank);
+        let end = end_dim.expect_dim(rank);
 
         assert!(
             start <= end,
