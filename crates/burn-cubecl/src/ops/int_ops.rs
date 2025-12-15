@@ -16,10 +16,10 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
+use burn_backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
 use burn_backend::{Distribution, ElementConversion, Shape, TensorData};
-use burn_tensor::backend::{Backend, ExecutionError};
 use cubecl::prelude::*;
 use cubecl::{frontend::Numeric, std::scalar::InputScalar};
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -382,9 +382,10 @@ where
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
         reduce::reduce_dim(
             tensor,
-            Some(tensor.dtype),
+            Some(dtype),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
@@ -393,9 +394,10 @@ where
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
         reduce::reduce_dim(
             tensor,
-            Some(tensor.dtype),
+            Some(dtype),
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMin,

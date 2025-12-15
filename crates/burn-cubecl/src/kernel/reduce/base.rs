@@ -119,7 +119,7 @@ pub fn reduce<Run: CubeRuntime>(
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape);
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run>(tensor, output_type, axis, strategy.clone(), config)?;
+        tensor = reduce_dim::<Run>(tensor, output_dtype, axis, strategy.clone(), config)?;
     }
     // reshape to scalar tensor
     tensor.shape = Shape::new([1]);

@@ -33,7 +33,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
             ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
             ReduceStrategy::FullCube(RoutineStrategy::Strategy(CubeStrategy { use_planes: true })),
             ReduceStrategy::FullPlane(RoutineStrategy::Strategy(PlaneStrategy {
-                independant: true,
+                independent: true,
             })),
         ] {
             let name = format!("{strategy:?}");
