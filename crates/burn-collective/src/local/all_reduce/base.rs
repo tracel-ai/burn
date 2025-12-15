@@ -46,9 +46,10 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
 /// reduce (all tensors are reduced to one device), and a broadcast (the result is sent to all
 /// other devices). The all-reduce on the global level is done between both steps.
 /// Due to the nature of the Ring strategy, this separation can't be done.
-// For the Ring strategy, this isn't possible, because it is more like a
-// reduce-scatter plus an all-gather, so using a Ring strategy locally in a multi-node
-// setup may be unadvantageous.
+///
+/// For the Ring strategy, this isn't possible, because it is more like a
+/// reduce-scatter plus an all-gather, so using a Ring strategy locally in a multi-node
+/// setup may be unadvantageous.
 #[tracing::instrument(skip(tensors, config, global_client))]
 pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
     tensors: CollectiveTensorMap<B>,

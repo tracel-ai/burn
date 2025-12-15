@@ -643,8 +643,6 @@ dependencies = [
  "burn-train",
  "burn-wgpu",
  "cubecl",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
@@ -678,7 +676,6 @@ dependencies = [
  "rand_distr",
  "serde",
  "thiserror 2.0.17",
- "tracing",
 ]
 
 [[package]]

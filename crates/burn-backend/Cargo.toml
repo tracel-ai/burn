@@ -17,7 +17,12 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
-std = ["rand/std", "num-traits/std", "burn-std/std", "dep:tracing", "tracing?/std"]
+std = [
+    "rand/std",
+    "num-traits/std",
+    "burn-std/std",
+    "cubecl?/std",
+]
 cubecl = ["dep:cubecl", "burn-std/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
@@ -27,7 +32,6 @@ cubecl-cpu = ["cubecl", "cubecl/cpu"]
 [dependencies]
 burn-std = { path = "../burn-std", version = "0.20.0-pre.5", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
-tracing = { workspace = true, features = ["attributes"], optional = true }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
