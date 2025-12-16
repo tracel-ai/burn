@@ -58,7 +58,8 @@ impl<R: Runtime> TuneOutput<R> {
 impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
-        use burn_std::{DType, Tolerance};
+        use burn_backend::Tolerance;
+        use burn_std::DType;
 
         if let (
             TuneOutput::Checked {

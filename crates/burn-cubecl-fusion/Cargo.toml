@@ -18,7 +18,7 @@ workspace = true
 default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 
 autotune = []
-autotune-checks = ["cubecl/autotune-checks", "burn-backend"]
+autotune-checks = ["cubecl/autotune-checks", "burn-backend", "half"]
 doc = ["default"]
 std = ["cubecl/std", "burn-backend?/std", "burn-fusion/std"]
 
@@ -28,6 +28,7 @@ burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5", default-features = f
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.5" }
 cubecl = { workspace = true }
 cubek = { workspace = true, features = ["matmul", "reduce", "quantization"] }
+half = { workspace = true, optional = true }
 
 # Only for `TensorData` with autotune-checks
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false, optional = true }
