@@ -12,7 +12,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-/// Executes autotune on conv2d operations
+/// Executes autotune on the weight gradients pass for convolution
 pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     out_grad: CubeTensor<R>,

@@ -11,7 +11,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-/// Executes autotune on conv2d operations
+/// Executes autotune on convolution operations
 pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,

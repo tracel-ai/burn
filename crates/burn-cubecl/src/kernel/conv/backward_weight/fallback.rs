@@ -9,7 +9,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-/// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass, returning the gradient for `weight`.
+/// Calculate the convolution backward pass with regard to the weight gradients.
 pub fn conv_weight_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
     input: CubeTensor<R>,
     output_grad: CubeTensor<R>,

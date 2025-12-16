@@ -91,12 +91,12 @@ pub fn conv_forward_nhwc<R: CubeRuntime, const N: usize>(
     }
 }
 
-/// Performs an N-dimensional convolution with the given strategy
+/// Performs an N-dimensional convolution backwards pass with regard to weight, with the given strategy
 ///
 /// * `input` - The input feature map
-/// * `weight` - The weights (filter) applied to each kernel
-/// * `bias` - The bias added to each channel
-/// * `options` - The options to use for the convolution
+/// * `out_grad` - The output gradients
+/// * `weight_shape` - The shape of the weights/weight gradients
+/// * `options` - The options used for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 pub fn conv_weight_backward<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
