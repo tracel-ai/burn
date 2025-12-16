@@ -3,12 +3,14 @@ use super::args::{
 };
 #[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
-use crate::engine::launch::FuseTraceLauncher;
-use crate::engine::launch::runner::{TraceRunner, Vectorization};
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
         codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
+        launch::{
+            FuseTraceLauncher,
+            runner::{TraceRunner, Vectorization},
+        },
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
@@ -17,17 +19,15 @@ use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
 use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*};
-use cubek::reduce::ReduceDtypes;
-use cubek::reduce::routines::cube::CubeRoutine;
-use cubek::reduce::routines::plane::PlaneRoutine;
-use cubek::reduce::routines::unit::UnitRoutine;
-use cubek::reduce::routines::{ReduceLaunchSettings, ReduceLineSettings, ReduceProblem, Routine};
 use cubek::reduce::{
-    LineMode, ReduceError,
+    LineMode, ReduceDtypes, ReduceError,
     components::instructions::ReduceOperationConfig,
     init_tensors,
-    launch::{ReduceStrategy, reduce_kernel_virtual},
-    routines::ReduceBlueprint,
+    launch::{RoutineStrategy, reduce_kernel_virtual},
+    routines::{
+        ReduceBlueprint, ReduceLaunchSettings, ReduceLineSettings, ReduceProblem, Routine,
+        cube::CubeRoutine, plane::PlaneRoutine, unit::UnitRoutine,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -105,7 +105,7 @@ pub struct FusedReduce {
 #[derive(new)]
 pub struct FusedReduceLaunch<'a> {
     reduce: &'a FusedReduce,
-    strategy: ReduceStrategy,
+    strategy: RoutineStrategy,
 }
 
 #[derive(Debug)]
@@ -125,7 +125,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
     pub fn execute_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        strategy: ReduceStrategy,
+        strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
@@ -263,6 +263,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     }
 }
 
+// TODO: Implement better vectorization here.
 impl<R: Runtime> Vectorization<R> for FusedReduceLaunch<'_> {}
 
 impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
@@ -310,15 +311,15 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
         };
 
         let (blueprint, settings) = match self.strategy.clone() {
-            ReduceStrategy::FullUnit(strategy) => {
+            RoutineStrategy::Unit(strategy) => {
                 let routine = UnitRoutine;
                 routine.prepare(client, problem, settings, strategy)?
             }
-            ReduceStrategy::FullPlane(strategy) => {
+            RoutineStrategy::Plane(strategy) => {
                 let routine = PlaneRoutine;
                 routine.prepare(client, problem, settings, strategy)?
             }
-            ReduceStrategy::FullCube(strategy) => {
+            RoutineStrategy::Cube(strategy) => {
                 let routine = CubeRoutine;
                 routine.prepare(client, problem, settings, strategy)?
             }
