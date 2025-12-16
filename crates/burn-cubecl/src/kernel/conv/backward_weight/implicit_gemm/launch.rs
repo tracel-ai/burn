@@ -100,7 +100,7 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
         return Err(ConvSetupError::Groups(options.groups));
     }
 
-    let out_dtype = input.dtype;
+    let out_dtype = out_grad.dtype;
 
     let weight_grad = empty_device_optimized_dtype(
         input.client.clone(),
