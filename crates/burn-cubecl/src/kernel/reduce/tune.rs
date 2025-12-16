@@ -33,7 +33,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
             ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
             ReduceStrategy::FullCube(RoutineStrategy::Strategy(CubeStrategy { use_planes: true })),
             ReduceStrategy::FullPlane(RoutineStrategy::Strategy(PlaneStrategy {
-                independant: true,
+                independent: true,
             })),
         ] {
             let name = format!("{strategy:?}");
@@ -196,6 +196,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run>(
             input,
+            None,
             crate::kernel::reduce::KernelReduceStrategy::Autotune,
             cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
         )
