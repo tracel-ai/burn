@@ -253,6 +253,7 @@ fn main() {
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
         .input("tests/prelu/prelu.onnx")
+        .input("tests/prelu/prelu_with_channel_slope.onnx")
         .input("tests/random_normal/random_normal.onnx")
         .input("tests/random_normal_like/random_normal_like.onnx")
         .input("tests/random_uniform/random_uniform.onnx")
