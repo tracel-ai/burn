@@ -193,7 +193,7 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubek = { version = "=0.9.0-pre.5", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.2.1" }
+tracel-xtask = { version = "=4.8.0" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
