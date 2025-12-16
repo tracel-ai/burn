@@ -11,7 +11,6 @@ mod proto_conversion;
 mod protos;
 mod registry;
 mod tensor_store;
-mod util;
 
 // Public API - only expose essentials
 pub use ir::*;

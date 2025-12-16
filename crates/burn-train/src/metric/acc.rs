@@ -106,6 +106,10 @@ impl<B: Backend> Numeric for AccuracyMetric<B> {
     fn value(&self) -> super::NumericEntry {
         self.state.current_value()
     }
+
+    fn running_value(&self) -> super::NumericEntry {
+        self.state.running_value()
+    }
 }
 
 #[cfg(test)]

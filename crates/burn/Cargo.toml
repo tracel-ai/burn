@@ -150,7 +150,6 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 
-
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
@@ -176,3 +175,4 @@ burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.5", optional = true,
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5", optional = true, default-features = false }
 
 cubecl = { workspace = true, default-features = false, optional = true }
+

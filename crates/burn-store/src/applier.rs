@@ -237,7 +237,7 @@ impl<B: Backend> Applier<B> {
         }
 
         self.applied.push(path);
-        Some(Tensor::from_data(data, target_device))
+        Some(Tensor::from_data_dtype(data, target_device, snapshot.dtype))
     }
 }
 
@@ -327,7 +327,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
 mod tests {
     use super::*;
     use burn_core::module::{ModuleMapper, Param, ParamId};
-    use burn_tensor::Tensor;
+    use burn_tensor::{DType, Tensor, TensorData};
 
     type TestBackend = burn_ndarray::NdArray;
 
@@ -390,5 +390,219 @@ mod tests {
         let result = applier.into_result();
         assert_eq!(result.applied.len(), 2);
         assert_eq!(result.errors.len(), 0);
+    }
+
+    /// Test that the applier preserves dtype when loading tensor data.
+    /// This is a regression test for the bug where F16 tensors were being
+    /// loaded as F32 because `Tensor::from_data` was used instead of
+    /// `Tensor::from_data_dtype`.
+    #[test]
+    fn dtype_preservation_f64() {
+        // Use NdArray<f64> backend to properly test F64 dtype preservation
+        type TestBackendF64 = burn_ndarray::NdArray<f64>;
+        let device = Default::default();
+
+        // Create TensorData with F64 dtype explicitly
+        let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]);
+        assert_eq!(f64_data.dtype, DType::F64, "Test setup: data should be F64");
+
+        // Create a snapshot with F64 data
+        let snapshot = crate::TensorSnapshot::from_data(
+            f64_data.clone(),
+            vec!["weight".to_string()],
+            vec![],
+            ParamId::new(),
+        );
+        assert_eq!(
+            snapshot.dtype,
+            DType::F64,
+            "Snapshot should preserve F64 dtype"
+        );
+
+        // Create applier with the F64 snapshot
+        let mut applier = Applier::<TestBackendF64>::new(vec![snapshot], None, None, false);
+
+        // Create target parameter
+        let target = Param::initialized(
+            ParamId::new(),
+            Tensor::<TestBackendF64, 2>::zeros([2, 2], &device),
+        );
+
+        // Apply the snapshot
+        applier.enter_module("weight", "");
+        let loaded = applier.map_float(target);
+        applier.exit_module("weight", "");
+
+        // Verify dtype is preserved - this would fail before the fix
+        // because the data would be converted to the backend's default FloatElem
+        assert_eq!(
+            loaded.val().dtype(),
+            DType::F64,
+            "Loaded tensor should have F64 dtype"
+        );
+
+        // Verify data values are correct
+        let loaded_data = loaded.val().to_data().to_vec::<f64>().unwrap();
+        assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
+
+        // Verify applier result
+        let result = applier.into_result();
+        assert_eq!(result.applied.len(), 1);
+        assert_eq!(result.errors.len(), 0);
+    }
+
+    /// Test that F32 dtype is preserved when loading (verifies we didn't break F32 handling)
+    #[test]
+    fn dtype_preservation_f32() {
+        let device = Default::default();
+
+        // Create TensorData with F32 dtype
+        let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [2, 2]);
+        assert_eq!(f32_data.dtype, DType::F32);
+
+        // Create a snapshot with F32 data
+        let snapshot = crate::TensorSnapshot::from_data(
+            f32_data.clone(),
+            vec!["weight".to_string()],
+            vec![],
+            ParamId::new(),
+        );
+        assert_eq!(snapshot.dtype, DType::F32);
+
+        // Create applier with the F32 snapshot
+        let mut applier = Applier::<TestBackend>::new(vec![snapshot], None, None, false);
+
+        // Create target parameter
+        let target = Param::initialized(
+            ParamId::new(),
+            Tensor::<TestBackend, 2>::zeros([2, 2], &device),
+        );
+
+        // Apply the snapshot
+        applier.enter_module("weight", "");
+        let loaded = applier.map_float(target);
+        applier.exit_module("weight", "");
+
+        // Verify dtype is F32
+        assert_eq!(loaded.val().dtype(), DType::F32);
+
+        // Verify data values
+        let loaded_data = loaded.val().to_data().to_vec::<f32>().unwrap();
+        assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
+    }
+
+    /// Test that F16 dtype is correctly preserved in TensorSnapshot.
+    ///
+    /// Note: Full F16 tensor loading requires a backend that supports F16
+    /// (e.g., CUDA, WebGPU). The NdArray backend does not support F16.
+    /// This test verifies that the snapshot correctly preserves F16 dtype,
+    /// which is the key part of the dtype preservation fix.
+    #[test]
+    fn dtype_preservation_f16_snapshot() {
+        use half::f16;
+
+        // Create TensorData with F16 dtype using the half crate
+        let f16_values: Vec<f16> = vec![
+            f16::from_f32(1.0),
+            f16::from_f32(2.0),
+            f16::from_f32(3.0),
+            f16::from_f32(4.0),
+        ];
+        let f16_data = TensorData::new(f16_values.clone(), [2, 2]);
+        assert_eq!(
+            f16_data.dtype,
+            DType::F16,
+            "TensorData should have F16 dtype"
+        );
+
+        // Create a snapshot with F16 data
+        let snapshot = crate::TensorSnapshot::from_data(
+            f16_data.clone(),
+            vec!["weight".to_string()],
+            vec![],
+            ParamId::new(),
+        );
+
+        // Verify snapshot preserves F16 dtype
+        assert_eq!(
+            snapshot.dtype,
+            DType::F16,
+            "TensorSnapshot should preserve F16 dtype"
+        );
+
+        // Verify the data can be retrieved with correct dtype
+        let retrieved_data = snapshot.to_data().expect("Should be able to retrieve data");
+        assert_eq!(
+            retrieved_data.dtype,
+            DType::F16,
+            "Retrieved data should have F16 dtype"
+        );
+
+        // Verify the actual values are preserved
+        let retrieved_values: Vec<f16> = retrieved_data
+            .to_vec()
+            .expect("Should be able to convert to f16 vec");
+        assert_eq!(
+            retrieved_values, f16_values,
+            "F16 values should be preserved"
+        );
+
+        // Note: To fully test F16 tensor creation, you would need a backend
+        // that supports F16 (like CUDA or WebGPU). The applier fix ensures
+        // that `Tensor::from_data_dtype(data, device, snapshot.dtype)` is
+        // called with DType::F16, which will correctly create an F16 tensor
+        // on backends that support it.
+    }
+
+    /// Test that BF16 dtype is correctly preserved in TensorSnapshot.
+    #[test]
+    fn dtype_preservation_bf16_snapshot() {
+        use half::bf16;
+
+        // Create TensorData with BF16 dtype
+        let bf16_values: Vec<bf16> = vec![
+            bf16::from_f32(1.0),
+            bf16::from_f32(2.0),
+            bf16::from_f32(3.0),
+            bf16::from_f32(4.0),
+        ];
+        let bf16_data = TensorData::new(bf16_values.clone(), [2, 2]);
+        assert_eq!(
+            bf16_data.dtype,
+            DType::BF16,
+            "TensorData should have BF16 dtype"
+        );
+
+        // Create a snapshot with BF16 data
+        let snapshot = crate::TensorSnapshot::from_data(
+            bf16_data.clone(),
+            vec!["weight".to_string()],
+            vec![],
+            ParamId::new(),
+        );
+
+        // Verify snapshot preserves BF16 dtype
+        assert_eq!(
+            snapshot.dtype,
+            DType::BF16,
+            "TensorSnapshot should preserve BF16 dtype"
+        );
+
+        // Verify the data can be retrieved with correct dtype
+        let retrieved_data = snapshot.to_data().expect("Should be able to retrieve data");
+        assert_eq!(
+            retrieved_data.dtype,
+            DType::BF16,
+            "Retrieved data should have BF16 dtype"
+        );
+
+        // Verify the actual values are preserved
+        let retrieved_values: Vec<bf16> = retrieved_data
+            .to_vec()
+            .expect("Should be able to convert to bf16 vec");
+        assert_eq!(
+            retrieved_values, bf16_values,
+            "BF16 values should be preserved"
+        );
     }
 }
