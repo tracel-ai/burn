@@ -72,7 +72,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                     )| {
                         let strategy = ReduceStrategy {
                             routine: routine.clone(),
-                            line_size: line_size.clone(),
+                            line_size,
                         };
                         cubek::reduce::reduce::<R>(
                             &input.client,
