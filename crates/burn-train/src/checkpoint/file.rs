@@ -45,7 +45,7 @@ where
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
-        log::info!("Saving checkpoint {} to {}", epoch, file_path.display());
+        log::trace!("Saving checkpoint {} to {}", epoch, file_path.display());
 
         self.recorder
             .record(record, file_path)
@@ -77,7 +77,7 @@ where
         );
 
         if std::path::Path::new(&file_to_remove).exists() {
-            log::info!("Removing checkpoint {file_to_remove}");
+            log::trace!("Removing checkpoint {file_to_remove}");
             std::fs::remove_file(file_to_remove).map_err(CheckpointerError::IOError)?;
         }
 
