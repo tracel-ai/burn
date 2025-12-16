@@ -120,6 +120,10 @@ impl<B: Backend> Numeric for HammingScore<B> {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
+
+    fn running_value(&self) -> NumericEntry {
+        self.state.running_value()
+    }
 }
 
 #[cfg(test)]

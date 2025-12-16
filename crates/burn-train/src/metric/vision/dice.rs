@@ -185,6 +185,10 @@ impl<B: Backend, const D: usize> crate::metric::Numeric for DiceMetric<B, D> {
     fn value(&self) -> crate::metric::NumericEntry {
         self.state.current_value()
     }
+
+    fn running_value(&self) -> crate::metric::NumericEntry {
+        self.state.running_value()
+    }
 }
 
 #[cfg(test)]
