@@ -1,13 +1,12 @@
+use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
     convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, forward::launch_ref},
     matmul::{
-        AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy, components::MatmulElems,
-        tune_key::MatmulElemType,
+        definition::{MatmulElemType, MatmulElems},
+        launch::{AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy},
     },
 };
-
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
 /// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
