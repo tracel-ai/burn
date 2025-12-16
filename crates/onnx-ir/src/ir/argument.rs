@@ -292,4 +292,27 @@ impl Argument {
 
         Ok(())
     }
+
+    /// Create an argument with a constant i64 scalar value embedded.
+    pub fn from_const_i64(name: impl Into<String>, value: i64) -> Self {
+        use crate::tensor_store::{TensorDataRef, TensorStore, ValueStore};
+        use std::collections::HashMap;
+        use std::rc::Rc;
+
+        // Create tensor data from the i64 value
+        let bytes = bytes::Bytes::copy_from_slice(&value.to_ne_bytes());
+        let data_ref = TensorDataRef::new(bytes, vec![], DType::I64);
+
+        let mut tensor_store = TensorStore::new();
+        let data_id = tensor_store.store(data_ref);
+
+        let value_store = ValueStore::new(Rc::new(tensor_store), Rc::new(HashMap::new()));
+
+        Self {
+            name: name.into(),
+            ty: ArgType::Scalar(DType::I64),
+            value_source: ValueSource::Static(data_id),
+            value_store: Some(value_store),
+        }
+    }
 }

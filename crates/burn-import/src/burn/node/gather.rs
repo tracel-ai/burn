@@ -1,5 +1,6 @@
 use super::prelude::*;
 use crate::burn::scalar_type_tokens;
+use onnx_ir::ir::TensorDataExt;
 
 impl NodeCodegen for onnx_ir::gather::GatherNode {
     fn inputs(&self) -> &[Argument] {
@@ -134,6 +135,22 @@ fn forward_scalar_gather(node: &onnx_ir::gather::GatherNode) -> proc_macro2::Tok
     }
 }
 
+/// Try to resolve a scalar index at compile time.
+///
+/// Returns `Some(resolved_idx)` if:
+/// - The index is a constant scalar value, AND
+/// - If the index is negative, the input has a known static shape at the gather axis
+fn resolve_scalar_index(index_arg: &Argument, input_arg: &Argument, axis: usize) -> Option<usize> {
+    let idx = index_arg.value()?.scalar_i64().ok()?;
+
+    if idx >= 0 {
+        Some(idx as usize)
+    } else {
+        let dim_size = input_arg.ty.static_shape()?.get(axis)?;
+        Some((*dim_size as i64 + idx) as usize)
+    }
+}
+
 fn forward_tensor_gather(
     node: &onnx_ir::gather::GatherNode,
     scope: &mut super::super::scope::ScopeAtPosition<'_>,
@@ -175,22 +192,39 @@ fn forward_tensor_gather(
             match &index_arg.ty {
                 ArgType::Scalar(_) => {
                     // Use tensor.slice(...) with range syntax for more efficient gather operation
-                    let index = arg_to_ident(index_arg);
                     let output_rank = input_rank - 1;
+                    let axis = node.config.axis;
 
-                    // Generate slice ranges: s![.., index..index+1, ..] where the range is at position `dim`
+                    // Generate slice ranges: s![.., idx..idx+1, ..] where the range is at position `dim`
                     let slice_args = (0..input_rank)
                         .map(|i| {
-                            if i == node.config.axis {
-                                quote! { (#index as usize)..((#index as usize) + 1) }
+                            if i == axis {
+                                quote! { idx..(idx + 1) }
                             } else {
                                 quote! { .. }
                             }
                         })
                         .collect::<Vec<_>>();
 
+                    // Try to resolve index at compile time, otherwise use runtime check
+                    let idx_binding =
+                        if let Some(resolved) = resolve_scalar_index(index_arg, input_arg, axis) {
+                            let lit = proc_macro2::Literal::usize_unsuffixed(resolved);
+                            quote! { let idx = #lit; }
+                        } else {
+                            let index = arg_to_ident(index_arg);
+                            quote! {
+                                let idx = if #index < 0 {
+                                    (#input.dims()[#dim] as i64 + #index) as usize
+                                } else {
+                                    #index as usize
+                                };
+                            }
+                        };
+
                     quote! {
                         let #output = {
+                            #idx_binding
                             let sliced = #input.slice(s![#(#slice_args),*]);
                             sliced.squeeze_dim::<#output_rank>(#dim)
                         };
@@ -487,8 +521,12 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, table: Tensor<B, 3>, row_idx: i32) -> Tensor<B, 2> {
             let row = {
-                let sliced = table
-                    .slice(s![(row_idx as usize).. ((row_idx as usize) + 1), .., ..]);
+                let idx = if row_idx < 0 {
+                    (table.dims()[0] as i64 + row_idx) as usize
+                } else {
+                    row_idx as usize
+                };
+                let sliced = table.slice(s![idx.. (idx + 1), .., ..]);
                 sliced.squeeze_dim::<2usize>(0)
             };
             row
@@ -509,7 +547,12 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>, col_num: i64) -> Tensor<B, 1> {
             let column = {
-                let sliced = data.slice(s![.., (col_num as usize).. ((col_num as usize) + 1)]);
+                let idx = if col_num < 0 {
+                    (data.dims()[1] as i64 + col_num) as usize
+                } else {
+                    col_num as usize
+                };
+                let sliced = data.slice(s![.., idx.. (idx + 1)]);
                 sliced.squeeze_dim::<1usize>(1)
             };
             column
@@ -530,8 +573,12 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, volume: Tensor<B, 4>, depth_idx: i32) -> Tensor<B, 3> {
             let slice = {
-                let sliced = volume
-                    .slice(s![.., .., (depth_idx as usize).. ((depth_idx as usize) + 1), ..]);
+                let idx = if depth_idx < 0 {
+                    (volume.dims()[2] as i64 + depth_idx) as usize
+                } else {
+                    depth_idx as usize
+                };
+                let sliced = volume.slice(s![.., .., idx.. (idx + 1), ..]);
                 sliced.squeeze_dim::<3usize>(2)
             };
             slice
@@ -552,8 +599,12 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, features: Tensor<B, 4>, ch_idx: i64) -> Tensor<B, 3> {
             let channel = {
-                let sliced = features
-                    .slice(s![.., .., .., (ch_idx as usize).. ((ch_idx as usize) + 1)]);
+                let idx = if ch_idx < 0 {
+                    (features.dims()[3] as i64 + ch_idx) as usize
+                } else {
+                    ch_idx as usize
+                };
+                let sliced = features.slice(s![.., .., .., idx.. (idx + 1)]);
                 sliced.squeeze_dim::<3usize>(3)
             };
             channel
@@ -750,6 +801,94 @@ mod tests {
                 Tensor::select(tensor3d, 2, indices)
             };
             planes
+        }
+        ");
+    }
+
+    #[test]
+    fn test_gather_const_positive_index() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("get_row")
+            .input_tensor_shape("data", vec![10, 64], DType::F32)
+            .input_const_i64("idx", 2)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
+            let output = {
+                let idx = 2;
+                let sliced = data.slice(s![idx.. (idx + 1), ..]);
+                sliced.squeeze_dim::<1usize>(0)
+            };
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_gather_const_negative_index() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("get_last_row")
+            .input_tensor_shape("data", vec![10, 64], DType::F32)
+            .input_const_i64("idx", -1)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
+            let output = {
+                let idx = 9;
+                let sliced = data.slice(s![idx.. (idx + 1), ..]);
+                sliced.squeeze_dim::<1usize>(0)
+            };
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_gather_const_negative_index_axis1() {
+        let config = GatherConfig { axis: 1 };
+        let node = GatherNodeBuilder::new("get_last_col")
+            .input_tensor_shape("data", vec![8, 64], DType::F32)
+            .input_const_i64("idx", -1)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
+            let output = {
+                let idx = 63;
+                let sliced = data.slice(s![.., idx.. (idx + 1)]);
+                sliced.squeeze_dim::<1usize>(1)
+            };
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_gather_const_negative_index_minus2() {
+        let config = GatherConfig { axis: 0 };
+        let node = GatherNodeBuilder::new("get_second_last")
+            .input_tensor_shape("data", vec![10, 64], DType::F32)
+            .input_const_i64("idx", -2)
+            .output_tensor("output", 1, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
+            let output = {
+                let idx = 8;
+                let sliced = data.slice(s![idx.. (idx + 1), ..]);
+                sliced.squeeze_dim::<1usize>(0)
+            };
+            output
         }
         ");
     }
