@@ -25,11 +25,17 @@
 //! - The slope input is lifted to static during constant lifting phase
 //! - This allows the slope to be embedded in the generated code
 
-use crate::ir::{Argument, Node, RawNode};
+use crate::ir::{ArgType, Argument, Node, RawNode};
 use crate::processor::{
     InputSpec, NodeProcessor, NodeSpec, OutputPreferences, OutputSpec, ProcessError,
 };
 use onnx_ir_derive::NodeBuilder;
+
+#[derive(Debug, Clone, new)]
+pub struct PReluConfig {
+    /// Number of learnable parameters
+    pub num_parameters: usize,
+}
 
 /// Node representation for PRelu operation
 #[derive(Debug, Clone, NodeBuilder)]
@@ -37,6 +43,7 @@ pub struct PReluNode {
     pub name: String,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
+    pub config: PReluConfig,
 }
 
 pub(crate) struct PReluProcessor;
@@ -100,10 +107,24 @@ impl NodeProcessor for PReluProcessor {
     }
 
     fn build_node(&self, builder: RawNode, _opset: usize) -> Node {
+        let num_parameters = builder
+            .inputs
+            .get(1)
+            .and_then(|slope| {
+                if let ArgType::Tensor(tensor) = &slope.ty {
+                    tensor.static_shape.as_ref()
+                } else {
+                    None
+                }
+            })
+            .map(|shape| shape.iter().product())
+            .unwrap_or(1);
+
         Node::PRelu(PReluNode {
             name: builder.name,
             inputs: builder.inputs,
             outputs: builder.outputs,
+            config: PReluConfig::new(num_parameters),
         })
     }
 }
@@ -188,5 +209,56 @@ mod tests {
             result,
             Err(ProcessError::InvalidInputCount { .. })
         ));
+    }
+
+    #[test]
+    fn test_prelu_config_from_channel_slope() {
+        let node = TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
+            .input_tensor_f32("X", 4, Some(vec![1, 64, 112, 112]))
+            .input_tensor_f32("slope", 3, Some(vec![64, 1, 1]))
+            .output_tensor_f32("Y", 4, Some(vec![1, 64, 112, 112]))
+            .build();
+
+        let processor = PReluProcessor;
+        let built = processor.build_node(node, 16);
+        if let Node::PRelu(prelu_node) = built {
+            assert_eq!(prelu_node.config.num_parameters, 64);
+        } else {
+            panic!("Expected PRelu node");
+        }
+    }
+
+    #[test]
+    fn test_prelu_config_from_1d_slope() {
+        let node = TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
+            .input_tensor_f32("X", 4, Some(vec![1, 64, 112, 112]))
+            .input_tensor_f32("slope", 1, Some(vec![64]))
+            .output_tensor_f32("Y", 4, Some(vec![1, 64, 112, 112]))
+            .build();
+
+        let processor = PReluProcessor;
+        let built = processor.build_node(node, 16);
+        if let Node::PRelu(prelu_node) = built {
+            assert_eq!(prelu_node.config.num_parameters, 64);
+        } else {
+            panic!("Expected PRelu node");
+        }
+    }
+
+    #[test]
+    fn test_prelu_config_scalar_slope() {
+        let node = TestNodeBuilder::new(NodeType::PRelu, "test_prelu")
+            .input_tensor_f32("X", 4, Some(vec![1, 64, 112, 112]))
+            .input_tensor_f32("slope", 1, Some(vec![1]))
+            .output_tensor_f32("Y", 4, Some(vec![1, 64, 112, 112]))
+            .build();
+
+        let processor = PReluProcessor;
+        let built = processor.build_node(node, 16);
+        if let Node::PRelu(prelu_node) = built {
+            assert_eq!(prelu_node.config.num_parameters, 1);
+        } else {
+            panic!("Expected PRelu node");
+        }
     }
 }
