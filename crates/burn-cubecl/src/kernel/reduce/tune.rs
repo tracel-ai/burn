@@ -87,7 +87,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                     ReduceProps::GreatWithLowReduceCount,
                 ),
             ] {
-                let name = format!("{name:?}{line_size_ident:?}");
+                let name = format!("{name}{line_size_ident}");
                 let mut tunable = Tunable::new(
                     name,
                     move |(input, output, axis, config, dtypes): (
