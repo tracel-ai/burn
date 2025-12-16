@@ -16,12 +16,14 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["dep:parking_lot"]
+std = ["dep:parking_lot", "dep:tracing", "tracing?/default"]
 export_tests = [] # check checkpointer is_empty in tests
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.5", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false }
+
+tracing = { workspace = true, optional = true }
 
 derive-new = { workspace = true }
 spin = { workspace = true }

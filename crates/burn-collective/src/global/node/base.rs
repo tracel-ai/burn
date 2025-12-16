@@ -23,7 +23,7 @@ use crate::{
     local::server::get_collective_server_runtime,
 };
 
-// Must be synchronized between all nodes for collective operations to work
+/// Must be synchronized between all nodes for collective operations to work
 pub(crate) struct NodeState {
     pub node_id: NodeId,
     pub nodes: HashMap<NodeId, Address>,
