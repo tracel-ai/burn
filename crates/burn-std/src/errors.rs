@@ -1,5 +1,7 @@
 //! # Common Burn Errors
 
+use alloc::string::String;
+
 /// Access Bounds Error.
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoundsError {
