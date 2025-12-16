@@ -14,11 +14,22 @@ pub enum Event {
 
 /// Contains all metric information.
 #[derive(new, Clone, Debug)]
+pub struct NumericMetricUpdate {
+    /// Generic metric information.
+    pub entry: MetricEntry,
+    /// The numeric information.
+    pub numeric_entry: NumericEntry,
+    /// Numeric value averaged over the global step (epoch).
+    pub running_entry: NumericEntry,
+}
+
+/// Contains all metric information.
+#[derive(new, Clone, Debug)]
 pub struct MetricsUpdate {
     /// Metrics information related to non-numeric metrics.
     pub entries: Vec<MetricEntry>,
     /// Metrics information related to numeric metrics.
-    pub entries_numeric: Vec<(MetricEntry, NumericEntry)>,
+    pub entries_numeric: Vec<NumericMetricUpdate>,
 }
 
 /// Summary information about a given epoch
@@ -28,8 +39,6 @@ pub struct EpochSummary {
     pub epoch_number: usize,
     /// Dataset split (train, valid, test).
     pub split: Split,
-    /// Contains the best MetricEntry reached during this epoch for each metric, for each split.
-    pub best_metric_values: Vec<MetricEntry>,
 }
 
 /// Defines how training and validation events are collected and searched.

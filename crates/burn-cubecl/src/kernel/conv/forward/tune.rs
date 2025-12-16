@@ -3,7 +3,7 @@ use cubecl::{
     ir::StorageType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::matmul::AcceleratedTileKind;
+use cubek::matmul::launch::AcceleratedTileKind;
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,

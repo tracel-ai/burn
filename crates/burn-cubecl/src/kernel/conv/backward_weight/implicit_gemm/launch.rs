@@ -3,8 +3,8 @@ use burn_std::Shape;
 use cubek::{
     convolution::{ConvolutionArgs, Strategy, backward_weight, components::ConvSetupError},
     matmul::{
-        AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy, components::MatmulElems,
-        tune_key::MatmulElemType,
+        definition::{MatmulElemType, MatmulElems},
+        launch::{AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy},
     },
 };
 

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{ItemLazy, LearnerItem};
 use crate::{
     metric::{
-        Adaptor, Metric, MetricAttributes, MetricDefinition, MetricEntry, MetricId, MetricMetadata,
-        Numeric, NumericEntry, store::MetricsUpdate,
+        Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, Numeric,
+        store::{MetricsUpdate, NumericMetricUpdate},
     },
     renderer::{EvaluationProgress, TrainingProgress},
 };
@@ -15,8 +15,6 @@ pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V::ItemSync>>>,
     metric_definitions: HashMap<MetricId, MetricDefinition>,
-    best_metric_entries_train: HashMap<MetricId, Option<MetricEntry>>,
-    best_metric_entries_valid: HashMap<MetricId, Option<MetricEntry>>,
 }
 
 pub(crate) struct MetricsEvaluation<T: ItemLazy> {
@@ -43,8 +41,6 @@ impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
             train_numeric: Vec::default(),
             valid_numeric: Vec::default(),
             metric_definitions: HashMap::default(),
-            best_metric_entries_train: HashMap::default(),
-            best_metric_entries_valid: HashMap::default(),
         }
     }
 }
@@ -99,8 +95,8 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
         }
 
         for metric in self.test_numeric.iter_mut() {
-            let (state, value) = metric.update(item, metadata);
-            entries_numeric.push((state, value));
+            let numeric_update = metric.update(item, metadata);
+            entries_numeric.push(numeric_update);
         }
 
         MetricsUpdate::new(entries, entries_numeric)
@@ -137,8 +133,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.best_metric_entries_train
-            .insert(metric.id.clone(), None);
         self.train_numeric.push(Box::new(metric))
     }
 
@@ -150,8 +144,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.best_metric_entries_valid
-            .insert(metric.id.clone(), None);
         self.valid_numeric.push(Box::new(metric))
     }
 
@@ -165,24 +157,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Get metric definitions for all splits
     pub(crate) fn metric_definitions(&mut self) -> Vec<MetricDefinition> {
         self.metric_definitions.values().cloned().collect()
-    }
-
-    /// Get the best numeric metric entries for the training split, for the current epoch.
-    pub(crate) fn best_metric_entries_train(&mut self) -> Vec<MetricEntry> {
-        self.best_metric_entries_train
-            .values()
-            .filter_map(|v| v.as_ref())
-            .cloned()
-            .collect()
-    }
-
-    /// Get the best metric entries for the validation split, for the current epoch
-    pub(crate) fn best_metric_entries_valid(&mut self) -> Vec<MetricEntry> {
-        self.best_metric_entries_valid
-            .values()
-            .filter_map(|v| v.as_ref())
-            .cloned()
-            .collect()
     }
 
     /// Update the training information from the training item.
@@ -200,13 +174,8 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         }
 
         for metric in self.train_numeric.iter_mut() {
-            let (state, value) = metric.update(item, metadata);
-            entries_numeric.push((state, value));
-        }
-
-        let definitions = self.metric_definitions.clone();
-        for (state, value) in entries_numeric.iter() {
-            self.update_best_entry_train(state, value, &definitions[&state.metric_id]);
+            let numeric_update = metric.update(item, metadata);
+            entries_numeric.push(numeric_update);
         }
 
         MetricsUpdate::new(entries, entries_numeric)
@@ -227,68 +196,11 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         }
 
         for metric in self.valid_numeric.iter_mut() {
-            let (state, value) = metric.update(item, metadata);
-            entries_numeric.push((state, value));
-        }
-
-        let definitions = self.metric_definitions.clone();
-        for (state, value) in entries_numeric.iter() {
-            self.update_best_entry_valid(state, value, &definitions[&state.metric_id]);
+            let numeric_update = metric.update(item, metadata);
+            entries_numeric.push(numeric_update);
         }
 
         MetricsUpdate::new(entries, entries_numeric)
-    }
-
-    fn update_best_entry_train(
-        &mut self,
-        state: &MetricEntry,
-        value: &NumericEntry,
-        definition: &MetricDefinition,
-    ) {
-        let id = &definition.metric_id;
-        let higher_is_better = match definition.attributes.clone() {
-            MetricAttributes::Numeric(attr) => attr.higher_is_better,
-            MetricAttributes::None => {
-                panic!("Expected numeric metric.")
-            }
-        };
-        let entry = self
-            .best_metric_entries_train
-            .entry(id.clone())
-            .or_insert(None);
-        // Replace if value is None or better than the previous best.
-        if entry.as_ref().is_none_or(|old| {
-            let old = NumericEntry::deserialize(&old.serialized_entry.serialized).unwrap();
-            value.better_than(&old, higher_is_better)
-        }) {
-            *entry = Some(state.clone());
-        }
-    }
-
-    fn update_best_entry_valid(
-        &mut self,
-        state: &MetricEntry,
-        value: &NumericEntry,
-        definition: &MetricDefinition,
-    ) {
-        let id = &definition.metric_id;
-        let higher_is_better = match definition.attributes.clone() {
-            MetricAttributes::Numeric(attr) => attr.higher_is_better,
-            MetricAttributes::None => {
-                panic!("Expected numeric metric.")
-            }
-        };
-        let entry = self
-            .best_metric_entries_valid
-            .entry(id.clone())
-            .or_insert(None);
-        // Replace if value is None or better than the previous best.
-        if entry.as_ref().is_none_or(|old| {
-            let old = NumericEntry::deserialize(&old.serialized_entry.serialized).unwrap();
-            value.better_than(&old, higher_is_better)
-        }) {
-            *entry = Some(state.clone());
-        }
     }
 
     /// Signal the end of a training epoch.
@@ -299,9 +211,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         for metric in self.train_numeric.iter_mut() {
             metric.clear();
         }
-        for v in self.best_metric_entries_train.values_mut() {
-            *v = None;
-        }
     }
 
     /// Signal the end of a validation epoch.
@@ -311,9 +220,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         }
         for metric in self.valid_numeric.iter_mut() {
             metric.clear();
-        }
-        for v in self.best_metric_entries_valid.values_mut() {
-            *v = None;
         }
     }
 }
@@ -351,11 +257,7 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
 }
 
 trait NumericMetricUpdater<T>: Send + Sync {
-    fn update(
-        &mut self,
-        item: &LearnerItem<T>,
-        metadata: &MetricMetadata,
-    ) -> (MetricEntry, NumericEntry);
+    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> NumericMetricUpdate;
     fn clear(&mut self);
 }
 
@@ -384,16 +286,17 @@ where
     M: Metric + Numeric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(
-        &mut self,
-        item: &LearnerItem<T>,
-        metadata: &MetricMetadata,
-    ) -> (MetricEntry, NumericEntry) {
+    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> NumericMetricUpdate {
         let serialized_entry = self.metric.update(&item.item.adapt(), metadata);
         let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let numeric = self.metric.value();
+        let running = self.metric.running_value();
 
-        (update, numeric)
+        NumericMetricUpdate {
+            entry: update,
+            numeric_entry: numeric,
+            running_entry: running,
+        }
     }
 
     fn clear(&mut self) {

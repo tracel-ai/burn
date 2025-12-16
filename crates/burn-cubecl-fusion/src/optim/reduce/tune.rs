@@ -9,8 +9,8 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::reduce::{
-    launch::{ReduceStrategy, tune_key::ReduceAutotuneKey},
-    routines::{RoutineStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
+    launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
+    routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
 };
 use serde::{Deserialize, Serialize};
 
@@ -44,9 +44,11 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
         ));
 
         for strategy in [
-            ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
-            ReduceStrategy::FullCube(RoutineStrategy::Strategy(CubeStrategy { use_planes: true })),
-            ReduceStrategy::FullPlane(RoutineStrategy::Strategy(PlaneStrategy {
+            RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+            RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+                use_planes: true,
+            })),
+            RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
                 independent: true,
             })),
         ] {
@@ -107,7 +109,7 @@ fn input_gen<R: Runtime>(
 
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
-    strategy: &ReduceStrategy,
+    strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
