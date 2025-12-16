@@ -40,9 +40,9 @@ mod tests {
 
         let input = Tensor::<TestBackend, 4>::from_floats(
             [[
-                [[0.5, -0.5], [1.0, -1.0]],    // ch0: mix of pos/neg
-                [[0.1, 0.2], [0.3, 0.4]],      // ch1: all positive
-                [[-0.1, -0.2], [-0.3, -0.4]],  // ch2: all negative
+                [[0.5, -0.5], [1.0, -1.0]],   // ch0: mix of pos/neg
+                [[0.1, 0.2], [0.3, 0.4]],     // ch1: all positive
+                [[-0.1, -0.2], [-0.3, -0.4]], // ch2: all negative
             ]],
             &device,
         );
@@ -50,9 +50,9 @@ mod tests {
         let output = model.forward(input);
 
         let expected = TensorData::from([[
-            [[0.5f32, -0.125], [1.0, -0.25]],    // ch0: neg scaled by 0.25
-            [[0.1, 0.2], [0.3, 0.4]],            // ch1: unchanged
-            [[-0.025, -0.05], [-0.075, -0.1]],   // ch2: all scaled by 0.25
+            [[0.5f32, -0.125], [1.0, -0.25]],  // ch0: neg scaled by 0.25
+            [[0.1, 0.2], [0.3, 0.4]],          // ch1: unchanged
+            [[-0.025, -0.05], [-0.075, -0.1]], // ch2: all scaled by 0.25
         ]]);
         output.to_data().assert_eq(&expected, true);
     }
