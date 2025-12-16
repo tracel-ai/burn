@@ -175,9 +175,11 @@ pub fn arg_to_ident(arg: &Argument) -> proc_macro2::Ident {
 // ============================================================================
 
 /// The backend used for tensor transformations during import.
-/// Uses the NdArray backend for CPU-based tensor operations during ONNX import.
+/// Uses the NdArray backend with f64 for CPU-based tensor operations during ONNX import.
+/// We use f64 to preserve maximum precision during intermediate operations,
+/// then convert back to the original dtype when creating snapshots.
 #[cfg(feature = "onnx")]
-pub type SerializationBackend = burn_ndarray::NdArray;
+pub type SerializationBackend = burn_ndarray::NdArray<f64>;
 
 /// Create a lazy tensor snapshot from an ONNX argument.
 ///

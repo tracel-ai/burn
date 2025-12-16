@@ -98,8 +98,29 @@ impl NodeCodegen for onnx_ir::node::constant_of_shape::ConstantOfShapeNode {
                         }
                     }
                 } else {
-                    quote! {
-                        let #output = Tensor::full(#shape_expr, #value, &*self.device);
+                    // Use from_data_dtype with reshape and expand to ensure correct dtype
+                    let dtype_tokens = tensor.dtype.to_tokens();
+                    // Create shape of ones for reshape: [1, 1, ..., 1] with tensor.rank dimensions
+                    let ones: Vec<_> = (0..tensor.rank).map(|_| quote! { 1 }).collect();
+
+                    // Create tensor with explicit dtype, reshape to correct rank, then expand
+                    if tensor.dtype.is_float() {
+                        quote! {
+                            let #output = Tensor::<B, 1>::from_data_dtype(
+                                burn::tensor::TensorData::from([#value as f64]),
+                                &*self.device,
+                                #dtype_tokens
+                            ).reshape([#(#ones),*]).expand(#shape_expr);
+                        }
+                    } else {
+                        // Int types
+                        quote! {
+                            let #output = Tensor::<B, 1, Int>::from_data_dtype(
+                                burn::tensor::TensorData::from([#value as i64]),
+                                &*self.device,
+                                #dtype_tokens
+                            ).reshape([#(#ones),*]).expand(#shape_expr);
+                        }
                     }
                 }
             }
@@ -263,7 +284,16 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, target_shape: [i64; 1]) -> Tensor<B, 3> {
-            let filled = Tensor::full([2usize, 3usize, 4usize], 1.5f32, &*self.device);
+            let filled = Tensor::<
+                B,
+                1,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([1.5f32 as f64]),
+                    &*self.device,
+                    burn::tensor::DType::F32,
+                )
+                .reshape([1, 1, 1])
+                .expand([2usize, 3usize, 4usize]);
             filled
         }
         ");
@@ -283,7 +313,16 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, dims: [i64; 1]) -> Tensor<B, 2> {
-            let matrix = Tensor::full([10usize, 20usize], 0.5f64, &*self.device);
+            let matrix = Tensor::<
+                B,
+                1,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([0.5f64 as f64]),
+                    &*self.device,
+                    burn::tensor::DType::F64,
+                )
+                .reshape([1, 1])
+                .expand([10usize, 20usize]);
             matrix
         }
         ");
@@ -303,7 +342,17 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, size: [i64; 1]) -> Tensor<B, 2, Int> {
-            let grid = Tensor::full([5usize, 5usize], 7i32, &*self.device);
+            let grid = Tensor::<
+                B,
+                1,
+                Int,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([7i32 as i64]),
+                    &*self.device,
+                    burn::tensor::DType::I32,
+                )
+                .reshape([1, 1])
+                .expand([5usize, 5usize]);
             grid
         }
         ");
@@ -323,7 +372,17 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, length: [i64; 1]) -> Tensor<B, 1, Int> {
-            let vector = Tensor::full([8usize], 100i64, &*self.device);
+            let vector = Tensor::<
+                B,
+                1,
+                Int,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([100i64 as i64]),
+                    &*self.device,
+                    burn::tensor::DType::I64,
+                )
+                .reshape([1])
+                .expand([8usize]);
             vector
         }
         ");
@@ -384,7 +443,16 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, size: [i64; 1]) -> Tensor<B, 2> {
-            let zeros = Tensor::full([2usize, 2usize], 0.0f32, &*self.device);
+            let zeros = Tensor::<
+                B,
+                1,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([0.0f32 as f64]),
+                    &*self.device,
+                    burn::tensor::DType::F32,
+                )
+                .reshape([1, 1])
+                .expand([2usize, 2usize]);
             zeros
         }
         ");
@@ -409,7 +477,16 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, dynamic_shape: [i64; 1]) -> Tensor<B, 3> {
-            let tensor = Tensor::full(dynamic_shape, 2.5f32, &*self.device);
+            let tensor = Tensor::<
+                B,
+                1,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([2.5f32 as f64]),
+                    &*self.device,
+                    burn::tensor::DType::F32,
+                )
+                .reshape([1, 1, 1])
+                .expand(dynamic_shape);
             tensor
         }
         ");
@@ -432,7 +509,17 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, shape_param: [i64; 1]) -> Tensor<B, 2, Int> {
-            let data = Tensor::full(shape_param, 255i64, &*self.device);
+            let data = Tensor::<
+                B,
+                1,
+                Int,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([255i64 as i64]),
+                    &*self.device,
+                    burn::tensor::DType::I64,
+                )
+                .reshape([1, 1])
+                .expand(shape_param);
             data
         }
         ");
@@ -501,7 +588,16 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, runtime_shape: [i64; 1]) -> Tensor<B, 3> {
-            let zeros = Tensor::full(runtime_shape, 0.0f32, &*self.device);
+            let zeros = Tensor::<
+                B,
+                1,
+            >::from_data_dtype(
+                    burn::tensor::TensorData::from([0.0f32 as f64]),
+                    &*self.device,
+                    burn::tensor::DType::F32,
+                )
+                .reshape([1, 1, 1])
+                .expand(runtime_shape);
             zeros
         }
         ");

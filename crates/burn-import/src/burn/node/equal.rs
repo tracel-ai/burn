@@ -45,18 +45,32 @@ impl NodeCodegen for onnx_ir::comparison::EqualNode {
                     result
                 }
             },
-            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
-                {
-                    let shape_tensor = Tensor::<B, 1, Int>::from_data(#lhs_value.as_slice(), &*self.device);
-                    shape_tensor.equal(#rhs_value)
+            (ArgType::Shape(_), ArgType::Tensor(tensor_type)) => {
+                let dtype_tokens = tensor_type.dtype.to_tokens();
+                quote! {
+                    {
+                        let shape_tensor = Tensor::<B, 1, Int>::from_data_dtype(
+                            burn::tensor::TensorData::from(#lhs_value.as_slice()),
+                            &*self.device,
+                            #dtype_tokens
+                        );
+                        shape_tensor.equal(#rhs_value)
+                    }
                 }
-            },
-            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
-                {
-                    let shape_tensor = Tensor::<B, 1, Int>::from_data(#rhs_value.as_slice(), &*self.device);
-                    #lhs_value.equal(shape_tensor)
+            }
+            (ArgType::Tensor(tensor_type), ArgType::Shape(_)) => {
+                let dtype_tokens = tensor_type.dtype.to_tokens();
+                quote! {
+                    {
+                        let shape_tensor = Tensor::<B, 1, Int>::from_data_dtype(
+                            burn::tensor::TensorData::from(#rhs_value.as_slice()),
+                            &*self.device,
+                            #dtype_tokens
+                        );
+                        #lhs_value.equal(shape_tensor)
+                    }
                 }
-            },
+            }
             _ => panic!(
                 "Comparison is supported for tensor to tensor, scalar to scalar, shape to shape, and shape to tensor only"
             ),

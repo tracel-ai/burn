@@ -18,7 +18,7 @@ include_models!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{Int, Shape, Tensor};
+    use burn::tensor::{Int, Shape, Tensor, TensorData};
 
     use crate::backend::TestBackend;
 
@@ -108,17 +108,22 @@ mod tests {
     #[test]
     fn constant_tensor_i32_test() {
         // Test that multidimensional i32 tensor constants are properly loaded with correct dtype
+        // Note: The ONNX model has I32 constants, but NdArray<f32> defaults to i64 for Int tensors.
+        // We use from_data_dtype with explicit I32 dtype to create tensors that match the model's dtype.
+        // Using from_data() would convert to the backend's IntElem (i64), causing dtype mismatch.
+        use burn::tensor::DType;
+
         let device = Default::default();
         let model: constant_tensor_i32::Model<TestBackend> = constant_tensor_i32::Model::default();
 
-        // Create input tensor [2, 3] with values [[1, 2, 3], [4, 5, 6]]
-        let input = Tensor::<TestBackend, 2, Int>::from_ints([[1i32, 2, 3], [4, 5, 6]], &device);
+        // Create input tensor [2, 3] with values [[1, 2, 3], [4, 5, 6]] using i32 dtype
+        // Must use from_data_dtype to preserve I32 dtype (from_data converts to backend's IntElem)
+        let input_data = TensorData::from([[1i32, 2, 3], [4, 5, 6]]);
+        let input = Tensor::<TestBackend, 2, Int>::from_data_dtype(input_data, &device, DType::I32);
 
         // Expected: input + constant where constant is [[10, 20, 30], [40, 50, 60]]
         // Result: [[11, 22, 33], [44, 55, 66]]
-        let expected =
-            Tensor::<TestBackend, 2, Int>::from_ints([[11i32, 22, 33], [44, 55, 66]], &device)
-                .to_data();
+        let expected = TensorData::from([[11i32, 22, 33], [44, 55, 66]]);
 
         let output = model.forward(input);
         output.to_data().assert_eq(&expected, true);
