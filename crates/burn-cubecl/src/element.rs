@@ -4,7 +4,7 @@ use cubecl::{
     prelude::{Float, Int, Numeric},
 };
 use cubek::{
-    matmul::components::{MatmulPrecision, MatrixPrecision},
+    matmul::definition::{MatmulPrecision, MatrixPrecision},
     reduce::ReducePrecision,
 };
 

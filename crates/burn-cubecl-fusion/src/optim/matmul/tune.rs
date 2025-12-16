@@ -12,10 +12,9 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
-    AcceleratedTileKind,
-    components::MatmulKind,
-    tune_key::{
-        MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
+    definition::{MatmulElemType, MatmulKind},
+    launch::{
+        AcceleratedTileKind, MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering,
     },
 };
 use serde::{Deserialize, Serialize};
