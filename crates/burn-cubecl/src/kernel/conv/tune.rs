@@ -1,13 +1,11 @@
+use super::ConvAutotuneKey;
+use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, kernel::conv::*, tensor::CubeTensor};
 use burn_backend::ops::ConvOptions;
 use cubecl::{
     ir::StorageType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::matmul::AcceleratedTileKind;
-
-use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, kernel::conv::*, tensor::CubeTensor};
-
-use super::ConvAutotuneKey;
+use cubek::matmul::launch::AcceleratedTileKind;
 
 /// Executes autotune on conv2d operations
 pub fn conv_autotune<R: CubeRuntime, const N: usize>(

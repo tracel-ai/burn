@@ -1,5 +1,5 @@
 use burn_backend::ops::ConvOptions;
-use cubek::{convolution::components::ConvSetupError, matmul::AcceleratedTileKind};
+use cubek::{convolution::components::ConvSetupError, matmul::launch::AcceleratedTileKind};
 
 use crate::{
     CubeRuntime,
