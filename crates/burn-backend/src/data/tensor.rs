@@ -174,26 +174,12 @@ impl TensorData {
             Ok(elems) => return Ok(elems),
             Err(bytes) => bytes,
         };
-        // The bytes might have been deserialized or embedded with different alignment.
-        // In that case, we have to memcopy the data into a new vector with proper alignment.
-        // try_cast_slice also requires alignment, so we copy byte-by-byte to a new Vec<E>.
-        let bytes = me.as_bytes();
-        let elem_size = core::mem::size_of::<E>();
-        let num_elements = bytes.len() / elem_size;
 
-        // Create a properly aligned Vec<E> and copy bytes into it
-        let mut result = Vec::<E>::with_capacity(num_elements);
-        // Safety: We're copying raw bytes into a Vec<E> where E: Element (which requires Pod).
-        // Caller (into_vec) verified E::dtype() == self.dtype before calling this function.
-        unsafe {
-            core::ptr::copy_nonoverlapping(
-                bytes.as_ptr(),
-                result.as_mut_ptr() as *mut u8,
-                bytes.len(),
-            );
-            result.set_len(num_elements);
-        }
-        Ok(result)
+        // The bytes might have been deserialized and allocated with a different align.
+        // In that case, we have to memcopy the data into a new vector, more suitably allocated
+        Ok(bytemuck::checked::try_cast_slice(me.as_bytes())
+            .map_err(DataError::CastError)?
+            .to_vec())
     }
 
     /// Returns an iterator over the values of the tensor data.
