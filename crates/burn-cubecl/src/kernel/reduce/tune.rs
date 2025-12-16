@@ -27,12 +27,15 @@ pub fn autotune_reduce<R: CubeRuntime>(
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
     let tunables = TUNER.init(|| {
-        const PRIORITY_MAX: i8 = 1;
+        const PRIORITY_MAX: i8 = 2;
+        const PRIORITY_MIN: i8 = 1;
         const PRIORITY_SKIP: i8 = -1;
 
         let mut set = TunableSet::new(create_key::<R>, reduce_input_gen::<R>);
 
-        let vectorized_parallel =
+        let default_group =
+            TuneGroup::<ReduceAutotuneKey>::new("default_reduce", |_key| PRIORITY_MAX);
+        let vectorized_parallel_group =
             TuneGroup::<ReduceAutotuneKey>::new("vectorized_parallel_reduce", |key| {
                 if key.axis_is_contiguous {
                     PRIORITY_MAX
@@ -43,24 +46,48 @@ pub fn autotune_reduce<R: CubeRuntime>(
                 }
             });
 
-        for line_size in [
-            LineSizeStrategy {
-                parallel_output_vectorization: true,
-            },
-            LineSizeStrategy {
-                parallel_output_vectorization: false,
-            },
+        enum ReduceProps {
+            GreatWithLowReduceCount,
+            GreatWithHighReduceCount,
+            Balanced,
+        }
+
+        for (line_size, line_size_ident) in [
+            (
+                LineSizeStrategy {
+                    parallel_output_vectorization: true,
+                },
+                "_vectorized_parallel_reduce",
+            ),
+            (
+                LineSizeStrategy {
+                    parallel_output_vectorization: false,
+                },
+                "",
+            ),
         ] {
-            for routine in [
-                RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
-                    use_planes: true,
-                })),
-                RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
-                    independent: true,
-                })),
+            for (name, routine, props) in [
+                (
+                    "unit",
+                    RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                    ReduceProps::GreatWithHighReduceCount,
+                ),
+                (
+                    "plane",
+                    RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
+                        independent: true,
+                    })),
+                    ReduceProps::Balanced,
+                ),
+                (
+                    "cube",
+                    RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+                        use_planes: true,
+                    })),
+                    ReduceProps::GreatWithLowReduceCount,
+                ),
             ] {
-                let name = format!("{routine:?}-{line_size:?}").to_lowercase();
+                let name = format!("{name:?}{line_size_ident:?}");
                 let mut tunable = Tunable::new(
                     name,
                     move |(input, output, axis, config, dtypes): (
@@ -87,8 +114,29 @@ pub fn autotune_reduce<R: CubeRuntime>(
                     },
                 );
                 if line_size.parallel_output_vectorization {
-                    tunable = tunable.group(&vectorized_parallel, |_| PRIORITY_MAX);
+                    tunable = tunable.group(&vectorized_parallel_group, |_| PRIORITY_MAX);
                 }
+
+                tunable = tunable.group(&default_group, move |key| match props {
+                    ReduceProps::GreatWithLowReduceCount => {
+                        if key.vector_count < 128 {
+                            PRIORITY_MAX
+                        } else {
+                            // When you have a high level of vector to reduce, it is normally
+                            // better to use another routine.
+                            PRIORITY_MIN
+                        }
+                    }
+                    ReduceProps::GreatWithHighReduceCount => {
+                        if key.vector_count > 64 {
+                            PRIORITY_MAX
+                        } else {
+                            // Bellow 64 it is normally better to use another routine
+                            PRIORITY_MIN
+                        }
+                    }
+                    ReduceProps::Balanced => PRIORITY_MAX,
+                });
                 set = set.with(tunable);
             }
         }
