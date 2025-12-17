@@ -2,7 +2,7 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::{DType, QTensorPrimitive};
 use cubek::matmul::{
-    definition::{MatmulElemType, MatmulElems, MatmulSetupError},
+    definition::{MatmulElemType, MatmulElems, MatmulGlobalElems, MatmulSetupError},
     launch::{MatmulInputHandleRef, Strategy},
 };
 
@@ -40,7 +40,7 @@ pub fn matmul<R: CubeRuntime>(
     match strategy {
         MatmulStrategy::Cube => {
             let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
-            launch_matmul(&Default::default(), lhs, rhs, out.clone())?;
+            launch_matmul(Default::default(), lhs, rhs, out.clone())?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
@@ -49,7 +49,7 @@ pub fn matmul<R: CubeRuntime>(
 }
 
 pub(crate) fn launch_matmul<R: CubeRuntime>(
-    strategy: &Strategy,
+    strategy: Strategy,
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -105,20 +105,22 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
         }
     };
 
-    let mut dtypes = MatmulElems::from_globals(
-        MatmulElemType {
+    let global_elems = MatmulGlobalElems {
+        lhs: MatmulElemType {
             dtype: lhs_dtype.into(),
-            quantized: lhs_quant,
+            quantized: false,
         },
-        MatmulElemType {
+        rhs: MatmulElemType {
             dtype: rhs_dtype.into(),
-            quantized: rhs_quant,
+            quantized: false,
         },
-        MatmulElemType {
+        out: MatmulElemType {
             dtype: out_dtype.into(),
             quantized: false,
         },
-    );
+    };
+    let mut dtypes = MatmulElems::from_globals(&global_elems);
+
     cubek::matmul::launch::launch_ref(
         strategy,
         client,

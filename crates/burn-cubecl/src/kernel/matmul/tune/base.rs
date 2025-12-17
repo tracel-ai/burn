@@ -123,7 +123,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new("matmul_naive", |lhs, rhs, out| {
-                launch_matmul::<R>(&Strategy::Naive, lhs, rhs, out)
+                launch_matmul::<R>(Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
@@ -150,7 +150,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         ] {
             set = set.with(
                 Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                    launch_matmul::<R>(&strategy, lhs, rhs, out)
+                    launch_matmul::<R>(strategy, lhs, rhs, out)
                         .map_err(|err| std::format!("{err:?}"))
                 })
                 .group(&unit, move |key| match double_buf {
@@ -181,7 +181,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             ] {
                 set = set.with(
                     Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                        launch_matmul::<R>(&strategy, lhs, rhs, out)
+                        launch_matmul::<R>(strategy, lhs, rhs, out)
                             .map_err(|err| format!("{err:?}"))
                     })
                     .group(&unit, move |key| match double_buf {
@@ -361,7 +361,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
             };
             let mut tunable = Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
+                launch_matmul::<R>(strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
             });
 
             // tile group
