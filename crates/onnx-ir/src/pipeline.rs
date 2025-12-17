@@ -259,19 +259,6 @@ impl OnnxGraphBuilder {
     }
 }
 
-/// Build IR graph from ONNX model through 5 phases:
-/// 1. Initialization 2. Node Conversion 3. Type Inference 4. Post-processing 5. Finalization
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Missing opset version for default domain
-/// - Type inference fails
-#[allow(dead_code)]
-pub fn build_graph(model: &ModelProto) -> Result<OnnxGraph, Error> {
-    build_graph_with_base_path(model, None)
-}
-
 /// Build IR graph from ONNX model with base path for external data support
 ///
 /// The `base_path` is the directory containing the ONNX file, used for resolving
@@ -290,20 +277,11 @@ pub fn build_graph_with_base_path(
     build_graph_from_proto_with_base_path(&model.graph, opset_version, base_path)
 }
 
-/// Build IR graph from ONNX GraphProto (for subgraphs)
-///
-/// # Errors
-///
-/// Returns an error if node conversion or type inference fails
-#[allow(dead_code)]
-pub fn build_graph_from_proto(
-    graph: &crate::protos::GraphProto,
-    opset_version: usize,
-) -> Result<OnnxGraph, Error> {
-    build_graph_from_proto_with_base_path(graph, opset_version, None)
-}
-
 /// Build IR graph from ONNX GraphProto with base path for external data
+///
+/// The `base_path` is used for resolving external tensor data paths (for models >2GB).
+/// Subgraphs that need a shared name registry should use `build_graph_builder_from_proto`
+/// directly (see `DeferredGraph::build_with_outer_scope`).
 ///
 /// # Errors
 ///
@@ -313,22 +291,7 @@ pub fn build_graph_from_proto_with_base_path(
     opset_version: usize,
     base_path: Option<&Path>,
 ) -> Result<OnnxGraph, Error> {
-    build_graph_from_proto_with_registry(graph, opset_version, None, base_path)
-}
-
-/// Build IR graph with shared name registry (for sibling subgraphs)
-///
-/// # Errors
-///
-/// Returns an error if node conversion or type inference fails
-pub fn build_graph_from_proto_with_registry(
-    graph: &crate::protos::GraphProto,
-    opset_version: usize,
-    name_registry: Option<crate::graph_state::NameRegistry>,
-    base_path: Option<&Path>,
-) -> Result<OnnxGraph, Error> {
-    let graph_builder =
-        build_graph_builder_from_proto(graph, opset_version, name_registry, base_path)?;
+    let graph_builder = build_graph_builder_from_proto(graph, opset_version, None, base_path)?;
 
     log::debug!(" PHASE 6: Node Conversion (RawNode -> Node) ");
     Ok(graph_builder.convert_to_graph(opset_version))
