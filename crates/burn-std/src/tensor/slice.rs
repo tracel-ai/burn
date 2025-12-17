@@ -975,4 +975,27 @@ mod tests {
 
         let _ = slice.into_slices(&shape);
     }
+
+    #[test]
+    fn should_support_const_and_full() {
+        static SLICES: [Slice; 2] = [Slice::full(), Slice::new(2, None, 1)];
+        assert_eq!(SLICES[0], Slice::new(0, None, 1));
+        assert_eq!(SLICES[1], Slice::new(2, None, 1));
+    }
+
+    #[test]
+    fn should_support_default() {
+        assert_eq!(Slice::default(), Slice::new(0, None, 1));
+    }
+
+    #[test]
+    fn should_support_copy() {
+        let mut slice = Slice::new(1, Some(3), 2);
+        let slice_copy = slice;
+
+        slice.end = Some(4);
+
+        assert_eq!(slice, Slice::new(1, Some(4), 2));
+        assert_eq!(slice_copy, Slice::new(1, Some(3), 2));
+    }
 }
