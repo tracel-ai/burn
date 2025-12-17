@@ -214,7 +214,7 @@ pub fn node_builder_derive(input: TokenStream) -> TokenStream {
 
             /// Add a constant i64 scalar input with a known value
             pub fn input_const_i64(mut self, name: &str, value: i64) -> Self {
-                use crate::ir::{Argument, ArgType, TensorType};
+                use crate::ir::Argument;
                 let arg = Argument::from_const_i64(name, value);
                 self.inputs.push(arg);
                 self
