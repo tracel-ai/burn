@@ -77,6 +77,8 @@ impl core::error::Error for BoundsError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::format;
+    use alloc::string::ToString;
 
     #[test]
     fn test_bounds_error_display() {
