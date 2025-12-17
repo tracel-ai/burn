@@ -23,12 +23,12 @@ pub trait AsIndex: Debug + Copy + Sized {
     /// Converts into a slice index.
     fn index(self) -> isize;
 
-    /// Short-form `NegativeWrap::expect_index(idx, size)`.
+    /// Short-form [`IndexWrap::expect_index(idx, size)`].
     fn expect_elem_index(self, size: usize) -> usize {
         IndexWrap::expect_elem(self, size)
     }
 
-    /// Short-form `NegativeWrap::expect_dim(idx, size)`.
+    /// Short-form [`IndexWrap::expect_dim(idx, size)`].
     fn expect_dim_index(self, size: usize) -> usize {
         IndexWrap::expect_dim(self, size)
     }
@@ -121,8 +121,8 @@ impl IndexWrap {
 
     /// Set the policy for wrapping 0-size ranges.
     ///
-    /// - when size == 0:
-    ///   - if wrap_scalar; then size == 1
+    /// When ``size`` == 0:
+    ///   - if `wrap_scalar`; then ``size == 1``
     ///   - otherwise; an error.
     pub fn with_wrap_scalar(self, wrap_scalar: bool) -> Self {
         Self {
@@ -141,12 +141,12 @@ impl IndexWrap {
         expect_wrap(idx, size, self.kind, self.wrap_scalar)
     }
 
-    /// Short-form `NegativeWrap::index().expect_wrap(idx, size)`.
+    /// Short-form [`NegativeWrap::index().expect_wrap(idx, size)`].
     pub fn expect_elem<I: AsIndex>(idx: I, size: usize) -> usize {
         Self::index().expect_wrap(idx, size)
     }
 
-    /// Short-form `NegativeWrap::dim().expect_wrap(idx, size)`.
+    /// Short-form [`NegativeWrap::dim().expect_wrap(idx, size)`].
     pub fn expect_dim<I: AsIndex>(idx: I, size: usize) -> usize {
         Self::dim().expect_wrap(idx, size)
     }
