@@ -43,11 +43,11 @@ where
     }
 
     fn int_reshape(tensor: NdArrayTensor, shape: Shape) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::reshape(array, shape))
     }
 
     fn int_slice(tensor: NdArrayTensor, slices: &[burn_backend::Slice]) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::slice(array, slices))
     }
 
     fn int_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {
@@ -77,8 +77,8 @@ where
     }
 
     fn int_mask_fill(tensor: NdArrayTensor, mask: NdArrayTensor, value: I) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::mask_fill(
-            tensor,
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::mask_fill(
+            array,
             mask.bool(),
             value.elem()
         ))
@@ -103,7 +103,7 @@ where
     }
 
     fn int_equal_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::equal_elem(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::equal_elem(array, rhs.elem()))
     }
 
     fn int_greater(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -111,7 +111,7 @@ where
     }
 
     fn int_greater_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::greater_elem(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::greater_elem(array, rhs.elem()))
     }
 
     fn int_greater_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -119,8 +119,8 @@ where
     }
 
     fn int_greater_equal_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::greater_equal_elem(
-            lhs,
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::greater_equal_elem(
+            array,
             rhs.elem()
         ))
     }
@@ -130,7 +130,7 @@ where
     }
 
     fn int_lower_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::lower_elem(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::lower_elem(array, rhs.elem()))
     }
 
     fn int_lower_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -138,7 +138,10 @@ where
     }
 
     fn int_lower_equal_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::lower_equal_elem(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::lower_equal_elem(
+            array,
+            rhs.elem()
+        ))
     }
 
     fn int_add(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -146,7 +149,7 @@ where
     }
 
     fn int_add_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::add_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::add_scalar(array, rhs.elem()))
     }
 
     fn int_sub(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -154,7 +157,7 @@ where
     }
 
     fn int_sub_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::sub_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::sub_scalar(array, rhs.elem()))
     }
 
     fn int_mul(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -162,7 +165,7 @@ where
     }
 
     fn int_mul_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::mul_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::mul_scalar(array, rhs.elem()))
     }
 
     fn int_div(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -170,7 +173,7 @@ where
     }
 
     fn int_div_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::div_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::div_scalar(array, rhs.elem()))
     }
 
     fn int_remainder(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -178,7 +181,10 @@ where
     }
 
     fn int_remainder_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayMathOps::remainder_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayMathOps::remainder_scalar(
+            array,
+            rhs.elem()
+        ))
     }
 
     fn int_neg(tensor: NdArrayTensor) -> NdArrayTensor {
@@ -186,48 +192,77 @@ where
     }
 
     fn int_sum(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, NdArrayMathOps::sum)
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::sum_view(
+            array.view()
+        ))
     }
 
     fn int_sum_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::sum_dim(array, dim))
     }
 
     fn int_prod(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, NdArrayMathOps::prod)
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(
+            tensor,
+            E,
+            |array: SharedArray<E>| NdArrayMathOps::prod_view(array.view())
+        )
     }
 
     fn int_prod_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::prod_dim(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::prod_dim(array, dim))
     }
 
     fn int_mean(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, NdArrayMathOps::mean)
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(
+            tensor,
+            E,
+            |array: SharedArray<E>| NdArrayMathOps::mean_view(array.view())
+        )
     }
 
     fn int_mean_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::mean_dim(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::mean_dim(array, dim))
+    }
+
+    fn int_max(tensor: NdArrayTensor) -> NdArrayTensor {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::max_view(
+            array.view()
+        ))
+    }
+
+    fn int_min(tensor: NdArrayTensor) -> NdArrayTensor {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| NdArrayMathOps::min_view(
+            array.view()
+        ))
     }
 
     fn int_cumsum(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::cumsum(array, dim))
     }
 
     fn int_cumprod(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumprod(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::cumprod(array, dim))
     }
 
     fn int_cummin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cummin(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::cummin(array, dim))
     }
 
     fn int_cummax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cummax(tensor, dim))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::cummax(array, dim))
     }
 
     fn int_gather(dim: usize, tensor: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, E, |tensor: SharedArray<E>| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |indices| NdArrayOps::gather(dim, tensor, indices))
+        execute_with_int_dtype!(tensor, E, |array| -> NdArrayTensor {
+            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::gather(
+                dim, array, idx_array
+            ))
         })
     }
 
@@ -238,16 +273,16 @@ where
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |indices| NdArrayOps::<I>::scatter(
-                dim, tensor, indices, value
+            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter(
+                dim, tensor, idx_array, value
             ))
         })
     }
 
     fn int_select(tensor: NdArrayTensor, dim: usize, indices: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, E, |tensor: SharedArray<E>| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |indices| NdArrayMathOps::select(
-                tensor, dim, indices
+        execute_with_int_dtype!(tensor, E, |array| -> NdArrayTensor {
+            execute_with_int_dtype!(indices, |idx_array| NdArrayMathOps::select(
+                array, dim, idx_array
             ))
         })
     }
@@ -259,36 +294,36 @@ where
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |indices| NdArrayMathOps::<I>::select_assign(
-                tensor, dim, indices, value
+            execute_with_int_dtype!(indices, |idx_array| NdArrayMathOps::<I>::select_assign(
+                tensor, dim, idx_array, value
             ))
         })
     }
     fn int_argmax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::argmax::<I>(tensor, dim))
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| {
+            NdArrayMathOps::argmax_view::<I>(array.view(), dim)
+        })
     }
 
     fn int_argmin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::argmin::<I>(tensor, dim))
+        // Use view() for zero-copy on borrowed storage
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| {
+            NdArrayMathOps::argmin_view::<I>(array.view(), dim)
+        })
     }
 
     fn int_clamp_min(tensor: NdArrayTensor, min: I) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(
-            tensor,
-            min.elem()
-        ))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp_min(array, min.elem()))
     }
 
     fn int_clamp_max(tensor: NdArrayTensor, max: I) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::clamp_max(
-            tensor,
-            max.elem()
-        ))
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp_max(array, max.elem()))
     }
 
     fn int_clamp(tensor: NdArrayTensor, min: I, max: I) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::clamp(
-            tensor,
+        execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp(
+            array,
             min.elem(),
             max.elem()
         ))
@@ -308,13 +343,13 @@ where
     }
 
     fn int_into_float(tensor: NdArrayTensor) -> FloatTensor<Self> {
-        execute_with_int_dtype!(tensor, I, |t: SharedArray<I>| t
-            .mapv(|a| a.elem::<E>())
+        execute_with_int_dtype!(tensor, IntElem, |array: SharedArray<IntElem>| array
+            .mapv(|a: IntElem| a.elem::<E>())
             .into_shared())
     }
 
     fn int_swap_dims(tensor: NdArrayTensor, dim1: usize, dim2: usize) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::swap_dims(tensor, dim1, dim2))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::swap_dims(array, dim1, dim2))
     }
 
     fn int_random(
@@ -352,9 +387,9 @@ where
     }
 
     fn int_powf(lhs: NdArrayTensor, rhs: FloatTensor<Self>) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, I, |lhs| -> NdArrayTensor {
-            execute_with_float_dtype!(rhs, E, |rhs| {
-                NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &E| {
+        execute_with_int_dtype!(lhs, I, |array| -> NdArrayTensor {
+            execute_with_float_dtype!(rhs, E, |rhs_array| {
+                NdArrayMathOps::elementwise_op(array, rhs_array, |a: &I, b: &E| {
                     (a.elem::<i64>().pow(*b as u32)).elem()
                 })
             })
@@ -362,19 +397,19 @@ where
     }
 
     fn int_powf_scalar_impl(lhs: NdArrayTensor, rhs: f32) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, I, |lhs| {
-            NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+        execute_with_int_dtype!(lhs, I, |array| {
+            NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
                 (a.elem::<i64>().pow(rhs as u32)).elem()
             })
         })
     }
 
     fn int_permute(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::permute(tensor, axes))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::permute(array, axes))
     }
 
     fn int_flip(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::flip(tensor, axes))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::flip(array, axes))
     }
 
     fn int_sign(tensor: NdArrayTensor) -> NdArrayTensor {
@@ -392,7 +427,7 @@ where
     }
 
     fn int_expand(tensor: NdArrayTensor, shape: Shape) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::expand(tensor, shape))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::expand(array, shape))
     }
 
     fn bitwise_and(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -400,7 +435,7 @@ where
     }
 
     fn bitwise_and_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitand_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayBitOps::bitand_scalar(array, rhs.elem()))
     }
 
     fn bitwise_or(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -408,7 +443,7 @@ where
     }
 
     fn bitwise_or_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitor_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayBitOps::bitor_scalar(array, rhs.elem()))
     }
 
     fn bitwise_xor(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -416,7 +451,7 @@ where
     }
 
     fn bitwise_xor_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitxor_scalar(lhs, rhs.elem()))
+        execute_with_int_dtype!(lhs, |array| NdArrayBitOps::bitxor_scalar(array, rhs.elem()))
     }
 
     fn bitwise_not(tensor: NdArrayTensor) -> NdArrayTensor {
@@ -432,8 +467,8 @@ where
     }
 
     fn bitwise_left_shift_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, I, |lhs| {
-            NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+        execute_with_int_dtype!(lhs, I, |array| {
+            NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
                 (a.elem::<i64>() << rhs.elem::<u32>()).elem()
             })
         })
@@ -448,15 +483,15 @@ where
     }
 
     fn bitwise_right_shift_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, I, |lhs| {
-            NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+        execute_with_int_dtype!(lhs, I, |array| {
+            NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
                 (a.elem::<i64>() >> rhs.elem::<u32>()).elem()
             })
         })
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, |tensor| cast_to_dtype(tensor, dtype.into()))
+        execute_with_int_dtype!(tensor, |array| cast_to_dtype(array, dtype.into()))
     }
 
     fn int_unfold(
@@ -465,6 +500,6 @@ where
         size: usize,
         step: usize,
     ) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::unfold(tensor, dim, size, step))
+        execute_with_int_dtype!(tensor, |array| NdArrayOps::unfold(array, dim, size, step))
     }
 }

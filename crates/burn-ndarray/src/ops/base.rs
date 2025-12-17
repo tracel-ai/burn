@@ -40,6 +40,7 @@ use crate::{
 use crate::{SharedArray, element::NdArrayElement};
 use burn_backend::ops::unfold::calculate_unfold_shape;
 use burn_backend::{Shape, Slice};
+use ndarray::ArrayView;
 use ndarray::Axis;
 use ndarray::Dim;
 use ndarray::IxDyn;
@@ -88,7 +89,8 @@ where
     }
 
     pub fn mask_fill(tensor: SharedArray<E>, mask: SharedArray<bool>, value: E) -> SharedArray<E> {
-        let mut output = tensor.clone();
+        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
+        let mut output = tensor.into_owned();
         let broadcast_mask = mask.broadcast(output.dim()).unwrap();
         Zip::from(&mut output)
             .and(&broadcast_mask)
@@ -220,7 +222,9 @@ where
             .into_shared();
 
         // Transform column-major layout into row-major (standard) layout. (fix #1053)
-        Self::reshape(array.clone(), array.shape().into_shape())
+        // Get shape first (via reference), then pass ownership to avoid clone
+        let shape = array.shape().into_shape();
+        Self::reshape(array, shape)
     }
 
     pub fn cat(tensors: Vec<SharedArray<E>>, dim: usize) -> SharedArray<E> {
@@ -684,22 +688,16 @@ where
     }
 
     pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
-        if E::dtype().is_float() {
-            let array =
-                lhs.clone() - (lhs / rhs.clone()).mapv_into(|a| (a.to_f64()).floor().elem()) * rhs;
-            array.into_shared()
-        } else {
-            let mut out = lhs.clone();
-            Zip::from(&mut out)
-                .and(&lhs)
-                .and(&rhs)
-                .for_each(|out_elem, &a, &b| {
-                    let (a_f, b_f) = (a.to_f64(), b.to_f64());
-                    let r = a_f - b_f * (a_f / b_f).floor();
-                    *out_elem = r.elem();
-                });
-            out.into_shared()
-        }
+        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
+        let mut out = lhs.into_owned();
+        Zip::from(&mut out).and(&rhs).for_each(|out_elem, &b| {
+            // out_elem holds lhs value; read it before overwriting with remainder
+            let a_f = (*out_elem).to_f64();
+            let b_f = b.to_f64();
+            let r = a_f - b_f * (a_f / b_f).floor();
+            *out_elem = r.elem();
+        });
+        out.into_shared()
     }
 
     pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>
@@ -717,19 +715,58 @@ where
         array.into_shared()
     }
 
-    pub fn mean(tensor: SharedArray<E>) -> SharedArray<E> {
-        let mean = tensor.mean().unwrap();
-        ArrayD::from_elem(IxDyn(&[1]), mean).into_shared()
-    }
-
-    pub fn sum(tensor: SharedArray<E>) -> SharedArray<E> {
-        let sum = tensor.sum();
+    /// Sum all elements - zero-copy for borrowed storage.
+    pub fn sum_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let sum = view.sum();
         ArrayD::from_elem(IxDyn(&[1]), sum).into_shared()
     }
 
-    pub fn prod(tensor: SharedArray<E>) -> SharedArray<E> {
-        let prod = tensor.product();
+    /// Mean of all elements - zero-copy for borrowed storage.
+    pub fn mean_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let mean = view.mean().unwrap();
+        ArrayD::from_elem(IxDyn(&[1]), mean).into_shared()
+    }
+
+    /// Product of all elements - zero-copy for borrowed storage.
+    pub fn prod_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let prod = view.iter().fold(E::one(), |acc, &x| acc * x);
         ArrayD::from_elem(IxDyn(&[1]), prod).into_shared()
+    }
+
+    /// Max of all elements - zero-copy for borrowed storage.
+    pub fn max_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let max = view
+            .iter()
+            .copied()
+            .reduce(|a, b| if a > b { a } else { b })
+            .expect("Cannot compute max of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
+    }
+
+    /// Min of all elements - zero-copy for borrowed storage.
+    pub fn min_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let min = view
+            .iter()
+            .copied()
+            .reduce(|a, b| if a < b { a } else { b })
+            .expect("Cannot compute min of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
+    }
+
+    /// Argmax along dimension - zero-copy for borrowed storage.
+    pub fn argmax_view<I: NdArrayElement>(
+        view: ArrayView<'_, E, IxDyn>,
+        dim: usize,
+    ) -> SharedArray<I> {
+        arg_view(view, dim, CmpType::Max)
+    }
+
+    /// Argmin along dimension - zero-copy for borrowed storage.
+    pub fn argmin_view<I: NdArrayElement>(
+        view: ArrayView<'_, E, IxDyn>,
+        dim: usize,
+    ) -> SharedArray<I> {
+        arg_view(view, dim, CmpType::Min)
     }
 
     pub fn mean_dim(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
@@ -1291,6 +1328,16 @@ impl NdArrayBoolOps {
             .map_collect(|&lhs, &rhs| lhs || rhs)
             .into_shared()
     }
+
+    /// Any element is true - zero-copy for borrowed storage.
+    pub fn any_view(view: ArrayView<'_, bool, IxDyn>) -> bool {
+        view.iter().any(|&x| x)
+    }
+
+    /// All elements are true - zero-copy for borrowed storage.
+    pub fn all_view(view: ArrayView<'_, bool, IxDyn>) -> bool {
+        view.iter().all(|&x| x)
+    }
 }
 
 enum CmpType {
@@ -1303,10 +1350,19 @@ fn arg<E: NdArrayElement, I: NdArrayElement>(
     dim: usize,
     cmp: CmpType,
 ) -> SharedArray<I> {
-    let mut reshape = tensor.shape().to_vec();
+    arg_view(tensor.view(), dim, cmp)
+}
+
+/// View-based argmax/argmin - zero-copy for borrowed storage.
+fn arg_view<E: NdArrayElement, I: NdArrayElement>(
+    view: ArrayView<'_, E, IxDyn>,
+    dim: usize,
+    cmp: CmpType,
+) -> SharedArray<I> {
+    let mut reshape = view.shape().to_vec();
     reshape[dim] = 1;
 
-    let output = tensor.map_axis(Axis(dim), |arr| {
+    let output = view.map_axis(Axis(dim), |arr| {
         // Find the min/max value in the array, and return its index.
         let (_e, idx) = arr.indexed_iter().fold((arr[0], 0usize), |acc, (idx, e)| {
             let cmp = match cmp {
@@ -1337,7 +1393,7 @@ mod tests {
     fn should_generate_row_major_layout_for_cat() {
         let expected_shape: &[usize] = &[4, 6, 2];
         let expected_strides: &[isize] = &[12, 2, 1];
-        let NdArrayTensor::I32(expected_array) = NdArrayTensor::from_data(TensorData::from([
+        let NdArrayTensor::I32(expected_storage) = NdArrayTensor::from_data(TensorData::from([
             [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0]],
             [[7, 0], [8, 0], [9, 0], [10, 0], [11, 0], [12, 0]],
             [[13, 0], [14, 0], [15, 0], [16, 0], [17, 0], [18, 0]],
@@ -1345,8 +1401,9 @@ mod tests {
         ])) else {
             panic!()
         };
+        let expected_array = expected_storage.into_shared();
 
-        let NdArrayTensor::I32(tensor) = NdArrayTensor::from_data(TensorData::from([
+        let NdArrayTensor::I32(tensor_storage) = NdArrayTensor::from_data(TensorData::from([
             [1, 2, 3, 4, 5, 6],
             [7, 8, 9, 10, 11, 12],
             [13, 14, 15, 16, 17, 18],
@@ -1354,14 +1411,16 @@ mod tests {
         ])) else {
             panic!()
         };
+        let tensor = tensor_storage.into_shared();
 
         // unsqueeze dim on the outermost axis
         let array = NdArrayOps::reshape(tensor, Shape::from([4, 6, 1]));
-        let NdArrayTensor::I32(zeros) =
+        let NdArrayTensor::I32(zeros_storage) =
             NdArrayTensor::from_data(TensorData::zeros::<i32, _>([4, 6, 1]))
         else {
             panic!()
         };
+        let zeros = zeros_storage.into_shared();
         // make `ndarray` concatenates array on the outermost axis
         let array = NdArrayOps::cat([array, zeros].to_vec(), 2);
 

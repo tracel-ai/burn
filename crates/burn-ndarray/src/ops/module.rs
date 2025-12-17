@@ -18,25 +18,26 @@ use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
-use burn_backend::{TensorMetadata, ops::*, tensor::FloatTensor};
+use burn_backend::{ElementConversion, TensorMetadata, ops::*, tensor::FloatTensor};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
+    // Converts NdArrayStorage to SharedArray for compatibility with existing operations.
     (inp($($x:tt),+), opt($($opt:tt),*), $element:ident, $op:expr) => {{
         #[allow(unused_parens, unreachable_patterns)]
         match ($($x),+) {
             ($(NdArrayTensor::F32($x)),+) => {
                 type $element = f32;
                 $op(
-                    $($x),+
-                    $(, $opt.map(|o| match o { NdArrayTensor::F32(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                    $($x.into_shared()),+
+                    $(, $opt.map(|o| match o { NdArrayTensor::F32(val) => val.into_shared(), _ => panic!("Optional argument type mismatch") }))*
                 )
             }
             ($(NdArrayTensor::F64($x)),+) => {
                 type $element = f64;
                 $op(
-                    $($x),+
-                    $(, $opt.map(|o| match o { NdArrayTensor::F64(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                    $($x.into_shared()),+
+                    $(, $opt.map(|o| match o { NdArrayTensor::F64(val) => val.into_shared(), _ => panic!("Optional argument type mismatch") }))*
                 )
             }
             _ => panic!("Data type mismatch"),
@@ -236,7 +237,10 @@ where
         output_grad: FloatTensor<Self>,
         indices: NdArrayTensor,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
-        execute_with_int_dtype!(indices, I, |indices| {
+        execute_with_int_dtype!(indices, IntElem, |idx_s: SharedArray<IntElem>| {
+            // Convert indices from runtime dtype to the expected I type
+            // (pool indices are bounded by tensor dimensions, so conversion is safe)
+            let indices: SharedArray<I> = idx_s.mapv(|x| x.elem()).into_shared();
             module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
                 let output = max_pool2d_backward::<E, I>(
                     x,
