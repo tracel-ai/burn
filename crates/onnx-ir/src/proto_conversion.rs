@@ -268,17 +268,6 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
 /// from the TensorProto without going through TensorData, avoiding unnecessary copies.
 /// The tensor bytes remain as references to the mmap'd buffer until actually accessed.
 ///
-/// For external data support, pass the base_path (directory containing the ONNX file).
-/// External tensor data will be loaded lazily when the TensorDataRef is accessed.
-#[allow(dead_code)]
-pub fn argument_from_initializer_lazy(
-    initializer: TensorProto,
-) -> Result<(Argument, TensorDataRef), ParseError> {
-    argument_from_initializer_lazy_with_context(initializer, None)
-}
-
-/// Create an Argument and TensorDataRef with optional base_path for external data
-///
 /// When `base_path` is provided, external data tensors (data_location == EXTERNAL)
 /// will be resolved relative to that directory and loaded lazily.
 pub fn argument_from_initializer_lazy_with_context(
