@@ -1156,7 +1156,7 @@ where
         let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
         for i in 0..item_count {
             let dim = dims[i].expect_dim_index(D);
-            accumulated_shifts[dim] += shifts[i].index();
+            accumulated_shifts[dim] += shifts[i].as_index();
         }
 
         // Do this after we've checked the validity of `dims` and `shifts`.
@@ -3184,7 +3184,7 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
             .iter()
             .rev()
             .map(|x| {
-                let primitive = x.index();
+                let primitive = x.as_index();
                 if primitive < -1 || primitive == 0 {
                     panic!("Broadcast arguments must be positive or -1");
                 }

@@ -547,8 +547,8 @@ fn handle_signed_inclusive_end(end: isize) -> Option<isize> {
 impl<I: AsIndex> From<Range<I>> for Slice {
     fn from(r: Range<I>) -> Self {
         Self {
-            start: r.start.index(),
-            end: Some(r.end.index()),
+            start: r.start.as_index(),
+            end: Some(r.end.as_index()),
             step: 1,
         }
     }
@@ -557,8 +557,8 @@ impl<I: AsIndex> From<Range<I>> for Slice {
 impl<I: AsIndex + Copy> From<RangeInclusive<I>> for Slice {
     fn from(r: RangeInclusive<I>) -> Self {
         Self {
-            start: (*r.start()).index(),
-            end: handle_signed_inclusive_end((*r.end()).index()),
+            start: r.start().as_index(),
+            end: handle_signed_inclusive_end(r.end().as_index()),
             step: 1,
         }
     }
@@ -567,7 +567,7 @@ impl<I: AsIndex + Copy> From<RangeInclusive<I>> for Slice {
 impl<I: AsIndex> From<RangeFrom<I>> for Slice {
     fn from(r: RangeFrom<I>) -> Self {
         Self {
-            start: r.start.index(),
+            start: r.start.as_index(),
             end: None,
             step: 1,
         }
@@ -578,7 +578,7 @@ impl<I: AsIndex> From<RangeTo<I>> for Slice {
     fn from(r: RangeTo<I>) -> Self {
         Self {
             start: 0,
-            end: Some(r.end.index()),
+            end: Some(r.end.as_index()),
             step: 1,
         }
     }
@@ -588,7 +588,7 @@ impl<I: AsIndex> From<RangeToInclusive<I>> for Slice {
     fn from(r: RangeToInclusive<I>) -> Self {
         Self {
             start: 0,
-            end: handle_signed_inclusive_end(r.end.index()),
+            end: handle_signed_inclusive_end(r.end.as_index()),
             step: 1,
         }
     }
