@@ -46,6 +46,7 @@ impl<R: Runtime> ReduceFuser<R> {
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
+            // TODO: Fusion axis should be on the reduce_axis - 1.
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
             ..Default::default()
         };

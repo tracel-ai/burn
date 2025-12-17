@@ -1,7 +1,7 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
 use crate::metric::{
     MetricDefinition, MetricEntry, MetricId, NumericEntry,
-    store::{EpochSummary, Split},
+    store::{EpochSummary, MetricsUpdate, Split},
 };
 use std::{
     collections::HashMap,
@@ -18,18 +18,12 @@ pub trait MetricLogger: Send {
     ///
     /// # Arguments
     ///
-    /// * `items` - List of items.
+    /// * `update` - Update information for all registered metrics.
     /// * `epoch` - Current epoch.
     /// * `split` - Current dataset split.
     /// * `iteration` - Current iteration.
     /// * `tag` - Optional, additional tag for the split.
-    fn log(
-        &mut self,
-        items: Vec<MetricEntry>,
-        epoch: usize,
-        split: Split,
-        tag: Option<Arc<String>>,
-    );
+    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: Split, tag: Option<Arc<String>>);
 
     /// Read the logs for an epoch.
     fn read_numeric(
@@ -42,7 +36,7 @@ pub trait MetricLogger: Send {
     /// Logs the metric definition information (name, description, unit, etc.)
     fn log_metric_definition(&mut self, definition: MetricDefinition);
 
-    /// Logs summary of the epoch (duration, highest metric values reached, etc.)
+    /// Logs summary at the end of the epoch.
     fn log_epoch_summary(&mut self, summary: EpochSummary);
 }
 
@@ -212,18 +206,25 @@ impl FileMetricLogger {
 }
 
 impl MetricLogger for FileMetricLogger {
-    fn log(
-        &mut self,
-        items: Vec<MetricEntry>,
-        epoch: usize,
-        split: Split,
-        tag: Option<Arc<String>>,
-    ) {
+    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: Split, tag: Option<Arc<String>>) {
         if !self.is_eval && self.last_epoch != Some(epoch) {
             self.loggers.clear();
             self.last_epoch = Some(epoch);
         }
-        for item in items.iter() {
+
+        let entries: Vec<_> = update
+            .entries
+            .iter()
+            .chain(
+                update
+                    .entries_numeric
+                    .iter()
+                    .map(|numeric_update| &numeric_update.entry),
+            )
+            .cloned()
+            .collect();
+
+        for item in entries.iter() {
             match tag {
                 Some(ref tag) => {
                     let tag = tag.trim().replace(' ', "-").to_lowercase();
@@ -308,7 +309,7 @@ impl InMemoryMetricLogger {
 impl MetricLogger for InMemoryMetricLogger {
     fn log(
         &mut self,
-        items: Vec<MetricEntry>,
+        update: MetricsUpdate,
         epoch: usize,
         split: Split,
         _tag: Option<Arc<String>>,
@@ -319,7 +320,20 @@ impl MetricLogger for InMemoryMetricLogger {
                 .for_each(|loggers| loggers.push(InMemoryLogger::default()));
             self.last_epoch = Some(epoch);
         }
-        for item in items.iter() {
+
+        let entries: Vec<_> = update
+            .entries
+            .iter()
+            .chain(
+                update
+                    .entries_numeric
+                    .iter()
+                    .map(|numeric_update| &numeric_update.entry),
+            )
+            .cloned()
+            .collect();
+
+        for item in entries.iter() {
             let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
             let key = logger_key(name, split);
 

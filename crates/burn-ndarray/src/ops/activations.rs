@@ -13,6 +13,6 @@ where
     NdArrayTensor: From<SharedArray<I>>,
 {
     fn relu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_numeric_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(tensor, 0.elem()))
+        execute_with_numeric_dtype!(tensor, |array| NdArrayMathOps::clamp_min(array, 0.elem()))
     }
 }

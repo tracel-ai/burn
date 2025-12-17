@@ -368,6 +368,7 @@ impl Drop for TuiMetricsRenderer {
 
             if let Some(summary) = &self.summary {
                 println!("{summary}");
+                log::info!("{summary}");
             }
         }
     }

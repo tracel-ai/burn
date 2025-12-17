@@ -174,6 +174,7 @@ impl TensorData {
             Ok(elems) => return Ok(elems),
             Err(bytes) => bytes,
         };
+
         // The bytes might have been deserialized and allocated with a different align.
         // In that case, we have to memcopy the data into a new vector, more suitably allocated
         Ok(bytemuck::checked::try_cast_slice(me.as_bytes())

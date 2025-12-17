@@ -3,7 +3,7 @@ use cubecl::{
     ir::StorageType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::matmul::AcceleratedTileKind;
+use cubek::convolution::AcceleratedTileKind;
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
@@ -11,7 +11,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-/// Executes autotune on conv2d operations
+/// Executes autotune on convolution operations
 pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,

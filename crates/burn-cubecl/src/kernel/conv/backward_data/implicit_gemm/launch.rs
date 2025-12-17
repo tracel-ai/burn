@@ -1,10 +1,13 @@
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubek::{
-    convolution::{ConvolutionArgs, Strategy, backward_data, components::ConvSetupError},
+    convolution::{
+        AcceleratedTileKind, ConvolutionArgs, ReadingStrategy, Strategy, backward_data,
+        components::ConvSetupError,
+    },
     matmul::{
-        AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy, components::MatmulElems,
-        tune_key::MatmulElemType,
+        definition::{MatmulElemType, MatmulElems},
+        launch::MatmulInputHandleRef,
     },
 };
 

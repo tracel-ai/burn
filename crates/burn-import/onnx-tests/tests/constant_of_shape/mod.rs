@@ -36,11 +36,20 @@ mod tests {
     #[test]
     fn constant_of_shape_full_like() {
         // This tests shape is being passed from the input tensor
+        use burn::tensor::{DType, TensorData};
         let device = Default::default();
         let model = constant_of_shape_full_like::Model::<TestBackend>::new(&device);
         let shape = [2, 3, 2];
         let f_expected = Tensor::<TestBackend, 3>::full(shape, 3.0, &device);
-        let i_expected = Tensor::<TestBackend, 3, Int>::full(shape, 5, &device);
+        // ONNX model uses I32 for integer constant, use from_data_dtype to match
+        // Create rank-1 tensor first, then reshape to 3D and expand
+        let i_expected = Tensor::<TestBackend, 1, Int>::from_data_dtype(
+            TensorData::from([5i32]),
+            &device,
+            DType::I32,
+        )
+        .reshape([1, 1, 1])
+        .expand(shape);
         let b_expected = Tensor::<TestBackend, 3, Int>::ones(shape, &device).bool();
 
         let input = Tensor::ones(shape, &device);

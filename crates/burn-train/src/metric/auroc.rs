@@ -118,6 +118,10 @@ impl<B: Backend> Numeric for AurocMetric<B> {
     fn value(&self) -> super::NumericEntry {
         self.state.current_value()
     }
+
+    fn running_value(&self) -> super::NumericEntry {
+        self.state.running_value()
+    }
 }
 
 #[cfg(test)]

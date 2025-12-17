@@ -1,7 +1,6 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::ops::IntTensorOps;
 use burn_backend::tensor::BoolElem;
 use burn_backend::{ElementConversion, TensorMetadata, tensor::FloatTensor};
 use burn_backend::{
@@ -51,12 +50,9 @@ where
     }
 
     fn bool_into_int(tensor: NdArrayTensor) -> NdArrayTensor {
-        let shape = tensor.shape();
-        let values = tensor.bool().into_iter().collect();
-        NdArray::<E, I>::int_from_data(
-            TensorData::new(values, shape).convert::<I>(),
-            &NdArrayDevice::Cpu,
-        )
+        // Use mapv directly instead of collecting to Vec and going through TensorData
+        let int_array: SharedArray<I> = tensor.bool().mapv(|b| b.elem()).into_shared();
+        int_array.into()
     }
 
     fn bool_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {
@@ -106,7 +102,7 @@ where
     }
 
     fn bool_into_float(tensor: NdArrayTensor) -> FloatTensor<Self> {
-        let arr: SharedArray<E> = tensor.bool().mapv(|a| (a as i32).elem()).into_shared();
+        let arr: SharedArray<E> = tensor.bool().mapv(|b| b.elem()).into_shared();
         arr.into()
     }
 
@@ -208,5 +204,17 @@ where
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
         NdArrayBoolOps::equal_elem(lhs.bool(), rhs).into()
+    }
+
+    fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        // Use view() for zero-copy on borrowed storage with short-circuit evaluation
+        let result = NdArrayBoolOps::any_view(tensor.bool().view());
+        NdArrayTensor::from_data(TensorData::new(vec![result], Shape::new([1])))
+    }
+
+    fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        // Use view() for zero-copy on borrowed storage with short-circuit evaluation
+        let result = NdArrayBoolOps::all_view(tensor.bool().view());
+        NdArrayTensor::from_data(TensorData::new(vec![result], Shape::new([1])))
     }
 }

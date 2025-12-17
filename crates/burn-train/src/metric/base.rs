@@ -166,6 +166,8 @@ impl Default for NumericAttributes {
 pub trait Numeric {
     /// Returns the numeric value of the metric.
     fn value(&self) -> NumericEntry;
+    /// Returns the current aggregated value of the metric over the global step (epoch).
+    fn running_value(&self) -> NumericEntry;
 }
 
 /// Serialized form of a metric entry.

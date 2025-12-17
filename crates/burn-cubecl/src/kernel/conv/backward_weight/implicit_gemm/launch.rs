@@ -1,16 +1,19 @@
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubek::{
-    convolution::{ConvolutionArgs, Strategy, backward_weight, components::ConvSetupError},
+    convolution::{
+        AcceleratedTileKind, ConvolutionArgs, ReadingStrategy, Strategy, backward_weight,
+        components::ConvSetupError,
+    },
     matmul::{
-        AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy, components::MatmulElems,
-        tune_key::MatmulElemType,
+        definition::{MatmulElemType, MatmulElems},
+        launch::MatmulInputHandleRef,
     },
 };
 
 use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 
-pub fn wgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
+pub(crate) fn wgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
     weight_shape: Shape,
@@ -33,7 +36,7 @@ pub fn wgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     )
 }
 
-pub fn wgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
+pub(crate) fn wgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
     weight_shape: Shape,
@@ -56,14 +59,7 @@ pub fn wgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
     )
 }
 
-/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
-/// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
-///
-/// * `input` - The input feature map
-/// * `weight` - The weights (filter) applied to each kernel
-/// * `bias` - The bias added to each channel
-/// * `options` - The options to use for the convolution
-pub fn wgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
+pub(crate) fn wgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
     weight_shape: Shape,
@@ -100,7 +96,7 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
         return Err(ConvSetupError::Groups(options.groups));
     }
 
-    let out_dtype = input.dtype;
+    let out_dtype = out_grad.dtype;
 
     let weight_grad = empty_device_optimized_dtype(
         input.client.clone(),

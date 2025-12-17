@@ -10,7 +10,8 @@ use cubecl::{AutotuneKey, client::ComputeClient, features::TypeUsage, ir::Storag
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy,
     components::instructions::ReduceOperationConfig,
-    routines::{RoutineStrategy, unit::UnitStrategy},
+    launch::{LineSizeStrategy, RoutineStrategy},
+    routines::{BlueprintStrategy, unit::UnitStrategy},
     shared_sum,
 };
 use serde::{Deserialize, Serialize};
@@ -155,6 +156,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
         "The `output_dtype` has to be `Some` only when the `config` is `ArgMax` or `ArgMin`.
         "
     );
+
     let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
     let client = input.client.clone();
     let output = init_reduce_output::<Run>(&input, dim, &dtypes).ok_or(
@@ -170,7 +172,12 @@ pub fn reduce_dim<Run: CubeRuntime>(
             input.as_handle_ref(),
             output.as_handle_ref(),
             dim,
-            ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
+            ReduceStrategy {
+                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                line_size: LineSizeStrategy {
+                    parallel_output_vectorization: false,
+                },
+            },
             config,
             dtypes,
         ),

@@ -12,7 +12,6 @@ mod im2col;
 mod tune_key;
 
 pub(crate) use backward_data::*;
-pub(crate) use backward_weight::*;
 pub(crate) use conv_transpose2d::*;
 pub(crate) use conv_transpose3d::*;
 pub(crate) use deform_conv_transpose2d::*;

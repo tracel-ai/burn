@@ -4,10 +4,10 @@ use crate::engine::codegen::{
     kernel::init_locals,
     view::{FusedOutput, GlobalInput, GlobalInputExpand},
 };
-use cubecl::quant::scheme::{QuantLevel, QuantScheme};
 use cubecl::{
     intrinsic,
     prelude::*,
+    quant::scheme::{QuantLevel, QuantScheme},
     std::{
         CubeOption, CubeOptionExpand, FastDivmod,
         quant::{
@@ -20,16 +20,13 @@ use cubecl::{
         },
     },
 };
-use cubek::matmul::components::{
-    MatrixLayout,
-    global::{
-        GlobalConfig,
-        args::MatmulArgs,
-        memory::{
-            BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
-            GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
-        },
+use cubek::matmul::{
+    components::global::memory::{
+        BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
+        GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
     },
+    definition::MatrixLayout,
+    launch::MatmulArgs,
 };
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -58,10 +55,12 @@ impl MatmulArgs for FusedMatmulArgs {
     type Input<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulInput;
     type State<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulState;
 
-    fn init_state<Lhs: Numeric, Rhs: Numeric, EO: Numeric, G: GlobalConfig>(
+    fn init_state<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         inputs: &Self::Input<Lhs, Rhs, EO>,
         outputs: &mut Self::Output<EO>,
-        #[comptime] config: G,
+        #[comptime] lhs_layout_config: GlobalLayoutConfig,
+        #[comptime] rhs_layout_config: GlobalLayoutConfig,
+        #[comptime] out_layout_config: GlobalLayoutConfig,
     ) -> Self::State<Lhs, Rhs, EO> {
         let mut locals = init_locals(&inputs.global, outputs, &inputs.config);
         let rank = comptime![inputs.config.rank];
@@ -108,13 +107,9 @@ impl MatmulArgs for FusedMatmulArgs {
             VirtualLayout::new::<BatchLayout>(batch_out),
             batch_shape,
             &inputs.config,
-            comptime![GlobalLayoutConfig::from(
-                config.lhs_reader_config().gmem_config
-            )],
-            comptime![GlobalLayoutConfig::from(
-                config.rhs_reader_config().gmem_config
-            )],
-            comptime![GlobalLayoutConfig::from(config.writer_config().gmem_config)],
+            lhs_layout_config,
+            rhs_layout_config,
+            out_layout_config,
         )
     }
 

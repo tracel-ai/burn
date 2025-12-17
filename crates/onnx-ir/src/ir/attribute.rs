@@ -4,6 +4,7 @@
 //! of attributes that can be attached to ONNX nodes.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use burn_tensor::TensorData;
@@ -45,6 +46,8 @@ pub struct DeferredGraph {
     pub opset_version: usize,
     /// Name registry for unique node naming across subgraphs
     pub name_registry: Option<crate::graph_state::NameRegistry>,
+    /// Base path for resolving external tensor data (inherited from parent graph)
+    pub base_path: Option<PathBuf>,
 }
 
 /// A map of outer-scope value names to their resolved arguments (including type and value)
@@ -68,6 +71,7 @@ impl DeferredGraph {
             self.opset_version,
             self.name_registry.clone(),
             outer_scope,
+            self.base_path.as_deref(),
         )
     }
 

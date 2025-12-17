@@ -62,20 +62,38 @@ impl NodeCodegen for onnx_ir::unsqueeze::UnsqueezeNode {
             (ArgType::Scalar(_scalar_type), ArgType::Tensor(output_tensor)) => {
                 let scalar_name = arg_to_ident(input_arg);
                 let output_rank = output_tensor.rank.to_tokens();
+                let dtype_tokens = output_tensor.dtype.to_tokens();
 
-                // Determine the element type based on the output tensor type
+                // Create tensor from scalar with explicit dtype
                 let tensor_creation = match &output_tensor.dtype {
                     dtype if dtype.is_int() || dtype.is_uint() => {
-                        let elem_conversion = quote! { #scalar_name.elem::<B::IntElem>() };
-                        quote! { Tensor::<B, #output_rank, Int>::from_data([#elem_conversion], &self.device).unsqueeze() }
+                        // Cast to i64 for TensorData, then from_data_dtype converts to target dtype
+                        quote! {
+                            Tensor::<B, #output_rank, Int>::from_data_dtype(
+                                burn::tensor::TensorData::from([#scalar_name as i64]),
+                                &self.device,
+                                #dtype_tokens
+                            ).unsqueeze()
+                        }
                     }
                     dtype if dtype.is_float() => {
-                        let elem_conversion = quote! { #scalar_name.elem::<B::FloatElem>() };
-                        quote! { Tensor::<B, #output_rank>::from_data([#elem_conversion], &self.device).unsqueeze() }
+                        // Cast to f64 for TensorData, then from_data_dtype converts to target dtype
+                        quote! {
+                            Tensor::<B, #output_rank>::from_data_dtype(
+                                burn::tensor::TensorData::from([#scalar_name as f64]),
+                                &self.device,
+                                #dtype_tokens
+                            ).unsqueeze()
+                        }
                     }
                     dtype if dtype.is_bool() => {
-                        let elem_conversion = quote! { #scalar_name != 0 };
-                        quote! { Tensor::<B, #output_rank, Bool>::from_data([#elem_conversion], &self.device).unsqueeze() }
+                        quote! {
+                            Tensor::<B, #output_rank, Bool>::from_data_dtype(
+                                burn::tensor::TensorData::from([#scalar_name != 0]),
+                                &self.device,
+                                #dtype_tokens
+                            ).unsqueeze()
+                        }
                     }
                     _ => panic!("Unsupported tensor dtype: {:?}", output_tensor.dtype),
                 };

@@ -344,8 +344,8 @@ impl TchTensor {
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
-        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
-        let tensor = tensor.reshape(shape_tch.dims).to_kind(E::kind());
+        let tensor =
+            tch::Tensor::from_data_size(&data.bytes, &shape_tch.dims, E::kind()).to(device);
 
         Self::new(tensor)
     }
@@ -479,6 +479,22 @@ mod tests {
             &device,
             DType::QFloat(QuantScheme::default())
         ));
+    }
+
+    #[test]
+    fn should_support_from_bf16() {
+        let data = TensorData::from([[1.0], [1.]]).convert_dtype(DType::BF16);
+        let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
+        let data = TensorData::from([[2.0], [2.]]).convert_dtype(DType::BF16);
+        let tensor_2 = B::float_from_data(data, &Default::default());
+
+        let tensor_3 = B::float_add(tensor_1, tensor_2);
+
+        assert_eq!(tensor_3.tensor.kind(), tch::Kind::BFloat16);
+
+        let out = read_sync(B::float_into_data(tensor_3)).unwrap();
+
+        out.assert_eq(&TensorData::from([[3.0], [3.0]]), false);
     }
 }
 
