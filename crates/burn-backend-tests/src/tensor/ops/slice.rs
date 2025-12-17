@@ -353,7 +353,7 @@ fn should_support_slice_fill_with_mixed_steps() {
         [0.0, 1.0, 0.0, 1.0],
         [0.0, 0.0, 0.0, 0.0],
     ];
-    let expected = TensorData::from([expected_slice.clone(), expected_slice]);
+    let expected = TensorData::from([expected_slice, expected_slice]);
     output.into_data().assert_eq(&expected, false);
 }
 
