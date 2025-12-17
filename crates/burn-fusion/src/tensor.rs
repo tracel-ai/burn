@@ -2,12 +2,11 @@ use crate::{
     Client, FusionBackend, FusionRuntime,
     stream::{Operation, OperationStreams, StreamId},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
-use burn_tensor::{
-    DType, Shape, TensorData, TensorMetadata,
-    backend::ExecutionError,
-    quantization::{QTensorPrimitive, QuantScheme},
+use burn_backend::{
+    DType, ExecutionError, QTensorPrimitive, Shape, TensorData, TensorMetadata,
+    quantization::QuantScheme,
 };
+use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::sync::{
     Arc,
     atomic::{AtomicU32, Ordering},

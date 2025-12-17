@@ -7,7 +7,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
+use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
 

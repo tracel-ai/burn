@@ -8,7 +8,10 @@ use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::launch::{ReduceStrategy, tune_key::ReduceAutotuneKey};
+use cubek::reduce::{
+    launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
+    routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
+};
 use serde::{Deserialize, Serialize};
 
 use super::optimization::ReduceOptimizationTuneArg;
@@ -40,20 +43,19 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
             tune_fallback::<R, BT>,
         ));
 
-        for shared in [true, false] {
-            for use_planes in [true, false] {
-                let mut name = "fused_reduce".to_string();
-                if use_planes {
-                    name += "_plane";
-                }
-                if shared {
-                    name += "_shared";
-                }
-
-                set = set.with(Tunable::new(name, move |input| {
-                    tune_reduce::<R, BT>(input, ReduceStrategy { use_planes, shared })
-                }));
-            }
+        for strategy in [
+            RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+            RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+                use_planes: true,
+            })),
+            RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
+                independent: true,
+            })),
+        ] {
+            let name = format!("{strategy:?}");
+            set = set.with(Tunable::new(name, move |input| {
+                tune_reduce::<R, BT>(input, &strategy)
+            }));
         }
 
         set
@@ -107,15 +109,17 @@ fn input_gen<R: Runtime>(
 
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
-    strategy: ReduceStrategy,
+    strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused::<BT>(context, strategy),
+        TuneContext::Original(context) => {
+            optimization.execute_fused::<BT>(context, strategy.clone())
+        }
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused::<BT>(&mut context_owned.as_context(), strategy)
+            optimization.execute_fused::<BT>(&mut context_owned.as_context(), strategy.clone())
         }
     }
     .map_err(|e| format!("{e:?}"))

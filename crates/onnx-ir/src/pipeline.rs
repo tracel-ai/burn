@@ -28,10 +28,7 @@ use std::{fmt, fs::File, path::Path};
 
 use protobuf::Message;
 
-use crate::{
-    ir::OnnxGraph, processor::ProcessError, proto_conversion::MIN_OPSET_VERSION,
-    protos::ModelProto, util::verify_opsets,
-};
+use crate::{ir::OnnxGraph, processor::ProcessError, protos::ModelProto};
 
 use super::phases::{
     finalization, initialization, node_conversion, post_processing, type_inference,
@@ -45,12 +42,6 @@ pub enum Error {
 
     /// Failed to parse ONNX protobuf format
     InvalidFormat { path: Option<String>, error: String },
-
-    /// ONNX opset version is not supported
-    UnsupportedOpset {
-        found: usize,
-        minimum_required: usize,
-    },
 
     /// Model graph nodes are not topologically sorted (ONNX spec violation)
     InvalidGraphStructure { reason: String },
@@ -77,17 +68,6 @@ impl fmt::Display for Error {
                 } else {
                     write!(f, "Invalid ONNX format: {}", error)
                 }
-            }
-            Error::UnsupportedOpset {
-                found,
-                minimum_required,
-            } => {
-                write!(
-                    f,
-                    "Unsupported ONNX opset version {}. Requires opset {} or higher. \
-                    See documentation for upgrade instructions.",
-                    found, minimum_required
-                )
             }
             Error::InvalidGraphStructure { reason } => {
                 write!(f, "Invalid ONNX graph structure: {}", reason)
@@ -164,7 +144,6 @@ impl OnnxGraphBuilder {
     /// Returns an error if:
     /// - File cannot be opened or read
     /// - File is not valid ONNX protobuf format
-    /// - ONNX opset version is less than 16
     /// - Graph nodes are not topologically sorted
     /// - Type inference fails
     pub fn parse_file(self, path: impl AsRef<Path>) -> Result<OnnxGraph, Error> {
@@ -215,7 +194,6 @@ impl OnnxGraphBuilder {
     ///
     /// Returns an error if:
     /// - Data is not valid ONNX protobuf format
-    /// - ONNX opset version is less than 16
     /// - Graph nodes are not topologically sorted
     /// - Type inference fails
     pub fn parse_bytes(self, data: &[u8]) -> Result<OnnxGraph, Error> {
@@ -232,7 +210,6 @@ impl OnnxGraphBuilder {
     /// Returns an error if:
     /// - Reading from the reader fails
     /// - Data is not valid ONNX protobuf format
-    /// - ONNX opset version is less than 16
     /// - Graph nodes are not topologically sorted
     /// - Type inference fails
     pub fn parse_reader<R: Read>(self, mut reader: R) -> Result<OnnxGraph, Error> {
@@ -262,20 +239,6 @@ impl OnnxGraphBuilder {
                 path: path_str.clone(),
                 error: e.to_string(),
             })?;
-
-        if !verify_opsets(&model.opset_import, MIN_OPSET_VERSION) {
-            let found_version = model
-                .opset_import
-                .iter()
-                .find(|opset| opset.domain.is_empty())
-                .map(|opset| opset.version as usize)
-                .unwrap_or(0);
-
-            return Err(Error::UnsupportedOpset {
-                found: found_version,
-                minimum_required: MIN_OPSET_VERSION,
-            });
-        }
 
         // ONNX nodes must be topologically sorted per spec:
         // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs

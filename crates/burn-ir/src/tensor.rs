@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use burn_tensor::{DType, Shape};
+use burn_backend::{DType, Shape};
 
 /// The tensor unique identifier.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]

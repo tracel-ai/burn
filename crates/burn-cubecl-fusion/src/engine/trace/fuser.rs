@@ -10,7 +10,7 @@ use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorId, TensorIr};
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]

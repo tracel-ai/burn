@@ -6,15 +6,14 @@ pub use api::*;
 
 // Re-exported types
 pub use burn_backend::{
-    DataError, TensorData, TensorMetadata, TensorPrimitive, Tolerance,
+    DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata, TensorPrimitive, Tolerance,
     distribution::*,
     element::*,
+    indexing::*,
     ops::TransactionPrimitive,
+    shape::*,
+    slice::*,
     tensor::{Bool, Float, Int, TensorKind},
-};
-pub use burn_std::{
-    DType, FloatDType, IntDType, s,
-    tensor::{indexing::*, shape::*, slice::*},
 };
 
 /// The activation module.
@@ -26,7 +25,9 @@ pub mod backend {
 }
 
 /// The container module.
-pub mod container;
+pub mod container {
+    pub use burn_backend::tensor::TensorContainer;
+}
 
 /// The grid module.
 pub mod grid;
@@ -44,7 +45,7 @@ pub mod module;
 pub mod ops {
     pub use burn_backend::backend::ops::*;
     pub use burn_backend::tensor::{
-        BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
+        BoolElem, BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
     };
 }
 

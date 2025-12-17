@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use burn_tensor::{
+use burn_backend::{
     DType, Element,
     ops::{ConvOptions, conv::calculate_conv_output_size},
 };

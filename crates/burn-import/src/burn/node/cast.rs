@@ -115,26 +115,31 @@ impl NodeCodegen for onnx_ir::cast::CastNode {
 
                 match &self.config.to {
                     dtype if dtype.is_float() => {
-                        // Emit f32 tensor; Float64 target collapses to f32 at runtime side.
+                        let dtype_tokens = self.config.to.to_tokens();
+                        // Use f64 intermediate for precision, then from_data_dtype
+                        // to convert to the exact target dtype
                         quote! {
                             let #output = {
                                 let shape_array = #input as [i64; #rank];
-                                let float_array: [f32; #rank] = shape_array.map(|x| x as f32);
-                                Tensor::<B, 1>::from_data(
+                                let float_array: [f64; #rank] = shape_array.map(|x| x as f64);
+                                Tensor::<B, 1>::from_data_dtype(
                                     TensorData::from(float_array),
-                                    &self.device
+                                    &self.device,
+                                    #dtype_tokens
                                 )
                             };
                         }
                     }
                     dtype if dtype.is_bool() => {
+                        let dtype_tokens = self.config.to.to_tokens();
                         quote! {
                             let #output = {
                                 let shape_array = #input as [i64; #rank];
                                 let bool_array: [bool; #rank] = shape_array.map(|x| x != 0);
-                                Tensor::<B, 1, Bool>::from_data(
+                                Tensor::<B, 1, Bool>::from_data_dtype(
                                     TensorData::from(bool_array),
-                                    &self.device
+                                    &self.device,
+                                    #dtype_tokens
                                 )
                             };
                         }

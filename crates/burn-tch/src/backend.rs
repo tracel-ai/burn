@@ -1,8 +1,9 @@
+use crate::IntoKind;
+
 use super::TchTensor;
 use super::element::TchElement;
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps, ExecutionError};
-use burn_tensor::ops::IntTensorOps;
-use burn_tensor::{Int, Tensor};
+use burn_backend::backend::{Backend, DeviceId, DeviceOps, ExecutionError};
+use burn_backend::ops::IntTensorOps;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
@@ -66,7 +67,7 @@ impl From<tch::Device> for LibTorchDevice {
     }
 }
 
-impl burn_std::device::Device for LibTorchDevice {
+impl burn_backend::Device for LibTorchDevice {
     fn from_id(device_id: DeviceId) -> Self {
         match device_id.type_id {
             0 => Self::Cuda(device_id.index_id as usize),
@@ -148,15 +149,19 @@ impl<E: TchElement> Backend for LibTorch<E> {
             }
             _ => {
                 // When there is no explicit way to synchronize, we write and read one value to sync
-                Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
+                burn_backend::read_sync(Self::int_into_data(Self::int_zeros(
                     [1].into(),
                     device,
                     E::dtype().into(),
-                ))
-                .into_data();
+                )))
+                .unwrap();
             }
         };
 
         Ok(())
+    }
+
+    fn supports_dtype(_device: &Self::Device, dtype: burn_backend::DType) -> bool {
+        dtype.try_into_kind().is_ok()
     }
 }

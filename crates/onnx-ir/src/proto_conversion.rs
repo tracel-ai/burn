@@ -18,8 +18,10 @@ use crate::tensor_store::TensorDataRef;
 use burn_tensor::DType;
 use protobuf::Enum;
 
-/// Minimum required ONNX opset version
-pub const MIN_OPSET_VERSION: usize = 16;
+/// Default ONNX opset version used when opset information is not available.
+/// This is typically used as a fallback during post-processing.
+/// Note: Opset 16 is recommended for best compatibility with Burn's ONNX support.
+pub const DEFAULT_OPSET_VERSION: usize = 16;
 
 /// Error type for parsing ONNX model
 #[derive(Debug)]

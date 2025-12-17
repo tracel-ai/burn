@@ -13,7 +13,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_tensor::{DType, Shape, ops::DeformConvOptions};
+use burn_backend::{DType, Shape, ops::DeformConvOptions};
 use cubecl::{
     CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube, features::TypeUsage, prelude::*,
     std::scalar::InputScalar,
@@ -54,13 +54,28 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
     let gradient_bias = bias.map(|bias| {
         let grad = reduce_dim(
             out_grad.clone(),
+            None,
             0,
             Default::default(),
             ReduceOperationConfig::Sum,
         )
         .unwrap();
-        let grad = reduce_dim(grad, 2, Default::default(), ReduceOperationConfig::Sum).unwrap();
-        let grad = reduce_dim(grad, 3, Default::default(), ReduceOperationConfig::Sum).unwrap();
+        let grad = reduce_dim(
+            grad,
+            None,
+            2,
+            Default::default(),
+            ReduceOperationConfig::Sum,
+        )
+        .unwrap();
+        let grad = reduce_dim(
+            grad,
+            None,
+            3,
+            Default::default(),
+            ReduceOperationConfig::Sum,
+        )
+        .unwrap();
 
         reshape(grad, bias.shape)
     });
@@ -174,9 +189,9 @@ fn backward_gradient_inputs<R: CubeRuntime>(
         columns = slice_assign(
             columns,
             &[
-                burn_tensor::Slice::from(group..group + 1),
-                burn_tensor::Slice::from(0..col_shape_0),
-                burn_tensor::Slice::from(0..col_shape_1),
+                burn_backend::Slice::from(group..group + 1),
+                burn_backend::Slice::from(0..col_shape_0),
+                burn_backend::Slice::from(0..col_shape_1),
             ],
             values,
         );

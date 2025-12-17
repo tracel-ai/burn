@@ -1,11 +1,10 @@
 use crate::{CubeRuntime, kernel, tensor::CubeTensor};
-use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
-use burn_tensor::{
-    DType, Shape, TensorData,
-    backend::ExecutionError,
-    quantization::{QTensorPrimitive, QuantLevel, params_shape},
+use burn_backend::{
+    DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
+    quantization::{QuantLevel, params_shape},
 };
-use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
+use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
+use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
 use cubecl::quant::scheme::BlockSize;
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
 
@@ -42,6 +41,7 @@ pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
+#[tracing::instrument(skip(tensor, device))]
 pub(crate) fn to_device<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     device: &R::Device,
@@ -94,7 +94,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         qparams.scales.shape.dims.swap(dim1, dim2);
         qparams.scales.strides.swap(dim1, dim2);
 
-        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
     }
 
     tensor
@@ -129,7 +129,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
         qparams.scales.strides = axes.iter().map(|i| qparams.scales.strides[*i]).collect();
         qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
 
-        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
     }
 
     tensor
@@ -145,6 +145,18 @@ pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor
     dims.push(c_dim);
 
     permute(tensor, &dims)
+}
+
+/// Permute a shape's dimensions from NCHW to NHWC, or the N-dimensional equivalent
+pub fn permute_nchw_to_nhwc_shape(shape: Shape) -> Shape {
+    let rank = shape.num_dims();
+    let c_dim = 1;
+
+    let mut dims = vec![0];
+    dims.extend(2..rank);
+    dims.push(c_dim);
+
+    shape.permute(&dims).expect("Shape permute should succeed")
 }
 
 /// Permute a tensor's dimensions from NHWC to NCHW, or the N-dimensional equivalent

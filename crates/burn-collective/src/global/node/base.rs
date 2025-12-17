@@ -20,10 +20,10 @@ use crate::{
         },
         shared::{GlobalCollectiveError, RemoteRequest, RemoteResponse},
     },
-    local::server::get_server_runtime,
+    local::server::get_collective_server_runtime,
 };
 
-// Must be synchronized between all nodes for collective operations to work
+/// Must be synchronized between all nodes for collective operations to work
 pub(crate) struct NodeState {
     pub node_id: NodeId,
     pub nodes: HashMap<NodeId, Address>,
@@ -56,7 +56,7 @@ where
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
         let sync_service = Arc::new(SyncService::new(state.clone()));
 
-        let runtime = get_server_runtime();
+        let runtime = get_collective_server_runtime();
         let server = comms_server
             .route_tensor_data_service(data_service.clone())
             .route("/sync", {

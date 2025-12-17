@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_backend::Shape;
 use cubecl::{
     prelude::ArrayArg,
     std::{
@@ -89,17 +89,6 @@ pub fn split_dim<R: CubeRuntime>(
         stride *= size;
     }
 
-    tensor
-}
-
-pub fn merge_dims<R: CubeRuntime>(
-    mut tensor: CubeTensor<R>,
-    dim0: usize,
-    dim1: usize,
-) -> CubeTensor<R> {
-    tensor.shape[dim1] *= tensor.shape[dim0];
-    tensor.shape.remove(dim0);
-    tensor.strides.remove(dim0);
     tensor
 }
 

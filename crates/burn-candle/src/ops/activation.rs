@@ -1,4 +1,4 @@
-use burn_tensor::ops::{ActivationOps, FloatTensor};
+use burn_backend::{ops::ActivationOps, tensor::FloatTensor};
 
 use crate::{
     Candle, CandleTensor,

@@ -29,9 +29,10 @@ impl NodeCodegen for onnx_ir::bitshift::BitShiftNode {
                 }
                 (ArgType::Scalar(_), ArgType::Tensor(_)) => {
                     // For scalar << tensor, broadcast scalar to tensor first
+                    // Use full_like to preserve rhs's dtype
                     quote! {
                         {
-                            let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
+                            let _scalar_tensor = #rhs.full_like(#lhs);
                             _scalar_tensor.bitwise_left_shift(#rhs)
                         }
                     }
@@ -50,9 +51,10 @@ impl NodeCodegen for onnx_ir::bitshift::BitShiftNode {
                 }
                 (ArgType::Scalar(_), ArgType::Tensor(_)) => {
                     // For scalar >> tensor, broadcast scalar to tensor first
+                    // Use full_like to preserve rhs's dtype
                     quote! {
                         {
-                            let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
+                            let _scalar_tensor = #rhs.full_like(#lhs);
                             _scalar_tensor.bitwise_right_shift(#rhs)
                         }
                     }
@@ -170,7 +172,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
             let output = {
-                let _scalar_tensor = Tensor::full(rhs.shape(), lhs, &rhs.device());
+                let _scalar_tensor = rhs.full_like(lhs);
                 _scalar_tensor.bitwise_left_shift(rhs)
             };
             output
@@ -191,7 +193,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, lhs: i32, rhs: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
             let output = {
-                let _scalar_tensor = Tensor::full(rhs.shape(), lhs, &rhs.device());
+                let _scalar_tensor = rhs.full_like(lhs);
                 _scalar_tensor.bitwise_right_shift(rhs)
             };
             output

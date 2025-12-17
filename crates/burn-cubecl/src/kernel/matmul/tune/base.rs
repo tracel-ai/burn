@@ -1,23 +1,21 @@
-use burn_tensor::DType;
-use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
-use cubek::matmul::{
-    AcceleratedTileKind, AsyncPartialReadingStrategy, PartialReadingStrategy, ReadingStrategy,
-    Strategy,
-    components::MatmulKind,
-    kernels::layered::{
-        Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-        simple_unit::SimpleUnitSelectionArgs,
-    },
-    tune_key::{
-        MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
-    },
-};
-
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::matmul::{launch_matmul, utils::init_matmul_output},
     tensor::CubeTensor,
+};
+use burn_backend::DType;
+use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
+use cubek::matmul::{
+    definition::{MatmulElemType, MatmulKind},
+    launch::{
+        AcceleratedTileKind, AsyncPartialReadingStrategy, MatmulAutotuneKey, MatmulGlobalScale,
+        PartialReadingStrategy, ReadingStrategy, Strategy, should_tune_double_buffering,
+    },
+    routines::{
+        Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
+        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
+        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+    },
 };
 
 fn matmul_input_gen<R: CubeRuntime>(
@@ -172,11 +170,9 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     false,
                 ),
                 (
-                    Strategy::DoubleUnit(Selection::Inferred(
-                        cubek::matmul::kernels::layered::double_unit::DoubleUnitSelectionArgs {
-                            tile_size,
-                        },
-                    )),
+                    Strategy::DoubleUnit(Selection::Inferred(DoubleUnitSelectionArgs {
+                        tile_size,
+                    })),
                     true,
                 ),
             ] {

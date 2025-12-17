@@ -5,20 +5,24 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
     unary_float_ops,
 };
-use burn_ir::*;
-use burn_tensor::{
-    Device, Distribution, Element, FloatDType, IndexingUpdateOp, Shape, Slice, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+use burn_backend::{
+    Distribution, Element, ExecutionError, FloatDType, Shape, Slice, TensorData,
+    ops::FloatTensorOps,
+    tensor::{BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntTensor},
 };
+use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
+    #[tracing::instrument(
+        skip(data),
+        fields(?data.shape, ?data.dtype)
+    )]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;
         let tensor = B::float_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::float_tensor_handle(tensor);
         let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
@@ -157,6 +161,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    #[tracing::instrument(
+        skip(tensor),
+        fields(
+            from = ?tensor.client.device(),
+            shape = ?tensor.shape,
+            dtype = ?tensor.dtype
+        )
+    )]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
     }
@@ -165,6 +177,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.client.device().clone()
     }
 
+    #[tracing::instrument(
+        skip(tensor),
+        fields(
+            from = ?tensor.client.device(),
+            shape = ?tensor.shape,
+            dtype = ?tensor.dtype,
+        )
+    )]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         let device_original: &B::Device = tensor.client.device();
 
@@ -632,7 +652,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Gather(desc.clone())),
+                OperationIr::BaseFloat(BaseOperationIr::Gather(desc.clone())),
                 GatherOps::<B>::new(desc),
             )
             .output()
@@ -677,10 +697,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::Scatter(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
             )
             .output()
@@ -718,7 +735,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Select(desc.clone())),
+                OperationIr::BaseFloat(BaseOperationIr::Select(desc.clone())),
                 SelectOps::<B>::new(desc),
             )
             .output()
@@ -763,10 +780,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::SelectAssign(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::SelectAssign(desc.clone())),
                 SelectAssignOps::<B>::new(desc),
             )
             .output()
@@ -807,7 +821,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         #[derive(new, Debug)]
@@ -877,10 +891,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::MaskWhere(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::MaskWhere(desc.clone())),
                 MaskWhereOps::<B>::new(desc),
             )
             .output()
@@ -919,10 +930,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.out.dtype,
-                    NumericOperationIr::MaskFill(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::MaskFill(desc.clone())),
                 MaskFillOps::<B>::new(desc),
             )
             .output()
@@ -964,10 +972,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(
-                    desc.lhs.dtype,
-                    NumericOperationIr::EqualElem(desc.clone()),
-                ),
+                OperationIr::BaseFloat(BaseOperationIr::EqualElem(desc.clone())),
                 EqualElemOps::<B>::new(desc),
             )
             .output()
@@ -2057,11 +2062,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_backend::FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct CastOps<B: FusionBackend> {
             desc: CastOpIr,
-            dtype: burn_tensor::FloatDType,
+            dtype: burn_backend::FloatDType,
             _b: PhantomData<B>,
         }
 

@@ -84,7 +84,7 @@ fn run_model(model: &Model<NdArray>, device: &BackendDevice, input: f32) -> Tens
     model.forward(input)
 }
 
-// This runs as a seperate task whenever there is an await
+// This runs as a separate task whenever there is an await
 #[embassy_executor::task]
 async fn logger_task(driver: Driver<'static, USB>) {
     // This just makes a logger that outputs to serial.

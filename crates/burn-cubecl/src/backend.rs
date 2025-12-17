@@ -1,15 +1,13 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
-use burn_tensor::{
-    TensorData,
-    backend::{Backend, DeviceOps, ExecutionError},
-};
-use cubecl::server::ComputeServer;
+use burn_backend::{Backend, DeviceOps, ExecutionError, TensorData};
+use burn_std::DType;
+use cubecl::{ir::StorageType, server::ComputeServer};
 use std::marker::PhantomData;
 
 #[cfg(not(feature = "fusion"))]
-use burn_ir::{BackendIr, TensorHandle};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 #[cfg(not(feature = "fusion"))]
-use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
+use burn_ir::{BackendIr, TensorHandle};
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
@@ -24,7 +22,7 @@ impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
 where
     R: CubeRuntime,
     R::Server: ComputeServer,
-    R::Device: burn_tensor::backend::DeviceOps,
+    R::Device: DeviceOps,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,
@@ -80,6 +78,13 @@ where
     {
         let client = R::client(device);
         client.staging(data.map(|td| &mut td.bytes), false);
+    }
+
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        let client = R::client(device);
+
+        let ty: StorageType = dtype.into();
+        client.properties().supports_type(ty.elem_type())
     }
 }
 

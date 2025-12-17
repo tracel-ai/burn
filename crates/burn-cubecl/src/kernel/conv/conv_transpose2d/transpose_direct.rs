@@ -7,7 +7,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, ops::ConvTransposeOptions};
+use burn_backend::{Shape, ops::ConvTransposeOptions};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubek::convolution::components::ConvSetupError;
 

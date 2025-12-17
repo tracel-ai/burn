@@ -84,7 +84,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             let elem: StorageType = match input {
                 HandleInput::Normal(h) => h.global_ir.dtype.into(),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
-                    burn_tensor::DType::QFloat(scheme) => {
+                    burn_std::DType::QFloat(scheme) => {
                         line_sizes_quants(client, &mut quants_line_sizes, scheme);
                         continue;
                     }

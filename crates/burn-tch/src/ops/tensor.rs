@@ -1,13 +1,12 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::{BoolTensor, FloatTensor};
-use burn_tensor::{
+use burn_backend::backend::ExecutionError;
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
+use burn_backend::{
     DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
-    backend::Backend,
-    ops::{FloatTensorOps, IntTensor},
+    backend::Backend, ops::FloatTensorOps,
 };
-use half::{bf16, f16};
+use burn_backend::{bf16, f16};
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
@@ -229,13 +228,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::select_assign(tensor, dim, indices, value)
     }
 
-    fn float_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+    fn float_slice(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {
         TchOps::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(
         tensor: TchTensor,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: TchTensor,
     ) -> TchTensor {
         TchOps::slice_assign(tensor, slices, value)
@@ -485,13 +484,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html#type-promotion-doc
 
         // Type promotion is not automatic on all backends so this behavior might differ
-        let kind = match dtype {
-            FloatDType::F64 => tch::Kind::Double,
-            FloatDType::F32 => tch::Kind::Float,
-            FloatDType::Flex32 => tch::Kind::Float,
-            FloatDType::F16 => tch::Kind::Half,
-            FloatDType::BF16 => tch::Kind::BFloat16,
-        };
+        let kind = dtype.into_kind();
 
         if tensor.tensor.kind() == kind {
             tensor

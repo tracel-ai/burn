@@ -5,15 +5,12 @@ use crate::{
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
 use alloc::sync::Arc;
+use burn_backend::{Backend, DType, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp};
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{future::DynFut, stub::Mutex};
-use burn_tensor::{
-    DType, Shape, TensorData,
-    backend::{Backend, ExecutionError},
-};
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -184,8 +181,64 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_slice_assign(tensor, &desc.ranges, value);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::Gather(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::float_gather(desc.dim, tensor, indices);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Scatter(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let output = match desc.update {
+                        IndexingUpdateOp::Add => {
+                            B::float_scatter_add(desc.dim, tensor, indices, value)
+                        }
+                    };
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Select(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::float_select(tensor, desc.dim, indices);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::SelectAssign(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let output = match desc.update {
+                        IndexingUpdateOp::Add => {
+                            B::float_select_add(tensor, desc.dim, indices, value)
+                        }
+                    };
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::MaskWhere(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let output = B::float_mask_where(tensor, mask, value);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::MaskFill(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+
+                    let output = B::float_mask_fill(tensor, mask, desc.value.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Equal(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_equal)
+                }
+                BaseOperationIr::EqualElem(desc) => {
+                    scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
                 }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -274,8 +327,64 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_slice_assign(tensor, &desc.ranges, value);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::Gather(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::int_gather(desc.dim, tensor, indices);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Scatter(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_int_tensor::<B>(&desc.value);
+
+                    let output = match desc.update {
+                        IndexingUpdateOp::Add => {
+                            B::int_scatter_add(desc.dim, tensor, indices, value)
+                        }
+                    };
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Select(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::int_select(tensor, desc.dim, indices);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::SelectAssign(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_int_tensor::<B>(&desc.value);
+
+                    let output = match desc.update {
+                        IndexingUpdateOp::Add => {
+                            B::int_select_add(tensor, desc.dim, indices, value)
+                        }
+                    };
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::MaskWhere(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+                    let value = handles.get_int_tensor::<B>(&desc.value);
+
+                    let output = B::int_mask_where(tensor, mask, value);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::MaskFill(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+
+                    let output = B::int_mask_fill(tensor, mask, desc.value.elem());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Equal(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_equal)
+                }
+                BaseOperationIr::EqualElem(desc) => {
+                    scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
                 }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
@@ -360,11 +469,70 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::bool_slice_assign(tensor, &desc.ranges, value);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::Gather(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::bool_gather(desc.dim, tensor, indices);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Scatter(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_bool_tensor::<B>(&desc.value);
+
+                    let output = match desc.update {
+                        IndexingUpdateOp::Add => {
+                            B::bool_scatter_or(desc.dim, tensor, indices, value)
+                        }
+                    };
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Select(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::bool_select(tensor, desc.dim, indices);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::SelectAssign(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_bool_tensor::<B>(&desc.value);
+
+                    let output = match desc.update {
+                        IndexingUpdateOp::Add => {
+                            B::bool_select_or(tensor, desc.dim, indices, value)
+                        }
+                    };
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::MaskWhere(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+                    let value = handles.get_bool_tensor::<B>(&desc.value);
+
+                    let output = B::bool_mask_where(tensor, mask, value);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::MaskFill(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+
+                    let output = B::bool_mask_fill(tensor, mask, desc.value.elem());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Equal(desc) => {
                     let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
                     let rhs = handles.get_bool_tensor::<B>(&desc.rhs);
 
                     let output = B::bool_equal(lhs, rhs);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::EqualElem(desc) => {
+                    let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
+
+                    let output = B::bool_equal_elem(lhs, desc.rhs.elem());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::RepeatDim(desc) => {
@@ -444,59 +612,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationIr::Gather(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-
-                    let output = B::float_gather(desc.dim, tensor, indices);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::Scatter(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-                    let value = handles.get_float_tensor::<B>(&desc.value);
-
-                    let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
-                            B::float_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                    };
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::Select(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-
-                    let output = B::float_select(tensor, desc.dim, indices);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::SelectAssign(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-                    let value = handles.get_float_tensor::<B>(&desc.value);
-
-                    let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
-                            B::float_select_add(tensor, desc.dim, indices, value)
-                        }
-                    };
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::MaskWhere(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
-                    let value = handles.get_float_tensor::<B>(&desc.value);
-
-                    let output = B::float_mask_where(tensor, mask, value);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::MaskFill(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
-
-                    let output = B::float_mask_fill(tensor, mask, desc.value.elem());
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 NumericOperationIr::MeanDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, B::float_mean_dim)
                 }
@@ -514,9 +629,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 NumericOperationIr::ProdDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, B::float_prod_dim)
-                }
-                NumericOperationIr::EqualElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_greater)
@@ -655,59 +767,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     );
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationIr::Gather(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-
-                    let output = B::int_gather(desc.dim, tensor, indices);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::Scatter(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-                    let value = handles.get_int_tensor::<B>(&desc.value);
-
-                    let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
-                            B::int_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                    };
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::Select(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-
-                    let output = B::int_select(tensor, desc.dim, indices);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::SelectAssign(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-                    let value = handles.get_int_tensor::<B>(&desc.value);
-
-                    let output = match desc.update {
-                        burn_tensor::IndexingUpdateOp::Add => {
-                            B::int_select_add(tensor, desc.dim, indices, value)
-                        }
-                    };
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::MaskWhere(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
-                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
-                    let value = handles.get_int_tensor::<B>(&desc.value);
-
-                    let output = B::int_mask_where(tensor, mask, value);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                NumericOperationIr::MaskFill(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
-                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
-
-                    let output = B::int_mask_fill(tensor, mask, desc.value.elem());
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
                 NumericOperationIr::MeanDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, B::int_mean_dim)
                 }
@@ -725,9 +784,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 NumericOperationIr::ProdDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, B::int_prod_dim)
-                }
-                NumericOperationIr::EqualElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_greater)
@@ -1363,17 +1419,19 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
     }
 
     fn sync(&self) -> Result<(), ExecutionError> {
-        let device = self.device.clone();
-        B::sync(&device)
+        B::sync(&self.device)
     }
 
     fn seed(&self, seed: u64) {
-        let device = self.device.clone();
-        B::seed(&device, seed)
+        B::seed(&self.device, seed)
     }
 
     fn create_empty_handle(&self) -> TensorId {
         let mut ctx = self.context.lock().unwrap();
         ctx.create_empty_handle()
+    }
+
+    fn supports_dtype(&self, dtype: DType) -> bool {
+        B::supports_dtype(&self.device, dtype)
     }
 }

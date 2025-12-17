@@ -13,7 +13,7 @@ use std::{
 #[cfg(feature = "autotune-checks")]
 use crate::CubeFusionHandle;
 #[cfg(feature = "autotune-checks")]
-use burn_tensor::TensorData;
+use burn_backend::TensorData;
 #[cfg(feature = "autotune-checks")]
 use std::collections::HashMap;
 
@@ -58,7 +58,8 @@ impl<R: Runtime> TuneOutput<R> {
 impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
-        use burn_tensor::{DType, Tolerance};
+        use burn_backend::Tolerance;
+        use burn_std::DType;
 
         if let (
             TuneOutput::Checked {

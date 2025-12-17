@@ -1,4 +1,4 @@
-use burn_tensor::{DType, quantization::QTensorPrimitive};
+use burn_backend::{DType, QTensorPrimitive};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::AllocationKind;
 
@@ -33,6 +33,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
 
 /// Make a jit tensor contiguous with an aligned last stride. Tensor is considered already contiguous
 /// if runtime can read it as is. This is equivalent in practice.
+#[tracing::instrument(skip(tensor))]
 pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     if R::can_read_tensor(&tensor.shape, &tensor.strides) {
         return tensor;
@@ -59,6 +60,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     )
 }
 
+#[tracing::instrument(skip(tensor))]
 fn into_contiguous_quantized<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     kind: AllocationKind,

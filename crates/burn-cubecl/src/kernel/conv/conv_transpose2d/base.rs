@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, tensor::CubeTensor};
-use burn_tensor::ops::ConvTransposeOptions;
+use burn_backend::ops::ConvTransposeOptions;
 use cubek::convolution::components::ConvSetupError;
 
 #[cfg(feature = "autotune")]

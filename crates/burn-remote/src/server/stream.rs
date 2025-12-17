@@ -10,6 +10,7 @@ use burn_communication::{
 };
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
+use burn_std::DType;
 use burn_tensor::TensorData;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -118,5 +119,16 @@ where
             .send(ProcessorTask::Seed(seed))
             .await
             .unwrap();
+    }
+
+    pub async fn supports_dtype(&self, id: ConnectionId, dtype: DType) {
+        let (callback_sender, callback_rec) = tokio::sync::mpsc::channel(1);
+
+        self.compute_sender
+            .send(ProcessorTask::SupportsDType(id, dtype, callback_sender))
+            .await
+            .unwrap();
+
+        self.writer_sender.send(callback_rec).await.unwrap();
     }
 }

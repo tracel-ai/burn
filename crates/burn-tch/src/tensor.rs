@@ -1,5 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
+use burn_backend::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -91,37 +91,57 @@ impl TensorMetadata for TchTensor {
     }
 }
 
-impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
-    fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
+impl burn_backend::QTensorPrimitive for TchTensor {
+    fn scheme(&self) -> &burn_backend::quantization::QuantScheme {
         unimplemented!("Quantization is not supported")
     }
 }
 
-pub(crate) trait IntoKind {
-    fn into_kind(self) -> tch::Kind;
+impl core::fmt::Display for TchTensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.tensor)
+    }
 }
 
-impl IntoKind for FloatDType {
-    fn into_kind(self) -> tch::Kind {
-        match self {
-            FloatDType::F64 => tch::Kind::Double,
-            FloatDType::F32 => tch::Kind::Float,
-            FloatDType::Flex32 => tch::Kind::Float,
-            FloatDType::F16 => tch::Kind::Half,
-            FloatDType::BF16 => tch::Kind::BFloat16,
-        }
+pub(crate) trait IntoKind {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError>;
+    fn into_kind(self) -> tch::Kind
+    where
+        Self: Sized,
+    {
+        self.try_into_kind().unwrap()
     }
 }
 
 impl IntoKind for IntDType {
-    fn into_kind(self) -> tch::Kind {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        let dtype: DType = self.into();
+        dtype.try_into_kind()
+    }
+}
+
+impl IntoKind for FloatDType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        let dtype: DType = self.into();
+        dtype.try_into_kind()
+    }
+}
+
+impl IntoKind for DType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
         match self {
-            IntDType::I64 => tch::Kind::Int64,
-            IntDType::I32 => tch::Kind::Int,
-            IntDType::I16 => tch::Kind::Int16,
-            IntDType::I8 => tch::Kind::Int8,
-            IntDType::U64 => tch::Kind::Uint8,
-            other => panic!("Unsupported dtype {other:?}"),
+            DType::F64 => Ok(tch::Kind::Double),
+            DType::F32 => Ok(tch::Kind::Float),
+            DType::Flex32 => Ok(tch::Kind::Float),
+            DType::F16 => Ok(tch::Kind::Half),
+            DType::BF16 => Ok(tch::Kind::BFloat16),
+            DType::I64 => Ok(tch::Kind::Int64),
+            DType::I32 => Ok(tch::Kind::Int),
+            DType::I16 => Ok(tch::Kind::Int16),
+            DType::I8 => Ok(tch::Kind::Int8),
+            DType::U8 => Ok(tch::Kind::Uint8),
+            DType::Bool => Ok(tch::Kind::Bool),
+            other => Err(tch::TchError::Kind(format!("Unsupported dtype {other:?}"))),
         }
     }
 }
@@ -324,8 +344,8 @@ impl TchTensor {
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
-        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
-        let tensor = tensor.reshape(shape_tch.dims).to_kind(E::kind());
+        let tensor =
+            tch::Tensor::from_data_size(&data.bytes, &shape_tch.dims, E::kind()).to(device);
 
         Self::new(tensor)
     }
@@ -417,82 +437,64 @@ fn f_copy_data<T: TchElement>(
 
 #[cfg(test)]
 mod tests {
-    use crate::LibTorch;
-
     use super::*;
-    use burn_tensor::{Distribution, Tensor, TensorPrimitive};
-    use rand::SeedableRng;
-    use rand::prelude::StdRng;
+    use burn_backend::ops::FloatTensorOps;
+    use burn_backend::{Backend, quantization::QuantScheme, read_sync};
 
-    #[test]
-    fn should_support_into_and_from_data_1d() {
-        let data_expected = TensorData::random::<f32, _, _>(
-            Shape::new([3]),
-            Distribution::Default,
-            &mut StdRng::from_os_rng(),
-        );
-        let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
-
-        let data_actual =
-            Tensor::<LibTorch<f32>, 1>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
-
-        assert_eq!(data_expected, data_actual);
-    }
-
-    #[test]
-    fn should_support_into_and_from_data_2d() {
-        let data_expected = TensorData::random::<f32, _, _>(
-            Shape::new([2, 3]),
-            Distribution::Default,
-            &mut StdRng::from_os_rng(),
-        );
-        let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
-
-        let data_actual =
-            Tensor::<LibTorch<f32>, 2>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
-
-        assert_eq!(data_expected, data_actual);
-    }
-
-    #[test]
-    fn should_not_update_inplace_after_reshape() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.clone();
-
-        let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
-
-        assert_ne!(
-            tensor_3.to_data().as_slice::<f32>().unwrap(),
-            tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
-
-    #[test]
-    fn should_not_update_inplace_after_slice() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.clone();
-
-        let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);
-
-        assert_ne!(
-            tensor_3.to_data().as_slice::<f32>().unwrap(),
-            tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
+    type B = crate::LibTorch<f32>;
 
     #[test]
     fn should_have_bf16_kind() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.cast(DType::BF16);
+        let data = TensorData::from([4.0, 4.0]);
+        let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
+        let tensor_2 = B::float_cast(tensor_1, DType::BF16.into());
 
-        tensor_2
-            .to_data()
-            .assert_eq(&TensorData::from([4.0, 4.0]), false);
+        assert_eq!(tensor_2.tensor.kind(), tch::Kind::BFloat16);
 
-        assert_eq!(
-            tensor_2.into_primitive().tensor().tensor.kind(),
-            tch::Kind::BFloat16
-        );
+        let out = read_sync(B::float_into_data(tensor_2)).unwrap();
+
+        out.assert_eq(&TensorData::from([4.0, 4.0]), false);
+    }
+
+    #[test]
+    fn should_support_dtypes() {
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::Bool));
+
+        assert!(!B::supports_dtype(&device, DType::U64));
+        assert!(!B::supports_dtype(&device, DType::U32));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
+    }
+
+    #[test]
+    fn should_support_from_bf16() {
+        let data = TensorData::from([[1.0], [1.]]).convert_dtype(DType::BF16);
+        let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
+        let data = TensorData::from([[2.0], [2.]]).convert_dtype(DType::BF16);
+        let tensor_2 = B::float_from_data(data, &Default::default());
+
+        let tensor_3 = B::float_add(tensor_1, tensor_2);
+
+        assert_eq!(tensor_3.tensor.kind(), tch::Kind::BFloat16);
+
+        let out = read_sync(B::float_into_data(tensor_3)).unwrap();
+
+        out.assert_eq(&TensorData::from([[3.0], [3.0]]), false);
     }
 }
 

@@ -1,5 +1,7 @@
+use burn_std::DType;
+pub use burn_std::backtrace::BackTrace;
+
 use alloc::string::String;
-use burn_std::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -141,6 +143,9 @@ pub trait Backend:
         Iter: Iterator<Item = &'a mut TensorData>,
     {
     }
+
+    /// Whether the type is supported by the specified device.
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool;
 }
 
 /// An error that can happen when syncing a device.

@@ -19,12 +19,13 @@ use crate::{
     utils::duplicate,
 };
 
-use burn_tensor::{
-    Device, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
-    backend::Backend,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+use burn_backend::ops::unfold::calculate_unfold_windows;
+use burn_backend::{
+    Backend, ElementConversion, ExecutionError, TensorData, TensorMetadata,
+    ops::FloatTensorOps,
+    tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor},
 };
-use burn_tensor::{backend::ExecutionError, ops::unfold::calculate_unfold_windows};
+use burn_std::{FloatDType, Shape, Slice};
 
 use super::maxmin::MaxMinDim;
 
@@ -45,13 +46,17 @@ fn unsqueeze_like<B: Backend>(
 }
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
+    #[cfg_attr(feature = "std", tracing::instrument(
+        skip(data),
+        fields(?data.shape, ?data.dtype)
+    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_from_data(data, device))
     }
 
     fn float_random(
         shape: Shape,
-        distribution: burn_tensor::Distribution,
+        distribution: burn_backend::Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_random(shape, distribution, device))
@@ -65,6 +70,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AutodiffTensor::new(B::float_ones(shape, device, dtype))
     }
 
+    #[cfg_attr(feature = "std", tracing::instrument(
+        skip(tensor),
+        fields(
+            from = ?tensor.node,
+            shape = ?tensor.shape(),
+            dtype = ?tensor.dtype(),
+        )
+    ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         B::float_into_data(tensor.primitive).await
     }
@@ -73,6 +86,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_device(&tensor.primitive)
     }
 
+    #[cfg_attr(feature = "std", tracing::instrument(
+        skip(tensor),
+        fields(
+            from = ?tensor.node,
+            shape = ?tensor.shape(),
+            dtype = ?tensor.dtype(),
+        )
+    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct ToDevice;
@@ -1161,14 +1182,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Index;
 
         #[derive(new, Debug)]
         struct RetroSlice<B: Backend> {
             tensor_id: NodeId,
-            slices: Vec<burn_tensor::Slice>,
+            slices: Vec<Slice>,
             _backend: PhantomData<B>,
         }
 
@@ -1181,7 +1202,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend> Backward<B, 1> for Index {
-            type State = (Vec<burn_tensor::Slice>, Shape, B::Device);
+            type State = (Vec<Slice>, Shape, B::Device);
 
             fn backward(
                 self,
@@ -1219,7 +1240,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         #[derive(Debug)]
@@ -1228,7 +1249,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         #[derive(new, Debug)]
         struct RetroSliceAssign<B: Backend> {
             tensor_id: NodeId,
-            slices: Vec<burn_tensor::Slice>,
+            slices: Vec<Slice>,
             value_id: NodeId,
             _backend: PhantomData<B>,
         }
@@ -1243,7 +1264,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend> Backward<B, 2> for SliceAssign {
-            type State = (Vec<burn_tensor::Slice>, Shape, B::Device);
+            type State = (Vec<Slice>, Shape, B::Device);
 
             fn backward(
                 self,
@@ -1675,8 +1696,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     // Create slices to reverse along the specified dimension
                     let shape = grad_times_output.shape();
-                    let mut slices = vec![burn_tensor::Slice::full(); shape.num_dims()];
-                    slices[dim] = burn_tensor::Slice::with_step(0, None, -1);
+                    let mut slices = vec![Slice::full(); shape.num_dims()];
+                    slices[dim] = Slice::with_step(0, None, -1);
 
                     // Reverse, cumsum, reverse back using negative step slicing
                     let grad_reversed = B::float_slice(grad_times_output, &slices);
@@ -2424,11 +2445,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let mut ranges = ranges_template.clone();
                         ranges[self.dim] = start..end;
 
-                        let slices: Vec<burn_tensor::Slice> = ranges
+                        let slices: Vec<Slice> = ranges
                             .iter()
-                            .map(|r| {
-                                burn_tensor::Slice::new(r.start as isize, Some(r.end as isize), 1)
-                            })
+                            .map(|r| Slice::new(r.start as isize, Some(r.end as isize), 1))
                             .collect();
                         grads.register::<B>(node.id, B::float_slice(grad.clone(), &slices));
                     });
@@ -2865,7 +2884,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_std::FloatDType) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Cast;
 
@@ -2939,14 +2958,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     target_shape[dim] = size;
 
                     for window_idx in 0..windows {
-                        let mut slices_out = vec![burn_tensor::Slice::new(0, None, 1); ndims_out];
+                        let mut slices_out = vec![Slice::new(0, None, 1); ndims_out];
                         let start = window_idx * step;
                         let end = start + size;
-                        slices_out[dim] = burn_tensor::Slice::new(
-                            window_idx as isize,
-                            Some((window_idx + 1) as isize),
-                            1,
-                        );
+                        slices_out[dim] =
+                            Slice::new(window_idx as isize, Some((window_idx + 1) as isize), 1);
 
                         let window_grad = B::float_slice(grad.clone(), &slices_out);
 
@@ -2959,9 +2975,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let window_grad = B::float_permute(window_grad, &permutation);
                         let window_grad = B::float_reshape(window_grad, target_shape.clone());
 
-                        let mut slices_in = vec![burn_tensor::Slice::new(0, None, 1); ndims_in];
-                        slices_in[dim] =
-                            burn_tensor::Slice::new(start as isize, Some(end as isize), 1);
+                        let mut slices_in = vec![Slice::new(0, None, 1); ndims_in];
+                        slices_in[dim] = Slice::new(start as isize, Some(end as isize), 1);
 
                         let current = B::float_slice(grad_input.clone(), &slices_in);
                         let updated = B::float_add(current, window_grad);

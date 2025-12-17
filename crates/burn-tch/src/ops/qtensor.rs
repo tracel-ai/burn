@@ -1,8 +1,8 @@
-use burn_tensor::{
-    Shape, TensorData,
-    backend::ExecutionError,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+use burn_backend::{
+    ExecutionError, Shape, TensorData,
+    ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
+    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 
 use crate::{LibTorch, LibTorchDevice, TchElement};
@@ -37,7 +37,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
 
     fn q_to_device(
         _tensor: QuantizedTensor<Self>,
-        _device: &burn_tensor::Device<Self>,
+        _device: &Device<Self>,
     ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
@@ -75,7 +75,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
 
     fn q_slice(
         _tensor: QuantizedTensor<Self>,
-        _slices: &[burn_tensor::Slice],
+        _slices: &[burn_backend::Slice],
     ) -> QuantizedTensor<Self> {
         unimplemented!()
     }

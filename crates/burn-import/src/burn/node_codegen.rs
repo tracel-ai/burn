@@ -154,6 +154,7 @@ impl_node_codegen_dispatch! {
     // Other ops
     Cast,
     Clip,
+    CumSum,
     Dropout,
     Where,
     ArgMax,

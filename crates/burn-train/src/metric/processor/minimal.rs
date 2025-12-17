@@ -41,7 +41,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Train,
-                        self.metrics.best_metric_entries_train(),
                     )));
             }
             LearnerEvent::End(_summary) => {} // no-op for now
@@ -66,7 +65,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Valid,
-                        self.metrics.best_metric_entries_valid(),
                     )));
             }
             LearnerEvent::End(_) => {} // no-op for now
