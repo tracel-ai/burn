@@ -272,14 +272,32 @@ impl NodeCodegen for onnx_ir::node::loop_node::LoopNode {
 
             // Handle scalar vs tensor scan outputs
             match &scan_arg.ty {
-                ArgType::Scalar(_) => {
+                ArgType::Scalar(dtype) => {
                     // Convert Vec<scalar> to 2D tensor with shape [N, 1]
                     // ONNX spec: scan outputs from scalars get an added dimension
+                    // Use from_data_dtype with correct tensor kind to preserve dtype
+                    let dtype_tokens = dtype.to_tokens();
+
+                    let tensor_creation = if dtype.is_float() {
+                        quote! {
+                            Tensor::<B, 1>::from_data_dtype(data, &*self.device, #dtype_tokens)
+                        }
+                    } else if dtype.is_int() || dtype.is_uint() {
+                        quote! {
+                            Tensor::<B, 1, Int>::from_data_dtype(data, &*self.device, #dtype_tokens)
+                        }
+                    } else {
+                        // Bool
+                        quote! {
+                            Tensor::<B, 1, Bool>::from_data_dtype(data, &*self.device, #dtype_tokens)
+                        }
+                    };
+
                     output_values.push(quote! {
                         {
                             let data = TensorData::from(#collector.as_slice());
                             let len = #collector.len();
-                            let tensor1d: Tensor<B, 1> = Tensor::from_data(data, &*self.device);
+                            let tensor1d = #tensor_creation;
                             tensor1d.reshape([len, 1])
                         }
                     });
