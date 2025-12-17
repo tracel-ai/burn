@@ -5,6 +5,13 @@ pub use cubecl_common::quant::scheme::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 
+/// Alignment (in bytes) for quantization parameters in serialized tensor data.
+///
+/// NOTE: This is currently f32-based since scales were originally always f32.
+/// With `QuantParam` now supporting different precisions (F16, BF16, etc.),
+/// this alignment may need to be revisited in the future.
+pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
+
 use alloc::vec::Vec;
 use core::any::TypeId;
 use num_traits::PrimInt;
@@ -116,14 +123,14 @@ impl QuantizedBytes {
         match scheme.level {
             QuantLevel::Tensor => {
                 let scale_bytes = bytemuck::bytes_of(&scales[0]);
-                bytes.extend_from_byte_slice_aligned(scale_bytes, align_of::<f32>());
+                bytes.extend_from_byte_slice_aligned(scale_bytes, QPARAM_ALIGN);
             }
             QuantLevel::Block(_block_size) => {
                 let mut scale_bytes = Vec::with_capacity(size_of_val(scales));
                 for scale in scales {
                     scale_bytes.extend_from_slice(bytemuck::bytes_of(scale));
                 }
-                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), align_of::<f32>());
+                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
             }
         }
 

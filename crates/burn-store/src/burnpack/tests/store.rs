@@ -1057,3 +1057,119 @@ fn test_store_cache_invalidation_on_save() {
     assert_ne!(weight1_values, weight2_values);
     assert_eq!(weight2_values, vec![10.0, 20.0, 30.0, 40.0]);
 }
+
+/// Test storing and loading quantized weights with BurnpackStore.
+/// Regression test for https://github.com/tracel-ai/burn/issues/4179
+#[test]
+fn test_store_quantized_module_round_trip() {
+    use burn_core::module::Quantizer;
+    use burn_nn::LinearConfig;
+    use burn_tensor::quantization::{
+        Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue,
+    };
+
+    let device = Default::default();
+
+    // Create a simple linear module (512x512 as in the bug report)
+    let linear = LinearConfig::new(512, 512)
+        .with_bias(false)
+        .init::<TestBackend>(&device);
+
+    // Define quantization scheme (Q8S with tensor-level quantization)
+    let scheme = <<TestBackend as burn_tensor::backend::Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::Tensor)
+        .with_param(QuantParam::F32);
+
+    // Quantize the module
+    let calibration = Calibration::MinMax;
+    let mut quantizer = Quantizer {
+        calibration,
+        scheme: scheme.clone(),
+    };
+    let quantized_linear = linear.quantize_weights(&mut quantizer);
+
+    // Save the quantized module
+    let mut save_store = BurnpackStore::from_bytes(None);
+    let result = save_store.collect_from(&quantized_linear);
+    assert!(
+        result.is_ok(),
+        "Failed to save quantized module: {:?}",
+        result.err()
+    );
+
+    // Get the bytes
+    let bytes = save_store.get_bytes().expect("Failed to get bytes");
+
+    // Load the bytes and verify we can read the tensor metadata
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = load_store
+        .get_all_snapshots()
+        .expect("Failed to get snapshots");
+
+    // Verify we have the weight tensor
+    assert_eq!(snapshots.len(), 1, "Expected 1 tensor (weight)");
+    assert!(snapshots.contains_key("weight"), "Expected 'weight' tensor");
+
+    // Verify the tensor metadata
+    let weight_snapshot = snapshots.get("weight").unwrap();
+    assert_eq!(weight_snapshot.shape, vec![512, 512]);
+
+    // Verify we can load the tensor data
+    let weight_data = weight_snapshot
+        .to_data()
+        .expect("Failed to load tensor data");
+    assert_eq!(weight_data.shape, vec![512, 512]);
+}
+
+/// Test storing quantized weights with block-level quantization.
+#[test]
+fn test_store_quantized_module_block_level() {
+    use burn_core::module::Quantizer;
+    use burn_nn::LinearConfig;
+    use burn_tensor::quantization::{
+        Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue,
+    };
+
+    let device = Default::default();
+
+    // Create a linear module
+    let linear = LinearConfig::new(128, 128)
+        .with_bias(false)
+        .init::<TestBackend>(&device);
+
+    // Define quantization scheme with block-level quantization
+    let scheme = <<TestBackend as burn_tensor::backend::Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([32])) // Block size of 32
+        .with_param(QuantParam::F32);
+
+    // Quantize the module
+    let calibration = Calibration::MinMax;
+    let mut quantizer = Quantizer {
+        calibration,
+        scheme: scheme.clone(),
+    };
+    let quantized_linear = linear.quantize_weights(&mut quantizer);
+
+    // Save the quantized module
+    let mut save_store = BurnpackStore::from_bytes(None);
+    let result = save_store.collect_from(&quantized_linear);
+    assert!(
+        result.is_ok(),
+        "Failed to save quantized module with block-level quantization: {:?}",
+        result.err()
+    );
+
+    // Get the bytes and verify round-trip
+    let bytes = save_store.get_bytes().expect("Failed to get bytes");
+
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = load_store
+        .get_all_snapshots()
+        .expect("Failed to get snapshots");
+
+    assert_eq!(snapshots.len(), 1);
+    let weight_snapshot = snapshots.get("weight").unwrap();
+    assert_eq!(weight_snapshot.shape, vec![128, 128]);
+}
