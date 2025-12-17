@@ -35,11 +35,11 @@ pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
         tensor.shape.clone(),
     );
 
-    let cube_dim = CubeDim::default();
-    let num_elems = tensor.shape.num_elements();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
-
     let line_size = max_line_size(&tensor);
+    let num_elems = tensor.shape.num_elements();
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         bool_cast_kernel::launch_unchecked::<BT, EO, R>(

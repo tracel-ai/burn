@@ -164,9 +164,9 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         offsets.push(ScalarArg::new(start as u32));
     }
 
-    let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(value.shape.num_elements() / line_size as usize, cube_dim);
+    let working_units = value.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         slice_assign_kernel::launch_unchecked(
@@ -224,8 +224,9 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     }
 
     // Launch kernel
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(value.shape.num_elements(), cube_dim);
+    let working_units = value.shape.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         slice_assign_with_steps_kernel::launch_unchecked(
