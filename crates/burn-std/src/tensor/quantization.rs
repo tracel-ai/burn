@@ -6,6 +6,10 @@ pub use cubecl_common::quant::scheme::{
 };
 
 /// Alignment (in bytes) for quantization parameters in serialized tensor data.
+///
+/// NOTE: This is currently f32-based since scales were originally always f32.
+/// With `QuantParam` now supporting different precisions (F16, BF16, etc.),
+/// this alignment may need to be revisited in the future.
 pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
 use alloc::vec::Vec;
