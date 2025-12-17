@@ -522,20 +522,20 @@ impl NdArrayTensor {
     /// - The data's bytes are properly aligned for the element type
     /// - The bytes can be borrowed (e.g., from mmap'd file or static data)
     pub fn from_data(data: TensorData) -> NdArrayTensor {
-        // Try zero-copy path first, taking ownership to avoid cloning bytes
-        match Self::try_from_data_zero_copy(data) {
+        // Try borrowed storage first, fall back to owned if not possible
+        match Self::try_from_data_borrowed(data) {
             Ok(tensor) => tensor,
-            Err(data) => Self::from_data_copy(data),
+            Err(data) => Self::from_data_owned(data),
         }
     }
 
-    /// Try to create a tensor with zero-copy (borrowed) storage.
+    /// Try to create a tensor with borrowed storage (zero-copy).
     ///
     /// Takes ownership of TensorData and returns it back on failure.
     /// No cloning occurs - bytes are moved into storage or returned on failure.
     ///
-    /// Returns `Err(data)` if zero-copy is not possible (e.g., misaligned data).
-    fn try_from_data_zero_copy(data: TensorData) -> Result<NdArrayTensor, TensorData> {
+    /// Returns `Err(data)` if borrowing is not possible (e.g., misaligned data).
+    fn try_from_data_borrowed(data: TensorData) -> Result<NdArrayTensor, TensorData> {
         let TensorData {
             bytes,
             shape,
@@ -574,8 +574,12 @@ impl NdArrayTensor {
         })
     }
 
-    /// Create a tensor by copying data (fallback path).
-    fn from_data_copy(mut data: TensorData) -> NdArrayTensor {
+    /// Create a tensor with owned storage.
+    ///
+    /// This may or may not copy data depending on whether the underlying bytes
+    /// can be reclaimed (via `try_into_vec`). If bytes are uniquely owned,
+    /// no copy occurs; otherwise data is copied to a new allocation.
+    fn from_data_owned(mut data: TensorData) -> NdArrayTensor {
         let shape = mem::take(&mut data.shape);
 
         macro_rules! execute {
