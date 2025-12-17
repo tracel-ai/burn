@@ -101,8 +101,9 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
         indices_sequence.push(ScalarArg::new(start as u32));
     }
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let working_units = output.shape.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         slice_kernel::launch_unchecked(
@@ -215,8 +216,9 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     }
 
     // Launch kernel
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(shape_output.num_elements(), cube_dim);
+    let working_units = shape_output.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         slice_with_steps_kernel::launch_unchecked(

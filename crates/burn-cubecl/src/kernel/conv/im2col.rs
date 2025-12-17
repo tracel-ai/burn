@@ -24,10 +24,11 @@ use crate::{
 pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
+    plane_size: usize,
 ) -> Result<usize, ConvSetupError> {
     use cubek::matmul::definition::MatmulAvailabilityError;
 
-    let cube_count_per_batch = out_shape.div_ceil(cubecl::PLANE_DIM_APPROX);
+    let cube_count_per_batch = out_shape.div_ceil(plane_size);
     let max_cube_count = u16::MAX as usize;
     let max_simultaneous = (max_cube_count / cube_count_per_batch).min(batch_size);
     if max_simultaneous == 0 {
@@ -49,6 +50,7 @@ pub(crate) fn batches_per_run(
 pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
+    plane_size: usize,
 ) -> Result<usize, ConvSetupError> {
     Ok(1)
 }

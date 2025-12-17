@@ -292,9 +292,9 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     let bias = bias.as_ref().map(|b| b.as_tensor_arg(line_size_out));
 
-    let num_elems_output = output.shape.num_elements() / line_size_out as usize;
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
+    let working_units = output.shape.num_elements() / line_size_out as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     unsafe {
         direct_conv2d_kernel::launch_unchecked(
