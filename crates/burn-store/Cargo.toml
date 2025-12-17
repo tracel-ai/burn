@@ -61,7 +61,7 @@ burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.5", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.5", optional = true }
 
 [dev-dependencies]
-# burn-import = { path = "../burn-import", version = "0.20.0" } # disabled (circular dep in publish, only for bench)
+# burn-import = { path = "../burn-import", version = "=0.20.0-pre.5" } # disabled (circular dep in publish, only for bench)
 burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.5" }
 divan = "0.1"
 tempfile = { workspace = true }

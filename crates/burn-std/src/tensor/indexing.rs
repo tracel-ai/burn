@@ -1,21 +1,37 @@
 //! A module for indexing utility machinery.
 
+use crate::IndexKind;
+pub use crate::errors::BoundsError;
+#[allow(unused_imports)]
+use alloc::format;
+#[allow(unused_imports)]
+use alloc::string::{String, ToString};
 use core::fmt::Debug;
 
 /// Helper trait for implementing indexing with support for negative indices.
 ///
 /// # Example
 /// ```rust
-/// use burn_std::{AsIndex, canonicalize_dim};
+/// use burn_std::AsIndex;
 ///
 /// fn example<I: AsIndex, const D: usize>(dim: I, size: usize) -> isize {
-///    let dim: usize = canonicalize_dim(dim, D, false);
+///    let dim: usize = dim.expect_dim_index(D);
 ///    unimplemented!()
 /// }
 /// ```
 pub trait AsIndex: Debug + Copy + Sized {
     /// Converts into a slice index.
     fn index(self) -> isize;
+
+    /// Short-form [`IndexWrap::expect_index(idx, size)`].
+    fn expect_elem_index(self, size: usize) -> usize {
+        IndexWrap::expect_elem(self, size)
+    }
+
+    /// Short-form [`IndexWrap::expect_dim(idx, size)`].
+    fn expect_dim_index(self, size: usize) -> usize {
+        IndexWrap::expect_dim(self, size)
+    }
 }
 
 impl AsIndex for usize {
@@ -79,109 +95,132 @@ impl AsIndex for u8 {
     }
 }
 
-/// Canonicalizes and bounds checks an index with negative indexing support.
-///
-/// ## Arguments
-///
-/// * `idx` - The index to canonicalize.
-/// * `size` - The size of the index range.
-/// * `wrap_scalar` - If true, pretend scalars have rank=1.
-///
-/// ## Returns
-///
-/// The canonicalized dimension index.
-///
-/// ## Panics
-///
-/// * If `wrap_scalar` is false and the tensor has no dimensions.
-/// * If the dimension index is out of range.
-#[must_use]
-pub fn canonicalize_index<Index>(idx: Index, size: usize, wrap_scalar: bool) -> usize
-where
-    Index: AsIndex,
-{
-    canonicalize_named_index("index", "size", idx, size, wrap_scalar)
-}
-
-/// Canonicalizes and bounds checks a dimension index with negative indexing support.
-///
-/// ## Arguments
-///
-/// * `idx` - The dimension index to canonicalize.
-/// * `rank` - The number of dimensions.
-/// * `wrap_scalar` - If true, pretend scalars have rank=1.
-///
-/// ## Returns
-///
-/// The canonicalized dimension index.
-///
-/// ## Panics
-///
-/// * If `wrap_scalar` is false and the tensor has no dimensions.
-/// * If the dimension index is out of range.
-#[must_use]
-pub fn canonicalize_dim<Dim>(idx: Dim, rank: usize, wrap_scalar: bool) -> usize
-where
-    Dim: AsIndex,
-{
-    canonicalize_named_index("dimension index", "rank", idx, rank, wrap_scalar)
-}
-
-/// Canonicalizes and bounds checks an index with negative indexing support.
-///
-/// ## Arguments
-///
-/// * `name` - The name of the index (for error messages).
-/// * `size_name` - The name of the size (for error messages).
-/// * `idx` - The index to canonicalize.
-/// * `size` - The size of the index range.
-/// * `wrap_scalar` - If true, treat 0-size ranges as having size 1.
-///
-/// ## Returns
-///
-/// The canonicalized index.
-///
-/// ## Panics
-///
-/// * If `wrap_scalar` is false and the size is 0.
-/// * If the index is out of range for the dimension size.
-#[inline(always)]
-#[must_use]
-fn canonicalize_named_index<I>(
-    name: &str,
-    size_name: &str,
-    idx: I,
-    size: usize,
+/// Wraps an index with negative indexing support.
+#[derive(Debug)]
+pub struct IndexWrap {
+    kind: IndexKind,
     wrap_scalar: bool,
-) -> usize
+}
+
+impl IndexWrap {
+    /// Get an instance for wrapping negative indices.
+    pub fn index() -> Self {
+        Self {
+            kind: IndexKind::Element,
+            wrap_scalar: false,
+        }
+    }
+
+    /// Get an instance for wrapping negative dimensions.
+    pub fn dim() -> Self {
+        Self {
+            kind: IndexKind::Dimension,
+            wrap_scalar: false,
+        }
+    }
+
+    /// Set the policy for wrapping 0-size ranges.
+    ///
+    /// When ``size`` == 0:
+    ///   - if `wrap_scalar`; then ``size == 1``
+    ///   - otherwise; an error.
+    pub fn with_wrap_scalar(self, wrap_scalar: bool) -> Self {
+        Self {
+            wrap_scalar,
+            ..self
+        }
+    }
+
+    /// Wrap an index with negative indexing support.
+    pub fn try_wrap<I: AsIndex>(&self, idx: I, size: usize) -> Result<usize, BoundsError> {
+        try_wrap(idx, size, self.kind, self.wrap_scalar)
+    }
+
+    /// Wrap an index with negative indexing support.
+    pub fn expect_wrap<I: AsIndex>(&self, idx: I, size: usize) -> usize {
+        expect_wrap(idx, size, self.kind, self.wrap_scalar)
+    }
+
+    /// Short-form [`NegativeWrap::index().expect_wrap(idx, size)`].
+    pub fn expect_elem<I: AsIndex>(idx: I, size: usize) -> usize {
+        Self::index().expect_wrap(idx, size)
+    }
+
+    /// Short-form [`NegativeWrap::dim().expect_wrap(idx, size)`].
+    pub fn expect_dim<I: AsIndex>(idx: I, size: usize) -> usize {
+        Self::dim().expect_wrap(idx, size)
+    }
+}
+
+/// Wraps an index with negative indexing support.
+///
+/// ## Arguments
+/// - `idx` - The index to canonicalize.
+/// - `size` - The size of the index range.
+/// - `kind` - The kind of index (for error messages).
+/// - `size_name` - The name of the size (for error messages).
+/// - `wrap_scalar` - If true, treat 0-size ranges as having size 1.
+///
+/// ## Returns
+///
+/// A `Result<usize, BoundsError>` of the canonicalized index.
+pub fn expect_wrap<I>(idx: I, size: usize, kind: IndexKind, wrap_scalar: bool) -> usize
 where
     I: AsIndex,
 {
-    let idx = idx.index();
+    try_wrap(idx, size, kind, wrap_scalar).expect("valid index")
+}
 
-    let rank = if size > 0 {
-        size
+/// Wraps an index with negative indexing support.
+///
+/// ## Arguments
+/// - `idx` - The index to canonicalize.
+/// - `size` - The size of the index range.
+/// - `kind` - The kind of index (for error messages).
+/// - `size_name` - The name of the size (for error messages).
+/// - `wrap_scalar` - If true, treat 0-size ranges as having size 1.
+///
+/// ## Returns
+///
+/// A `Result<usize, BoundsError>` of the canonicalized index.
+pub fn try_wrap<I>(
+    idx: I,
+    size: usize,
+    kind: IndexKind,
+    wrap_scalar: bool,
+) -> Result<usize, BoundsError>
+where
+    I: AsIndex,
+{
+    let source_idx = idx.index();
+    let source_size = size;
+
+    let size = if source_size > 0 {
+        source_size
     } else {
         if !wrap_scalar {
-            panic!("{name} {idx} used when {size_name} is 0");
+            return Err(BoundsError::index(kind, source_idx, 0..0));
         }
         1
     };
 
-    if idx >= 0 && (idx as usize) < rank {
-        return idx as usize;
+    if source_idx >= 0 && (source_idx as usize) < size {
+        return Ok(source_idx as usize);
     }
 
-    let _idx = if idx < 0 { idx + rank as isize } else { idx };
+    let _idx = if source_idx < 0 {
+        source_idx + size as isize
+    } else {
+        source_idx
+    };
 
-    if _idx < 0 || (_idx as usize) >= rank {
-        let rank = rank as isize;
-        let lower = -rank;
-        let upper = rank - 1;
-        panic!("{name} {idx} out of range: ({lower}..={upper})");
+    if _idx < 0 || (_idx as usize) >= size {
+        let rank = size as isize;
+
+        return Err(BoundsError::index(kind, source_idx, 0..rank));
     }
 
-    _idx as usize
+    Ok(_idx as usize)
 }
 
 /// Wraps a dimension index to be within the bounds of the dimension size.
@@ -238,7 +277,8 @@ pub fn ravel_index<I: AsIndex>(indices: &[I], shape: &[usize]) -> usize {
     let mut stride = 1;
 
     for (i, &dim) in shape.iter().enumerate().rev() {
-        let coord = canonicalize_index(indices[i], dim, false);
+        let idx = indices[i];
+        let coord = IndexWrap::index().expect_wrap(idx, dim);
         ravel_idx += coord * stride;
         stride *= dim;
     }
@@ -285,57 +325,82 @@ mod tests {
     }
 
     #[test]
-    fn test_canonicalize_dim() {
-        let wrap_scalar = false;
-        assert_eq!(canonicalize_dim(0, 3, wrap_scalar), 0_usize);
-        assert_eq!(canonicalize_dim(1, 3, wrap_scalar), 1_usize);
-        assert_eq!(canonicalize_dim(2, 3, wrap_scalar), 2_usize);
+    fn test_negative_wrap() {
+        assert_eq!(IndexWrap::index().expect_wrap(0, 3), 0);
+        assert_eq!(IndexWrap::index().expect_wrap(1, 3), 1);
+        assert_eq!(IndexWrap::index().expect_wrap(2, 3), 2);
+        assert_eq!(IndexWrap::index().expect_wrap(-1, 3), 2);
+        assert_eq!(IndexWrap::index().expect_wrap(-2, 3), 1);
+        assert_eq!(IndexWrap::index().expect_wrap(-3, 3), 0);
 
-        assert_eq!(canonicalize_dim(-1, 3, wrap_scalar), (3 - 1) as usize);
-        assert_eq!(canonicalize_dim(-2, 3, wrap_scalar), (3 - 2) as usize);
-        assert_eq!(canonicalize_dim(-3, 3, wrap_scalar), (3 - 3) as usize);
+        assert_eq!(IndexWrap::dim().expect_wrap(0, 3), 0);
+        assert_eq!(IndexWrap::dim().expect_wrap(1, 3), 1);
+        assert_eq!(IndexWrap::dim().expect_wrap(2, 3), 2);
+        assert_eq!(IndexWrap::dim().expect_wrap(-1, 3), 2);
+        assert_eq!(IndexWrap::dim().expect_wrap(-2, 3), 1);
+        assert_eq!(IndexWrap::dim().expect_wrap(-3, 3), 0);
 
-        let wrap_scalar = true;
-        assert_eq!(canonicalize_dim(0, 0, wrap_scalar), 0);
-        assert_eq!(canonicalize_dim(-1, 0, wrap_scalar), 0);
+        assert_eq!(
+            IndexWrap::index().try_wrap(3, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: 3,
+                bounds: 0..3,
+            })
+        );
+        assert_eq!(
+            IndexWrap::index().try_wrap(-4, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: -4,
+                bounds: 0..3,
+            })
+        );
+        assert_eq!(
+            IndexWrap::dim().try_wrap(3, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Dimension,
+                index: 3,
+                bounds: 0..3,
+            })
+        );
+        assert_eq!(
+            IndexWrap::dim().try_wrap(-4, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Dimension,
+                index: -4,
+                bounds: 0..3,
+            })
+        );
     }
 
     #[test]
-    #[should_panic = "dimension index 0 used when rank is 0"]
-    fn test_canonicalize_dim_error_no_dims() {
-        let _d = canonicalize_dim(0, 0, false);
-    }
+    fn test_negative_wrap_scalar() {
+        assert_eq!(
+            IndexWrap::index().try_wrap(0, 0),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: 0,
+                bounds: 0..0,
+            })
+        );
 
-    #[test]
-    #[should_panic = "dimension index 3 out of range: (-3..=2)"]
-    fn test_canonicalize_dim_error_too_big() {
-        let _d = canonicalize_dim(3, 3, false);
-    }
-    #[test]
-    #[should_panic = "dimension index -4 out of range: (-3..=2)"]
-    fn test_canonicalize_dim_error_too_small() {
-        let _d = canonicalize_dim(-4, 3, false);
-    }
+        assert_eq!(
+            IndexWrap::index().with_wrap_scalar(true).expect_wrap(0, 0),
+            0
+        );
+        assert_eq!(
+            IndexWrap::index().with_wrap_scalar(true).expect_wrap(-1, 0),
+            0
+        );
 
-    #[test]
-    fn test_canonicalize_index() {
-        let wrap_scalar = false;
-        assert_eq!(canonicalize_index(0, 3, wrap_scalar), 0_usize);
-        assert_eq!(canonicalize_index(1, 3, wrap_scalar), 1_usize);
-        assert_eq!(canonicalize_index(2, 3, wrap_scalar), 2_usize);
-
-        assert_eq!(canonicalize_index(-1, 3, wrap_scalar), (3 - 1) as usize);
-        assert_eq!(canonicalize_index(-2, 3, wrap_scalar), (3 - 2) as usize);
-        assert_eq!(canonicalize_index(-3, 3, wrap_scalar), (3 - 3) as usize);
-
-        let wrap_scalar = true;
-        assert_eq!(canonicalize_index(0, 0, wrap_scalar), 0);
-        assert_eq!(canonicalize_index(-1, 0, wrap_scalar), 0);
-    }
-
-    #[test]
-    #[should_panic = "index 3 out of range: (-3..=2)"]
-    fn test_canonicalize_index_error_too_big() {
-        let _d = canonicalize_index(3, 3, false);
+        assert_eq!(
+            IndexWrap::index().with_wrap_scalar(false).try_wrap(1, 0),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: 1,
+                bounds: 0..0,
+            })
+        );
     }
 }
