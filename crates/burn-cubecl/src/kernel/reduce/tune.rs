@@ -4,13 +4,13 @@ use super::SumAutotuneKey;
 use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
 use cubecl::{
     client::ComputeClient,
-    tune::{LocalTuner, Tunable, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::reduce::{
     ReduceDtypes, ReduceStrategy,
     components::instructions::ReduceOperationConfig,
-    launch::tune_key::ReduceAutotuneKey,
-    routines::{RoutineStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
+    launch::{LineSizeStrategy, RoutineStrategy, tune_key::ReduceAutotuneKey},
+    routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
 };
 
 /// Executes autotune on reduce operations.
@@ -27,37 +27,70 @@ pub fn autotune_reduce<R: CubeRuntime>(
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
     let tunables = TUNER.init(|| {
+        const PRIORITY_MAX: i8 = 1;
+        const PRIORITY_SKIP: i8 = -1;
+
         let mut set = TunableSet::new(create_key::<R>, reduce_input_gen::<R>);
 
-        for strategy in [
-            ReduceStrategy::FullUnit(RoutineStrategy::Strategy(UnitStrategy)),
-            ReduceStrategy::FullCube(RoutineStrategy::Strategy(CubeStrategy { use_planes: true })),
-            ReduceStrategy::FullPlane(RoutineStrategy::Strategy(PlaneStrategy {
-                independant: true,
-            })),
+        let vectorized_parallel =
+            TuneGroup::<ReduceAutotuneKey>::new("vectorized_parallel_reduce", |key| {
+                if key.axis_is_contiguous {
+                    PRIORITY_MAX
+                } else {
+                    // We disable the tunable with the setting [line_size.parallel_output_vectorization]
+                    // when the reduce isn't parallel, since it would duplicate tunables.
+                    PRIORITY_SKIP
+                }
+            });
+
+        for line_size in [
+            LineSizeStrategy {
+                parallel_output_vectorization: true,
+            },
+            LineSizeStrategy {
+                parallel_output_vectorization: false,
+            },
         ] {
-            let name = format!("{strategy:?}");
-            set = set.with(Tunable::new(
-                name,
-                move |(input, output, axis, config, dtypes): (
-                    CubeTensor<R>,
-                    CubeTensor<R>,
-                    usize,
-                    ReduceOperationConfig,
-                    ReduceDtypes,
-                )| {
-                    cubek::reduce::reduce::<R>(
-                        &input.client,
-                        input.as_handle_ref(),
-                        output.as_handle_ref(),
-                        axis,
-                        strategy.clone(),
-                        config,
-                        dtypes,
-                    )
-                    .map_err(|e| format!("{e}"))
-                },
-            ));
+            for routine in [
+                RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+                    use_planes: true,
+                })),
+                RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
+                    independent: true,
+                })),
+            ] {
+                let name = format!("{routine:?}-{line_size:?}").to_lowercase();
+                let mut tunable = Tunable::new(
+                    name,
+                    move |(input, output, axis, config, dtypes): (
+                        CubeTensor<R>,
+                        CubeTensor<R>,
+                        usize,
+                        ReduceOperationConfig,
+                        ReduceDtypes,
+                    )| {
+                        let strategy = ReduceStrategy {
+                            routine: routine.clone(),
+                            line_size,
+                        };
+                        cubek::reduce::reduce::<R>(
+                            &input.client,
+                            input.as_handle_ref(),
+                            output.as_handle_ref(),
+                            axis,
+                            strategy,
+                            config,
+                            dtypes,
+                        )
+                        .map_err(|e| format!("{e}"))
+                    },
+                );
+                if line_size.parallel_output_vectorization {
+                    tunable = tunable.group(&vectorized_parallel, |_| PRIORITY_MAX);
+                }
+                set = set.with(tunable);
+            }
         }
 
         set
@@ -196,6 +229,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run>(
             input,
+            None,
             crate::kernel::reduce::KernelReduceStrategy::Autotune,
             cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
         )

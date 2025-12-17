@@ -69,4 +69,8 @@ impl Numeric for CpuTemperature {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(self.temp_celsius as f64)
     }
+
+    fn running_value(&self) -> NumericEntry {
+        NumericEntry::Value(self.temp_celsius as f64)
+    }
 }

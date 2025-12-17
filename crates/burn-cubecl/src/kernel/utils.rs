@@ -92,17 +92,6 @@ pub fn split_dim<R: CubeRuntime>(
     tensor
 }
 
-pub fn merge_dims<R: CubeRuntime>(
-    mut tensor: CubeTensor<R>,
-    dim0: usize,
-    dim1: usize,
-) -> CubeTensor<R> {
-    tensor.shape[dim1] *= tensor.shape[dim0];
-    tensor.shape.remove(dim0);
-    tensor.strides.remove(dim0);
-    tensor
-}
-
 pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
     let rank = tensors[0].shape.num_dims();
     debug_assert!(

@@ -17,7 +17,12 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
-std = ["rand/std", "num-traits/std", "burn-std/std"]
+std = [
+    "rand/std",
+    "num-traits/std",
+    "burn-std/std",
+    "cubecl?/std",
+]
 cubecl = ["dep:cubecl", "burn-std/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]

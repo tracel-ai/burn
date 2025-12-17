@@ -37,7 +37,7 @@ fn test_narrow_2() {
 fn test_narrow_3() {
     let device = &Default::default();
     let shape = Shape::new([8, 8]);
-    let tensor = TestTensorInt::arange(0..shape.num_elements() as i64, &device)
+    let tensor = TestTensorInt::arange(0..shape.num_elements() as i64, device)
         .reshape::<2, _>(shape)
         .float();
 

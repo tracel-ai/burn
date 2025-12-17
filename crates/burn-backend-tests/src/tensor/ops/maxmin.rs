@@ -26,11 +26,11 @@ fn test_max_dim_2d() {
     z.clone()
         .max_dim(0)
         .into_data()
-        .assert_eq(&TensorData::from([[3, 4, 5]]).into(), false);
+        .assert_eq(&TensorData::from([[3, 4, 5]]), false);
     z.clone()
         .max_dim(1)
         .into_data()
-        .assert_eq(&TensorData::from([[2], [5]]).into(), false);
+        .assert_eq(&TensorData::from([[2], [5]]), false);
 }
 
 #[test]
@@ -131,11 +131,11 @@ fn test_min_dim_2d() {
     z.clone()
         .min_dim(0)
         .into_data()
-        .assert_eq(&TensorData::from([[0, 1, 2]]).into(), false);
+        .assert_eq(&TensorData::from([[0, 1, 2]]), false);
     z.clone()
         .min_dim(1)
         .into_data()
-        .assert_eq(&TensorData::from([[0], [3]]).into(), false);
+        .assert_eq(&TensorData::from([[0], [3]]), false);
 }
 
 #[test]

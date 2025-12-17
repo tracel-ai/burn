@@ -1,3 +1,10 @@
+#![allow(clippy::bool_assert_comparison, reason = "more clear")]
+#![allow(
+    clippy::single_range_in_vec_init,
+    clippy::duplicate_mod,
+    reason = "false positive"
+)]
+
 extern crate alloc;
 
 #[cfg(feature = "std")]

@@ -1,6 +1,11 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{DType, Shape};
-use cubek::attention::launch::{AttentionGlobalTypes, AttentionSetupError, Strategy};
+use cubek::attention::{
+    definition::{
+        AccumulatorPrecision, AttentionGlobalTypes, AttentionOptions, AttentionSetupError,
+    },
+    launch::Strategy,
+};
 
 /// Launch a flash attention kernel
 pub fn flash_attention<R: CubeRuntime>(
@@ -37,13 +42,11 @@ pub fn flash_attention<R: CubeRuntime>(
         &mask.as_ref().map(|mask| mask.as_handle_ref()),
         &out.as_handle_ref(),
         &dtypes,
-        cubek::attention::launch::AttentionOptions {
+        AttentionOptions {
             causal: true,
-            accumulator_precision: cubek::attention::launch::AccumulatorPrecision::Strict(
-                cubecl::ir::StorageType::Scalar(cubecl::ir::ElemType::Float(
-                    cubecl::ir::FloatKind::F32,
-                )),
-            ),
+            accumulator_precision: AccumulatorPrecision::Strict(cubecl::ir::StorageType::Scalar(
+                cubecl::ir::ElemType::Float(cubecl::ir::FloatKind::F32),
+            )),
         },
     )?;
 

@@ -3,13 +3,15 @@ use cubecl::{
     ir::StorageType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::matmul::AcceleratedTileKind;
+use cubek::matmul::launch::AcceleratedTileKind;
 
-use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, kernel::conv::*, tensor::CubeTensor};
+use crate::{
+    CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    kernel::conv::{ConvAutotuneKey, conv_direct, conv_im2col_1x1, forward::implicit_gemm::*},
+    tensor::CubeTensor,
+};
 
-use super::ConvAutotuneKey;
-
-/// Executes autotune on conv2d operations
+/// Executes autotune on convolution operations
 pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -130,7 +132,7 @@ fn create_key<R: CubeRuntime, const N: usize>(
     };
     let rhs_shape_align = pow2_factor(in_channels).min(rhs_stride_align);
 
-    CubeAutotuneKey::Conv2d(ConvAutotuneKey::new(
+    CubeAutotuneKey::Conv(ConvAutotuneKey::new(
         kernel_size,
         stride.to_vec(),
         padding.to_vec(),

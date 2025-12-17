@@ -12,17 +12,17 @@ pub enum CubeAutotuneKey {
     /// Key for sum operations
     Sum(SumAutotuneKey),
     /// Key for convolution operations
-    Conv2d(ConvAutotuneKey),
+    Conv(ConvAutotuneKey),
     /// Key for transpose convolution operations
-    ConvTranspose2d(ConvTranspose2dAutotuneKey),
+    ConvTranspose(ConvTranspose2dAutotuneKey),
 }
 
 impl Display for CubeAutotuneKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CubeAutotuneKey::Sum(reduce_key) => std::fmt::Debug::fmt(&reduce_key, f),
-            CubeAutotuneKey::Conv2d(conv2d_key) => std::fmt::Debug::fmt(&conv2d_key, f),
-            CubeAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Debug::fmt(&conv2d_key, f),
+            CubeAutotuneKey::Conv(conv_key) => std::fmt::Debug::fmt(&conv_key, f),
+            CubeAutotuneKey::ConvTranspose(conv_key) => std::fmt::Debug::fmt(&conv_key, f),
         }
     }
 }

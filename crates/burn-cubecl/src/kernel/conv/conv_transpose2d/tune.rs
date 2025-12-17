@@ -73,7 +73,7 @@ fn create_key<R: CubeRuntime>(
         groups,
         padding_out,
     } = options.clone();
-    CubeAutotuneKey::ConvTranspose2d(ConvTranspose2dAutotuneKey::new(
+    CubeAutotuneKey::ConvTranspose(ConvTranspose2dAutotuneKey::new(
         [kernel_h, kernel_w],
         stride,
         padding,

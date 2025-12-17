@@ -1,32 +1,44 @@
 //! Tensor slice utilities.
 
-#[allow(unused_imports)]
+use crate::Shape;
+use crate::indexing::AsIndex;
 use alloc::format;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str::FromStr;
 
-use crate::Shape;
-use crate::indexing::AsIndex;
-
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
 /// and arrays of slices (from `s![.., ..]` or `[0..5, 1..3]`).
 pub trait SliceArg {
-    /// Convert to an array of slices with clamping to shape dimensions
+    /// Convert to an vec of slices with clamping to shape dimensions.
+    ///
+    /// Returns a [Slice] for each dimension in `shape`.
     fn into_slices(self, shape: &Shape) -> Vec<Slice>;
 }
 
-impl SliceArg for &[Slice] {
+impl<S: Into<Slice> + Clone> SliceArg for &[S] {
     fn into_slices(self, shape: &Shape) -> Vec<Slice> {
-        self.iter()
+        assert!(
+            self.len() <= shape.num_dims(),
+            "Too many slices provided for shape, got {} but expected at most {}",
+            self.len(),
+            shape.num_dims()
+        );
+
+        shape
+            .iter()
             .enumerate()
-            .map(|(i, slice)| {
+            .map(|(i, dim_size)| {
+                let slice = if i >= self.len() {
+                    Slice::full()
+                } else {
+                    self[i].clone().into()
+                };
                 // Apply shape clamping by converting to range and back
-                let clamped_range = slice.to_range(shape[i]);
+                let clamped_range = slice.to_range(*dim_size);
                 Slice::new(
                     clamped_range.start as isize,
                     Some(clamped_range.end as isize),
@@ -45,12 +57,10 @@ impl SliceArg for &Vec<Slice> {
 
 impl<const R: usize, T> SliceArg for [T; R]
 where
-    T: Into<Slice>,
+    T: Into<Slice> + Clone,
 {
     fn into_slices(self, shape: &Shape) -> Vec<Slice> {
-        let slices: Vec<Slice> = self.into_iter().map(|s| s.into()).collect::<Vec<_>>();
-
-        slices.into_slices(shape)
+        self.as_slice().into_slices(shape)
     }
 }
 
@@ -60,12 +70,7 @@ where
 {
     fn into_slices(self, shape: &Shape) -> Vec<Slice> {
         let slice: Slice = self.into();
-        let clamped_range = slice.to_range(shape[0]);
-        vec![Slice::new(
-            clamped_range.start as isize,
-            Some(clamped_range.end as isize),
-            slice.step(),
-        )]
+        [slice].as_slice().into_slices(shape)
     }
 }
 
@@ -753,6 +758,7 @@ impl SliceExpressionError {
 mod tests {
     use super::*;
     use alloc::string::ToString;
+    use alloc::vec;
 
     #[test]
     fn test_parse_error() {
@@ -899,5 +905,74 @@ mod tests {
     )]
     fn test_unbound_slice_into_vec() {
         Slice::new(0, None, 1).into_vec();
+    }
+
+    #[test]
+    fn into_slices_should_return_for_all_shape_dims() {
+        let slice = s![1];
+        let shape = Shape::new([2, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(3), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+
+        let slice = s![1, 0..2];
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+
+        let slice = s![..];
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(3), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    fn into_slices_all_dimensions() {
+        let slice = s![1, ..2, ..];
+        let shape = Shape::new([2, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    fn into_slices_supports_empty_dimensions() {
+        let slice = s![.., 1, ..];
+        let shape = Shape::new([0, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(0, Some(0), 1));
+        assert_eq!(slices[1], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    #[should_panic = "Too many slices provided for shape"]
+    fn into_slices_should_match_shape_rank() {
+        let slice = s![.., 1, ..];
+        let shape = Shape::new([3, 1]);
+
+        let _ = slice.into_slices(&shape);
     }
 }

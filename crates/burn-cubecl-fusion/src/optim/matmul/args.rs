@@ -4,10 +4,10 @@ use crate::engine::codegen::{
     kernel::init_locals,
     view::{FusedOutput, GlobalInput, GlobalInputExpand},
 };
-use cubecl::quant::scheme::{QuantLevel, QuantScheme};
 use cubecl::{
     intrinsic,
     prelude::*,
+    quant::scheme::{QuantLevel, QuantScheme},
     std::{
         CubeOption, CubeOptionExpand, FastDivmod,
         quant::{
@@ -20,16 +20,16 @@ use cubecl::{
         },
     },
 };
-use cubek::matmul::components::{
-    MatrixLayout,
-    global::{
+use cubek::matmul::{
+    components::global::{
         GlobalConfig,
-        args::MatmulArgs,
         memory::{
             BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
             GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
         },
     },
+    definition::MatrixLayout,
+    launch::MatmulArgs,
 };
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
