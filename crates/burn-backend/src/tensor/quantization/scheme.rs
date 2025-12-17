@@ -1,4 +1,4 @@
-pub use burn_std::params_shape;
+pub use burn_std::{QPARAM_ALIGN, params_shape};
 use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};

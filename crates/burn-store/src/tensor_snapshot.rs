@@ -3,7 +3,19 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
+use burn_tensor::quantization::{QPARAM_ALIGN, QuantParam, params_shape};
+use burn_tensor::{Bool, DType, Int, Shape, Tensor, TensorData, backend::Backend};
+use half::f16;
+
+/// Returns the byte size of a quantization parameter type.
+// TODO: Add `size_bytes()` method to `QuantParam` in cubecl and use it here.
+const fn quant_param_size(param: QuantParam) -> usize {
+    match param {
+        QuantParam::F32 => core::mem::size_of::<f32>(),
+        QuantParam::F16 | QuantParam::BF16 => core::mem::size_of::<f16>(),
+        QuantParam::UE8M0 | QuantParam::UE4M3 => core::mem::size_of::<u8>(),
+    }
+}
 
 /// Error type for TensorSnapshot operations
 #[derive(Debug, Clone)]
@@ -228,10 +240,35 @@ impl TensorSnapshot {
 
     /// Get the size of the tensor data in bytes without materializing it.
     ///
-    /// For quantized tensors, this includes both the quantized values and the
-    /// quantization parameters (scale, etc.) that are appended to the data.
+    /// For regular (non-quantized) types, this is simply `shape.product() * dtype.size()`.
+    ///
+    /// For quantized types (`QFloat`), this accounts for:
+    /// - The quantized values (packed according to the quantization scheme)
+    /// - Alignment padding (values are aligned to 4-byte boundary)
+    /// - Quantization parameters (scale values appended to the data)
     pub fn data_len(&self) -> usize {
-        self.dtype.data_bytes(&self.shape)
+        const BITS_PER_BYTE: usize = 8;
+
+        let num_elements: usize = self.shape.iter().product();
+
+        match self.dtype {
+            DType::QFloat(scheme) => {
+                // Calculate value bytes using scheme's packing information
+                let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
+                let value_bytes =
+                    num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
+
+                // Calculate number of quantization parameters (scales)
+                let num_params =
+                    params_shape(&Shape::from(self.shape.clone()), scheme.level).num_elements();
+
+                let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
+                let scale_bytes = num_params * quant_param_size(scheme.param);
+
+                aligned_value_bytes + scale_bytes
+            }
+            _ => num_elements * self.dtype.size(),
+        }
     }
 
     /// Clone the data function for lazy composition
