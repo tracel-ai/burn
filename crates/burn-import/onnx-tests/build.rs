@@ -188,6 +188,7 @@ fn main() {
         .input("tests/grid_sample/grid_sample_nearest.onnx")
         .input("tests/group_norm/group_norm.onnx")
         .input("tests/hard_sigmoid/hard_sigmoid.onnx")
+        .input("tests/hard_swish/hard_swish.onnx")
         .input("tests/identity/identity_constant.onnx")
         .input("tests/identity/identity_passthrough.onnx")
         .input("tests/identity/identity_chain.onnx")

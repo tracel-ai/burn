@@ -9,6 +9,7 @@
 //! * [`SwiGlu`]
 //! * [`Sigmoid`]
 //! * [`HardSigmoid`]
+//! * [`HardSwish`]
 //! * [`Softplus`]
 //! * [`Tanh`]
 //!
@@ -23,6 +24,7 @@ mod activation_wrapper;
 pub(crate) mod gelu;
 pub(crate) mod glu;
 pub(crate) mod hard_sigmoid;
+pub(crate) mod hard_swish;
 pub(crate) mod leaky_relu;
 pub(crate) mod prelu;
 pub(crate) mod relu;
@@ -35,6 +37,7 @@ pub use activation_wrapper::*;
 pub use gelu::*;
 pub use glu::*;
 pub use hard_sigmoid::*;
+pub use hard_swish::*;
 pub use leaky_relu::*;
 pub use prelu::*;
 pub use relu::*;
