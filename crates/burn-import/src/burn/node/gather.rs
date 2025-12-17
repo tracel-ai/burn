@@ -135,22 +135,6 @@ fn forward_scalar_gather(node: &onnx_ir::gather::GatherNode) -> proc_macro2::Tok
     }
 }
 
-/// Try to resolve a scalar index at compile time.
-///
-/// Returns `Some(resolved_idx)` if:
-/// - The index is a constant scalar value, AND
-/// - If the index is negative, the input has a known static shape at the gather axis
-fn resolve_scalar_index(index_arg: &Argument, input_arg: &Argument, axis: usize) -> Option<usize> {
-    let idx = index_arg.value()?.scalar_i64().ok()?;
-
-    if idx >= 0 {
-        Some(idx as usize)
-    } else {
-        let dim_size = input_arg.ty.static_shape()?.get(axis)?;
-        Some((*dim_size as i64 + idx) as usize)
-    }
-}
-
 fn forward_tensor_gather(
     node: &onnx_ir::gather::GatherNode,
     scope: &mut super::super::scope::ScopeAtPosition<'_>,
@@ -196,14 +180,17 @@ fn forward_tensor_gather(
                     let axis = node.config.axis;
 
                     // Either a resolved literal or the runtime variable
-                    let index_token =
-                        if let Some(resolved) = resolve_scalar_index(index_arg, input_arg, axis) {
-                            let lit = proc_macro2::Literal::usize_unsuffixed(resolved);
+                    let index_token = index_arg
+                        .value()
+                        .and_then(|v| v.scalar_i64().ok())
+                        .map(|resolved| {
+                            let lit = proc_macro2::Literal::i64_unsuffixed(resolved);
                             quote! { #lit }
-                        } else {
+                        })
+                        .unwrap_or_else(|| {
                             let index = arg_to_ident(index_arg);
                             quote! { #index }
-                        };
+                        });
 
                     let slice_args = (0..input_rank)
                         .map(|i| {
@@ -811,7 +798,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let sliced = data.slice(s![9, ..]);
+                let sliced = data.slice(s![- 1, ..]);
                 sliced.squeeze_dim::<1usize>(0)
             };
             output
@@ -832,7 +819,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let sliced = data.slice(s![.., 63]);
+                let sliced = data.slice(s![.., - 1]);
                 sliced.squeeze_dim::<1usize>(1)
             };
             output
@@ -853,7 +840,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let sliced = data.slice(s![8, ..]);
+                let sliced = data.slice(s![- 2, ..]);
                 sliced.squeeze_dim::<1usize>(0)
             };
             output
