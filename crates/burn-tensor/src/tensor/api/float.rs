@@ -701,7 +701,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// A tensor containing the cross product of `self` and `other` along `dim`.
     pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D>, dim: Dim) -> Tensor<B, D> {
-        let dim = dim.expect_dim(D);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::cross(&self, &other, dim));
         Tensor::new(TensorPrimitive::Float(B::float_cross(
             self.primitive.tensor(),

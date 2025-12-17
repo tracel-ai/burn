@@ -134,8 +134,8 @@ impl Shape {
     /// ```
     pub fn flatten_dims(self, start_dim: impl AsIndex, end_dim: impl AsIndex) -> Self {
         let rank = self.rank();
-        let start = start_dim.expect_dim(rank);
-        let end = end_dim.expect_dim(rank);
+        let start = start_dim.expect_dim_index(rank);
+        let end = end_dim.expect_dim_index(rank);
 
         assert!(
             start <= end,

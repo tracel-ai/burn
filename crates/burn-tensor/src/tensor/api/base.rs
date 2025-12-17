@@ -458,8 +458,8 @@ where
         Dim1: AsIndex,
         Dim2: AsIndex,
     {
-        let dim1 = dim1.expect_dim(D);
-        let dim2 = dim2.expect_dim(D);
+        let dim1 = dim1.expect_dim_index(D);
+        let dim2 = dim2.expect_dim_index(D);
         check!(TensorCheck::swap_dims::<D>(dim1, dim2));
         if dim1 == dim2 {
             self
@@ -508,7 +508,7 @@ where
         let mut no_op = true;
         let mut fixed_axes = [0; D];
         for (i, axis) in axes.into_iter().enumerate() {
-            let dim = axis.expect_dim(D);
+            let dim = axis.expect_dim_index(D);
             no_op &= dim == i;
             fixed_axes[i] = dim;
         }
@@ -697,8 +697,8 @@ where
         start_dim: impl AsIndex,
         end_dim: impl AsIndex,
     ) -> Tensor<B, D2, K> {
-        let start_dim = start_dim.expect_dim(D);
-        let end_dim = end_dim.expect_dim(D);
+        let start_dim = start_dim.expect_dim_index(D);
+        let end_dim = end_dim.expect_dim_index(D);
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
         let new_shape = self.shape().flatten_dims(start_dim, end_dim);
 
@@ -1066,7 +1066,7 @@ where
         Shift: AsIndex,
         Dim: AsIndex,
     {
-        let dim = dim.expect_dim(D);
+        let dim = dim.expect_dim_index(D);
         let size = self.shape().dims[dim];
         if size == 0 {
             // If the dimension is empty, return the tensor as is.
@@ -1155,7 +1155,7 @@ where
         // Accumulate the effective shifts for each dimension.
         let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
         for i in 0..item_count {
-            let dim = dims[i].expect_dim(D);
+            let dim = dims[i].expect_dim_index(D);
             accumulated_shifts[dim] += shifts[i].index();
         }
 
@@ -1615,7 +1615,7 @@ where
     /// }
     /// ```
     pub fn select(self, dim: impl AsIndex, indices: Tensor<B, 1, Int>) -> Self {
-        let dim = dim.expect_dim(D);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::select::<D>(dim));
         Self::new(K::select(self.primitive, dim, indices.primitive))
     }
@@ -1653,7 +1653,7 @@ where
         values: Tensor<B, D, K>,
         update: IndexingUpdateOp,
     ) -> Self {
-        let dim = dim.expect_dim(D);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::select_assign::<D>(
             dim,
             &indices.shape(),
@@ -2671,7 +2671,7 @@ where
         size: usize,
         step: usize,
     ) -> Tensor<B, D2, K> {
-        let dim = dim.expect_dim(D);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::unfold::<D, D2>(
             "unfold",
             &self.shape(),

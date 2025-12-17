@@ -64,7 +64,7 @@ where
         "`outer` with D={D} expects R={} (got R={R})",
         D + 1
     );
-    let dim = dim.expect_dim(D);
+    let dim = dim.expect_dim_index(D);
 
     // (..., i, 1, ...)
     let x = lhs.unsqueeze_dim::<R>(dim + 1);

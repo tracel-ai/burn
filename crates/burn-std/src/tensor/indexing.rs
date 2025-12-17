@@ -1,5 +1,6 @@
 //! A module for indexing utility machinery.
 
+use crate::IndexKind;
 pub use crate::errors::BoundsError;
 #[allow(unused_imports)]
 use alloc::format;
@@ -14,7 +15,7 @@ use core::fmt::Debug;
 /// use burn_std::AsIndex;
 ///
 /// fn example<I: AsIndex, const D: usize>(dim: I, size: usize) -> isize {
-///    let dim: usize = dim.expect_dim(D);
+///    let dim: usize = dim.expect_dim_index(D);
 ///    unimplemented!()
 /// }
 /// ```
@@ -23,13 +24,13 @@ pub trait AsIndex: Debug + Copy + Sized {
     fn index(self) -> isize;
 
     /// Short-form `NegativeWrap::expect_index(idx, size)`.
-    fn expect_index(self, size: usize) -> usize {
-        NegativeWrap::expect_index(self, size)
+    fn expect_elem_index(self, size: usize) -> usize {
+        IndexWrap::expect_elem(self, size)
     }
 
     /// Short-form `NegativeWrap::expect_dim(idx, size)`.
-    fn expect_dim(self, size: usize) -> usize {
-        NegativeWrap::expect_dim(self, size)
+    fn expect_dim_index(self, size: usize) -> usize {
+        IndexWrap::expect_dim(self, size)
     }
 }
 
@@ -96,18 +97,16 @@ impl AsIndex for u8 {
 
 /// Wraps an index with negative indexing support.
 #[derive(Debug)]
-pub struct NegativeWrap {
-    index_name: &'static str,
-    size_name: &'static str,
+pub struct IndexWrap {
+    kind: IndexKind,
     wrap_scalar: bool,
 }
 
-impl NegativeWrap {
+impl IndexWrap {
     /// Get an instance for wrapping negative indices.
     pub fn index() -> Self {
         Self {
-            index_name: "index",
-            size_name: "size",
+            kind: IndexKind::Element,
             wrap_scalar: false,
         }
     }
@@ -115,8 +114,7 @@ impl NegativeWrap {
     /// Get an instance for wrapping negative dimensions.
     pub fn dim() -> Self {
         Self {
-            index_name: "dimension index",
-            size_name: "rank",
+            kind: IndexKind::Dimension,
             wrap_scalar: false,
         }
     }
@@ -135,16 +133,16 @@ impl NegativeWrap {
 
     /// Wrap an index with negative indexing support.
     pub fn try_wrap<I: AsIndex>(&self, idx: I, size: usize) -> Result<usize, BoundsError> {
-        try_wrap(idx, size, self.index_name, self.size_name, self.wrap_scalar)
+        try_wrap(idx, size, self.kind, self.wrap_scalar)
     }
 
     /// Wrap an index with negative indexing support.
     pub fn expect_wrap<I: AsIndex>(&self, idx: I, size: usize) -> usize {
-        expect_wrap(idx, size, self.index_name, self.size_name, self.wrap_scalar)
+        expect_wrap(idx, size, self.kind, self.wrap_scalar)
     }
 
     /// Short-form `NegativeWrap::index().expect_wrap(idx, size)`.
-    pub fn expect_index<I: AsIndex>(idx: I, size: usize) -> usize {
+    pub fn expect_elem<I: AsIndex>(idx: I, size: usize) -> usize {
         Self::index().expect_wrap(idx, size)
     }
 
@@ -159,24 +157,18 @@ impl NegativeWrap {
 /// ## Arguments
 /// - `idx` - The index to canonicalize.
 /// - `size` - The size of the index range.
-/// - `index_name` - The name of the index (for error messages).
+/// - `kind` - The kind of index (for error messages).
 /// - `size_name` - The name of the size (for error messages).
 /// - `wrap_scalar` - If true, treat 0-size ranges as having size 1.
 ///
 /// ## Returns
 ///
 /// A `Result<usize, BoundsError>` of the canonicalized index.
-pub fn expect_wrap<I>(
-    idx: I,
-    size: usize,
-    index_name: &str,
-    size_name: &str,
-    wrap_scalar: bool,
-) -> usize
+pub fn expect_wrap<I>(idx: I, size: usize, kind: IndexKind, wrap_scalar: bool) -> usize
 where
     I: AsIndex,
 {
-    try_wrap(idx, size, index_name, size_name, wrap_scalar).expect("valid index")
+    try_wrap(idx, size, kind, wrap_scalar).expect("valid index")
 }
 
 /// Wraps an index with negative indexing support.
@@ -184,7 +176,7 @@ where
 /// ## Arguments
 /// - `idx` - The index to canonicalize.
 /// - `size` - The size of the index range.
-/// - `index_name` - The name of the index (for error messages).
+/// - `kind` - The kind of index (for error messages).
 /// - `size_name` - The name of the size (for error messages).
 /// - `wrap_scalar` - If true, treat 0-size ranges as having size 1.
 ///
@@ -194,45 +186,38 @@ where
 pub fn try_wrap<I>(
     idx: I,
     size: usize,
-    index_name: &str,
-    size_name: &str,
+    kind: IndexKind,
     wrap_scalar: bool,
 ) -> Result<usize, BoundsError>
 where
     I: AsIndex,
 {
-    let idx = idx.index();
+    let source_idx = idx.index();
+    let source_size = size;
 
-    let _size = if size > 0 {
-        size
+    let size = if source_size > 0 {
+        source_size
     } else {
         if !wrap_scalar {
-            return Err(BoundsError {
-                index_name: index_name.to_string(),
-                index: idx.to_string(),
-                bounds_name: size_name.to_string(),
-                bounds: size.to_string(),
-            });
+            return Err(BoundsError::index(kind, source_idx, 0..0));
         }
         1
     };
 
-    if idx >= 0 && (idx as usize) < _size {
-        return Ok(idx as usize);
+    if source_idx >= 0 && (source_idx as usize) < size {
+        return Ok(source_idx as usize);
     }
 
-    let _idx = if idx < 0 { idx + _size as isize } else { idx };
+    let _idx = if source_idx < 0 {
+        source_idx + size as isize
+    } else {
+        source_idx
+    };
 
-    if _idx < 0 || (_idx as usize) >= _size {
-        let rank = _size as isize;
-        let upper = rank - 1;
+    if _idx < 0 || (_idx as usize) >= size {
+        let rank = size as isize;
 
-        return Err(BoundsError {
-            index_name: index_name.to_string(),
-            index: idx.to_string(),
-            bounds_name: size_name.to_string(),
-            bounds: format!("0..={upper}"),
-        });
+        return Err(BoundsError::index(kind, source_idx, 0..rank));
     }
 
     Ok(_idx as usize)
@@ -293,7 +278,7 @@ pub fn ravel_index<I: AsIndex>(indices: &[I], shape: &[usize]) -> usize {
 
     for (i, &dim) in shape.iter().enumerate().rev() {
         let idx = indices[i];
-        let coord = NegativeWrap::index().expect_wrap(idx, dim);
+        let coord = IndexWrap::index().expect_wrap(idx, dim);
         ravel_idx += coord * stride;
         stride *= dim;
     }
@@ -341,54 +326,50 @@ mod tests {
 
     #[test]
     fn test_negative_wrap() {
-        assert_eq!(NegativeWrap::index().expect_wrap(0, 3), 0);
-        assert_eq!(NegativeWrap::index().expect_wrap(1, 3), 1);
-        assert_eq!(NegativeWrap::index().expect_wrap(2, 3), 2);
-        assert_eq!(NegativeWrap::index().expect_wrap(-1, 3), 2);
-        assert_eq!(NegativeWrap::index().expect_wrap(-2, 3), 1);
-        assert_eq!(NegativeWrap::index().expect_wrap(-3, 3), 0);
+        assert_eq!(IndexWrap::index().expect_wrap(0, 3), 0);
+        assert_eq!(IndexWrap::index().expect_wrap(1, 3), 1);
+        assert_eq!(IndexWrap::index().expect_wrap(2, 3), 2);
+        assert_eq!(IndexWrap::index().expect_wrap(-1, 3), 2);
+        assert_eq!(IndexWrap::index().expect_wrap(-2, 3), 1);
+        assert_eq!(IndexWrap::index().expect_wrap(-3, 3), 0);
 
-        assert_eq!(NegativeWrap::dim().expect_wrap(0, 3), 0);
-        assert_eq!(NegativeWrap::dim().expect_wrap(1, 3), 1);
-        assert_eq!(NegativeWrap::dim().expect_wrap(2, 3), 2);
-        assert_eq!(NegativeWrap::dim().expect_wrap(-1, 3), 2);
-        assert_eq!(NegativeWrap::dim().expect_wrap(-2, 3), 1);
-        assert_eq!(NegativeWrap::dim().expect_wrap(-3, 3), 0);
+        assert_eq!(IndexWrap::dim().expect_wrap(0, 3), 0);
+        assert_eq!(IndexWrap::dim().expect_wrap(1, 3), 1);
+        assert_eq!(IndexWrap::dim().expect_wrap(2, 3), 2);
+        assert_eq!(IndexWrap::dim().expect_wrap(-1, 3), 2);
+        assert_eq!(IndexWrap::dim().expect_wrap(-2, 3), 1);
+        assert_eq!(IndexWrap::dim().expect_wrap(-3, 3), 0);
 
         assert_eq!(
-            NegativeWrap::index().try_wrap(3, 3),
-            Err(BoundsError {
-                index_name: "index".to_string(),
-                index: "3".to_string(),
-                bounds_name: "size".to_string(),
-                bounds: "0..=2".to_string()
+            IndexWrap::index().try_wrap(3, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: 3,
+                bounds: 0..3,
             })
         );
         assert_eq!(
-            NegativeWrap::index().try_wrap(-4, 3),
-            Err(BoundsError {
-                index_name: "index".to_string(),
-                index: "-4".to_string(),
-                bounds_name: "size".to_string(),
-                bounds: "0..=2".to_string()
+            IndexWrap::index().try_wrap(-4, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: -4,
+                bounds: 0..3,
             })
         );
         assert_eq!(
-            NegativeWrap::dim().try_wrap(3, 3),
-            Err(BoundsError {
-                index_name: "dimension index".to_string(),
-                index: "3".to_string(),
-                bounds_name: "rank".to_string(),
-                bounds: "0..=2".to_string()
+            IndexWrap::dim().try_wrap(3, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Dimension,
+                index: 3,
+                bounds: 0..3,
             })
         );
         assert_eq!(
-            NegativeWrap::dim().try_wrap(-4, 3),
-            Err(BoundsError {
-                index_name: "dimension index".to_string(),
-                index: "-4".to_string(),
-                bounds_name: "rank".to_string(),
-                bounds: "0..=2".to_string()
+            IndexWrap::dim().try_wrap(-4, 3),
+            Err(BoundsError::Index {
+                kind: IndexKind::Dimension,
+                index: -4,
+                bounds: 0..3,
             })
         );
     }
@@ -396,35 +377,29 @@ mod tests {
     #[test]
     fn test_negative_wrap_scalar() {
         assert_eq!(
-            NegativeWrap::index().try_wrap(0, 0),
-            Err(BoundsError {
-                index_name: "index".to_string(),
-                index: "0".to_string(),
-                bounds_name: "size".to_string(),
-                bounds: "0".to_string()
+            IndexWrap::index().try_wrap(0, 0),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: 0,
+                bounds: 0..0,
             })
         );
 
         assert_eq!(
-            NegativeWrap::index()
-                .with_wrap_scalar(true)
-                .expect_wrap(0, 0),
+            IndexWrap::index().with_wrap_scalar(true).expect_wrap(0, 0),
             0
         );
         assert_eq!(
-            NegativeWrap::index()
-                .with_wrap_scalar(true)
-                .expect_wrap(-1, 0),
+            IndexWrap::index().with_wrap_scalar(true).expect_wrap(-1, 0),
             0
         );
 
         assert_eq!(
-            NegativeWrap::index().with_wrap_scalar(false).try_wrap(1, 0),
-            Err(BoundsError {
-                index_name: "index".to_string(),
-                index: "1".to_string(),
-                bounds_name: "size".to_string(),
-                bounds: "0".to_string()
+            IndexWrap::index().with_wrap_scalar(false).try_wrap(1, 0),
+            Err(BoundsError::Index {
+                kind: IndexKind::Element,
+                index: 1,
+                bounds: 0..0,
             })
         );
     }
