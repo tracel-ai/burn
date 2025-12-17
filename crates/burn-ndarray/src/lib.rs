@@ -17,11 +17,13 @@ mod ops;
 mod parallel;
 mod rand;
 mod sharing;
+mod storage;
 mod tensor;
 
 pub use backend::*;
 pub use element::*;
 pub(crate) use sharing::*;
+pub(crate) use storage::*;
 pub use tensor::*;
 
 extern crate alloc;

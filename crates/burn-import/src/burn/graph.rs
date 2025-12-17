@@ -293,10 +293,21 @@ impl BurnGraph {
         self.imports.register("burn_store::BurnpackStore");
         self.imports.register("burn_store::ModuleSnapshot");
 
+        // Get file size to create properly-sized aligned wrapper
+        let file_size = std::fs::metadata(&file)
+            .expect("Failed to read burnpack file metadata")
+            .len() as usize;
         let file = file.to_str().unwrap();
+
         self.default = Some(quote! {
             _blank_!();
-            static EMBEDDED_STATES: &[u8] = include_bytes!(#file);
+            // Align embedded data to 256-byte boundary to match burnpack's internal alignment.
+            // This ensures tensor data remains properly aligned for zero-copy loading,
+            // regardless of where the linker places the static data in the binary.
+            #[repr(C, align(256))]
+            struct Aligned256([u8; #file_size]);
+            static ALIGNED_DATA: Aligned256 = Aligned256(*include_bytes!(#file));
+            static EMBEDDED_STATES: &[u8] = &ALIGNED_DATA.0;
             _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
