@@ -20,6 +20,7 @@ pub use builder::*;
 // pub use builder_v2::*;
 pub use classification::*;
 pub use early_stopping::*;
+pub use paradigms::*;
 pub use regression::*;
 pub use step::*;
 pub use strategies::*;

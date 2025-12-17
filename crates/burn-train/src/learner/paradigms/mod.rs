@@ -1,7 +1,8 @@
-mod epoch_single;
-mod single;
 mod supervised_learning;
 
-pub use epoch_single::*;
-pub use single::*;
+#[cfg(feature = "ddp")]
+pub(crate) mod ddp_v2;
+pub(crate) mod multi_v2;
+pub(crate) mod single_v2;
+
 pub use supervised_learning::*;

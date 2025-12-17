@@ -5,7 +5,6 @@ use burn::{
         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
     },
     prelude::*,
-    train::LearningModel,
 };
 
 #[derive(Module, Debug)]

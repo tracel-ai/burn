@@ -32,9 +32,7 @@ mod evaluator;
 pub use evaluator::*;
 
 pub use components::LearnerComponentTypes;
-pub use components_v2::LearnerComponentTypesV2;
-pub use components_v2::LearnerComponentsMarkerV2;
-pub use components_v2::LearningDataMarkerV2;
+pub use components_v2::*;
 
 #[cfg(test)]
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;

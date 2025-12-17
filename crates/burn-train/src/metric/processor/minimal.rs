@@ -9,6 +9,7 @@ use std::sync::Arc;
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 #[allow(dead_code)]
 #[derive(new)]
+// TODO : DELETE
 pub(crate) struct MinimalEventProcessor<T: ItemLazy, V: ItemLazy> {
     metrics: MetricsTraining<T, V>,
     store: Arc<EventStoreClient>,

@@ -1,18 +1,9 @@
-use burn::{
-    data::dataloader::DataLoader,
-    lr_scheduler::composed::ComposedLrScheduler,
-    optim::{Adam, adaptor::OptimizerAdaptor},
-    train::{
-        EventProcessorTraining, LearnerComponentTypesV2, LearnerComponentsMarkerV2, LearnerV2,
-        LearningDataMarkerV2, LearningParadigm, ParadigmComponentMarker,
-        SupervisedComponentsMarkerV2, SupervisedTraining,
-        checkpoint::{AsyncCheckpointer, CheckpointingStrategy},
-    },
+use crate::model::ModelConfig;
+use burn::train::{
+    EventProcessorTraining, LearnerV2, LearningParadigm, ParadigmComponents,
+    SupervisedLearningComponents, SupervisedLearningStrategy, SupervisedTraining, TrainBackendV2,
+    TrainLoaderV2, TrainingComponents, ValidLoaderV2,
 };
-
-use std::{marker::PhantomData, sync::Arc};
-
-use crate::model::{Model, ModelConfig};
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -28,16 +19,16 @@ use burn::{
     record::CompactRecorder,
     tensor::{Device, backend::AutodiffBackend},
     train::{
-        LearnerBuilder, LearnerComponentTypes, LearnerEvent, LearnerItem, LearningMethod,
-        MetricEarlyStoppingStrategy, StoppingCondition, TrainLoader, TrainStep, ValidLoader,
+        LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition, TrainStep,
         ValidStep,
         metric::{
-            AccuracyMetric, LearningRateMetric, LossMetric,
+            AccuracyMetric, LossMetric,
             store::{Aggregate, Direction, Split},
         },
     },
 };
 use guide::data::MnistBatcher;
+use std::{marker::PhantomData, sync::Arc};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
@@ -78,18 +69,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
     let dataset_valid = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
 
-    let dataloader_train: Arc<dyn DataLoader<B, _>> =
-        DataLoaderBuilder::new(MnistBatcher::default())
-            .batch_size(config.batch_size)
-            .shuffle(config.seed)
-            .num_workers(config.num_workers)
-            .build(dataset_train);
-    let dataloader_valid: Arc<dyn DataLoader<B::InnerBackend, _>> =
-        DataLoaderBuilder::new(MnistBatcher::default())
-            .batch_size(config.batch_size)
-            .shuffle(config.seed)
-            .num_workers(config.num_workers)
-            .build(dataset_valid);
     let lr_scheduler = ComposedLrSchedulerConfig::new()
         .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
         // Warmup
@@ -103,70 +82,44 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         StoppingCondition::NoImprovementSince { n_epochs: 5 },
     );
 
-    // let learner = LearnerBuilder::new(ARTIFACT_DIR)
-    //     .metrics((AccuracyMetric::new(), LossMetric::new()))
-    //     .metric_train_numeric(LearningRateMetric::new())
-    //     .with_file_checkpointer(CompactRecorder::new())
-    //     .early_stopping(early_stopping)
-    //     .num_epochs(config.num_epochs)
-    //     .summary()
-    //     .build(
-    //         model,
-    //         config.optimizer.init(),
-    //         lr_scheduler.init().unwrap(),
-    //         burn::train::LearningStrategy::CustomSingleDevice(Arc::new(
-    //             MyCustomLearningStrategy::new(device),
-    //         )),
-    //     );
+    let dataloader_train = DataLoaderBuilder::new(MnistBatcher::default())
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(dataset_train);
 
-    // learner.fit(dataloader_train, dataloader_valid);
+    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::default())
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(dataset_valid);
 
-    let learner: LearnerV2<
-        LearnerComponentsMarkerV2<
-            B,
-            ComposedLrScheduler,
-            Model<B>,
-            OptimizerAdaptor<Adam, Model<B>, B>,
-            AsyncCheckpointer<_, _>,
-            AsyncCheckpointer<_, _>,
-            AsyncCheckpointer<_, _>,
-        >,
-    > = LearnerV2 {
+    let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .with_file_checkpointer(CompactRecorder::new())
+        .early_stopping(early_stopping)
+        .num_epochs(config.num_epochs)
+        .summary()
+        .with_training_strategy(burn::train::TrainingStrategy::CustomSingleDevice(Arc::new(
+            MyCustomLearningStrategy::new(device),
+        )));
+
+    let result = training.run(LearnerV2::new(
         model,
-        optim: config.optimizer.init(),
-        lr_scheduler: lr_scheduler.init().unwrap(),
-    };
+        config.optimizer.init(),
+        lr_scheduler.init().unwrap(),
+    ));
 
-    let training = SupervisedTraining::<
-        SupervisedComponentsMarkerV2<
-            ParadigmComponentMarker<_, _, _>,
-            _,
-            LearningDataMarkerV2<_, _, _, _>,
-            Model<B>,
-            OptimizerAdaptor<Adam, Model<B>, B>,
-            ComposedLrScheduler,
-            _,
-        >,
-    >::new(ARTIFACT_DIR, dataloader_train, dataloader_valid, learner)
-    .metrics((AccuracyMetric::new(), LossMetric::new()))
-    .metric_train_numeric(LearningRateMetric::new())
-    .with_file_checkpointer(CompactRecorder::new())
-    .early_stopping(early_stopping)
-    .num_epochs(config.num_epochs)
-    .summary()
-    .train();
-
-    println!("{:?}", training.model);
-    // training.train(learner);
+    println!("Training finished : {:?}", result.model);
 }
 
-struct MyCustomLearningStrategy<LC: LearnerComponentTypes> {
-    device: Device<LC::Backend>,
-    _p: PhantomData<LC>,
+struct MyCustomLearningStrategy<SC: SupervisedLearningComponents> {
+    device: Device<TrainBackendV2<SC::LC>>,
+    _p: PhantomData<SC>,
 }
 
-impl<LC: LearnerComponentTypes> MyCustomLearningStrategy<LC> {
-    pub fn new(device: Device<LC::Backend>) -> Self {
+impl<SC: SupervisedLearningComponents> MyCustomLearningStrategy<SC> {
+    pub fn new(device: Device<TrainBackendV2<SC::LC>>) -> Self {
         Self {
             device,
             _p: PhantomData,
@@ -174,39 +127,30 @@ impl<LC: LearnerComponentTypes> MyCustomLearningStrategy<LC> {
     }
 }
 
-impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<LC> {
-    type PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>);
-
-    type PreparedModel = <LC as LearnerComponentTypes>::Model;
-
-    fn prepare_dataloaders(
+impl<SC: SupervisedLearningComponents> SupervisedLearningStrategy<SC>
+    for MyCustomLearningStrategy<SC>
+{
+    fn fit(
         &self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> Self::PreparedDataloaders {
-        // The reference model is always on the first device provided.
-        let train = dataloader_train.to_device(&self.device);
-        let valid = dataloader_valid.to_device(&self.device);
-
-        (train, valid)
-    }
-
-    fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
-        model.fork(&self.device)
-    }
-
-    fn learn(
-        &self,
-        mut model: Self::PreparedModel,
-        (dataloader_train, dataloader_valid): Self::PreparedDataloaders,
+        training_components: TrainingComponents<SC>,
+        learner: LearnerV2<SC::LC>,
+        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
         starting_epoch: usize,
-        components: burn::train::LearnerComponents<LC>,
-    ) -> (LC::Model, LC::EventProcessor) {
-        let mut scheduler = components.lr_scheduler;
-        let mut optim = components.optim;
-        let mut processor = components.event_processor;
+    ) -> (SC::Model, <SC::PC as ParadigmComponents>::EventProcessor) {
+        let dataloader_train = dataloader_train.to_device(&self.device);
+        let dataloader_valid = dataloader_valid.to_device(&self.device);
+        let learner = learner.fork(&self.device);
+        let mut event_processor = training_components.event_processor;
+        let mut checkpointer = training_components.checkpointer;
+        let interrupter = training_components.interrupter;
+        let num_epochs = training_components.num_epochs;
 
-        for epoch in starting_epoch..components.num_epochs + 1 {
+        let mut model = learner.model;
+        let mut optim = learner.optim;
+        let mut lr_scheduler = learner.lr_scheduler;
+
+        for epoch in starting_epoch..num_epochs + 1 {
             // Iterate over our training and validation loop for X epochs.
             log::info!("Executing training step for epoch {}", epoch,);
 
@@ -216,25 +160,24 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<
 
             while let Some(item) = iterator.next() {
                 iteration += 1;
-                let lr = scheduler.step();
-                log::info!("Iteration {iteration}");
+                let lr = lr_scheduler.step();
+                log::info!("Iteration {iteration} of my custom learning strategy");
 
                 let progress = iterator.progress();
                 let item = model.step(item);
                 model = model.optimize(&mut optim, lr, item.grads);
 
-                let item = LearnerItem::new(
-                    item.item,
-                    progress,
-                    epoch,
-                    components.num_epochs,
-                    iteration,
-                    Some(lr),
-                );
+                let item =
+                    LearnerItem::new(item.item, progress, epoch, num_epochs, iteration, Some(lr));
 
-                processor.process_train(LearnerEvent::ProcessedItem(item));
+                event_processor.process_train(LearnerEvent::ProcessedItem(item));
+
+                if interrupter.should_stop() {
+                    log::info!("Training interrupted.");
+                    break;
+                }
             }
-            processor.process_train(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
 
             let model_valid = model.valid();
 
@@ -246,20 +189,25 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<
                 iteration += 1;
 
                 let item = model_valid.step(item);
-                let item = LearnerItem::new(
-                    item,
-                    progress,
-                    epoch,
-                    components.num_epochs,
-                    iteration,
-                    None,
-                );
+                let item = LearnerItem::new(item, progress, epoch, num_epochs, iteration, None);
 
-                processor.process_valid(LearnerEvent::ProcessedItem(item));
+                event_processor.process_valid(LearnerEvent::ProcessedItem(item));
             }
-            processor.process_valid(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_valid(LearnerEvent::EndEpoch(epoch));
+
+            if let Some(checkpointer) = &mut checkpointer {
+                checkpointer.checkpoint(
+                    &LearnerV2 {
+                        model: model.clone(),
+                        optim: optim.clone(),
+                        lr_scheduler: lr_scheduler.clone(),
+                    },
+                    epoch,
+                    &training_components.event_store,
+                );
+            }
         }
 
-        (model, processor)
+        (model, event_processor)
     }
 }
