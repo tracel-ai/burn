@@ -156,6 +156,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
         "The `output_dtype` has to be `Some` only when the `config` is `ArgMax` or `ArgMin`.
         "
     );
+
     let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
     let client = input.client.clone();
     let output = init_reduce_output::<Run>(&input, dim, &dtypes).ok_or(
