@@ -1,4 +1,5 @@
 use super::args::FusedMatmulInputLaunch;
+#[cfg(feature = "autotune")]
 use super::tune::fused_matmul_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
@@ -23,22 +24,20 @@ use cubecl::{
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
 use cubek::matmul::{
-    AcceleratedTileKind,
-    components::{
-        self, MatmulElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
-        tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
+    components::tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
+    definition::{
+        MatmulElemType, MatmulElems, MatmulLineSizes, MatmulProblem, MatmulSetupError, MatrixLayout,
     },
-    kernels::layered::{
-        Algorithm, Selection,
+    launch::{AcceleratedTileKind, launch_kernel_virtual},
+    routines::{
+        Routine, Selection,
         double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
         double_unit::DoubleUnitAlgorithm,
-        launch_kernel_virtual,
         ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
         simple::{SimpleAlgorithm, SimpleArgs},
         simple_unit::SimpleUnitAlgorithm,
         vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
     },
-    tune_key::MatmulElemType,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -169,7 +168,10 @@ impl<R: Runtime> MatmulOptimization<R> {
         fused_matmul_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if arg.execute_fused::<BT, Simple>(context).is_err() {
+        if arg
+            .execute_fused::<BT>(context, FusedMatmulSelector::default())
+            .is_err()
+        {
             arg.execute_fallback::<BT>(context);
         }
     }
@@ -468,12 +470,12 @@ impl FusedMatmulLaunch<'_> {
             rhs_batches: rhs_shape[..rhs_shape.len() - 2].to_vec(),
             out_batches: out_shape[..out_shape.len() - 2].to_vec(),
             lhs_layout: match lhs_transposed {
-                true => components::MatrixLayout::ColMajor,
-                false => components::MatrixLayout::RowMajor,
+                true => MatrixLayout::ColMajor,
+                false => MatrixLayout::RowMajor,
             },
             rhs_layout: match rhs_transposed {
-                true => components::MatrixLayout::ColMajor,
-                false => components::MatrixLayout::RowMajor,
+                true => MatrixLayout::ColMajor,
+                false => MatrixLayout::RowMajor,
             },
             lhs_strides,
             rhs_strides,
@@ -651,7 +653,7 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, A: Algorithm>(
+fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine>(
     client: &ComputeClient<R>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,

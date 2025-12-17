@@ -1,13 +1,12 @@
+use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
-    convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, launch_ref},
+    convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, forward},
     matmul::{
-        AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy, components::MatmulElems,
-        tune_key::MatmulElemType,
+        definition::{MatmulElemType, MatmulElems},
+        launch::{AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy},
     },
 };
-
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
 /// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
@@ -27,7 +26,7 @@ pub fn conv_gemm_simple_sync<R: CubeRuntime, const N: usize>(
         AcceleratedTileKind::Cmma => ReadingStrategy::Cyclic,
         AcceleratedTileKind::Mma => ReadingStrategy::Strided,
     };
-    launch_convolution::<R, N>(
+    launch_convolution_forward::<R, N>(
         &Strategy::Simple {
             read_strategy,
             tile_kind,
@@ -50,7 +49,7 @@ pub fn conv_gemm_simple_async<R: CubeRuntime, const N: usize>(
         AcceleratedTileKind::Cmma => ReadingStrategy::AsyncCyclic,
         AcceleratedTileKind::Mma => ReadingStrategy::AsyncStrided,
     };
-    launch_convolution::<R, N>(
+    launch_convolution_forward::<R, N>(
         &Strategy::Simple {
             read_strategy,
             tile_kind,
@@ -69,7 +68,6 @@ pub fn conv_gemm_simple_async<R: CubeRuntime, const N: usize>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-#[allow(unused)]
 pub fn conv_gemm_simple_tma<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -77,7 +75,7 @@ pub fn conv_gemm_simple_tma<R: CubeRuntime, const N: usize>(
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    launch_convolution::<R, N>(
+    launch_convolution_forward::<R, N>(
         &Strategy::Simple {
             read_strategy: ReadingStrategy::Tma,
             tile_kind,
@@ -96,7 +94,7 @@ pub fn conv_gemm_simple_tma<R: CubeRuntime, const N: usize>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn launch_convolution<R: CubeRuntime, const N: usize>(
+pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
     strategy: &Strategy,
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -156,7 +154,7 @@ pub fn launch_convolution<R: CubeRuntime, const N: usize>(
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());
 
-    launch_ref::<R, N>(
+    forward::launch_ref::<R, N>(
         strategy,
         &client,
         &input,

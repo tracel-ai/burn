@@ -38,6 +38,7 @@ pub type Router<Backends> = BackendRouter<DirectByteChannel<Backends>>;
 extern crate alloc;
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
     use crate::BackendRouter;
     use crate::DirectByteChannel;

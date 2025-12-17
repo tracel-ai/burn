@@ -196,13 +196,7 @@ fn format_statement(tokens: proc_macro2::TokenStream) -> String {
             // Remove one level of indentation (4 spaces)
             body_lines
                 .iter()
-                .map(|line| {
-                    if line.starts_with("    ") {
-                        &line[4..]
-                    } else {
-                        *line
-                    }
-                })
+                .map(|line| line.strip_prefix("    ").unwrap_or(*line))
                 .collect::<Vec<_>>()
                 .join("\n")
         }

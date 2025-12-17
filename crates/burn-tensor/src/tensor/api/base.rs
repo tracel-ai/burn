@@ -701,20 +701,9 @@ where
         let start_dim = canonicalize_dim(start_dim, D, false);
         let end_dim = canonicalize_dim(end_dim, D, false);
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
+        let new_shape = self.shape().flatten_dims(start_dim, end_dim);
 
-        let current_dims = self.shape().dims;
-        let mut new_dims: [usize; D2] = [0; D2];
-        let mut flatten_dims = 1;
-
-        for i in current_dims[start_dim..=end_dim].iter() {
-            flatten_dims *= i;
-        }
-
-        new_dims[..start_dim].copy_from_slice(&current_dims[..start_dim]);
-        new_dims[start_dim] = flatten_dims;
-        new_dims[start_dim + 1..].copy_from_slice(&current_dims[end_dim + 1..]);
-
-        Tensor::new(K::reshape(self.primitive, new_dims.into()))
+        Tensor::new(K::reshape(self.primitive, new_shape))
     }
 
     /// Squeeze the tensor along all dimensions, removing dimensions
@@ -1517,7 +1506,14 @@ where
 
         check!(TensorCheck::slice::<D>(&shape, &slices));
 
-        Self::new(K::slice_fill(self.primitive, &slices, value.elem()))
+        let slice_shape = shape.slice(&slices).unwrap();
+        let value = Tensor::<B, 1, K>::from_data_dtype(
+            [value.elem::<K::Elem>()],
+            &self.device(),
+            self.dtype(),
+        );
+        let value = value.expand(slice_shape);
+        self.slice_assign(&slices, value)
     }
 
     /// Returns a new tensor with the specified dimension sliced.
@@ -1581,7 +1577,10 @@ where
         check!(TensorCheck::check_dim::<D>(dim));
         let slice: Slice = slice.into();
 
-        Self::new(K::slice_dim(self.primitive, dim, &slice))
+        let mut slices = vec![Slice::full(); D];
+        slices[dim] = slice;
+
+        self.slice(&slices)
     }
 
     /// Returns the device of the current tensor.

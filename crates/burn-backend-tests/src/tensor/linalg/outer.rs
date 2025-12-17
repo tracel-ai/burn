@@ -218,7 +218,7 @@ fn test_outer_batched_equivalence_to_per_sample_outer() {
     let batched = linalg::outer::<TestBackend, 2, 3, _>(x.clone(), y.clone());
 
     for b in 0..2 {
-        let idx = TestTensorInt::<1>::from([b as i32]);
+        let idx = TestTensorInt::<1>::from([b]);
 
         let xb2d = x.clone().select(0, idx.clone()); // (1, m)
         let yb2d = y.clone().select(0, idx); // (1, n)
@@ -229,9 +229,7 @@ fn test_outer_batched_equivalence_to_per_sample_outer() {
 
         let per = linalg::outer::<TestBackend, 1, 2, _>(xb2d.reshape([m]), yb2d.reshape([n]));
 
-        let bat3d = batched
-            .clone()
-            .select(0, TestTensorInt::<1>::from([b as i32])); // (m, n)
+        let bat3d = batched.clone().select(0, TestTensorInt::<1>::from([b])); // (m, n)
 
         let per_len = per.shape().num_elements();
         let per_flat = per.reshape([per_len]).into_data();

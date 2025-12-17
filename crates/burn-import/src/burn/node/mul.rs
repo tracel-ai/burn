@@ -65,12 +65,26 @@ impl NodeCodegen for onnx_ir::node::arithmetic::MulNode {
                     result
                 }
             },
-            (ArgType::Shape(_), ArgType::Tensor(_)) => quote! {
-                Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).mul(#rhs)
-            },
-            (ArgType::Tensor(_), ArgType::Shape(_)) => quote! {
-                #lhs.mul(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
-            },
+            (ArgType::Shape(_), ArgType::Tensor(tensor_type)) => {
+                let dtype_tokens = tensor_type.dtype.to_tokens();
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data_dtype(
+                        burn::tensor::TensorData::from(&#lhs as &[i64]),
+                        &*self.device,
+                        #dtype_tokens
+                    ).mul(#rhs)
+                }
+            }
+            (ArgType::Tensor(tensor_type), ArgType::Shape(_)) => {
+                let dtype_tokens = tensor_type.dtype.to_tokens();
+                quote! {
+                    #lhs.mul(Tensor::<B, 1, burn::tensor::Int>::from_data_dtype(
+                        burn::tensor::TensorData::from(&#rhs as &[i64]),
+                        &*self.device,
+                        #dtype_tokens
+                    ))
+                }
+            }
         };
 
         quote! {

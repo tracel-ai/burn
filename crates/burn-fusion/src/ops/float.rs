@@ -14,6 +14,10 @@ use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
+    #[tracing::instrument(
+        skip(data),
+        fields(?data.shape, ?data.dtype)
+    )]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;
@@ -157,6 +161,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    #[tracing::instrument(
+        skip(tensor),
+        fields(
+            from = ?tensor.client.device(),
+            shape = ?tensor.shape,
+            dtype = ?tensor.dtype
+        )
+    )]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
     }
@@ -165,6 +177,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.client.device().clone()
     }
 
+    #[tracing::instrument(
+        skip(tensor),
+        fields(
+            from = ?tensor.client.device(),
+            shape = ?tensor.shape,
+            dtype = ?tensor.dtype,
+        )
+    )]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         let device_original: &B::Device = tensor.client.device();
 

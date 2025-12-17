@@ -165,5 +165,9 @@ impl<B: Backend> Numeric for LossMetric<B> {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
+
+    fn running_value(&self) -> NumericEntry {
+        self.state.running_value()
+    }
 }
 ```

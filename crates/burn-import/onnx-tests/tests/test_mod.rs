@@ -36,6 +36,7 @@ pub mod conv;
 pub mod conv_transpose;
 pub mod cos;
 pub mod cosh;
+pub mod cumsum;
 pub mod depth_to_space;
 pub mod div;
 pub mod dropout;

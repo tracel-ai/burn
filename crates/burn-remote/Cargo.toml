@@ -23,8 +23,8 @@ server = [
     "async-channel",
     "tokio/sync",
     "axum",
-    "tracing-core",
-    "tracing-subscriber",
+    "tracing-core/default",
+    "tracing-subscriber/default",
 ]
 
 
