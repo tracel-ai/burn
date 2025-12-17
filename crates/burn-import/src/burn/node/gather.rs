@@ -191,40 +191,32 @@ fn forward_tensor_gather(
         ArgType::Tensor(_) => {
             match &index_arg.ty {
                 ArgType::Scalar(_) => {
-                    // Use tensor.slice(...) with range syntax for more efficient gather operation
+                    // Use tensor.slice(...) for efficient gather operation
                     let output_rank = input_rank - 1;
                     let axis = node.config.axis;
 
-                    // Generate slice ranges: s![.., idx..idx+1, ..] where the range is at position `dim`
+                    // Either a resolved literal or the runtime variable
+                    let index_token =
+                        if let Some(resolved) = resolve_scalar_index(index_arg, input_arg, axis) {
+                            let lit = proc_macro2::Literal::usize_unsuffixed(resolved);
+                            quote! { #lit }
+                        } else {
+                            let index = arg_to_ident(index_arg);
+                            quote! { #index }
+                        };
+
                     let slice_args = (0..input_rank)
                         .map(|i| {
                             if i == axis {
-                                quote! { idx..(idx + 1) }
+                                index_token.clone()
                             } else {
                                 quote! { .. }
                             }
                         })
                         .collect::<Vec<_>>();
 
-                    // Try to resolve index at compile time, otherwise use runtime check
-                    let idx_binding =
-                        if let Some(resolved) = resolve_scalar_index(index_arg, input_arg, axis) {
-                            let lit = proc_macro2::Literal::usize_unsuffixed(resolved);
-                            quote! { let idx = #lit; }
-                        } else {
-                            let index = arg_to_ident(index_arg);
-                            quote! {
-                                let idx = if #index < 0 {
-                                    (#input.dims()[#dim] as i64 + #index) as usize
-                                } else {
-                                    #index as usize
-                                };
-                            }
-                        };
-
                     quote! {
                         let #output = {
-                            #idx_binding
                             let sliced = #input.slice(s![#(#slice_args),*]);
                             sliced.squeeze_dim::<#output_rank>(#dim)
                         };
@@ -521,12 +513,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, table: Tensor<B, 3>, row_idx: i32) -> Tensor<B, 2> {
             let row = {
-                let idx = if row_idx < 0 {
-                    (table.dims()[0] as i64 + row_idx) as usize
-                } else {
-                    row_idx as usize
-                };
-                let sliced = table.slice(s![idx.. (idx + 1), .., ..]);
+                let sliced = table.slice(s![row_idx, .., ..]);
                 sliced.squeeze_dim::<2usize>(0)
             };
             row
@@ -547,12 +534,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>, col_num: i64) -> Tensor<B, 1> {
             let column = {
-                let idx = if col_num < 0 {
-                    (data.dims()[1] as i64 + col_num) as usize
-                } else {
-                    col_num as usize
-                };
-                let sliced = data.slice(s![.., idx.. (idx + 1)]);
+                let sliced = data.slice(s![.., col_num]);
                 sliced.squeeze_dim::<1usize>(1)
             };
             column
@@ -573,12 +555,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, volume: Tensor<B, 4>, depth_idx: i32) -> Tensor<B, 3> {
             let slice = {
-                let idx = if depth_idx < 0 {
-                    (volume.dims()[2] as i64 + depth_idx) as usize
-                } else {
-                    depth_idx as usize
-                };
-                let sliced = volume.slice(s![.., .., idx.. (idx + 1), ..]);
+                let sliced = volume.slice(s![.., .., depth_idx, ..]);
                 sliced.squeeze_dim::<3usize>(2)
             };
             slice
@@ -599,12 +576,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, features: Tensor<B, 4>, ch_idx: i64) -> Tensor<B, 3> {
             let channel = {
-                let idx = if ch_idx < 0 {
-                    (features.dims()[3] as i64 + ch_idx) as usize
-                } else {
-                    ch_idx as usize
-                };
-                let sliced = features.slice(s![.., .., .., idx.. (idx + 1)]);
+                let sliced = features.slice(s![.., .., .., ch_idx]);
                 sliced.squeeze_dim::<3usize>(3)
             };
             channel
@@ -818,8 +790,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let idx = 2;
-                let sliced = data.slice(s![idx.. (idx + 1), ..]);
+                let sliced = data.slice(s![2, ..]);
                 sliced.squeeze_dim::<1usize>(0)
             };
             output
@@ -840,8 +811,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let idx = 9;
-                let sliced = data.slice(s![idx.. (idx + 1), ..]);
+                let sliced = data.slice(s![9, ..]);
                 sliced.squeeze_dim::<1usize>(0)
             };
             output
@@ -862,8 +832,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let idx = 63;
-                let sliced = data.slice(s![.., idx.. (idx + 1)]);
+                let sliced = data.slice(s![.., 63]);
                 sliced.squeeze_dim::<1usize>(1)
             };
             output
@@ -884,8 +853,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, data: Tensor<B, 2>) -> Tensor<B, 1> {
             let output = {
-                let idx = 8;
-                let sliced = data.slice(s![idx.. (idx + 1), ..]);
+                let sliced = data.slice(s![8, ..]);
                 sliced.squeeze_dim::<1usize>(0)
             };
             output
