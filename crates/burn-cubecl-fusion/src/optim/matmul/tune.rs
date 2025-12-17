@@ -2,7 +2,7 @@ use super::optimization::MatmulOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
-    optim::matmul::FusedMatmulSelector,
+    optim::matmul::{AcceleratedTileKind, FusedMatmulSelector},
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
@@ -13,9 +13,7 @@ use cubecl::{
 };
 use cubek::matmul::{
     definition::{MatmulElemType, MatmulKind},
-    launch::{
-        AcceleratedTileKind, MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering,
-    },
+    launch::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
 };
 use serde::{Deserialize, Serialize};
 

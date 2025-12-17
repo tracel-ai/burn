@@ -1,6 +1,6 @@
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
-use cubek::{convolution::components::ConvSetupError, matmul::launch::AcceleratedTileKind};
+use cubek::convolution::{AcceleratedTileKind, components::ConvSetupError};
 
 #[cfg(feature = "autotune")]
 use crate::kernel::conv::wgrad_autotune;
