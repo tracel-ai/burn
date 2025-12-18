@@ -50,7 +50,7 @@ pub enum TrainingStrategy<SC: SupervisedLearningComponentsTypes> {
 
 /// Constructor for a distributed data parallel (DDP) learning strategy
 #[cfg(feature = "ddp")]
-pub fn ddp_v2<SC: SupervisedLearningComponentsTypes>(
+pub fn ddp<SC: SupervisedLearningComponentsTypes>(
     devices: Vec<LearnerDevice<SC::LC>>,
     config: CollectiveConfig,
 ) -> TrainingStrategy<SC> {

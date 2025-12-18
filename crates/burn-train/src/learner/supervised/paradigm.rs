@@ -32,6 +32,50 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Structure to configure and launch supervised learning trainings.
+pub struct SupervisedTraining<SC: SupervisedLearningComponentsTypes> {
+    // Not that complex and very convenient when the traits are
+    // already constrained correctly. Extracting in another type
+    // would be more complex.
+    #[allow(clippy::type_complexity)]
+    checkpointers: Option<(
+        AsyncCheckpointer<
+            <<SC::LC as LearningComponentsTypes>::Model as Module<TrainBackend<SC::LC>>>::Record,
+            TrainBackend<SC::LC>,
+        >,
+        AsyncCheckpointer<
+            <<SC::LC as LearningComponentsTypes>::Optimizer as Optimizer<
+                SC::Model,
+                TrainBackend<SC::LC>,
+            >>::Record,
+            TrainBackend<SC::LC>,
+        >,
+        AsyncCheckpointer<
+            <<SC::LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<
+                TrainBackend<SC::LC>,
+            >,
+            TrainBackend<SC::LC>,
+        >,
+    )>,
+    num_epochs: usize,
+    checkpoint: Option<usize>,
+    directory: PathBuf,
+    grad_accumulation: Option<usize>,
+    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
+    metrics: MetricsTraining<OutputTrain<SC::LD>, OutputValid<SC::LD>>,
+    event_store: LogEventStore,
+    interrupter: Interrupter,
+    tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+    checkpointer_strategy: Box<dyn CheckpointingStrategy>,
+    early_stopping: Option<EarlyStoppingStrategyRef>,
+    training_strategy: TrainingStrategy<SC>,
+    dataloader_train: TrainLoader<SC::LC, SC::LD>,
+    dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+    // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
+    summary_metrics: BTreeSet<String>,
+    summary: bool,
+}
+
 impl<LC, TI, TO, VI, VO>
     SupervisedTraining<
         SupervisedLearningComponentsMarker<
@@ -100,53 +144,8 @@ where
             summary: false,
             dataloader_train,
             dataloader_valid,
-            // learner,
         }
     }
-}
-
-/// Structure to configure and launch supervised learning trainings.
-pub struct SupervisedTraining<SC: SupervisedLearningComponentsTypes> {
-    // Not that complex and very convenient when the traits are
-    // already constrained correctly. Extracting in another type
-    // would be more complex.
-    #[allow(clippy::type_complexity)]
-    checkpointers: Option<(
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::Model as Module<TrainBackend<SC::LC>>>::Record,
-            TrainBackend<SC::LC>,
-        >,
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::Optimizer as Optimizer<
-                SC::Model,
-                TrainBackend<SC::LC>,
-            >>::Record,
-            TrainBackend<SC::LC>,
-        >,
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<
-                TrainBackend<SC::LC>,
-            >,
-            TrainBackend<SC::LC>,
-        >,
-    )>,
-    num_epochs: usize,
-    checkpoint: Option<usize>,
-    directory: PathBuf,
-    grad_accumulation: Option<usize>,
-    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: MetricsTraining<OutputTrain<SC::LD>, OutputValid<SC::LD>>,
-    event_store: LogEventStore,
-    interrupter: Interrupter,
-    tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
-    checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<EarlyStoppingStrategyRef>,
-    training_strategy: TrainingStrategy<SC>,
-    dataloader_train: TrainLoader<SC::LC, SC::LD>,
-    dataloader_valid: ValidLoader<SC::LC, SC::LD>,
-    // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
-    summary_metrics: BTreeSet<String>,
-    summary: bool,
 }
 
 impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
@@ -315,8 +314,6 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
         FR: FileRecorder<
                 <<SC::LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend,
             > + 'static,
-        // <SC::Optimizer as Optimizer<SC::Model, SC::Backend>>::Record: 'static,
-        // <SC::LrScheduler as LrScheduler>::Record<SC::Backend>: 'static,
     {
         let checkpoint_dir = self.directory.join("checkpoint");
         let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
@@ -341,8 +338,6 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
         self.summary = true;
         self
     }
-
-    // TODO : pub fn training_strategy()
 }
 
 /// Struct to minimise parameters passed to [LearningParadigm::learn].
