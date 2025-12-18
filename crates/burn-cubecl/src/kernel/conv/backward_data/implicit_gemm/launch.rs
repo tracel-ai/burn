@@ -14,9 +14,9 @@ use cubek::{
 use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 
 pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
-    weight_shape: Shape,
+    weights: CubeTensor<R>,
+    input_shape: Shape,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
@@ -29,17 +29,17 @@ pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
             read_strategy,
             tile_kind,
         },
-        input,
         out_grad,
-        weight_shape,
+        weights,
+        input_shape,
         options,
     )
 }
 
 pub fn dgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
-    weight_shape: Shape,
+    weights: CubeTensor<R>,
+    input_shape: Shape,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
@@ -52,24 +52,17 @@ pub fn dgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
             read_strategy,
             tile_kind,
         },
-        input,
         out_grad,
-        weight_shape,
+        weights,
+        input_shape,
         options,
     )
 }
 
-/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
-/// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
-///
-/// * `input` - The input feature map
-/// * `weight` - The weights (filter) applied to each kernel
-/// * `bias` - The bias added to each channel
-/// * `options` - The options to use for the convolution
 pub fn dgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
-    weight_shape: Shape,
+    weights: CubeTensor<R>,
+    input_shape: Shape,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
@@ -78,9 +71,9 @@ pub fn dgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
             read_strategy: ReadingStrategy::Tma,
             tile_kind,
         },
-        input,
         out_grad,
-        weight_shape,
+        weights,
+        input_shape,
         options,
     )
 }

@@ -17,12 +17,12 @@ use crate::{
 
 /// Executes autotune on conv2d operations
 pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
-    weight_shape: Shape,
+    weights: CubeTensor<R>,
+    input_shape: Shape,
     options: ConvOptions<N>,
 ) -> CubeTensor<R> {
-    let client = input.client.clone();
+    let client = out_grad.client.clone();
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
@@ -68,44 +68,44 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
+        &CubeTuneId::new(&out_grad.client, &out_grad.device),
         &client,
         tunables,
-        (input, out_grad, weight_shape, options),
+        (out_grad, weights, input_shape, options),
     )
 }
 
 pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
     _key: &CubeAutotuneKey,
-    input: &CubeTensor<R>,
     out_grad: &CubeTensor<R>,
-    weight_shape: &Shape,
+    weights: &CubeTensor<R>,
+    input_shape: &Shape,
     options: &ConvOptions<N>,
 ) -> (CubeTensor<R>, CubeTensor<R>, Shape, ConvOptions<N>) {
     (
-        input.clone(),
         out_grad.clone(),
-        weight_shape.clone(),
+        weights.clone(),
+        input_shape.clone(),
         options.clone(),
     )
 }
 
 fn create_key<R: CubeRuntime, const N: usize>(
-    input: &CubeTensor<R>,
     out_grad: &CubeTensor<R>,
-    weight_shape: &Shape,
+    weights: &CubeTensor<R>,
+    input_shape: &Shape,
     options: &ConvOptions<N>,
 ) -> CubeAutotuneKey {
-    let dtype = input.dtype;
-    let rank = input.shape.num_dims();
+    let dtype = out_grad.dtype;
+    let rank = out_grad.shape.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape[0];
-    let in_channels = input.shape[dim_c];
-    let out_channels = weight_shape.dims[0];
+    let batch_size = out_grad.shape[0];
+    let in_channels = input_shape[dim_c];
+    let out_channels = out_grad.shape[dim_c];
 
-    let kernel_size = weight_shape.dims[1..dim_c].to_vec();
-    let in_shape = input.shape[1..dim_c]
+    let kernel_size = weights.shape[1..dim_c].to_vec();
+    let in_shape = input_shape[1..dim_c]
         .iter()
         .map(|shape| anchor(*shape, None, None, None))
         .collect();
@@ -123,8 +123,8 @@ fn create_key<R: CubeRuntime, const N: usize>(
         0
     };
     let lhs_shape_align = pow2_factor(out_channels).min(lhs_stride_align);
-    let rhs_stride_align = if input.strides[dim_c] == 1 {
-        stride_align(&input.strides, input.dtype.into())
+    let rhs_stride_align = if weights.strides[dim_c] == 1 {
+        stride_align(&weights.strides, weights.dtype.into())
     } else {
         0
     };
