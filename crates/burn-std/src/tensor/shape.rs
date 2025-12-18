@@ -2,7 +2,6 @@
 
 use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
-use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -39,26 +38,6 @@ pub enum ShapeError {
     IncompatibleShapes { left: Shape, right: Shape },
     /// Invalid empty shape.
     Empty,
-}
-
-/// Shape Expression Error.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ShapeExpressionError {
-    /// Parse Error.
-    ParseError {
-        /// The error message.
-        message: String,
-        /// The source expression.
-        source: String,
-    },
-
-    /// Invalid Expression.
-    InvalidExpression {
-        /// The error message.
-        message: String,
-        /// The source expression.
-        source: String,
-    },
 }
 
 impl Shape {
@@ -525,7 +504,7 @@ impl Display for Shape {
 }
 
 impl FromStr for Shape {
-    type Err = ShapeExpressionError;
+    type Err = crate::ExpressionError;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let mut s = source.trim();
@@ -538,7 +517,7 @@ impl FromStr for Shape {
                     s = p.trim();
                     break;
                 } else {
-                    return Err(ShapeExpressionError::ParseError {
+                    return Err(crate::ExpressionError::ParseError {
                         message: "Unbalanced delimiters".to_string(),
                         source: source.to_string(),
                     });
@@ -550,18 +529,17 @@ impl FromStr for Shape {
             return Ok(Shape::new([]));
         }
 
-        let dims = s
-            .split(',')
-            .map(|dim_str| {
-                dim_str
-                    .trim()
-                    .parse::<usize>()
-                    .map_err(|_| ShapeExpressionError::ParseError {
-                        message: "Unable to parse shape".to_string(),
-                        source: source.to_string(),
+        let dims =
+            s.split(',')
+                .map(|dim_str| {
+                    dim_str.trim().parse::<usize>().map_err(|_| {
+                        crate::ExpressionError::ParseError {
+                            message: "Unable to parse shape".to_string(),
+                            source: source.to_string(),
+                        }
                     })
-            })
-            .collect::<Result<Vec<usize>, ShapeExpressionError>>()?;
+                })
+                .collect::<Result<Vec<usize>, crate::ExpressionError>>()?;
 
         if dims.is_empty() {
             unreachable!("Split should have returned at least one element");
@@ -719,7 +697,7 @@ mod tests {
 
         assert_eq!(
             "[".parse::<Shape>(),
-            Err(ShapeExpressionError::ParseError {
+            Err(crate::ExpressionError::ParseError {
                 message: "Unbalanced delimiters".to_string(),
                 source: "[".to_string()
             })
@@ -727,21 +705,21 @@ mod tests {
 
         assert_eq!(
             "[[1]".parse::<Shape>(),
-            Err(ShapeExpressionError::ParseError {
+            Err(crate::ExpressionError::ParseError {
                 message: "Unable to parse shape".to_string(),
                 source: "[[1]".to_string()
             })
         );
         assert_eq!(
             "[[1]]".parse::<Shape>(),
-            Err(ShapeExpressionError::ParseError {
+            Err(crate::ExpressionError::ParseError {
                 message: "Unable to parse shape".to_string(),
                 source: "[[1]]".to_string()
             })
         );
         assert_eq!(
             "[1)".parse::<Shape>(),
-            Err(ShapeExpressionError::ParseError {
+            Err(crate::ExpressionError::ParseError {
                 message: "Unbalanced delimiters".to_string(),
                 source: "[1)".to_string()
             })
@@ -749,7 +727,7 @@ mod tests {
 
         assert_eq!(
             "]".parse::<Shape>(),
-            Err(ShapeExpressionError::ParseError {
+            Err(crate::ExpressionError::ParseError {
                 message: "Unable to parse shape".to_string(),
                 source: "]".to_string()
             })
@@ -757,7 +735,7 @@ mod tests {
 
         assert_eq!(
             "[a]".parse::<Shape>(),
-            Err(ShapeExpressionError::ParseError {
+            Err(crate::ExpressionError::ParseError {
                 message: "Unable to parse shape".to_string(),
                 source: "[a]".to_string()
             })
