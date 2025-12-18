@@ -1,9 +1,6 @@
-use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
-
 use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
-use crate::canonicalize_dim;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
@@ -13,6 +10,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
+use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 
 /// Default RTOL value for `is_close` and `all_close`.
 pub const DEFAULT_RTOL: f64 = 1e-5;
@@ -703,7 +701,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// A tensor containing the cross product of `self` and `other` along `dim`.
     pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D>, dim: Dim) -> Tensor<B, D> {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::cross(&self, &other, dim));
         Tensor::new(TensorPrimitive::Float(B::float_cross(
             self.primitive.tensor(),

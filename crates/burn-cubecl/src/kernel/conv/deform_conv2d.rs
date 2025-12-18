@@ -225,8 +225,8 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     });
 
     let num_kernels = in_channels * batch_size * out_height * out_width;
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_kernels, cube_dim);
+    let cube_dim = CubeDim::new(&input.client, num_kernels);
+    let cube_count = calculate_cube_count_elemwise(&input.client, num_kernels, cube_dim);
 
     deform_im2col_kernel::launch(
         &input.client,

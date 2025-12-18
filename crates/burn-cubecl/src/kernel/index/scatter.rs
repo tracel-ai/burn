@@ -104,8 +104,9 @@ pub(crate) fn scatter<R: CubeRuntime>(
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    let working_units = num_elems;
+    let cube_dim = CubeDim::new(&indices.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
     let launch = match is_bool {
         true => scatter_kernel::launch_unchecked::<OrOp, R>,

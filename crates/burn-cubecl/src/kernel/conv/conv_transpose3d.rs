@@ -205,8 +205,9 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
         }
     };
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let num_elems = output.shape.num_elements();
+    let cube_dim = CubeDim::new(&input.client, num_elems);
+    let cube_count = calculate_cube_count_elemwise(&input.client, num_elems, cube_dim);
 
     conv_transpose3d_kernel::launch(
         &input.client,

@@ -622,6 +622,12 @@ impl From<i32> for Slice {
     }
 }
 
+impl From<i64> for Slice {
+    fn from(i: i64) -> Self {
+        Slice::index(i as isize)
+    }
+}
+
 impl Display for Slice {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         if self.step == 1

@@ -257,8 +257,8 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     );
 
     let num_elements_offset = offset.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elements_offset, cube_dim);
+    let cube_dim = CubeDim::new(&image.client, num_elements_offset);
+    let cube_count = calculate_cube_count_elemwise(&image.client, num_elements_offset, cube_dim);
 
     let dtype: StorageType = image.dtype.into();
     unsafe {
@@ -527,8 +527,8 @@ fn compute_input_grad<R: CubeRuntime>(
     });
 
     let num_elements = columns.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elements, cube_dim);
+    let cube_dim = CubeDim::new(&offset.client, num_elements);
+    let cube_count = calculate_cube_count_elemwise(&offset.client, num_elements, cube_dim);
 
     let launch = match supports_fadd {
         true => deform_col2img_kernel::launch_unchecked::<IntrinsicFloatAtomicAddFamily, R>,

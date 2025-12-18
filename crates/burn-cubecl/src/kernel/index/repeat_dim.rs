@@ -45,8 +45,9 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
         input.dtype,
     );
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let working_units = output.shape.num_elements();
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     unsafe {
         repeat_dim_kernel::launch_unchecked(
