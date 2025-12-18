@@ -231,3 +231,12 @@ fn repeat_dim_swap_dims_3() {
     ]);
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn should_repeat_dim_0_times_empty() {
+    let tensor = TestTensor::<3>::ones([2, 3, 4], &Default::default());
+
+    let output = tensor.repeat_dim(2, 0);
+
+    assert_eq!(output.shape(), [2, 3, 0].into());
+}
