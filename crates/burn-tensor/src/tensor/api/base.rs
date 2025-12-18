@@ -364,7 +364,7 @@ where
     ///    // Create a tensor with dimensions [2, 3, 4]
     ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
     ///    // Reshape it to [2, 12], where 12 is inferred from the number of elements.
-    ///    let reshaped = tensor.reshape::<2, _>([2, -1]);
+    ///    let reshaped = tensor.reshape([2, -1]);
     ///    println!("{reshaped}");
     /// }
     /// ```
