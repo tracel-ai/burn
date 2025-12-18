@@ -1942,7 +1942,7 @@ where
     /// }
     /// ```
     pub fn repeat(self, sizes: &[usize]) -> Self {
-        if sizes.iter().any(|times| *times == 0) {
+        if sizes.contains(&0) {
             let mut shape = self.shape();
             for (dim, &times) in sizes.iter().enumerate() {
                 shape = shape.repeat(dim, times).unwrap();
