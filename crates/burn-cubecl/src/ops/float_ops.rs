@@ -26,10 +26,10 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
         skip(data),
         fields(?data.shape, ?data.dtype)
-    )]
+    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         match data.dtype {
             DType::F64 | DType::F32 | DType::F16 | DType::BF16 => super::from_data(data, device),
@@ -55,10 +55,10 @@ where
         }
     }
 
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
         skip(tensor),
         fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
-    )]
+    ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::into_data(tensor).await
     }
@@ -67,10 +67,10 @@ where
         tensor.device.clone()
     }
 
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
         skip(tensor),
         fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
-    )]
+    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         super::to_device(tensor, device)
     }

@@ -15,15 +15,16 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
-std = ["serde/std", "tracing/std"]
+default = ["std", "tracing"]
+std = ["serde/std", "tracing?/std"]
 doc = ["default"]
 memory-checks = ["std"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6" }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6" }
-tracing = { workspace = true, features = ["attributes"] }
+tracing = { workspace = true, optional = true, features = ["attributes"] }
 
 hashbrown = { workspace = true }
 derive-new = { workspace = true }
