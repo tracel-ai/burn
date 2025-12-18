@@ -1,27 +1,27 @@
+use crate::components::{TrainLoader, ValidLoader};
+use crate::learner::base::Interrupter;
+use crate::learner::train_val::LearningModel;
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
+use crate::{Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainStep, ValidStep};
 use burn_core::module::AutodiffModule;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 
-use crate::components_v2::{TrainLoaderV2, ValidLoaderV2};
-use crate::learner::base::Interrupter;
-use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::{LearnerV2, ParadigmComponents, SupervisedLearningComponents, TrainStep, ValidStep};
-
 /// A validation epoch.
 #[derive(new)]
-pub struct SingleDeviceValidEpochV2<SC: SupervisedLearningComponents> {
-    dataloader: ValidLoaderV2<SC::LC, SC::LD>,
+pub struct SingleDeviceValidEpochV2<SC: SupervisedLearningComponentsTypes> {
+    dataloader: ValidLoader<SC::LC, SC::LD>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct SingleDeviceTrainEpochV2<SC: SupervisedLearningComponents> {
-    dataloader: TrainLoaderV2<SC::LC, SC::LD>,
+pub struct SingleDeviceTrainEpochV2<SC: SupervisedLearningComponentsTypes> {
+    dataloader: TrainLoader<SC::LC, SC::LD>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponents> SingleDeviceValidEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpochV2<SC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -30,9 +30,9 @@ impl<SC: SupervisedLearningComponents> SingleDeviceValidEpochV2<SC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        learner: &LearnerV2<SC::LC>,
+        learner: &Learner<SC::LC>,
         epoch: usize,
-        processor: &mut <SC::PC as ParadigmComponents>::EventProcessor,
+        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
     ) {
         log::info!("Executing validation step for epoch {}", epoch);
@@ -59,7 +59,7 @@ impl<SC: SupervisedLearningComponents> SingleDeviceValidEpochV2<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponents> SingleDeviceTrainEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpochV2<SC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -74,9 +74,9 @@ impl<SC: SupervisedLearningComponents> SingleDeviceTrainEpochV2<SC> {
     /// The trained model and the optimizer.
     pub fn run(
         &self,
-        learner: &mut LearnerV2<SC::LC>,
+        learner: &mut Learner<SC::LC>,
         epoch: usize,
-        processor: &mut <SC::PC as ParadigmComponents>::EventProcessor,
+        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
     ) {
         log::info!("Executing training step for epoch {}", epoch,);

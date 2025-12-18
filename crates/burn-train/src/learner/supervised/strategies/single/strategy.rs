@@ -1,31 +1,36 @@
 use crate::{
-    LearnerV2, ParadigmComponents, SupervisedLearningComponents, TrainBackendV2, TrainingComponents,
-    components_v2::{TrainLoaderV2, ValidLoaderV2},
-    learner::paradigms::SupervisedLearningStrategy,
-    single_v2::epoch::{SingleDeviceTrainEpochV2, SingleDeviceValidEpochV2},
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, SupervisedLearningStrategy,
+    TrainBackend, TrainingComponents,
+    components::{TrainLoader, ValidLoader},
+    single::epoch::{SingleDeviceTrainEpochV2, SingleDeviceValidEpochV2},
 };
 use burn_core::tensor::Device;
 
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
-pub struct SingleDevicetrainingStrategy<SC: SupervisedLearningComponents> {
-    device: Device<TrainBackendV2<SC::LC>>,
+pub struct SingleDevicetrainingStrategy<SC: SupervisedLearningComponentsTypes> {
+    device: Device<TrainBackend<SC::LC>>,
 }
-impl<SC: SupervisedLearningComponents> SingleDevicetrainingStrategy<SC> {
-    pub fn new(device: Device<TrainBackendV2<SC::LC>>) -> Self {
+impl<SC: SupervisedLearningComponentsTypes> SingleDevicetrainingStrategy<SC> {
+    pub fn new(device: Device<TrainBackend<SC::LC>>) -> Self {
         Self { device }
     }
 }
 
-impl<SC: SupervisedLearningComponents> SupervisedLearningStrategy<SC> for SingleDevicetrainingStrategy<SC> {
+impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
+    for SingleDevicetrainingStrategy<SC>
+{
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: LearnerV2<SC::LC>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
+        learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
         starting_epoch: usize,
-    ) -> (SC::Model, <SC::PC as ParadigmComponents>::EventProcessor) {
+    ) -> (
+        SC::Model,
+        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+    ) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let dataloader_valid = dataloader_valid.to_device(&self.device);
         let mut learner = learner.fork(&self.device);

@@ -2,6 +2,7 @@ use crate::{
     data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
+use burn::train::{LearningParadigm, TrainingResult};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     nn::loss::CrossEntropyLossConfig,
@@ -10,7 +11,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, LearnerBuilder, LearningStrategy, TrainOutput, TrainStep, ValidStep,
+        ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -88,22 +89,18 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
-    let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            config.model.init::<B>(&device),
-            config.optimizer.init(),
-            config.learning_rate,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
-
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let model = config.model.init::<B>(&device);
+    let result: TrainingResult<Model<B>> =
+        SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
+            .metrics((AccuracyMetric::new(), LossMetric::new()))
+            .with_file_checkpointer(CompactRecorder::new())
+            .num_epochs(config.num_epochs)
+            .summary()
+            .run(Learner {
+                model,
+                optim: config.optimizer.init(),
+                lr_scheduler: config.learning_rate,
+            });
 
     result
         .model

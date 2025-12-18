@@ -1,3 +1,4 @@
+use crate::learner::train_val::LearningModel;
 use burn_collective::{PeerId, ReduceOperation};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
@@ -10,26 +11,26 @@ use std::sync::{Arc, Mutex};
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
-    LearnerV2, ParadigmComponents, SupervisedLearningComponents, TrainBackendV2, TrainLoaderV2, TrainModel,
-    TrainStep, ValidLoaderV2, ValidStep,
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainBackend, TrainLoader,
+    TrainModel, TrainStep, ValidLoader, ValidStep,
 };
 
 /// A validation epoch.
 #[derive(new)]
-pub struct DdpValidEpochV2<SC: SupervisedLearningComponents> {
-    dataloader: ValidLoaderV2<SC::LC, SC::LD>,
+pub struct DdpValidEpochV2<SC: SupervisedLearningComponentsTypes> {
+    dataloader: ValidLoader<SC::LC, SC::LD>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct DdpTrainEpochV2<SC: SupervisedLearningComponents> {
-    dataloader: TrainLoaderV2<SC::LC, SC::LD>,
+pub struct DdpTrainEpochV2<SC: SupervisedLearningComponentsTypes> {
+    dataloader: TrainLoader<SC::LC, SC::LD>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponents> DdpValidEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> DdpValidEpochV2<SC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -40,7 +41,7 @@ impl<SC: SupervisedLearningComponents> DdpValidEpochV2<SC> {
         &self,
         model: &TrainModel<SC::LC>,
         epoch: usize,
-        processor: &mut <SC::PC as ParadigmComponents>::EventProcessor,
+        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
     ) {
         log::info!("Executing validation step for epoch {}", epoch);
@@ -67,7 +68,7 @@ impl<SC: SupervisedLearningComponents> DdpValidEpochV2<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponents> DdpTrainEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpochV2<SC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -83,9 +84,9 @@ impl<SC: SupervisedLearningComponents> DdpTrainEpochV2<SC> {
     #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
-        learner: &mut LearnerV2<SC::LC>,
+        learner: &mut Learner<SC::LC>,
         epoch: usize,
-        processor: Arc<Mutex<<SC::PC as ParadigmComponents>::EventProcessor>>,
+        processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
         interrupter: &Interrupter,
         peer_id: PeerId,
         peer_count: usize,
@@ -99,7 +100,7 @@ impl<SC: SupervisedLearningComponents> DdpTrainEpochV2<SC> {
         let mut accumulation_current = 0;
 
         let grads_syncer =
-            GradsSyncer::<TrainBackendV2<SC::LC>, TrainModel<SC::LC>>::new(false, peer_id);
+            GradsSyncer::<TrainBackend<SC::LC>, TrainModel<SC::LC>>::new(false, peer_id);
 
         let mut model = learner.model.clone();
         let mut optim = learner.optim.clone();

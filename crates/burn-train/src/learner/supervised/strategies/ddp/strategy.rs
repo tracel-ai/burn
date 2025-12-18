@@ -4,11 +4,11 @@ use std::sync::{Arc, Mutex};
 use burn_collective::CollectiveConfig;
 use burn_core::tensor::Device;
 
-use crate::ddp_v2::worker::DdpWorkerV2;
+use crate::ddp::worker::DdpWorkerV2;
 use crate::metric::store::EventStoreClient;
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, LearnerV2, SupervisedLearningComponents,
-    SupervisedLearningStrategy, TrainBackendV2, TrainLoaderV2, TrainingComponents, ValidLoaderV2,
+    EarlyStoppingStrategyRef, Interrupter, Learner, SupervisedLearningComponentsTypes,
+    SupervisedLearningStrategy, TrainBackend, TrainLoader, TrainingComponents, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
 
@@ -26,30 +26,30 @@ pub(crate) struct WorkerComponents {
     pub event_store: Arc<EventStoreClient>,
 }
 
-pub struct DdpTrainingStrategy<SC: SupervisedLearningComponents> {
-    devices: Vec<Device<TrainBackendV2<SC::LC>>>,
+pub struct DdpTrainingStrategy<SC: SupervisedLearningComponentsTypes> {
+    devices: Vec<Device<TrainBackend<SC::LC>>>,
     config: CollectiveConfig,
 }
-impl<SC: SupervisedLearningComponents> DdpTrainingStrategy<SC> {
-    pub fn new(devices: Vec<Device<TrainBackendV2<SC::LC>>>, config: CollectiveConfig) -> Self {
+impl<SC: SupervisedLearningComponentsTypes> DdpTrainingStrategy<SC> {
+    pub fn new(devices: Vec<Device<TrainBackend<SC::LC>>>, config: CollectiveConfig) -> Self {
         let config = config.with_num_devices(devices.len());
         Self { devices, config }
     }
 }
 
-impl<SC: SupervisedLearningComponents + Send + 'static> SupervisedLearningStrategy<SC>
+impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<SC>
     for DdpTrainingStrategy<SC>
 {
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: LearnerV2<SC::LC>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
+        learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
         starting_epoch: usize,
     ) -> (
         SC::Model,
-        <SC::PC as crate::ParadigmComponents>::EventProcessor,
+        <SC::PC as crate::ParadigmComponentsTypes>::EventProcessor,
     ) {
         // The reference model is always on the first device provided.
         let main_device = self.devices.first().unwrap();

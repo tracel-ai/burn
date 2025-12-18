@@ -5,20 +5,21 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
-    LearnerV2, MultiDeviceOptim, ParadigmComponents, SupervisedLearningComponents,
-    TrainingComponents, TrainingResult,
-    components_v2::{LearningComponents, TrainLoaderV2, ValidLoaderV2},
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainingComponents,
+    TrainingResult,
+    components::{LearningComponentsTypes, TrainLoader, ValidLoader},
     metric::processor::{EventProcessorTraining, LearnerEvent},
+    multi::MultiDeviceOptim,
 };
 
-type LearnerDevice<LC> = <<LC as LearningComponents>::Backend as Backend>::Device;
+type LearnerDevice<LC> = <<LC as LearningComponentsTypes>::Backend as Backend>::Device;
 
 /// A reference to an implementation of SupervisedLearningStrategy.
 pub type CustomLearningStrategyV2<SC> = Arc<dyn SupervisedLearningStrategy<SC>>;
 
 /// How should the learner run the learning for the model
 #[derive(Clone)]
-pub enum TrainingStrategy<SC: SupervisedLearningComponents> {
+pub enum TrainingStrategy<SC: SupervisedLearningComponentsTypes> {
     /// Training on one device
     SingleDevice(LearnerDevice<SC::LC>),
     /// Performs data-parallel distributed training where the optimization is
@@ -41,27 +42,27 @@ pub enum TrainingStrategy<SC: SupervisedLearningComponents> {
 
 /// Constructor for a distributed data parallel (DDP) learning strategy
 #[cfg(feature = "ddp")]
-pub fn ddp_v2<SC: SupervisedLearningComponents>(
+pub fn ddp_v2<SC: SupervisedLearningComponentsTypes>(
     devices: Vec<LearnerDevice<SC::LC>>,
     config: CollectiveConfig,
 ) -> TrainingStrategy<SC> {
     TrainingStrategy::DistributedDataParallel { devices, config }
 }
 
-impl<SC: SupervisedLearningComponents> Default for TrainingStrategy<SC> {
+impl<SC: SupervisedLearningComponentsTypes> Default for TrainingStrategy<SC> {
     fn default() -> Self {
         Self::SingleDevice(Default::default())
     }
 }
 
 /// Provides the `fit` function for any learning strategy
-pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponents> {
+pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
     /// Train the learner's model with this strategy.
     fn train(
         &self,
-        mut learner: LearnerV2<SC::LC>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
+        mut learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
         mut training_components: TrainingComponents<SC>,
     ) -> TrainingResult<SC::InnerModel> {
         let starting_epoch = match training_components.checkpoint {
@@ -110,9 +111,12 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponents> {
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: LearnerV2<SC::LC>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
+        learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
         starting_epoch: usize,
-    ) -> (SC::Model, <SC::PC as ParadigmComponents>::EventProcessor);
+    ) -> (
+        SC::Model,
+        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+    );
 }

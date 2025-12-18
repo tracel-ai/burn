@@ -1,28 +1,28 @@
-use std::collections::HashMap;
-
 use crate::learner::base::Interrupter;
+use crate::learner::train_val::LearningModel;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::multi::MultiDeviceOptim;
-use crate::train_v2::MultiDevicesTrainStepV2;
+use crate::train::MultiDevicesTrainStepV2;
 use crate::{
-    LearningComponents, LearnerV2, ParadigmComponents, SupervisedLearningComponents, TrainBackendV2,
-    TrainLoaderV2, TrainStep,
+    Learner, LearningComponentsTypes, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
+    TrainBackend, TrainLoader,
 };
 use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::DeviceId;
 use burn_optim::MultiGradientsParams;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
+use std::collections::HashMap;
 
 /// A training epoch.
 #[derive(new)]
-pub struct MultiDeviceTrainEpochV2<SC: SupervisedLearningComponents> {
-    dataloaders: Vec<TrainLoaderV2<SC::LC, SC::LD>>,
+pub struct MultiDeviceTrainEpochV2<SC: SupervisedLearningComponentsTypes> {
+    dataloaders: Vec<TrainLoader<SC::LC, SC::LD>>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponents> MultiDeviceTrainEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpochV2<SC> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -39,11 +39,11 @@ impl<SC: SupervisedLearningComponents> MultiDeviceTrainEpochV2<SC> {
     #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
-        learner: &mut LearnerV2<SC::LC>,
+        learner: &mut Learner<SC::LC>,
         epoch: usize,
-        event_processor: &mut <SC::PC as ParadigmComponents>::EventProcessor,
+        event_processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
-        devices: Vec<Device<TrainBackendV2<SC::LC>>>,
+        devices: Vec<Device<TrainBackend<SC::LC>>>,
         strategy: MultiDeviceOptim,
     ) {
         match strategy {
@@ -58,11 +58,11 @@ impl<SC: SupervisedLearningComponents> MultiDeviceTrainEpochV2<SC> {
 
     fn run_optim_main(
         &self,
-        learner: &mut LearnerV2<SC::LC>,
+        learner: &mut Learner<SC::LC>,
         epoch: usize,
-        event_processor: &mut <SC::PC as ParadigmComponents>::EventProcessor,
+        event_processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
-        devices: Vec<Device<TrainBackendV2<SC::LC>>>,
+        devices: Vec<Device<TrainBackend<SC::LC>>>,
     ) {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
@@ -141,11 +141,11 @@ impl<SC: SupervisedLearningComponents> MultiDeviceTrainEpochV2<SC> {
 
     fn run_optim_distr(
         &self,
-        learner: &mut LearnerV2<SC::LC>,
+        learner: &mut Learner<SC::LC>,
         epoch: usize,
-        event_processor: &mut <SC::PC as ParadigmComponents>::EventProcessor,
+        event_processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
-        devices: Vec<Device<TrainBackendV2<SC::LC>>>,
+        devices: Vec<Device<TrainBackend<SC::LC>>>,
     ) {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
@@ -161,7 +161,7 @@ impl<SC: SupervisedLearningComponents> MultiDeviceTrainEpochV2<SC> {
         let mut iteration = 0;
         let mut accumulators = HashMap::<
             DeviceId,
-            GradientsAccumulator<<SC::LC as LearningComponents>::Model>,
+            GradientsAccumulator<<SC::LC as LearningComponentsTypes>::Model>,
         >::new();
         for device in devices.iter() {
             accumulators.insert(device.to_id(), GradientsAccumulator::new());

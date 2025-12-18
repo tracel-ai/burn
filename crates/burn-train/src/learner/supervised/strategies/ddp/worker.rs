@@ -1,8 +1,8 @@
-use crate::ddp_v2::epoch::{DdpTrainEpochV2, DdpValidEpochV2};
-use crate::ddp_v2::strategy::WorkerComponents;
+use crate::ddp::epoch::{DdpTrainEpochV2, DdpValidEpochV2};
+use crate::ddp::strategy::WorkerComponents;
 use crate::{
-    LearningComponents, LearnerV2, ParadigmComponents, SupervisedLearningComponents, TrainBackendV2,
-    TrainLoaderV2, TrainingCheckpointer, ValidLoaderV2,
+    Learner, LearningCheckpointer, LearningComponentsTypes, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, TrainBackend, TrainLoader, ValidLoader,
 };
 use burn_collective::{self, CollectiveConfig, PeerId};
 use burn_core::tensor::Device;
@@ -14,16 +14,16 @@ use std::thread::JoinHandle;
 /// Event processing and validation is optional too.
 pub(crate) struct DdpWorkerV2<SC>
 where
-    SC: SupervisedLearningComponents + Send + 'static,
+    SC: SupervisedLearningComponentsTypes + Send + 'static,
 {
     peer_id: PeerId,
-    device: Device<TrainBackendV2<SC::LC>>,
-    learner: LearnerV2<SC::LC>,
-    event_processor: Arc<Mutex<<SC::PC as ParadigmComponents>::EventProcessor>>,
+    device: Device<TrainBackend<SC::LC>>,
+    learner: Learner<SC::LC>,
+    event_processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
     components: WorkerComponents,
-    checkpointer: Option<TrainingCheckpointer<SC::LC, SC::PC>>,
-    dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-    dataloader_valid: Option<ValidLoaderV2<SC::LC, SC::LD>>,
+    checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
+    dataloader_train: TrainLoader<SC::LC, SC::LD>,
+    dataloader_valid: Option<ValidLoader<SC::LC, SC::LD>>,
     collective_config: CollectiveConfig,
     starting_epoch: usize,
     peer_count: usize,
@@ -32,24 +32,24 @@ where
 
 impl<SC> DdpWorkerV2<SC>
 where
-    SC: SupervisedLearningComponents + Send + 'static,
+    SC: SupervisedLearningComponentsTypes + Send + 'static,
 {
     /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         peer_id: PeerId,
-        device: Device<TrainBackendV2<SC::LC>>,
-        learner: LearnerV2<SC::LC>,
-        event_processor: Arc<Mutex<<SC::PC as ParadigmComponents>::EventProcessor>>,
+        device: Device<TrainBackend<SC::LC>>,
+        learner: Learner<SC::LC>,
+        event_processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
         components: WorkerComponents,
-        checkpointer: Option<TrainingCheckpointer<SC::LC, SC::PC>>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: Option<ValidLoaderV2<SC::LC, SC::LD>>,
+        checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: Option<ValidLoader<SC::LC, SC::LD>>,
         collective_config: CollectiveConfig,
         starting_epoch: usize,
         peer_count: usize,
         is_main: bool,
-    ) -> JoinHandle<<SC::LC as LearningComponents>::Model> {
+    ) -> JoinHandle<<SC::LC as LearningComponentsTypes>::Model> {
         let worker = Self {
             peer_id,
             device,
@@ -69,8 +69,8 @@ where
     }
 
     /// Fits the model,
-    pub fn fit(mut self) -> <SC::LC as LearningComponents>::Model {
-        burn_collective::register::<<TrainBackendV2<SC::LC> as AutodiffBackend>::InnerBackend>(
+    pub fn fit(mut self) -> <SC::LC as LearningComponentsTypes>::Model {
+        burn_collective::register::<<TrainBackend<SC::LC> as AutodiffBackend>::InnerBackend>(
             self.peer_id,
             self.device.clone(),
             self.collective_config.clone(),

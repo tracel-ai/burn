@@ -1,8 +1,8 @@
 use crate::model::ModelConfig;
 use burn::train::{
-    EventProcessorTraining, LearnerV2, LearningParadigm, ParadigmComponents,
-    SupervisedLearningComponents, SupervisedLearningStrategy, SupervisedTraining, TrainBackendV2,
-    TrainLoaderV2, TrainingComponents, ValidLoaderV2,
+    EventProcessorTraining, Learner, LearningParadigm, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, SupervisedLearningStrategy, SupervisedTraining,
+    TrainBackend, TrainLoader, TrainingComponents, ValidLoader,
 };
 use burn::{
     data::{
@@ -66,8 +66,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let model = config.model.init::<B>(&device);
 
     let dataset_train_original = Arc::new(MnistDataset::train());
-    let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
-    let dataset_valid = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
+    let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 15_000);
+    let dataset_valid = PartialDataset::new(dataset_train_original.clone(), 15_000, 17_000);
 
     let lr_scheduler = ComposedLrSchedulerConfig::new()
         .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
@@ -104,7 +104,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             MyCustomLearningStrategy::new(device),
         )));
 
-    let result = training.run(LearnerV2::new(
+    let result = training.run(Learner::new(
         model,
         config.optimizer.init(),
         lr_scheduler.init().unwrap(),
@@ -113,13 +113,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     println!("Training finished : {:?}", result.model);
 }
 
-struct MyCustomLearningStrategy<SC: SupervisedLearningComponents> {
-    device: Device<TrainBackendV2<SC::LC>>,
+struct MyCustomLearningStrategy<SC: SupervisedLearningComponentsTypes> {
+    device: Device<TrainBackend<SC::LC>>,
     _p: PhantomData<SC>,
 }
 
-impl<SC: SupervisedLearningComponents> MyCustomLearningStrategy<SC> {
-    pub fn new(device: Device<TrainBackendV2<SC::LC>>) -> Self {
+impl<SC: SupervisedLearningComponentsTypes> MyCustomLearningStrategy<SC> {
+    pub fn new(device: Device<TrainBackend<SC::LC>>) -> Self {
         Self {
             device,
             _p: PhantomData,
@@ -127,17 +127,20 @@ impl<SC: SupervisedLearningComponents> MyCustomLearningStrategy<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponents> SupervisedLearningStrategy<SC>
+impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
     for MyCustomLearningStrategy<SC>
 {
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: LearnerV2<SC::LC>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
+        learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
         starting_epoch: usize,
-    ) -> (SC::Model, <SC::PC as ParadigmComponents>::EventProcessor) {
+    ) -> (
+        SC::Model,
+        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+    ) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let dataloader_valid = dataloader_valid.to_device(&self.device);
         let learner = learner.fork(&self.device);
@@ -197,7 +200,7 @@ impl<SC: SupervisedLearningComponents> SupervisedLearningStrategy<SC>
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(
-                    &LearnerV2 {
+                    &Learner {
                         model: model.clone(),
                         optim: optim.clone(),
                         lr_scheduler: lr_scheduler.clone(),

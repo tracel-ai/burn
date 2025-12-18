@@ -1,36 +1,45 @@
 use crate::{
-    LearnerV2, MultiDeviceOptim, ParadigmComponents, SupervisedLearningComponents, TrainBackendV2,
-    TrainingComponents,
-    components_v2::{TrainLoaderV2, ValidLoaderV2},
-    learner::paradigms::SupervisedLearningStrategy,
-    multi_v2::epoch::MultiDeviceTrainEpochV2,
-    single_v2::epoch::SingleDeviceValidEpochV2,
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
+    SupervisedLearningStrategy, TrainBackend, TrainingComponents,
+    components::{TrainLoader, ValidLoader},
+    multi::epoch::MultiDeviceTrainEpochV2,
+    single::epoch::SingleDeviceValidEpochV2,
 };
 use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
 
-/// Simplest learning strategy possible, with only a single devices doing both the training and
-/// validation.
-pub struct MultiDeviceLearningStrategyV2<SC: SupervisedLearningComponents> {
-    devices: Vec<Device<TrainBackendV2<SC::LC>>>,
+#[derive(Clone, Copy, Debug)]
+/// Determine how the optimization is performed when training with multiple devices.
+pub enum MultiDeviceOptim {
+    /// The optimization is done on an elected device.
+    OptimMainDevice,
+    /// The optimization is sharded across all devices.
+    OptimSharded,
+}
+
+pub struct MultiDeviceLearningStrategyV2<SC: SupervisedLearningComponentsTypes> {
+    devices: Vec<Device<TrainBackend<SC::LC>>>,
     optim: MultiDeviceOptim,
 }
-impl<SC: SupervisedLearningComponents> MultiDeviceLearningStrategyV2<SC> {
-    pub fn new(devices: Vec<Device<TrainBackendV2<SC::LC>>>, optim: MultiDeviceOptim) -> Self {
+impl<SC: SupervisedLearningComponentsTypes> MultiDeviceLearningStrategyV2<SC> {
+    pub fn new(devices: Vec<Device<TrainBackend<SC::LC>>>, optim: MultiDeviceOptim) -> Self {
         Self { devices, optim }
     }
 }
 
-impl<SC: SupervisedLearningComponents> SupervisedLearningStrategy<SC>
+impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
     for MultiDeviceLearningStrategyV2<SC>
 {
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: LearnerV2<SC::LC>,
-        dataloader_train: TrainLoaderV2<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoaderV2<SC::LC, SC::LD>,
+        learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC, SC::LD>,
+        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
         starting_epoch: usize,
-    ) -> (SC::Model, <SC::PC as ParadigmComponents>::EventProcessor) {
+    ) -> (
+        SC::Model,
+        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+    ) {
         let main_device = self.devices.first().unwrap();
 
         // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy

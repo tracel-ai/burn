@@ -1,17 +1,7 @@
-use crate::components::{
-    InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
-};
-#[cfg(feature = "ddp")]
-use crate::ddp::DdpLearningStrategy;
-use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::MetricsRenderer;
-use crate::single::SingleDeviceLearningStrategy;
-use crate::{Learner, LearningMethod, LearningStrategy};
-use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
-use std::sync::Arc;
 
 /// A training output.
 pub struct TrainOutput<TO> {
@@ -44,7 +34,7 @@ impl<TO> TrainOutput<TO> {
     }
 }
 
-/// Trait to be implemented for training models.
+/// Trait to be implemented for training models using supervised learning.
 ///
 /// The [step](TrainStep::step) method needs to be manually implemented for all structs.
 ///
@@ -68,6 +58,20 @@ pub trait TrainStep<TI, TO> {
     ///
     /// The training output containing the model output and the gradients.
     fn step(&self, item: TI) -> TrainOutput<TO>;
+}
+
+/// Trait to be implemented for training a model.
+///
+/// The [optimize](TrainStep::optimize) method can be overridden if you want to control how the
+/// optimizer is used to update the model. This can be useful if you want to call custom mutable
+/// functions on your model (e.g., clipping the weights) before or after the optimizer is used.
+///
+/// # Notes
+///
+/// To be used with the [Learner](Learner) struct, the struct which implements this trait must
+/// also implement the [AutodiffModule] trait, which is done automatically with the
+/// [Module](burn_core::module::Module) derive.
+pub trait LearningModel {
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
@@ -108,59 +112,7 @@ pub trait TrainStep<TI, TO> {
     }
 }
 
-/// Trait to be implemented for training models.
-///
-/// The [optimize](TrainStep::optimize) method can be overridden if you want to control how the
-/// optimizer is used to update the model. This can be useful if you want to call custom mutable
-/// functions on your model (e.g., clipping the weights) before or after the optimizer is used.
-///
-/// # Notes
-///
-/// To be used with the [Learner](Learner) struct, the struct which implements this trait must
-/// also implement the [AutodiffModule] trait, which is done automatically with the
-/// [Module](burn_core::module::Module) derive.
-pub trait LearningModel {
-    /// Optimize the current module with the provided gradients and learning rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `optim`: Optimizer used for training this model.
-    /// * `lr`: The learning rate used for this step.
-    /// * `grads`: The gradients of each parameter in the current model.
-    ///
-    /// # Returns
-    ///
-    /// The updated model.
-    fn optimizev2<B, O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
-    where
-        B: AutodiffBackend,
-        O: Optimizer<Self, B>,
-        Self: AutodiffModule<B>,
-    {
-        optim.step(lr, self, grads)
-    }
-    /// Optimize the current module with the provided gradients and learning rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `optim`: Optimizer used for training this model.
-    /// * `lr`: The learning rate used for this step.
-    /// * `grads`: Multiple gradients associated to each parameter in the current model.
-    ///
-    /// # Returns
-    ///
-    /// The updated model.
-    fn optimize_multiv2<B, O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
-    where
-        B: AutodiffBackend,
-        O: Optimizer<Self, B>,
-        Self: AutodiffModule<B>,
-    {
-        optim.step_multi(lr, self, grads)
-    }
-}
-
-/// Trait to be implemented for validating models.
+/// Trait to be implemented for validating models using supervised learning.
 pub trait ValidStep<VI, VO> {
     /// Runs a validation step.
     ///
@@ -174,58 +126,10 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-/// A reference to the training split [DataLoader](DataLoader).
-pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
-/// A reference to the validation split [DataLoader](DataLoader).
-pub type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
-
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
 pub struct TrainingResult<M> {
     /// The model trained.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,
-}
-
-impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
-    /// Fits the model.
-    ///
-    /// # Arguments
-    ///
-    /// * `dataloader_train` - The training dataloader.
-    /// * `dataloader_valid` - The validation dataloader.
-    ///
-    /// # Returns
-    ///
-    /// The fitted model.
-    pub fn fit(
-        self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> TrainingResult<LC::InnerModel> {
-        log::info!("Fitting the model:\n {}", self.model);
-
-        match &self.learning_strategy {
-            LearningStrategy::SingleDevice(device) => {
-                let single_device = SingleDeviceLearningStrategy::new(device.clone());
-                single_device.fit(self, dataloader_train, dataloader_valid)
-            }
-            LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
-                .clone()
-                .fit(self, dataloader_train, dataloader_valid),
-            LearningStrategy::MultiDevice(devices, optim) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices.clone(), *optim);
-                multi_device.fit(self, dataloader_train, dataloader_valid)
-            }
-            LearningStrategy::CustomMultiDevice(learning_strategy) => learning_strategy
-                .clone()
-                .fit(self, dataloader_train, dataloader_valid),
-
-            #[cfg(feature = "ddp")]
-            LearningStrategy::DistributedDataParallel { devices, config } => {
-                let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
-                ddp.fit(self, dataloader_train, dataloader_valid)
-            }
-        }
-    }
 }
