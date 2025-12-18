@@ -10,105 +10,102 @@ use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
-        backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+        backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
     },
     tensor::CubeTensor,
 };
 
-/// Executes autotune on the weight gradients pass for convolution
-pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
+/// Executes autotune on conv2d operations
+pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
     out_grad: CubeTensor<R>,
-    weight_shape: Shape,
+    weights: CubeTensor<R>,
+    input_shape: Shape,
     options: ConvOptions<N>,
 ) -> CubeTensor<R> {
-    let client = input.client.clone();
+    let client = out_grad.client.clone();
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
+    // Note: TMA isn't currently implemented properly, and will always error.
+    // It's kept here so it gets automatically enabled as soon as cubek updates.
+    // No CMMA for TMA because swizzling will be mandatory for good performance on dgrad.
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
             .with(Tunable::new(
                 "wgrad_fallback",
-                conv_weight_backward_fallback::<R, N>,
+                conv_data_backward_fallback::<R, N>,
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                    dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_sync_mma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
+                    dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_cmma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                    dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_mma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_cmma",
-                |input, grad, shape, options| {
-                    wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                    dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_mma",
                 |input, grad, shape, options| {
-                    wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
+                    dgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
+        &CubeTuneId::new(&out_grad.client, &out_grad.device),
         &client,
         tunables,
-        (input, out_grad, weight_shape, options),
+        (out_grad, weights, input_shape, options),
     )
 }
 
 pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
     _key: &CubeAutotuneKey,
-    input: &CubeTensor<R>,
     out_grad: &CubeTensor<R>,
-    weight_shape: &Shape,
+    weights: &CubeTensor<R>,
+    input_shape: &Shape,
     options: &ConvOptions<N>,
 ) -> (CubeTensor<R>, CubeTensor<R>, Shape, ConvOptions<N>) {
     (
-        input.clone(),
         out_grad.clone(),
-        weight_shape.clone(),
+        weights.clone(),
+        input_shape.clone(),
         options.clone(),
     )
 }
 
 fn create_key<R: CubeRuntime, const N: usize>(
-    input: &CubeTensor<R>,
     out_grad: &CubeTensor<R>,
-    weight_shape: &Shape,
+    weights: &CubeTensor<R>,
+    input_shape: &Shape,
     options: &ConvOptions<N>,
 ) -> CubeAutotuneKey {
-    let dtype = input.dtype;
-    let rank = input.shape.num_dims();
+    let dtype = out_grad.dtype;
+    let rank = out_grad.shape.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape[0];
-    let in_channels = input.shape[dim_c];
-    let out_channels = weight_shape.dims[0];
+    let batch_size = out_grad.shape[0];
+    let in_channels = input_shape[dim_c];
+    let out_channels = out_grad.shape[dim_c];
 
-    let kernel_size = weight_shape.dims[1..dim_c].to_vec();
-    let in_shape = input.shape[1..dim_c]
+    let kernel_size = weights.shape[1..dim_c].to_vec();
+    let in_shape = input_shape[1..dim_c]
         .iter()
         .map(|shape| anchor(*shape, None, None, None))
         .collect();
@@ -126,8 +123,8 @@ fn create_key<R: CubeRuntime, const N: usize>(
         0
     };
     let lhs_shape_align = pow2_factor(out_channels).min(lhs_stride_align);
-    let rhs_stride_align = if input.strides[dim_c] == 1 {
-        stride_align(&input.strides, input.dtype.into())
+    let rhs_stride_align = if weights.strides[dim_c] == 1 {
+        stride_align(&weights.strides, weights.dtype.into())
     } else {
         0
     };

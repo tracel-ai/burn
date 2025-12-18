@@ -1085,7 +1085,7 @@ fn test_store_quantized_module_round_trip() {
     let calibration = Calibration::MinMax;
     let mut quantizer = Quantizer {
         calibration,
-        scheme: scheme.clone(),
+        scheme,
     };
     let quantized_linear = linear.quantize_weights(&mut quantizer);
 
@@ -1148,7 +1148,7 @@ fn test_store_quantized_module_block_level() {
     let calibration = Calibration::MinMax;
     let mut quantizer = Quantizer {
         calibration,
-        scheme: scheme.clone(),
+        scheme,
     };
     let quantized_linear = linear.quantize_weights(&mut quantizer);
 
