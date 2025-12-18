@@ -11,7 +11,7 @@ use crate::metric::processor::{
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
-use crate::multi::MultiDeviceLearningStrategyV2;
+use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDevicetrainingStrategy;
 use crate::{
@@ -200,12 +200,12 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics<Me: MetricRegistrationV2<SC>>(self, metrics: Me) -> Self {
+    pub fn metrics<Me: MetricRegistration<SC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics_text<Me: TextMetricRegistrationV2<SC>>(self, metrics: Me) -> Self {
+    pub fn metrics_text<Me: TextMetricRegistration<SC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
@@ -360,7 +360,7 @@ pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
     pub interrupter: Interrupter,
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// An [EventProcessor](LearnerComponentTypesV2::EventProcessor) that processes events happening during training and validation.
+    /// An [EventProcessor](LearnerComponentTypes::EventProcessor) that processes events happening during training and validation.
     pub event_processor: <SC::PC as ParadigmComponentsTypes>::EventProcessor,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
@@ -437,7 +437,7 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC
                 components,
             ),
             TrainingStrategy::MultiDevice(devices, multi_device_optim) => {
-                let multi_device = MultiDeviceLearningStrategyV2::new(devices, multi_device_optim);
+                let multi_device = MultiDeviceLearningStrategy::new(devices, multi_device_optim);
                 multi_device.train(
                     learner,
                     self.dataloader_train,
@@ -462,20 +462,20 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC
 }
 
 /// Trait to fake variadic generics.
-pub trait MetricRegistrationV2<SC: SupervisedLearningComponentsTypes>: Sized {
+pub trait MetricRegistration<SC: SupervisedLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: SupervisedTraining<SC>) -> SupervisedTraining<SC>;
 }
 
 /// Trait to fake variadic generics.
-pub trait TextMetricRegistrationV2<SC: SupervisedLearningComponentsTypes>: Sized {
+pub trait TextMetricRegistration<SC: SupervisedLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: SupervisedTraining<SC>) -> SupervisedTraining<SC>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* SC: SupervisedLearningComponentsTypes> TextMetricRegistrationV2<SC> for ($($M,)*)
+        impl<$($M,)* SC: SupervisedLearningComponentsTypes> TextMetricRegistration<SC> for ($($M,)*)
         where
             $(<OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $(<OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
@@ -493,7 +493,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* SC: SupervisedLearningComponentsTypes> MetricRegistrationV2<SC> for ($($M,)*)
+        impl<$($M,)* SC: SupervisedLearningComponentsTypes> MetricRegistration<SC> for ($($M,)*)
         where
             $(<OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $(<OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*

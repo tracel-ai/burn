@@ -14,7 +14,7 @@ use crate::{
 type LearnerDevice<LC> = <<LC as LearningComponentsTypes>::Backend as Backend>::Device;
 
 /// A reference to an implementation of SupervisedLearningStrategy.
-pub type CustomLearningStrategyV2<SC> = Arc<dyn SupervisedLearningStrategy<SC>>;
+pub type CustomLearningStrategy<SC> = Arc<dyn SupervisedLearningStrategy<SC>>;
 
 #[derive(Clone, Copy, Debug)]
 /// Determine how the optimization is performed when training with multiple devices.
@@ -34,7 +34,7 @@ pub enum TrainingStrategy<SC: SupervisedLearningComponentsTypes> {
     /// done on an elected master device.
     MultiDevice(Vec<LearnerDevice<SC::LC>>, MultiDeviceOptim),
     /// Training using a custom learning strategy
-    Custom(CustomLearningStrategyV2<SC>),
+    Custom(CustomLearningStrategy<SC>),
     /// Training with input distributed across devices, each device has its own copy of the model.
     /// Collective ops are used to sync the gradients after each pass.
     #[cfg(feature = "ddp")]

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use burn_collective::CollectiveConfig;
 use burn_core::tensor::Device;
 
-use crate::ddp::worker::DdpWorkerV2;
+use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, SupervisedLearningComponentsTypes,
@@ -73,7 +73,7 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
 
         // Start worker for main device
         // First training dataloader corresponds to main device
-        let main_handle = DdpWorkerV2::<SC>::start(
+        let main_handle = DdpWorker::<SC>::start(
             0.into(),
             main_device,
             learner.clone(),
@@ -92,7 +92,7 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
         let mut peer_id = 1;
         let mut secondary_workers = vec![];
         for device in &self.devices[1..] {
-            let handle = DdpWorkerV2::<SC>::start(
+            let handle = DdpWorker::<SC>::start(
                 peer_id.into(),
                 device.clone(),
                 learner.clone(),

@@ -16,20 +16,20 @@ use crate::{
 
 /// A validation epoch.
 #[derive(new)]
-pub struct DdpValidEpochV2<SC: SupervisedLearningComponentsTypes> {
+pub struct DdpValidEpoch<SC: SupervisedLearningComponentsTypes> {
     dataloader: ValidLoader<SC::LC, SC::LD>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct DdpTrainEpochV2<SC: SupervisedLearningComponentsTypes> {
+pub struct DdpTrainEpoch<SC: SupervisedLearningComponentsTypes> {
     dataloader: TrainLoader<SC::LC, SC::LD>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> DdpValidEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> DdpValidEpoch<SC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -67,7 +67,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpValidEpochV2<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
     /// Runs the training epoch.
     ///
     /// # Arguments

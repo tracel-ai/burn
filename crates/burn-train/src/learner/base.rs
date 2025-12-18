@@ -38,7 +38,7 @@ where
     fn run(self, learner: Learner<LC>) -> TrainingResult<LC::InnerModel>;
 }
 
-/// LearnerV2 struct encapsulating all components necessary to train a Neural Network model.
+/// Learner struct encapsulating all components necessary to train a Neural Network model.
 #[derive(Clone)]
 pub struct Learner<LC: LearningComponentsTypes> {
     /// The neural network model.

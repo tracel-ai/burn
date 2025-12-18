@@ -1,8 +1,8 @@
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, SupervisedLearningStrategy,
-    TrainBackend, TrainingComponents,
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
+    SupervisedLearningStrategy, TrainBackend, TrainingComponents,
     components::{TrainLoader, ValidLoader},
-    single::epoch::{SingleDeviceTrainEpochV2, SingleDeviceValidEpochV2},
+    single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::tensor::Device;
 
@@ -39,13 +39,13 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
         let mut early_stopping = training_components.early_stopping;
         let num_epochs = training_components.num_epochs;
 
-        let epoch_train: SingleDeviceTrainEpochV2<SC> = SingleDeviceTrainEpochV2::new(
+        let epoch_train: SingleDeviceTrainEpoch<SC> = SingleDeviceTrainEpoch::new(
             dataloader_train,
             num_epochs,
             training_components.grad_accumulation,
         );
-        let epoch_valid: SingleDeviceValidEpochV2<SC> =
-            SingleDeviceValidEpochV2::new(dataloader_valid.clone(), num_epochs);
+        let epoch_valid: SingleDeviceValidEpoch<SC> =
+            SingleDeviceValidEpoch::new(dataloader_valid.clone(), num_epochs);
 
         for epoch in starting_epoch..training_components.num_epochs + 1 {
             epoch_train.run(

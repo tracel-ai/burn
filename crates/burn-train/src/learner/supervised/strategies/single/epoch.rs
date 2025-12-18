@@ -9,20 +9,20 @@ use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct SingleDeviceValidEpochV2<SC: SupervisedLearningComponentsTypes> {
+pub struct SingleDeviceValidEpoch<SC: SupervisedLearningComponentsTypes> {
     dataloader: ValidLoader<SC::LC, SC::LD>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct SingleDeviceTrainEpochV2<SC: SupervisedLearningComponentsTypes> {
+pub struct SingleDeviceTrainEpoch<SC: SupervisedLearningComponentsTypes> {
     dataloader: TrainLoader<SC::LC, SC::LD>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpoch<SC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -60,7 +60,7 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpochV2<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
     /// Runs the training epoch.
     ///
     /// # Arguments

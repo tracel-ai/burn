@@ -2,23 +2,23 @@ use crate::{
     Learner, MultiDeviceOptim, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
     SupervisedLearningStrategy, TrainBackend, TrainingComponents,
     components::{TrainLoader, ValidLoader},
-    multi::epoch::MultiDeviceTrainEpochV2,
-    single::epoch::SingleDeviceValidEpochV2,
+    multi::epoch::MultiDeviceTrainEpoch,
+    single::epoch::SingleDeviceValidEpoch,
 };
 use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
 
-pub struct MultiDeviceLearningStrategyV2<SC: SupervisedLearningComponentsTypes> {
+pub struct MultiDeviceLearningStrategy<SC: SupervisedLearningComponentsTypes> {
     devices: Vec<Device<TrainBackend<SC::LC>>>,
     optim: MultiDeviceOptim,
 }
-impl<SC: SupervisedLearningComponentsTypes> MultiDeviceLearningStrategyV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> MultiDeviceLearningStrategy<SC> {
     pub fn new(devices: Vec<Device<TrainBackend<SC::LC>>>, optim: MultiDeviceOptim) -> Self {
         Self { devices, optim }
     }
 }
 
 impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
-    for MultiDeviceLearningStrategyV2<SC>
+    for MultiDeviceLearningStrategy<SC>
 {
     fn fit(
         &self,
@@ -45,13 +45,13 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
         let mut early_stopping = training_components.early_stopping;
         let num_epochs = training_components.num_epochs;
 
-        let epoch_train: MultiDeviceTrainEpochV2<SC> = MultiDeviceTrainEpochV2::new(
+        let epoch_train: MultiDeviceTrainEpoch<SC> = MultiDeviceTrainEpoch::new(
             dataloader_train.clone(),
             num_epochs,
             training_components.grad_accumulation,
         );
-        let epoch_valid: SingleDeviceValidEpochV2<SC> =
-            SingleDeviceValidEpochV2::new(dataloader_valid.clone(), num_epochs);
+        let epoch_valid: SingleDeviceValidEpoch<SC> =
+            SingleDeviceValidEpoch::new(dataloader_valid.clone(), num_epochs);
 
         for epoch in starting_epoch..training_components.num_epochs + 1 {
             epoch_train.run(

@@ -1,7 +1,7 @@
 use crate::learner::base::Interrupter;
 use crate::learner::train_val::TrainStep;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::train::MultiDevicesTrainStepV2;
+use crate::train::MultiDevicesTrainStep;
 use crate::{
     Learner, LearningComponentsTypes, MultiDeviceOptim, ParadigmComponentsTypes,
     SupervisedLearningComponentsTypes, TrainBackend, TrainLoader,
@@ -15,13 +15,13 @@ use std::collections::HashMap;
 
 /// A training epoch.
 #[derive(new)]
-pub struct MultiDeviceTrainEpochV2<SC: SupervisedLearningComponentsTypes> {
+pub struct MultiDeviceTrainEpoch<SC: SupervisedLearningComponentsTypes> {
     dataloaders: Vec<TrainLoader<SC::LC, SC::LD>>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpochV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpoch<SC> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -79,7 +79,7 @@ impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpochV2<SC> {
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
-        let step = MultiDevicesTrainStepV2::<SC>::new(&devices);
+        let step = MultiDevicesTrainStep::<SC>::new(&devices);
 
         // The main device is always the first in the list.
         let device_main = devices.first().expect("A minimum of one device.").clone();
@@ -168,7 +168,7 @@ impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpochV2<SC> {
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
-        let step = MultiDevicesTrainStepV2::<SC>::new(&devices);
+        let step = MultiDevicesTrainStep::<SC>::new(&devices);
 
         let mut model = learner.model.clone();
         let mut optim = learner.optim.clone();

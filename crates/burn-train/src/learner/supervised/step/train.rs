@@ -1,5 +1,6 @@
 use crate::{
-    InputTrain, OutputTrain, SupervisedLearningComponentsTypes, TrainBackend, TrainOutput, TrainStep,
+    InputTrain, OutputTrain, SupervisedLearningComponentsTypes, TrainBackend, TrainOutput,
+    TrainStep,
 };
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
@@ -11,7 +12,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
-pub struct MultiDevicesTrainStepV2<SC: SupervisedLearningComponentsTypes> {
+pub struct MultiDevicesTrainStep<SC: SupervisedLearningComponentsTypes> {
     workers: Vec<Worker<SC>>,
     receiver: Receiver<MultiTrainOutput<OutputTrain<SC::LD>>>,
 }
@@ -73,7 +74,7 @@ pub struct MultiTrainOutput<TO> {
     pub device: DeviceId,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> MultiDevicesTrainStepV2<SC> {
+impl<SC: SupervisedLearningComponentsTypes> MultiDevicesTrainStep<SC> {
     /// Create a new multi devices train step.
     ///
     /// # Arguments
