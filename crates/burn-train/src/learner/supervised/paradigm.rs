@@ -430,7 +430,7 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC
                     components,
                 )
             }
-            TrainingStrategy::CustomSingleDevice(learning_paradigm) => learning_paradigm.train(
+            TrainingStrategy::Custom(learning_paradigm) => learning_paradigm.train(
                 learner,
                 self.dataloader_train,
                 self.dataloader_valid,

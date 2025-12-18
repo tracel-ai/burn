@@ -1,11 +1,10 @@
 use crate::learner::base::Interrupter;
-use crate::learner::train_val::LearningModel;
+use crate::learner::train_val::TrainStep;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::multi::MultiDeviceOptim;
 use crate::train::MultiDevicesTrainStepV2;
 use crate::{
-    Learner, LearningComponentsTypes, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
-    TrainBackend, TrainLoader,
+    Learner, LearningComponentsTypes, MultiDeviceOptim, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, TrainBackend, TrainLoader,
 };
 use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;

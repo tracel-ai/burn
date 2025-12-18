@@ -1,8 +1,9 @@
 use crate::components::{TrainLoader, ValidLoader};
 use crate::learner::base::Interrupter;
-use crate::learner::train_val::LearningModel;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::{Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainStep, ValidStep};
+use crate::{
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainStep, ValidStep,
+};
 use burn_core::module::AutodiffModule;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 

@@ -1,20 +1,11 @@
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
+    Learner, MultiDeviceOptim, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
     SupervisedLearningStrategy, TrainBackend, TrainingComponents,
     components::{TrainLoader, ValidLoader},
     multi::epoch::MultiDeviceTrainEpochV2,
     single::epoch::SingleDeviceValidEpochV2,
 };
 use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
-
-#[derive(Clone, Copy, Debug)]
-/// Determine how the optimization is performed when training with multiple devices.
-pub enum MultiDeviceOptim {
-    /// The optimization is done on an elected device.
-    OptimMainDevice,
-    /// The optimization is sharded across all devices.
-    OptimSharded,
-}
 
 pub struct MultiDeviceLearningStrategyV2<SC: SupervisedLearningComponentsTypes> {
     devices: Vec<Device<TrainBackend<SC::LC>>>,

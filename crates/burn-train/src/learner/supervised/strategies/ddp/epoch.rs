@@ -1,4 +1,3 @@
-use crate::learner::train_val::LearningModel;
 use burn_collective::{PeerId, ReduceOperation};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;

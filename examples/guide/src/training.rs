@@ -2,7 +2,7 @@ use crate::{
     data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
-use burn::train::{LearningParadigm, TrainingResult};
+use burn::train::LearningParadigm;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     nn::loss::CrossEntropyLossConfig,
@@ -89,18 +89,18 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .with_file_checkpointer(CompactRecorder::new())
+        .num_epochs(config.num_epochs)
+        .summary();
+
     let model = config.model.init::<B>(&device);
-    let result: TrainingResult<Model<B>> =
-        SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
-            .metrics((AccuracyMetric::new(), LossMetric::new()))
-            .with_file_checkpointer(CompactRecorder::new())
-            .num_epochs(config.num_epochs)
-            .summary()
-            .run(Learner {
-                model,
-                optim: config.optimizer.init(),
-                lr_scheduler: config.learning_rate,
-            });
+    let result = training.run(Learner::new(
+        model,
+        config.optimizer.init(),
+        config.learning_rate,
+    ));
 
     result
         .model

@@ -1,6 +1,4 @@
-use crate::{
-    EventProcessorTraining, LearningModel, checkpoint::CheckpointingStrategy, metric::ItemLazy,
-};
+use crate::{EventProcessorTraining, checkpoint::CheckpointingStrategy, metric::ItemLazy};
 use burn_core::{
     data::dataloader::DataLoader, module::AutodiffModule, tensor::backend::AutodiffBackend,
 };
@@ -15,7 +13,6 @@ pub trait LearningComponentsTypes: Clone {
     type LrScheduler: LrScheduler + 'static;
     /// The model that learns.
     type Model: AutodiffModule<Self::Backend, InnerModule = Self::InnerModel>
-        + LearningModel
         + core::fmt::Display
         + 'static;
     /// The non-autodiff type of the model.
@@ -37,7 +34,7 @@ impl<B, LR, M, O> LearningComponentsTypes for LearningComponentsMarker<B, LR, M,
 where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: AutodiffModule<B> + LearningModel + core::fmt::Display + 'static,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B> + 'static,
 {
     type Backend = B;

@@ -4,8 +4,8 @@ use burn_core::module::AutodiffModule;
 
 use crate::{
     AsyncProcessorTraining, FullEventProcessorTraining, InputTrain, InputValid,
-    LearningComponentsTypes, LearningData, LearningModel, OutputTrain, OutputValid,
-    ParadigmComponentsTypes, TrainBackend, TrainStep, ValidStep, checkpoint::CheckpointingStrategy,
+    LearningComponentsTypes, LearningData, OutputTrain, OutputValid, ParadigmComponentsTypes,
+    TrainBackend, TrainStep, ValidStep, checkpoint::CheckpointingStrategy,
 };
 
 /// All components used by the supervised learning paradigm, grouped in one trait.
@@ -25,7 +25,6 @@ pub trait SupervisedLearningComponentsTypes {
     /// The model to train. For supervised learning, should implement [TrainStep](crate::TrainStep).
     type Model: TrainStep<InputTrain<Self::LD>, OutputTrain<Self::LD>>
         + AutodiffModule<TrainBackend<Self::LC>, InnerModule = Self::InnerModel>
-        + LearningModel
         + core::fmt::Display
         + 'static;
     /// The non-autodiff type of the model. For supervised learning, should implement [ValidStep](crate::TrainStep).
@@ -56,7 +55,6 @@ where
     LD: LearningData,
     M: TrainStep<InputTrain<LD>, OutputTrain<LD>>
         + AutodiffModule<TrainBackend<LC>>
-        + LearningModel
         + core::fmt::Display
         + 'static,
     M::InnerModule: ValidStep<InputValid<LD>, OutputValid<LD>>,

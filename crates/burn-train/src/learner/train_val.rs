@@ -58,20 +58,6 @@ pub trait TrainStep<TI, TO> {
     ///
     /// The training output containing the model output and the gradients.
     fn step(&self, item: TI) -> TrainOutput<TO>;
-}
-
-/// Trait to be implemented for training a model.
-///
-/// The [optimize](TrainStep::optimize) method can be overridden if you want to control how the
-/// optimizer is used to update the model. This can be useful if you want to call custom mutable
-/// functions on your model (e.g., clipping the weights) before or after the optimizer is used.
-///
-/// # Notes
-///
-/// To be used with the [Learner](Learner) struct, the struct which implements this trait must
-/// also implement the [AutodiffModule] trait, which is done automatically with the
-/// [Module](burn_core::module::Module) derive.
-pub trait LearningModel {
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments

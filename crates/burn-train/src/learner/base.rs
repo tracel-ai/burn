@@ -4,7 +4,7 @@ use crate::checkpoint::{
 };
 use crate::components::{LearningComponentsTypes, TrainBackend};
 use crate::metric::store::EventStoreClient;
-use crate::{LearningComponentsMarker, LearningModel, ParadigmComponentsTypes, TrainingResult};
+use crate::{LearningComponentsMarker, ParadigmComponentsTypes, TrainingResult};
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
@@ -53,7 +53,7 @@ impl<B, LR, M, O> Learner<LearningComponentsMarker<B, LR, M, O>>
 where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: AutodiffModule<B> + LearningModel + core::fmt::Display + 'static,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B> + 'static,
 {
     /// Create a learner.

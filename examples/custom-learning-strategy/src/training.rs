@@ -1,4 +1,5 @@
 use crate::model::ModelConfig;
+use burn::record::NoStdTrainingRecorder;
 use burn::train::{
     EventProcessorTraining, Learner, LearningParadigm, ParadigmComponentsTypes,
     SupervisedLearningComponentsTypes, SupervisedLearningStrategy, SupervisedTraining,
@@ -34,7 +35,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
-    #[config(default = 2)]
+    #[config(default = 5)]
     pub num_epochs: usize,
     #[config(default = 64)]
     pub batch_size: usize,
@@ -100,7 +101,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .early_stopping(early_stopping)
         .num_epochs(config.num_epochs)
         .summary()
-        .with_training_strategy(burn::train::TrainingStrategy::CustomSingleDevice(Arc::new(
+        .with_training_strategy(burn::train::TrainingStrategy::Custom(Arc::new(
             MyCustomLearningStrategy::new(device),
         )));
 
@@ -110,7 +111,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         lr_scheduler.init().unwrap(),
     ));
 
-    println!("Training finished : {:?}", result.model);
+    result
+        .model
+        .save_file(
+            format!("{ARTIFACT_DIR}/model"),
+            &NoStdTrainingRecorder::new(),
+        )
+        .expect("Failed to save trained model");
 }
 
 struct MyCustomLearningStrategy<SC: SupervisedLearningComponentsTypes> {
