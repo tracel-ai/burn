@@ -26,7 +26,8 @@ use cubecl::{
 use cubek::matmul::{
     components::tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
     definition::{
-        MatmulElemType, MatmulElems, MatmulLineSizes, MatmulProblem, MatmulSetupError, MatrixLayout,
+        MatmulElemType, MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem,
+        MatmulSetupError, MatrixLayout,
     },
     launch::launch_kernel_virtual,
     routines::{
@@ -357,21 +358,21 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
-        let (lhs, rhs, out) = (
-            MatmulElemType {
+        let global_elems = MatmulGlobalElems {
+            lhs: MatmulElemType {
                 dtype: self.matmul.lhs.precision().into_type(),
                 quantized: false,
             },
-            MatmulElemType {
+            rhs: MatmulElemType {
                 dtype: self.matmul.rhs.precision().into_type(),
                 quantized: false,
             },
-            MatmulElemType {
+            out: MatmulElemType {
                 dtype: self.matmul.out.precision().into_type(),
                 quantized: false,
             },
-        );
-        let dtypes = MatmulElems::from_globals(lhs, rhs, out);
+        };
+        let dtypes = MatmulElems::from_globals(&global_elems);
         self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)
     }
 }
@@ -460,6 +461,7 @@ impl FusedMatmulLaunch<'_> {
             lhs_strides,
             rhs_strides,
             out_strides,
+            dtypes.as_global_elems(),
         );
 
         match self.selector {

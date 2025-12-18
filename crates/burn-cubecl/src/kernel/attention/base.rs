@@ -34,7 +34,7 @@ pub fn flash_attention<R: CubeRuntime>(
     };
 
     cubek::attention::launch::launch_ref::<R>(
-        Strategy::Unit(cubek::attention::launch::RoutineStrategy::Inferred(())),
+        Strategy::Unit(cubek::attention::launch::BlueprintStrategy::Inferred(())),
         client,
         &query.as_handle_ref(),
         &key.as_handle_ref(),
