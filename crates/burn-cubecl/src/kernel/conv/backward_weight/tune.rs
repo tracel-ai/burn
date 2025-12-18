@@ -8,7 +8,10 @@ use cubek::convolution::AcceleratedTileKind;
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
-    kernel::conv::{ConvAutotuneKey, fallback::conv_weight_backward_fallback, implicit_gemm::*},
+    kernel::conv::{
+        ConvAutotuneKey,
+        backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+    },
     tensor::CubeTensor,
 };
 

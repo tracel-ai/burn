@@ -246,7 +246,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "f64_tensor",
             DType::F64,
-            vec![1.0f64, 2.0, 3.0, 4.0]
+            [1.0f64, 2.0, 3.0, 4.0]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -255,7 +255,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "f32_tensor",
             DType::F32,
-            vec![1.0f32, 2.0, 3.0, 4.0]
+            [1.0f32, 2.0, 3.0, 4.0]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -264,7 +264,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "f16_tensor",
             DType::F16,
-            vec![f16::from_f32(1.0), f16::from_f32(2.0)]
+            [f16::from_f32(1.0), f16::from_f32(2.0)]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -273,7 +273,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "bf16_tensor",
             DType::BF16,
-            vec![bf16::from_f32(1.0), bf16::from_f32(2.0)]
+            [bf16::from_f32(1.0), bf16::from_f32(2.0)]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -283,7 +283,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "i64_tensor",
             DType::I64,
-            vec![1i64, -2, 3, -4]
+            [1i64, -2, 3, -4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -292,7 +292,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "i32_tensor",
             DType::I32,
-            vec![1i32, -2, 3, -4]
+            [1i32, -2, 3, -4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -301,7 +301,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "i16_tensor",
             DType::I16,
-            vec![1i16, -2, 3, -4]
+            [1i16, -2, 3, -4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -310,7 +310,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "i8_tensor",
             DType::I8,
-            vec![1i8, -2, 3, -4]
+            [1i8, -2, 3, -4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -320,7 +320,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "u64_tensor",
             DType::U64,
-            vec![1u64, 2, 3, 4]
+            [1u64, 2, 3, 4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -329,7 +329,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "u32_tensor",
             DType::U32,
-            vec![1u32, 2, 3, 4]
+            [1u32, 2, 3, 4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
@@ -338,7 +338,7 @@ fn test_writer_all_dtypes_round_trip() {
         (
             "u16_tensor",
             DType::U16,
-            vec![1u16, 2, 3, 4]
+            [1u16, 2, 3, 4]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),

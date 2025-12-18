@@ -1903,7 +1903,12 @@ where
     /// }
     /// ```
     pub fn repeat_dim(self, dim: usize, times: usize) -> Self {
-        Self::new(K::repeat_dim(self.primitive, dim, times))
+        if times > 0 {
+            Self::new(K::repeat_dim(self.primitive, dim, times))
+        } else {
+            let shape = self.shape().repeat(dim, times).unwrap();
+            Self::empty(shape, &self.device())
+        }
     }
 
     /// Repeat the tensor along the given dimensions.
@@ -1937,6 +1942,15 @@ where
     /// }
     /// ```
     pub fn repeat(self, sizes: &[usize]) -> Self {
+        if sizes.contains(&0) {
+            let mut shape = self.shape();
+            for (dim, &times) in sizes.iter().enumerate() {
+                shape = shape.repeat(dim, times).unwrap();
+            }
+
+            return Self::empty(shape, &self.device());
+        }
+
         let mut tensor = self;
         for (dim, &times) in sizes.iter().enumerate() {
             if times > 1 {
