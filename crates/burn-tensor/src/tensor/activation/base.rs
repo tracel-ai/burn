@@ -106,7 +106,7 @@ pub fn prelu<const D: usize, B: Backend>(
         &alpha.shape()
     ));
 
-    let weight = if alpha.dims()[0] == 1 {
+    let weight: Tensor<B, D> = if alpha.dims()[0] == 1 {
         // if there is only 1 weight, then reshape it to (1,1,1... D times) so that the rank is D
         alpha.reshape([1; D])
     } else {
