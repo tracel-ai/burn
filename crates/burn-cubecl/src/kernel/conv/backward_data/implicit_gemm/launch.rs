@@ -6,7 +6,7 @@ use cubek::{
         components::ConvSetupError,
     },
     matmul::{
-        definition::{MatmulElemType, MatmulElems},
+        definition::{MatmulElemType, MatmulElems, MatmulGlobalElems},
         launch::MatmulInputHandleRef,
     },
 };
@@ -106,20 +106,20 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
     );
 
     let client = out_grad.client.clone();
-    let dtypes = MatmulElems::from_globals(
-        MatmulElemType {
+    let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: MatmulElemType {
             dtype: out_grad.dtype.into(),
             quantized: false,
         },
-        MatmulElemType {
+        rhs: MatmulElemType {
             dtype: weights.dtype.into(),
             quantized: false,
         },
-        MatmulElemType {
+        out: MatmulElemType {
             dtype: out_dtype.into(),
             quantized: false,
         },
-    );
+    });
     let out_grad = MatmulInputHandleRef::new(out_grad.as_handle_ref(), out_grad.dtype.into());
     let weights = MatmulInputHandleRef::new(weights.as_handle_ref(), weights.dtype.into());
 
