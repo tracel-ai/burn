@@ -178,7 +178,6 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
         strategy: <SC::PC as ParadigmComponentsTypes>::CheckpointerStrategy,
     ) -> Self
     where
-        // CS: CheckpointingStrategy + 'static,
         <SC::PC as ParadigmComponentsTypes>::CheckpointerStrategy: 'static,
     {
         self.checkpointer_strategy = Box::new(strategy);
