@@ -3075,11 +3075,11 @@ impl MovedimArgs for i32 {
 pub trait ReshapeArgsSource<const R: usize> {}
 
 impl<const R: usize> ReshapeArgsSource<R> for Shape {}
-impl<I, const R: usize> ReshapeArgsSource<R> for [I; R] {}
-impl<I, const R: usize> ReshapeArgsSource<R> for &[I; R] {}
-impl<I, const R: usize> ReshapeArgsSource<R> for &[I] {}
-impl<I, const R: usize> ReshapeArgsSource<R> for Vec<I> {}
-impl<I, const R: usize> ReshapeArgsSource<R> for &Vec<I> {}
+impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for [I; R] {}
+impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for &[I; R] {}
+impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for &[I] {}
+impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for Vec<I> {}
+impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for &Vec<I> {}
 
 /// [`ReshapeArgs`] with an attached rank parameter.
 pub trait ReshapeArgs<const R: usize> {
