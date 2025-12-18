@@ -5,10 +5,13 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainingComponents,
-    TrainingResult,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerSummaryConfig, LearningCheckpointer,
+    ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainingResult,
     components::{LearningComponentsTypes, TrainLoader, ValidLoader},
-    metric::processor::{EventProcessorTraining, LearnerEvent},
+    metric::{
+        processor::{EventProcessorTraining, LearnerEvent},
+        store::EventStoreClient,
+    },
 };
 
 type LearnerDevice<LC> = <<LC as LearningComponentsTypes>::Backend as Backend>::Device;
@@ -61,6 +64,29 @@ impl<SC: SupervisedLearningComponentsTypes> Default for TrainingStrategy<SC> {
     fn default() -> Self {
         Self::SingleDevice(Default::default())
     }
+}
+
+/// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
+/// These components are used during training.
+pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
+    /// The total number of epochs
+    pub num_epochs: usize,
+    /// The epoch number from which to continue the training.
+    pub checkpoint: Option<usize>,
+    /// A checkpointer used to load and save learner checkpoints.
+    pub checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
+    /// Enables gradients accumulation.
+    pub grad_accumulation: Option<usize>,
+    /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
+    pub interrupter: Interrupter,
+    /// Cloneable reference to an early stopping strategy.
+    pub early_stopping: Option<EarlyStoppingStrategyRef>,
+    /// An [EventProcessor](ParadigmComponentsTypes::EventProcessor) that processes events happening during training and validation.
+    pub event_processor: <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+    /// A reference to an [EventStoreClient](EventStoreClient).
+    pub event_store: Arc<EventStoreClient>,
+    /// Config for creating a summary of the learning
+    pub summary: Option<LearnerSummaryConfig>,
 }
 
 /// Provides the `fit` function for any learning strategy

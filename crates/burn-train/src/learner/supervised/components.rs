@@ -10,7 +10,7 @@ use crate::{
 
 /// All components used by the supervised learning paradigm, grouped in one trait.
 pub trait SupervisedLearningComponentsTypes {
-    /// The [ParadigmComponents](ParadigmComponents) types for supervised learning.
+    /// The [ParadigmComponents](ParadigmComponentsTypes) types for supervised learning.
     type PC: ParadigmComponentsTypes<
             CheckpointerStrategy = Box<dyn CheckpointingStrategy>,
             LearningData = Self::LD,
@@ -18,9 +18,9 @@ pub trait SupervisedLearningComponentsTypes {
                 FullEventProcessorTraining<OutputTrain<Self::LD>, OutputValid<Self::LD>>,
             >,
         >;
-    /// The [LearningComponents](crate::LearningComponents) types for supervised learning.
+    /// The [LearningComponents](crate::LearningComponentsTypes) types for supervised learning.
     type LC: LearningComponentsTypes<Model = Self::Model, InnerModel = Self::InnerModel>;
-    /// The [LearningData](crate::LearningComponents) types.
+    /// The [LearningData](crate::LearningData) types.
     type LD: LearningData;
     /// The model to train. For supervised learning, should implement [TrainStep](crate::TrainStep).
     type Model: TrainStep<InputTrain<Self::LD>, OutputTrain<Self::LD>>
@@ -31,7 +31,7 @@ pub trait SupervisedLearningComponentsTypes {
     type InnerModel: ValidStep<InputValid<Self::LD>, OutputValid<Self::LD>>;
 }
 
-/// Concrete type that implements the [SupervisedLearningComponents](SupervisedLearningComponents) trait.
+/// Concrete type that implements the [SupervisedLearningComponentsTypes](SupervisedLearningComponentsTypes) trait.
 pub struct SupervisedLearningComponentsMarker<PC, LC, LD, M, O, S> {
     _paradigm_components: PhantomData<PC>,
     _learner_components: PhantomData<LC>,

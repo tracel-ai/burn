@@ -19,7 +19,7 @@ use crate::{
     LearnerSummaryConfig, LearningCheckpointer, LearningComponentsTypes, LearningDataMarker,
     LearningParadigm, ParadigmComponentsMarker, ParadigmComponentsTypes,
     SupervisedLearningComponentsMarker, SupervisedLearningComponentsTypes, TrainBackend, TrainStep,
-    TrainingResult, TrainingStrategy, ValidStep,
+    TrainingComponents, TrainingResult, TrainingStrategy, ValidStep,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::module::Module;
@@ -307,7 +307,7 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     }
 
     /// Register a checkpointer that will save the [optimizer](Optimizer), the
-    /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
+    /// [model](Module) and the [scheduler](LrScheduler) to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder<<SC::LC as LearningComponentsTypes>::Backend> + 'static,
@@ -338,29 +338,6 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
         self.summary = true;
         self
     }
-}
-
-/// Struct to minimise parameters passed to [LearningParadigm::learn].
-/// These components are used during training.
-pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
-    /// The total number of epochs
-    pub num_epochs: usize,
-    /// The epoch number from which to continue the training.
-    pub checkpoint: Option<usize>,
-    /// A checkpointer used to load and save learner checkpoints.
-    pub checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
-    /// Enables gradients accumulation.
-    pub grad_accumulation: Option<usize>,
-    /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
-    pub interrupter: Interrupter,
-    /// Cloneable reference to an early stopping strategy.
-    pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// An [EventProcessor](LearnerComponentTypes::EventProcessor) that processes events happening during training and validation.
-    pub event_processor: <SC::PC as ParadigmComponentsTypes>::EventProcessor,
-    /// A reference to an [EventStoreClient](EventStoreClient).
-    pub event_store: Arc<EventStoreClient>,
-    /// Config for creating a summary of the learning
-    pub summary: Option<LearnerSummaryConfig>,
 }
 
 impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC::LC>
@@ -418,7 +395,6 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC
                 let single_device: SingleDevicetrainingStrategy<SC> =
                     SingleDevicetrainingStrategy::new(device);
                 single_device.train(
-                    // self.learner,
                     learner,
                     self.dataloader_train,
                     self.dataloader_valid,

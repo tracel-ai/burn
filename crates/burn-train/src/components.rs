@@ -22,7 +22,7 @@ pub trait LearningComponentsTypes: Clone {
 }
 
 #[derive(Clone)]
-/// Concrete type that implements the [LearningComponents](LearningComponents) trait.
+/// Concrete type that implements the [LearningComponentsTypes](LearningComponentsTypes) trait.
 pub struct LearningComponentsMarker<B, LR, M, O> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
@@ -107,7 +107,7 @@ pub trait ParadigmComponentsTypes {
     type CheckpointerStrategy: CheckpointingStrategy;
 }
 
-/// Concrete type that implements the [ParadigmComponents](ParadigmComponents) trait.
+/// Concrete type that implements the [ParadigmComponentsTypes](ParadigmComponentsTypes) trait.
 pub struct ParadigmComponentsMarker<LD, EP, CS> {
     _learning_data: PhantomData<LD>,
     _event_processor: PhantomData<EP>,

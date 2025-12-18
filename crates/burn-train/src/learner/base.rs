@@ -67,12 +67,12 @@ where
 }
 
 impl<LC: LearningComponentsTypes> Learner<LC> {
-    /// Load the module state from a [record](LearningModelRecord<LC>).
+    /// Load the module state from a [record](LearnerModelRecord<LC>).
     pub fn load_model_record(&mut self, record: LearnerModelRecord<LC>) {
         self.model = self.model.clone().load_record(record);
     }
 
-    /// Load the state of the learner's optimizer as a [record](OptimizerRecordTrain<LC>).
+    /// Load the state of the learner's optimizer as a [record](LearnerOptimizerRecord<LC>).
     pub fn load_optim_record(&mut self, record: LearnerOptimizerRecord<LC>) {
         self.optim = self.optim.clone().load_record(record);
     }
@@ -96,13 +96,9 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
 #[derive(new)]
 /// Used to create, delete, or load checkpoints of the training process.
 pub struct LearningCheckpointer<LC: LearningComponentsTypes, PC: ParadigmComponentsTypes> {
-    model: AsyncCheckpointer<<LC::Model as Module<LC::Backend>>::Record, LC::Backend>,
-    optim: AsyncCheckpointer<
-        <LC::Optimizer as Optimizer<LC::Model, LC::Backend>>::Record,
-        LC::Backend,
-    >,
-    lr_scheduler:
-        AsyncCheckpointer<<LC::LrScheduler as LrScheduler>::Record<LC::Backend>, LC::Backend>,
+    model: AsyncCheckpointer<LearnerModelRecord<LC>, LC::Backend>,
+    optim: AsyncCheckpointer<LearnerOptimizerRecord<LC>, LC::Backend>,
+    lr_scheduler: AsyncCheckpointer<LearnerSchedulerRecord<LC>, LC::Backend>,
     strategy: PC::CheckpointerStrategy,
 }
 
