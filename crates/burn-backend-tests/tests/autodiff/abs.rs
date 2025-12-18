@@ -55,5 +55,5 @@ fn should_diff_abs_no_nans() {
         .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
     let contains_nan = grad_2.contains_nan();
-    assert_eq!(contains_nan.into_scalar().to_bool(), false);
+    assert!(!contains_nan.into_scalar().to_bool());
 }

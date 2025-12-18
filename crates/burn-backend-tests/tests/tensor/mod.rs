@@ -1,5 +1,7 @@
 pub use super::*; // re-export test types
 
+extern crate alloc;
+
 mod clone_invariance;
 mod grid;
 mod linalg;

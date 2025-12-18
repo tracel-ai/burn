@@ -1,7 +1,4 @@
 // Re-export
-pub use burn_autodiff::Autodiff;
-pub use burn_tensor::Tensor;
-
 use super::FloatElemType;
 
 // Default
@@ -32,7 +29,10 @@ pub type TestBackend = burn_router::BackendRouter<
 >;
 
 #[allow(unused)]
-mod types {
+pub mod types {
+    pub use burn_autodiff::Autodiff;
+    pub use burn_tensor::Tensor;
+
     use super::*;
     pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
@@ -44,4 +44,5 @@ mod types {
     pub type TestAutodiffBackend = Autodiff<TestBackend>;
     pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
 }
+#[allow(unused)]
 pub use types::*;
