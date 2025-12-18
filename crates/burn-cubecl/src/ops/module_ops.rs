@@ -1,10 +1,7 @@
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
-    kernel::{
-        self,
-        conv::{ConvStrategy, ConvTranspose2dStrategy},
-    },
+    kernel::{self, conv::ConvTranspose2dStrategy},
 };
 use burn_backend::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
@@ -26,6 +23,16 @@ where
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
         kernel::conv::conv_forward::<R, 1>(x, weight, bias, options, Default::default()).unwrap()
+    }
+
+    fn conv1d_x_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::conv_data_backward(output_grad, weight, x.shape, options, Default::default())
+            .unwrap()
     }
 
     fn conv1d_weight_backward(
@@ -59,14 +66,8 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_data_backward(
-            output_grad,
-            weight,
-            x.shape,
-            options,
-            ConvStrategy::ImplicitGemm,
-        )
-        .unwrap()
+        kernel::conv::conv_data_backward(output_grad, weight, x.shape, options, Default::default())
+            .unwrap()
     }
 
     fn conv2d_weight_backward(
@@ -125,6 +126,16 @@ where
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
         kernel::conv::conv_forward::<R, 3>(x, weight, bias, options, Default::default()).unwrap()
+    }
+
+    fn conv3d_x_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::conv_data_backward(output_grad, weight, x.shape, options, Default::default())
+            .unwrap()
     }
 
     fn conv3d_weight_backward(

@@ -26,6 +26,9 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
+    // Note: TMA isn't currently implemented properly, and will always error.
+    // It's kept here so it gets automatically enabled as soon as cubek updates.
+    // No CMMA for TMA because swizzling will be mandatory for good performance on dgrad.
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
             .with(Tunable::new(
@@ -54,12 +57,6 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
                 "simple_async_mma",
                 |input, grad, shape, options| {
                     dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_cmma",
-                |input, grad, shape, options| {
-                    dgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(

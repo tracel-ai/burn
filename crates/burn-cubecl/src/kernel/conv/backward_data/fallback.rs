@@ -73,9 +73,13 @@ pub(crate) fn conv_data_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
             None,
             ConvTransposeOptions::new(
                 [options.stride[0], options.stride[1], options.stride[2]],
-                [options.padding[0], options.padding[1], options.stride[2]],
+                [options.padding[0], options.padding[1], options.padding[2]],
                 [padding_out[0], padding_out[1], padding_out[2]],
-                [options.dilation[0], options.dilation[1], options.stride[2]],
+                [
+                    options.dilation[0],
+                    options.dilation[1],
+                    options.dilation[2],
+                ],
                 options.groups,
             ),
         )

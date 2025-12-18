@@ -99,7 +99,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
     input_shape: Shape,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    if options.groups != 1 {
+    if options.groups != 1 || options.stride.iter().any(|&s| s != 1) {
         return Err(ConvSetupError::Groups(options.groups));
     }
 
