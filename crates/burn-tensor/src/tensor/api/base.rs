@@ -22,6 +22,7 @@ use crate::{
 };
 use crate::{DType, Element};
 use crate::{cast::ToElement, check::TensorCheck};
+use burn_std::tensor::index_conversion::RankedReshapeArgs;
 use serde::{Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
@@ -367,9 +368,9 @@ where
     ///    println!("{reshaped}");
     /// }
     /// ```
-    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn reshape<const D2: usize, S: RankedReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
         // Convert reshape args to shape
-        let shape = shape.into_tensor_shape(&self);
+        let shape = shape.eval_shape::<D>(self.shape());
         Tensor::new(K::reshape(self.primitive, shape))
     }
 
@@ -3068,38 +3069,6 @@ impl MovedimArgs for i32 {
         set.push(dim);
 
         set
-    }
-}
-
-/// Marker trait for sources of reshape arguments.
-pub trait ReshapeArgsSource<const R: usize> {}
-
-impl<const R: usize> ReshapeArgsSource<R> for Shape {}
-impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for [I; R] {}
-impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for &[I; R] {}
-impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for &[I] {}
-impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for Vec<I> {}
-impl<I: AsIndex, const R: usize> ReshapeArgsSource<R> for &Vec<I> {}
-
-/// [`ReshapeArgs`] with an attached rank parameter.
-pub trait ReshapeArgs<const R: usize> {
-    /// Evaluates the reshape args, against the target tensor source shape.
-    fn into_tensor_shape<B: Backend, const R1: usize, K: BasicOps<B>>(
-        self,
-        source: &Tensor<B, R1, K>,
-    ) -> Shape;
-}
-
-impl<const R: usize, T> ReshapeArgs<R> for T
-where
-    T: ReshapeArgsSource<R> + IntoIterator,
-    T::Item: AsIndex,
-{
-    fn into_tensor_shape<B: Backend, const R1: usize, K: BasicOps<B>>(
-        self,
-        source: &Tensor<B, R1, K>,
-    ) -> Shape {
-        source.shape().reshape(self).expect("invalid reshape")
     }
 }
 

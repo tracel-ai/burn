@@ -4,6 +4,7 @@
 //! various indexing operations.
 
 use super::indexing::IndexWrap;
+use crate::Shape;
 use core::fmt::Debug;
 
 /// Types which can be converted to a `usize` Size.
@@ -85,6 +86,48 @@ macro_rules! gen_as_index {
 }
 
 gen_as_index!(usize, isize, i64, u64, i32, u32, i16, u16, i8, u8);
+
+/// Marker trait for sources of reshape arguments.
+pub trait RankedReshapeArgsSource<const R: usize> {}
+
+impl<const R: usize> RankedReshapeArgsSource<R> for Shape {}
+
+impl<I: AsIndex, const R: usize> RankedReshapeArgsSource<R> for [I; R] {}
+
+impl<I: AsIndex, const R: usize> RankedReshapeArgsSource<R> for &[I; R] {}
+
+impl<I: AsIndex, const R: usize> RankedReshapeArgsSource<R> for &[I] {}
+
+impl<I: AsIndex, const R: usize> RankedReshapeArgsSource<R> for Vec<I> {}
+
+impl<I: AsIndex, const R: usize> RankedReshapeArgsSource<R> for &Vec<I> {}
+
+/// Trait for building ranked reshape methods.
+///
+/// # Example
+/// ```rust,ignore
+/// impl<const R: usize> Tensor<R> {
+///   pub fn reshape<const R2: usize, S: RankedReshapeArgs<R2>>(self, shape: S) -> Tensor<R2> {
+///       // Convert reshape args to shape
+///       let shape = shape.eval_shape::<R>(self.shape());
+///       Tensor::new(K::reshape(self.primitive, shape))
+///   }
+/// }
+/// ```
+pub trait RankedReshapeArgs<const TARGET_RANK: usize> {
+    /// Evaluates the reshape args, against the source [`Shape`].
+    fn eval_shape<const SOURCE_RANK: usize>(self, source: Shape) -> Shape;
+}
+
+impl<const TARGET_RANK: usize, T> RankedReshapeArgs<TARGET_RANK> for T
+where
+    T: RankedReshapeArgsSource<TARGET_RANK> + IntoIterator,
+    T::Item: AsIndex,
+{
+    fn eval_shape<const SOURCE_RANK: usize>(self, source: Shape) -> Shape {
+        source.reshape(self).expect("invalid reshape")
+    }
+}
 
 #[cfg(test)]
 mod tests {
