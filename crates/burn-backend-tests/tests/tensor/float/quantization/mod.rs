@@ -5,7 +5,6 @@ mod data;
 mod ops;
 mod scheme;
 
-#[cfg(feature = "quantization")]
 /// Quantized tensor utilities
 pub mod qtensor {
     use core::marker::PhantomData;

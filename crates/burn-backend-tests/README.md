@@ -2,9 +2,9 @@
 
 This crate provides a comprehensive suite of tests for Burn backends, covering:
 
-- Tensor operations: [src/tensor/](./src/tensor/)
-- Autodiff: [src/autodiff/](./src/autodiff/)
-- (Optional) CubeCL kernels correctness: [src/cubecl/](./src/cubecl/)
+- Tensor operations: [tests/tensor/](./tests/tensor/)
+- Autodiff: [tests/autodiff/](./tests/autodiff/)
+- (Optional) CubeCL kernels correctness: [tests/cubecl/](./tests/cubecl/)
 
 Additional configuration:
 

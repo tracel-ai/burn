@@ -1,19 +1,10 @@
-#![allow(
-    clippy::single_range_in_vec_init,
-    clippy::duplicate_mod,
-    reason = "false positive"
-)]
-
 /// Burn autodiff tests, reusable with element types.
 pub use super::*;
 
-mod backend;
-pub use backend::*;
-
 #[path = "../autodiff/mod.rs"]
-mod autodiff;
+mod base;
 
-mod autodiff_checkpointing {
+mod checkpointing {
     pub use super::*;
     use burn_autodiff::checkpoint::strategy::BalancedCheckpointing;
 
@@ -22,4 +13,21 @@ mod autodiff_checkpointing {
     pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
 
     include!("../autodiff/mod.rs");
+}
+
+#[cfg(any(
+    feature = "vulkan",
+    // feature = "cuda", // TODO
+    // feature = "rocm",
+    feature = "metal"
+))]
+mod f16 {
+    pub type FloatElemType = burn_tensor::f16;
+    #[allow(unused)]
+    pub use super::IntElemType;
+
+    mod ty {
+        include!("backend.rs");
+        include!("../autodiff/mod.rs");
+    }
 }
