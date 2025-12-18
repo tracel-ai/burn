@@ -2,6 +2,8 @@
 
 use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
+use alloc::format;
+use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -13,6 +15,7 @@ use core::{
 };
 use serde::{Deserialize, Serialize};
 
+pub use crate::errors::ExpressionError;
 pub use crate::tensor::index_conversion::AsSize;
 
 /// Shape of a tensor.
@@ -457,14 +460,73 @@ impl Shape {
     }
 
     /// Reshape this shape to the target shape.
-    pub fn reshape(&self, target: Shape) -> Result<Shape, ShapeError> {
-        if self.num_elements() != target.num_elements() {
-            return Err(ShapeError::IncompatibleShapes {
-                left: self.clone(),
-                right: target,
-            });
+    pub fn reshape<T>(&self, args: T) -> Result<Shape, ExpressionError>
+    where
+        T: IntoIterator,
+        T::Item: AsIndex,
+    {
+        let args: Vec<isize> = args.into_iter().map(|i| i.as_index()).collect();
+
+        let mut infer_index = None;
+        let mut dims = Vec::new();
+
+        let mut new_size = 1;
+
+        for (idx, &s) in args.iter().enumerate() {
+            if s > 0 {
+                let s = s as usize;
+                new_size *= s;
+                dims.push(s);
+            } else if s == 0 {
+                // We need to find the index of the 0 dimensions and
+                // replace them with the actual dimension value.
+                let s = self.dims[idx];
+                new_size *= s;
+                dims.push(s);
+            } else if s == -1 {
+                match infer_index {
+                    None => {
+                        infer_index = Some(idx);
+                        // Used by / Replaced by handling later.
+                        dims.push(1);
+                    }
+                    Some(_) => {
+                        return Err(ExpressionError::InvalidExpression {
+                            message: "Repeated -1 in reshape".to_string(),
+                            source: format!("{:?}", args),
+                        });
+                    }
+                }
+            } else {
+                return Err(ExpressionError::InvalidExpression {
+                    message: "Negative arguments to reshape".to_string(),
+                    source: format!("{:?}", args),
+                });
+            }
         }
-        Ok(target)
+
+        let source_size = self.num_elements();
+        match infer_index {
+            None => {
+                if source_size != new_size {
+                    return Err(ExpressionError::InvalidExpression {
+                        message: format!("New shape size incompatible with source size: {self}"),
+                        source: format!("{:?}", args),
+                    });
+                }
+            }
+            Some(idx) => {
+                if !source_size.is_multiple_of(new_size) {
+                    return Err(ExpressionError::InvalidExpression {
+                        message: format!("New shape size incompatible with source size: {self}"),
+                        source: format!("{:?}", args),
+                    });
+                }
+                dims[idx] = source_size / new_size;
+            }
+        }
+
+        Ok(dims.into())
     }
 }
 
@@ -1277,9 +1339,9 @@ mod tests {
         let out = shape.clone().reshape(reshaped.clone());
         assert_eq!(
             out,
-            Err(ShapeError::IncompatibleShapes {
-                left: shape,
-                right: reshaped
+            Err(ExpressionError::InvalidExpression {
+                message: "New shape size incompatible with source size: [2, 3, 4, 5]".to_string(),
+                source: "[2, 2, 12, 5]".to_string(),
             })
         );
     }
