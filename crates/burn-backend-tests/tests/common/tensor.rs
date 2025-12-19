@@ -5,6 +5,7 @@ pub use super::*;
 #[path = "../tensor/clone_invariance.rs"]
 mod clone_invariance;
 
+#[cfg(feature = "std")]
 #[path = "../tensor/multi_threads.rs"]
 mod multi_threads;
 
