@@ -1,0 +1,53 @@
+use super::*;
+use burn_tensor::{Distribution, ElementConversion, TensorData, Tolerance, backend::Backend};
+
+#[test]
+fn rand_default() {
+    let tensor = TestTensor::<1>::random([20], Distribution::Default, &Default::default());
+
+    // check that the tensor is within the range of [0..1) (1 is exclusive)
+    // the conversion can ceil the value if `FloatElem` is less precise than f32
+    let low = 0.elem::<FloatElem>();
+    let high = 1.elem::<FloatElem>();
+    if FloatElem::EPSILON.elem::<f32>() > f32::EPSILON {
+        tensor.into_data().assert_within_range_inclusive(low..=high);
+    } else {
+        tensor.into_data().assert_within_range(low..high);
+    }
+}
+
+#[test]
+fn rand_uniform() {
+    let tensor = TestTensor::<1>::random([20], Distribution::Uniform(4., 5.), &Default::default());
+    let low = 4.elem::<FloatElem>();
+    let high = 5.elem::<FloatElem>();
+
+    if FloatElem::EPSILON.elem::<f32>() > f32::EPSILON {
+        tensor.into_data().assert_within_range_inclusive(low..=high);
+    } else {
+        tensor.into_data().assert_within_range(low..high);
+    }
+}
+
+#[test]
+fn rand_bernoulli() {
+    let tensor = TestTensor::<1>::random([20], Distribution::Bernoulli(1.), &Default::default());
+
+    tensor.into_data().assert_eq(
+        &TensorData::new::<FloatElem, _>(vec![1.elem(); 20], [20]),
+        true,
+    );
+}
+
+#[test]
+#[ignore] // TODO: mark serial for backends that handle the same devices (e.g. fusion)?
+fn test_seed_reproducibility() {
+    let device = Default::default();
+    TestBackend::seed(&device, 42);
+    let t1 = TestTensor::<1>::random([5], Distribution::Default, &device);
+    TestBackend::seed(&device, 42);
+    let t2 = TestTensor::<1>::random([5], Distribution::Default, &device);
+
+    t1.into_data()
+        .assert_approx_eq::<FloatElem>(&t2.into_data(), Tolerance::default());
+}
