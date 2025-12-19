@@ -22,7 +22,6 @@ pub(crate) use unary_int::*;
 pub(crate) use unary_numeric::*;
 
 pub use crate::cubecl::prelude::KernelMetadata;
-pub use burn_std::PLANE_DIM_APPROX;
 
 /// Attention kernels
 pub mod attention;

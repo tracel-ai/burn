@@ -63,10 +63,10 @@ pub fn mask_fill<R: CubeRuntime>(
         MaskFillStrategy::Inplace => input.clone(),
     };
 
-    let cube_dim = CubeDim::default();
     let line_size = max_line_size_many(&[&input, &mask], ndims - 1);
-    let cube_count =
-        calculate_cube_count_elemwise(input.shape.num_elements() / line_size as usize, cube_dim);
+    let working_units = input.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_arg = match strategy {
         MaskFillStrategy::Readonly => linear_view(&output, line_size),

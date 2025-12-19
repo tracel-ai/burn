@@ -21,8 +21,8 @@ doc = ["default"]
 memory-checks = ["std"]
 
 [dependencies]
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5" }
-burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5" }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6" }
+burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6" }
 tracing = { workspace = true, features = ["attributes"] }
 
 hashbrown = { workspace = true }

@@ -171,6 +171,7 @@ fn main() {
         .input("tests/gather/gather_with_shape_indices.onnx")
         .input("tests/gather/gather_scalar_out.onnx")
         .input("tests/gather/gather_scalar_input.onnx")
+        .input("tests/gather/gather_negative_idx.onnx")
         .input("tests/gather_elements/gather_elements.onnx")
         .input("tests/gelu/gelu.onnx")
         .input("tests/gemm/gemm.onnx")

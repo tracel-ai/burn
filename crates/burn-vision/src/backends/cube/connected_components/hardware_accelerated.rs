@@ -583,7 +583,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             );
             let relabel = prefix_sum::<R, I>(sliced);
 
-            let cube_dim = CubeDim::default();
+            let cube_dim = CubeDim::new_2d(32, 8);
             let cube_count = CubeCount::new_2d(
                 (cols as u32).div_ceil(cube_dim.x),
                 (rows as u32).div_ceil(cube_dim.y),

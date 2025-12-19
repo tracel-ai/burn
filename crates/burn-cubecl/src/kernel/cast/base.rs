@@ -38,13 +38,16 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         return input;
     }
 
+    let client = input.client.clone();
+
     let line_size = max_line_size(&input);
 
     let num_elems: usize = input.shape.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-    let client = input.client.clone();
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
+
     let output = empty_device_dtype(
         client.clone(),
         input.device.clone(),
