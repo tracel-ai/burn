@@ -35,6 +35,14 @@ cargo test-ndarray
 cargo test-tch
 ```
 
+By default, `cargo test` fail-fast across integration test binaries. When one integration test
+binary fails, Cargo does not run the remaining test binaries. If you want to run all test binaries
+regardless of failures, pass `--no-fail-fast`, for example:
+
+```sh
+cargo test-cuda --no-fail-fast
+```
+
 ## Structure
 
 - `tests/tensor.rs`: Tensor tests
