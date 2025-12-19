@@ -73,6 +73,12 @@ twice with different dtypes.
 Add test modules under `tests/tensor/`, `tests/autodiff/`, or `tests/cubecl` respectively. They will
 automatically run for all required configurations.
 
+For tensor tests, make sure to add the test to each relevant tensor kind:
+
+- `tensor/bool`: boolean tensor tests
+- `tensor/float`: float tensor tests
+- `tensor/int`: integer tensor tests
+
 **Guidelines:**
 
 Import types with `use super::*;` at the top of each module and use the types defined in
