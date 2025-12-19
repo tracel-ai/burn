@@ -14,8 +14,8 @@ pub enum LearnerEvent<T> {
     ProcessedItem(LearnerItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
-    /// Signal the end of the process (e.g., training end).
-    End(Option<LearnerSummary>),
+    /// Signal the end of the process with a message indicating the reason (e.g., training end).
+    End((Option<LearnerSummary>, String)),
 }
 
 /// Event happening during the evaluation process.

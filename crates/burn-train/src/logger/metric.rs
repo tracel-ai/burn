@@ -38,6 +38,9 @@ pub trait MetricLogger: Send {
 
     /// Logs summary at the end of the epoch.
     fn log_epoch_summary(&mut self, summary: EpochSummary);
+
+    /// Logs the end of a training with the reason.
+    fn log_training_end(&mut self, message: String);
 }
 
 /// The file metric logger.
@@ -285,6 +288,10 @@ impl MetricLogger for FileMetricLogger {
             self.loggers.clear();
         }
     }
+
+    fn log_training_end(&mut self, _message: String) {
+        println!("LOGGER END : {}", _message);
+    }
 }
 
 fn logger_key(name: &str, split: Split) -> String {
@@ -379,4 +386,6 @@ impl MetricLogger for InMemoryMetricLogger {
     }
 
     fn log_epoch_summary(&mut self, _summary: EpochSummary) {}
+
+    fn log_training_end(&mut self, _message: String) {}
 }

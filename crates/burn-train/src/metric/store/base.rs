@@ -10,6 +10,8 @@ pub enum Event {
     MetricsUpdate(MetricsUpdate),
     /// Signal the end of an epoch.
     EndEpoch(EpochSummary),
+    /// Signal the end of the training.
+    End(String),
 }
 
 /// Contains all metric information.

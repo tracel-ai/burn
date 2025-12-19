@@ -33,6 +33,11 @@ impl EventStore for LogEventStore {
                     .iter_mut()
                     .for_each(|logger| logger.log_epoch_summary(summary.clone()));
             }
+            Event::End(message) => {
+                self.loggers
+                    .iter_mut()
+                    .for_each(|logger| logger.log_training_end(message.clone()));
+            }
         }
     }
 

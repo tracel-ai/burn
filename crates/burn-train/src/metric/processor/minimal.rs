@@ -43,7 +43,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                         Split::Train,
                     )));
             }
-            LearnerEvent::End(_summary) => {} // no-op for now
+            LearnerEvent::End((_summary, message)) => {
+                self.store
+                    .add_event_train(crate::metric::store::Event::End(message));
+            }
         }
     }
 

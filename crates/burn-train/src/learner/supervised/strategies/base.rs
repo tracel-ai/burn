@@ -111,6 +111,7 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
         };
 
         let summary_config = training_components.summary.clone();
+        let interrupter = training_components.interrupter.clone();
 
         // Event processor start training
         training_components
@@ -132,8 +133,15 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
                 .ok()
         });
 
+        let message = if interrupter.should_stop() {
+            interrupter
+                .get_message()
+                .unwrap_or(String::from("Reason unknown."))
+        } else {
+            String::from("Training finished.")
+        };
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        event_processor.process_train(LearnerEvent::End(summary));
+        event_processor.process_train(LearnerEvent::End((summary, message)));
 
         let model = model.valid();
         let renderer = event_processor.renderer();

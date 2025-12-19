@@ -47,7 +47,11 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item));
 
             if self.interrupter.should_stop() {
-                log::info!("Testing interrupted.");
+                let message = self
+                    .interrupter
+                    .get_message()
+                    .unwrap_or(String::from("Reason unknown."));
+                log::info!("Testing interrupted : {}", message);
                 break;
             }
         }

@@ -159,7 +159,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                     )));
                 self.metrics.end_epoch_train();
             }
-            LearnerEvent::End(summary) => {
+            LearnerEvent::End((summary, message)) => {
+                self.store
+                    .add_event_train(crate::metric::store::Event::End(message));
                 self.renderer.on_train_end(summary).ok();
             }
         }
