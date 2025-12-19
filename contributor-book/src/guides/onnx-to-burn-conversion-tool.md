@@ -417,17 +417,17 @@ When implementing a new operator, there are several levels of testing to conside
   generation. Each node file typically includes unit tests using `assert_tokens()` to validate
   generated code against expected output.
 
-### Integration Testing
+### Integration and End-to-End Testing
 
-- Create small ONNX models that use your operator and test the end-to-end conversion process
-- Ensure the generated Rust code compiles and produces the expected outputs
-- Add these tests to `crates/burn-import/onnx-tests/tests/test_onnx.rs`
+- **Test Path**: Write integration and end-to-end tests in `crates/burn-import/onnx-tests/tests/<op_name>/mod.rs` where `<op_name>` is the name of the new operator. 
 
-### End-to-End Testing
+- **What to Test**: 
+    - Create ONNX models that use your operator and test the end-to-end conversion process
+    - Ensure the generated Rust code compiles
+    - Test with realistic ONNX models that use your operator in conjunction with others
+    - Include models that test edge cases (e.g., different input shapes, parameter combinations)
+    - Verify that inputs and outputs match between the original ONNX model and the converted Burn model
 
-- Test with realistic ONNX models that use your operator in conjunction with others
-- Verify that inputs and outputs match between the original ONNX model and the converted Burn model
-- Include models that test edge cases (e.g., different input shapes, parameter combinations)
 
 Testing the processor implementation is particularly important as it directly affects the
 correctness of the conversion process. Incorrect type inference can lead to mismatched tensor shapes
