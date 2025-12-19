@@ -427,7 +427,8 @@ When implementing a new operator, there are several levels of testing to conside
     - Test with realistic ONNX models that use your operator in conjunction with others
     - Include models that test edge cases (e.g., different input shapes, parameter combinations)
     - Verify that inputs and outputs match between the original ONNX model and the converted Burn model
-
+- Further details can be found in the
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
 
 Testing the processor implementation is particularly important as it directly affects the
 correctness of the conversion process. Incorrect type inference can lead to mismatched tensor shapes
