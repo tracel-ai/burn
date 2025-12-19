@@ -1,24 +1,27 @@
-use std::collections::HashMap;
-
+use crate::learner::base::Interrupter;
+use crate::learner::train_val::TrainStep;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::multi::MultiDeviceOptim;
-use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
-use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
+use crate::train::MultiDevicesTrainStep;
+use crate::{
+    Learner, LearningComponentsTypes, MultiDeviceOptim, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, TrainBackend, TrainLoader,
+};
 use burn_core::prelude::DeviceOps;
-use burn_core::tensor::backend::{Backend, DeviceId};
+use burn_core::tensor::Device;
+use burn_core::tensor::backend::DeviceId;
 use burn_optim::MultiGradientsParams;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
+use std::collections::HashMap;
 
 /// A training epoch.
 #[derive(new)]
-pub struct MultiDeviceTrainEpoch<LC: LearnerComponentTypes> {
-    dataloaders: Vec<TrainLoader<LC>>,
-    epoch: usize,
+pub struct MultiDeviceTrainEpoch<SC: SupervisedLearningComponentsTypes> {
+    dataloaders: Vec<TrainLoader<SC::LC, SC::LD>>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
+impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpoch<SC> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -34,37 +37,35 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
     /// The trained model and the optimizer.
     #[allow(clippy::too_many_arguments)]
     pub fn run(
-        &mut self,
-        model: LC::Model,
-        optim: LC::Optimizer,
-        lr_scheduler: &mut LC::LrScheduler,
-        processor: &mut LC::EventProcessor,
-        devices: Vec<<LC::Backend as Backend>::Device>,
+        &self,
+        learner: &mut Learner<SC::LC>,
+        epoch: usize,
+        event_processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
+        devices: Vec<Device<TrainBackend<SC::LC>>>,
         strategy: MultiDeviceOptim,
-    ) -> (LC::Model, LC::Optimizer) {
+    ) {
         match strategy {
             MultiDeviceOptim::OptimMainDevice => {
-                self.run_optim_main(model, optim, lr_scheduler, processor, devices, interrupter)
+                self.run_optim_main(learner, epoch, event_processor, interrupter, devices)
             }
             MultiDeviceOptim::OptimSharded => {
-                self.run_optim_distr(model, optim, lr_scheduler, processor, devices, interrupter)
+                self.run_optim_distr(learner, epoch, event_processor, interrupter, devices)
             }
         }
     }
 
     fn run_optim_main(
-        &mut self,
-        mut model: LC::Model,
-        mut optim: LC::Optimizer,
-        lr_scheduler: &mut LC::LrScheduler,
-        processor: &mut LC::EventProcessor,
-        devices: Vec<<LC::Backend as Backend>::Device>,
+        &self,
+        learner: &mut Learner<SC::LC>,
+        epoch: usize,
+        event_processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
-    ) -> (LC::Model, LC::Optimizer) {
+        devices: Vec<Device<TrainBackend<SC::LC>>>,
+    ) {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
-            self.epoch,
+            epoch,
             devices
         );
 
@@ -78,10 +79,14 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
-        let step = MultiDevicesTrainStep::<LC>::new(&devices);
+        let step = MultiDevicesTrainStep::<SC>::new(&devices);
 
         // The main device is always the first in the list.
         let device_main = devices.first().expect("A minimum of one device.").clone();
+
+        let mut model = learner.model.clone();
+        let mut optim = learner.optim.clone();
+        let mut lr_scheduler = learner.lr_scheduler.clone();
 
         loop {
             let (items, progress) = step.step(iterators.as_mut_slice(), &model);
@@ -111,13 +116,13 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
                 let item = LearnerItem::new(
                     item,
                     progress.clone(),
-                    self.epoch,
+                    epoch,
                     self.epoch_total,
                     iteration,
                     Some(lr),
                 );
 
-                processor.process_train(LearnerEvent::ProcessedItem(item));
+                event_processor.process_train(LearnerEvent::ProcessedItem(item));
             }
 
             if interrupter.should_stop() {
@@ -126,25 +131,24 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             }
         }
 
-        processor.process_train(LearnerEvent::EndEpoch(self.epoch));
+        learner.model = model;
+        learner.optim = optim;
+        learner.lr_scheduler = lr_scheduler;
 
-        self.epoch += 1;
-
-        (model, optim)
+        event_processor.process_train(LearnerEvent::EndEpoch(epoch));
     }
 
     fn run_optim_distr(
-        &mut self,
-        mut model: LC::Model,
-        mut optim: LC::Optimizer,
-        lr_scheduler: &mut LC::LrScheduler,
-        processor: &mut LC::EventProcessor,
-        devices: Vec<<LC::Backend as Backend>::Device>,
+        &self,
+        learner: &mut Learner<SC::LC>,
+        epoch: usize,
+        event_processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
-    ) -> (LC::Model, LC::Optimizer) {
+        devices: Vec<Device<TrainBackend<SC::LC>>>,
+    ) {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
-            self.epoch,
+            epoch,
             devices
         );
 
@@ -154,14 +158,21 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             .map(|d| d.iter())
             .collect::<Vec<_>>();
         let mut iteration = 0;
-        let mut accumulators = HashMap::<DeviceId, GradientsAccumulator<LC::Model>>::new();
+        let mut accumulators = HashMap::<
+            DeviceId,
+            GradientsAccumulator<<SC::LC as LearningComponentsTypes>::Model>,
+        >::new();
         for device in devices.iter() {
             accumulators.insert(device.to_id(), GradientsAccumulator::new());
         }
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
-        let step = MultiDevicesTrainStep::<LC>::new(&devices);
+        let step = MultiDevicesTrainStep::<SC>::new(&devices);
+
+        let mut model = learner.model.clone();
+        let mut optim = learner.optim.clone();
+        let mut lr_scheduler = learner.lr_scheduler.clone();
 
         loop {
             let (items, progress) = step.step(iterators.as_mut_slice(), &model);
@@ -195,13 +206,13 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
                 let item = LearnerItem::new(
                     item,
                     progress.clone(),
-                    self.epoch,
+                    epoch,
                     self.epoch_total,
                     iteration,
                     Some(lr),
                 );
 
-                processor.process_train(LearnerEvent::ProcessedItem(item));
+                event_processor.process_train(LearnerEvent::ProcessedItem(item));
             }
 
             if interrupter.should_stop() {
@@ -210,10 +221,10 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             }
         }
 
-        processor.process_train(LearnerEvent::EndEpoch(self.epoch));
+        learner.model = model;
+        learner.optim = optim;
+        learner.lr_scheduler = lr_scheduler;
 
-        self.epoch += 1;
-
-        (model, optim)
+        event_processor.process_train(LearnerEvent::EndEpoch(epoch));
     }
 }

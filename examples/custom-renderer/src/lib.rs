@@ -4,7 +4,7 @@ use burn::{
     optim::AdamConfig,
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder, LearningStrategy,
+        Learner, LearningParadigm, SupervisedTraining,
         renderer::{
             EvaluationName, EvaluationProgress, MetricState, MetricsRenderer,
             MetricsRendererEvaluation, MetricsRendererTraining, TrainingProgress,
@@ -90,19 +90,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .build(MnistDataset::test());
 
     // artifact dir does not need to be provided when log_to_file is false
-    let builder = LearnerBuilder::new("")
+    let training = SupervisedTraining::new("", dataloader_train, dataloader_test)
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
         .with_application_logger(None);
     // can be used to interrupt training
-    let _interrupter = builder.interrupter();
+    let _interrupter = training.interrupter();
 
-    let learner = builder.build(
-        model,
-        optim,
-        config.lr,
-        LearningStrategy::SingleDevice(device.clone()),
-    );
-
-    let _model_trained = learner.fit(dataloader_train, dataloader_test);
+    let _model_trained = training.run(Learner::new(model, optim, config.lr));
 }

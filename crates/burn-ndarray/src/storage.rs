@@ -329,7 +329,7 @@ mod tests {
 
         // Find an offset in 1..align that produces misalignment (at least one must exist)
         let misalign_offset = (1..align)
-            .find(|&off| (base + off) % align != 0)
+            .find(|&off| !(base + off).is_multiple_of(align))
             .expect("Should find a misaligned offset");
 
         let sliced = shared.slice(misalign_offset..(misalign_offset + 16));

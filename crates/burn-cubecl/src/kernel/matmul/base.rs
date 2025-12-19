@@ -2,7 +2,7 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::{DType, QTensorPrimitive};
 use cubek::matmul::{
-    definition::{MatmulElemType, MatmulElems, MatmulSetupError},
+    definition::{MatmulElemType, MatmulElems, MatmulGlobalElems, MatmulSetupError},
     launch::{MatmulInputHandleRef, Strategy},
 };
 
@@ -105,20 +105,20 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
         }
     };
 
-    let mut dtypes = MatmulElems::from_globals(
-        MatmulElemType {
+    let mut dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: MatmulElemType {
             dtype: lhs_dtype.into(),
             quantized: lhs_quant,
         },
-        MatmulElemType {
+        rhs: MatmulElemType {
             dtype: rhs_dtype.into(),
             quantized: rhs_quant,
         },
-        MatmulElemType {
+        out: MatmulElemType {
             dtype: out_dtype.into(),
             quantized: false,
         },
-    );
+    });
     cubek::matmul::launch::launch_ref(
         strategy,
         client,

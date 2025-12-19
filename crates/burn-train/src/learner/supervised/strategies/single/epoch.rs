@@ -1,32 +1,28 @@
-use burn_core::data::dataloader::DataLoader;
-use burn_core::module::AutodiffModule;
-use burn_core::tensor::backend::AutodiffBackend;
-use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
-use std::sync::Arc;
-
-use crate::components::OutputTrain;
+use crate::components::{TrainLoader, ValidLoader};
+use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::{TrainStep, ValidLoader, ValidStep};
-use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
+use crate::{
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainStep, ValidStep,
+};
+use burn_core::module::AutodiffModule;
+use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct SingleDeviceValidEpoch<LC: LearnerComponentTypes> {
-    dataloader: ValidLoader<LC>,
-    epoch: usize,
+pub struct SingleDeviceValidEpoch<SC: SupervisedLearningComponentsTypes> {
+    dataloader: ValidLoader<SC::LC, SC::LD>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct SingleDeviceTrainEpoch<B: AutodiffBackend, TI> {
-    dataloader: Arc<dyn DataLoader<B, TI>>,
-    epoch: usize,
+pub struct SingleDeviceTrainEpoch<SC: SupervisedLearningComponentsTypes> {
+    dataloader: TrainLoader<SC::LC, SC::LD>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
+impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpoch<SC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -35,12 +31,13 @@ impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        model: &LC::Model,
-        processor: &mut LC::EventProcessor,
+        learner: &Learner<SC::LC>,
+        epoch: usize,
+        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
     ) {
-        log::info!("Executing validation step for epoch {}", self.epoch);
-        let model = model.valid();
+        log::info!("Executing validation step for epoch {}", epoch);
+        let model = learner.model.valid();
 
         let mut iterator = self.dataloader.iter();
         let mut iteration = 0;
@@ -50,14 +47,7 @@ impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
             iteration += 1;
 
             let item = model.step(item);
-            let item = LearnerItem::new(
-                item,
-                progress,
-                self.epoch,
-                self.epoch_total,
-                iteration,
-                None,
-            );
+            let item = LearnerItem::new(item, progress, epoch, self.epoch_total, iteration, None);
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
 
@@ -66,11 +56,11 @@ impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
                 break;
             }
         }
-        processor.process_valid(LearnerEvent::EndEpoch(self.epoch));
+        processor.process_valid(LearnerEvent::EndEpoch(epoch));
     }
 }
 
-impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
+impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -83,18 +73,14 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<LC: LearnerComponentTypes<Backend = B>>(
-        &mut self,
-        mut model: LC::Model,
-        mut optim: LC::Optimizer,
-        scheduler: &mut LC::LrScheduler,
-        processor: &mut LC::EventProcessor,
+    pub fn run(
+        &self,
+        learner: &mut Learner<SC::LC>,
+        epoch: usize,
+        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
-    ) -> (LC::Model, LC::Optimizer)
-    where
-        LC::Model: TrainStep<TI, OutputTrain<LC>>,
-    {
-        log::info!("Executing training step for epoch {}", self.epoch,);
+    ) {
+        log::info!("Executing training step for epoch {}", epoch,);
 
         // Single device / dataloader
         let mut iterator = self.dataloader.iter();
@@ -102,9 +88,13 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
+        let mut model = learner.model.clone();
+        let mut optim = learner.optim.clone();
+        let mut lr_scheduler = learner.lr_scheduler.clone();
+
         while let Some(item) = iterator.next() {
             iteration += 1;
-            let lr = scheduler.step();
+            let lr = lr_scheduler.step();
             log::info!("Iteration {iteration}");
 
             let progress = iterator.progress();
@@ -117,6 +107,7 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
 
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
+
                         model = model.optimize(&mut optim, lr, grads);
                         accumulation_current = 0;
                     }
@@ -127,7 +118,7 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
             let item = LearnerItem::new(
                 item.item,
                 progress,
-                self.epoch,
+                epoch,
                 self.epoch_total,
                 iteration,
                 Some(lr),
@@ -140,10 +131,10 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
                 break;
             }
         }
-        processor.process_train(LearnerEvent::EndEpoch(self.epoch));
+        processor.process_train(LearnerEvent::EndEpoch(epoch));
 
-        self.epoch += 1;
-
-        (model, optim)
+        learner.model = model;
+        learner.optim = optim;
+        learner.lr_scheduler = lr_scheduler;
     }
 }

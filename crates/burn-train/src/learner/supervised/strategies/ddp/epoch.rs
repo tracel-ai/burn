@@ -7,28 +7,29 @@ use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 
+use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
-use crate::{TrainLoader, TrainStep, ValidLoader, ValidStep};
-use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
+use crate::{
+    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainBackend, TrainLoader,
+    TrainModel, TrainStep, ValidLoader, ValidStep,
+};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct DdpValidEpoch<LC: LearnerComponentTypes> {
-    dataloader: ValidLoader<LC>,
-    epoch: usize,
+pub struct DdpValidEpoch<SC: SupervisedLearningComponentsTypes> {
+    dataloader: ValidLoader<SC::LC, SC::LD>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct DdpTrainEpoch<LC: LearnerComponentTypes> {
-    dataloader: TrainLoader<LC>,
-    epoch: usize,
+pub struct DdpTrainEpoch<SC: SupervisedLearningComponentsTypes> {
+    dataloader: TrainLoader<SC::LC, SC::LD>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
+impl<SC: SupervisedLearningComponentsTypes> DdpValidEpoch<SC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -37,11 +38,12 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        model: &LC::Model,
-        processor: &mut LC::EventProcessor,
+        model: &TrainModel<SC::LC>,
+        epoch: usize,
+        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
     ) {
-        log::info!("Executing validation step for epoch {}", self.epoch);
+        log::info!("Executing validation step for epoch {}", epoch);
         let model = model.valid();
 
         let mut iterator = self.dataloader.iter();
@@ -52,14 +54,7 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
             iteration += 1;
 
             let item = model.step(item);
-            let item = LearnerItem::new(
-                item,
-                progress,
-                self.epoch,
-                self.epoch_total,
-                iteration,
-                None,
-            );
+            let item = LearnerItem::new(item, progress, epoch, self.epoch_total, iteration, None);
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
 
@@ -68,11 +63,11 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
                 break;
             }
         }
-        processor.process_valid(LearnerEvent::EndEpoch(self.epoch));
+        processor.process_valid(LearnerEvent::EndEpoch(epoch));
     }
 }
 
-impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
+impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -87,30 +82,34 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
     /// The trained model and the optimizer.
     #[allow(clippy::too_many_arguments)]
     pub fn run(
-        &mut self,
-        mut model: LC::Model,
-        mut optim: LC::Optimizer,
-        scheduler: &mut LC::LrScheduler,
-        processor: Arc<Mutex<LC::EventProcessor>>,
+        &self,
+        learner: &mut Learner<SC::LC>,
+        epoch: usize,
+        processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
         interrupter: &Interrupter,
         peer_id: PeerId,
         peer_count: usize,
         is_main: bool,
-    ) -> (LC::Model, LC::Optimizer) {
-        log::info!("Executing training step for epoch {}", self.epoch,);
+    ) {
+        log::info!("Executing training step for epoch {}", epoch,);
 
         let mut iterator = self.dataloader.iter();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(false, peer_id);
+        let grads_syncer =
+            GradsSyncer::<TrainBackend<SC::LC>, TrainModel<SC::LC>>::new(false, peer_id);
+
+        let mut model = learner.model.clone();
+        let mut optim = learner.optim.clone();
+        let mut lr_scheduler = learner.lr_scheduler.clone();
 
         while let Some(item) = iterator.next() {
             let mut lr = 0.;
             for _ in 0..peer_count {
                 iteration += 1;
-                lr = scheduler.step();
+                lr = lr_scheduler.step();
             }
             log::info!("Iteration {iteration}");
 
@@ -150,7 +149,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
             let item = LearnerItem::new(
                 item.item,
                 progress,
-                self.epoch,
+                epoch,
                 self.epoch_total,
                 iteration,
                 Some(lr),
@@ -169,12 +168,12 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
         if is_main {
             let mut processor = processor.lock().unwrap();
-            processor.process_train(LearnerEvent::EndEpoch(self.epoch));
+            processor.process_train(LearnerEvent::EndEpoch(epoch));
         }
 
-        self.epoch += 1;
-
-        (model, optim)
+        learner.model = model;
+        learner.optim = optim;
+        learner.lr_scheduler = lr_scheduler;
     }
 }
 

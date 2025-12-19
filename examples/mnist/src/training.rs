@@ -5,6 +5,7 @@ use crate::{
     model::Model,
 };
 
+use burn::train::LearningParadigm;
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -22,7 +23,7 @@ use burn::{
     record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
     train::{
-        EvaluatorBuilder, LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
+        EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
             AccuracyMetric, LearningRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -30,7 +31,7 @@ use burn::{
         renderer::MetricsRenderer,
     },
 };
-use burn::{optim::AdamWConfig, train::LearningStrategy};
+use burn::{optim::AdamWConfig, train::SupervisedTraining};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
@@ -94,7 +95,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
-    let learner = LearnerBuilder::new(ARTIFACT_DIR)
+    let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
@@ -106,15 +107,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            model,
-            config.optimizer.init(),
-            lr_scheduler.init().unwrap(),
-            LearningStrategy::SingleDevice(device),
-        );
+        .summary();
 
-    let result = learner.fit(dataloader_train, dataloader_valid);
+    let result = training.run(Learner::new(
+        model,
+        config.optimizer.init(),
+        lr_scheduler.init().unwrap(),
+    ));
 
     let dataset_test_plain = Arc::new(MnistDataset::test());
     let mut renderer = result.renderer;

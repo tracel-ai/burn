@@ -11,8 +11,8 @@ use crate::{
 };
 #[cfg(feature = "ddp")]
 use burn::collective::{AllReduceStrategy, CollectiveConfig};
+use burn::train::{Learner, LearningParadigm, SupervisedTraining};
 #[cfg(not(feature = "ddp"))]
-use burn::train::{LearningStrategy, MultiDeviceOptim};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -22,7 +22,7 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder,
+        MultiDeviceOptim,
         metric::{
             AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
         },
@@ -88,7 +88,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
 
     // Initialize learner
     #[cfg(not(feature = "ddp"))]
-    let learner = LearnerBuilder::new(artifact_dir)
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train(IterationSpeedMetric::new())
@@ -100,18 +100,16 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .with_file_checkpointer(CompactRecorder::new())
         .num_epochs(config.num_epochs)
         .summary()
-        .build(
-            model,
-            optim,
-            lr_scheduler,
-            LearningStrategy::MultiDevice(devices, MultiDeviceOptim::OptimSharded),
-        );
+        .with_training_strategy(burn::train::TrainingStrategy::MultiDevice(
+            devices,
+            MultiDeviceOptim::OptimSharded,
+        ));
 
     #[cfg(feature = "ddp")]
     let collective_config =
         CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
     #[cfg(feature = "ddp")]
-    let learner = LearnerBuilder::new(artifact_dir)
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train(IterationSpeedMetric::new())
@@ -121,13 +119,12 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(burn::train::ddp(devices, collective_config))
+        .with_training_strategy(burn::train::ddp(devices, collective_config))
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(model, optim, lr_scheduler);
+        .summary();
 
     // Train the model
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let result = training.run(Learner::new(model, optim, lr_scheduler));
 
     // Save the configuration and the trained model
     config.save(format!("{artifact_dir}/config.json")).unwrap();

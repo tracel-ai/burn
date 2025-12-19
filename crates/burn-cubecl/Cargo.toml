@@ -46,13 +46,13 @@ std = [
 template = []
 
 [dependencies]
-burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.20.0-pre.5", default-features = false, optional = true }
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.5", default-features = false, optional = true }
-burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.5", default-features = false }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.5", default-features = false, features = [
+burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.20.0-pre.6", default-features = false, optional = true }
+burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.6", default-features = false, optional = true }
+burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false, features = [
     "cubecl",
 ] }
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false, features = [
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false, features = [
     "cubecl",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }

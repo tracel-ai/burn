@@ -3,12 +3,13 @@ use burn_std::Shape;
 use cubek::convolution::{AcceleratedTileKind, components::ConvSetupError};
 
 #[cfg(feature = "autotune")]
-use crate::kernel::conv::wgrad_autotune;
+use crate::kernel::conv::{backward_weight::wgrad_autotune, dgrad_autotune};
 use crate::{
     CubeRuntime,
     kernel::conv::{
-        backward_weight::implicit_gemm::wgrad_gemm_simple_sync,
-        fallback::conv_weight_backward_fallback, forward::implicit_gemm::conv_gemm_simple_sync,
+        backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
+        backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+        forward::implicit_gemm::conv_gemm_simple_sync,
     },
     ops::{permute_nchw_to_nhwc, permute_nchw_to_nhwc_shape, permute_nhwc_to_nchw},
     tensor::CubeTensor,
@@ -64,6 +65,13 @@ pub fn conv_forward<R: CubeRuntime, const N: usize>(
     Ok(permute_nhwc_to_nchw(out))
 }
 
+/// Performs an N-dimensional convolution with the given strategy on NHWC inputs/outputs
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+/// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 pub fn conv_forward_nhwc<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -134,6 +142,48 @@ pub fn conv_weight_backward<R: CubeRuntime, const N: usize>(
             }
         }
     }?;
+
+    Ok(permute_nhwc_to_nchw(weight_grad))
+}
+
+/// Performs an N-dimensional convolution backwards data pass with the given strategy
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `in_shape` - The shape of the input to the layer
+/// * `options` - The options to use for the convolution
+/// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
+pub fn conv_data_backward<R: CubeRuntime, const N: usize>(
+    out_grad: CubeTensor<R>,
+    weights: CubeTensor<R>,
+    in_shape: Shape,
+    options: ConvOptions<N>,
+    strategy: ConvStrategy,
+) -> Result<CubeTensor<R>, ConvSetupError> {
+    let out_grad = permute_nchw_to_nhwc(out_grad);
+    let weights = permute_nchw_to_nhwc(weights);
+    let in_shape = permute_nchw_to_nhwc_shape(in_shape);
+
+    let weight_grad = match strategy {
+        ConvStrategy::Direct => {
+            conv_data_backward_fallback::<R, N>(out_grad, weights, in_shape, options)?
+        }
+        #[cfg(feature = "autotune")]
+        ConvStrategy::Autotune => dgrad_autotune::<R, N>(out_grad, weights, in_shape, options),
+        ConvStrategy::ImplicitGemm => {
+            if options.groups != 1 || options.stride.iter().any(|&s| s != 1) {
+                conv_data_backward_fallback::<R, N>(out_grad, weights, in_shape, options)?
+            } else {
+                dgrad_gemm_simple_sync::<R, N>(
+                    out_grad,
+                    weights,
+                    in_shape,
+                    options,
+                    AcceleratedTileKind::Cmma,
+                )?
+            }
+        }
+    };
 
     Ok(permute_nhwc_to_nchw(weight_grad))
 }
