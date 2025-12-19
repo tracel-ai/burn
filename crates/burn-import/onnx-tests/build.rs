@@ -139,6 +139,7 @@ fn main() {
         .input("tests/exp/exp.onnx")
         .input("tests/expand/expand.onnx")
         .input("tests/expand/expand_tensor.onnx")
+        .input("tests/expand/expand_scalar.onnx")
         .input("tests/expand/expand_shape.onnx")
         .input("tests/expand/expand_with_where_shape.onnx")
         .input("tests/expand/expand_max_semantics.onnx")
