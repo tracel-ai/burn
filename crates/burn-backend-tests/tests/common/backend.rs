@@ -28,8 +28,9 @@ pub type TestBackend = burn_router::BackendRouter<
     burn_router::DirectByteChannel<(burn_ndarray::NdArray, burn_wgpu::Wgpu)>,
 >;
 
+/// Collection of types used across tests
 #[allow(unused)]
-pub mod types {
+pub mod prelude {
     pub use burn_autodiff::Autodiff;
     pub use burn_tensor::Tensor;
 
@@ -44,5 +45,6 @@ pub mod types {
     pub type TestAutodiffBackend = Autodiff<TestBackend>;
     pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
 }
+
 #[allow(unused)]
-pub use types::*;
+pub use prelude::*;

@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::{
     TensorData, Tolerance,
-    ops::{FloatElem, GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
+    ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
 };
 
 /// Tests grid_sample_2d with default options (align_corners=false, zeros padding).
@@ -29,7 +29,7 @@ fn should_grid_sample_2d_default() {
     let expected = TensorData::from([[[[4.0, 2.0625], [2.0, 1.04]]]]);
     output
         .to_data()
-        .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 /// Tests grid_sample_2d with align_corners=true and border padding.
@@ -56,7 +56,7 @@ fn should_grid_sample_2d_align_corners_border() {
     let expected = TensorData::from([[[[4.0, 3.75], [8.0, 1.8]]]]);
     output
         .to_data()
-        .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 /// Tests out-of-bounds grid coordinates with zeros padding.
@@ -76,7 +76,7 @@ fn should_pad_zeros_grid_sample_2d() {
     let expected = TensorData::from([[[[0.0]]]]);
     output
         .to_data()
-        .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 /// Tests out-of-bounds grid coordinates with border padding.
@@ -98,5 +98,5 @@ fn should_pad_border_grid_sample_2d() {
     let expected = TensorData::from([[[[1.0]]]]);
     output
         .to_data()
-        .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }

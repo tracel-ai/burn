@@ -1,8 +1,5 @@
 use super::*;
-use burn_tensor::{
-    Shape, Tolerance, module::conv_transpose1d, ops::ConvTransposeOptions, ops::FloatElem,
-};
-type FT = FloatElem<TestBackend>;
+use burn_tensor::{Shape, Tolerance, module::conv_transpose1d, ops::ConvTransposeOptions};
 
 #[test]
 fn test_conv_transpose1d_basic() {
@@ -282,14 +279,14 @@ impl ConvTranspose1dTestCase {
         expected_grads
             .bias
             .to_data()
-            .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), Tolerance::default());
+            .assert_approx_eq::<FloatElem>(&bias_grad_actual.to_data(), Tolerance::default());
         expected_grads
             .x
             .to_data()
-            .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
+            .assert_approx_eq::<FloatElem>(&x_grad_actual.to_data(), Tolerance::default());
         expected_grads
             .weight
             .to_data()
-            .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), Tolerance::default());
+            .assert_approx_eq::<FloatElem>(&weight_grad_actual.to_data(), Tolerance::default());
     }
 }

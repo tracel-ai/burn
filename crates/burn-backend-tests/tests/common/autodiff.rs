@@ -16,19 +16,19 @@ mod checkpointing {
     include!("../autodiff/mod.rs");
 }
 
-#[cfg(any(
-    feature = "vulkan",
-    // feature = "cuda", // TODO
-    // feature = "rocm",
-    feature = "metal"
-))]
-mod f16 {
-    pub type FloatElemType = burn_tensor::f16;
-    #[allow(unused)]
-    pub use super::IntElemType;
+use burn_backend_tests::test_float_elem_variant;
 
-    mod ty {
-        include!("backend.rs");
-        include!("../autodiff/mod.rs");
-    }
-}
+// NOTE: this currently doesn't test checkpointing with different dtypes
+test_float_elem_variant!(
+    f16,
+    burn_tensor::f16,
+    "../autodiff/mod.rs",
+    ["vulkan", "cuda", "rocm", "metal"]
+);
+
+test_float_elem_variant!(
+    bf16,
+    burn_tensor::bf16,
+    "../autodiff/mod.rs",
+    ["vulkan", "metal"] // ["cuda", "rocm"] TODO
+);
