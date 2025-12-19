@@ -332,6 +332,24 @@ pub fn silu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.clone().mul(sigmoid(tensor))
 }
 
+/// Applies the hard swish function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{hard\_swish}\(x\) = x \cdot \text{hard\_sigmoid}(x) = x \cdot \max(0, \min(1, \frac{x}{6} + 0.5))
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`hard_swish(x) = x * hard_sigmoid(x) = x * max(0, min(1, x/6 + 0.5))`"
+)]
+pub fn hard_swish<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    tensor.clone().mul(hard_sigmoid(tensor, 1.0 / 6.0, 0.5))
+}
+
 /// Applies the Mish function as described in the paper in
 /// [Mish: A Self Regularized Non-Monotonic Neural Activation Function](https://arxiv.org/abs/1908.08681).
 ///
