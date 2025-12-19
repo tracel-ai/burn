@@ -1,4 +1,5 @@
-/// Burn backend tensor tests, reusable with element types.
+// Burn backend tensor tests, reusable with element types.
+
 pub use super::*;
 
 #[path = "../tensor/clone_invariance.rs"]

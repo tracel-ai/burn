@@ -7,10 +7,6 @@
 )]
 extern crate alloc;
 
-// #[cfg(feature = "cube")]
-// #[path = "common/fusion.rs"]
-// mod fusion;
-
 #[cfg(feature = "cube")]
 #[path = "."]
 mod fusion {
@@ -31,20 +27,8 @@ mod fusion {
         include!("common/tensor.rs");
     }
 
-    // // Autodiff tests
-    // mod autodiff {
-    //     include!("autodiff.rs");
-    // }
-
-    #[cfg(test)]
-    mod autodiff_checkpointing {
-        pub use super::*;
-        use burn_autodiff::checkpoint::strategy::BalancedCheckpointing;
-
-        // Override type def
-        pub type TestAutodiffBackend = Autodiff<TestBackend, BalancedCheckpointing>;
-        pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
-
-        include!("autodiff/mod.rs");
+    // Autodiff tests
+    mod autodiff {
+        include!("common/autodiff.rs");
     }
 }

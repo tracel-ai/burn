@@ -1,4 +1,5 @@
-/// Burn autodiff tests, reusable with element types.
+// Burn autodiff tests, reusable with element types.
+
 pub use super::*;
 
 #[path = "../autodiff/mod.rs"]
