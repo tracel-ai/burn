@@ -3,7 +3,8 @@ use alloc::boxed::Box;
 use burn_backend::Element;
 use burn_backend::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
-    MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
+    MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
 };
 use burn_backend::tensor::{FloatTensor, IntElem, IntTensor};
 use burn_ir::{
@@ -481,6 +482,75 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
                 ModuleOperationIr::AdaptiveAvgPool2dBackward(desc),
             ))
             .output()
+    }
+
+    fn avg_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("avg_pool3d is not yet implemented for BackendRouter")
+    }
+
+    fn avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("avg_pool3d_backward is not yet implemented for BackendRouter")
+    }
+
+    fn max_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("max_pool3d is not yet implemented for BackendRouter")
+    }
+
+    fn max_pool3d_with_indices(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> MaxPool3dWithIndices<Self> {
+        unimplemented!("max_pool3d_with_indices is not yet implemented for BackendRouter")
+    }
+
+    fn max_pool3d_with_indices_backward(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        _output_grad: FloatTensor<Self>,
+        _indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        unimplemented!("max_pool3d_with_indices_backward is not yet implemented for BackendRouter")
+    }
+
+    fn adaptive_avg_pool3d(_x: FloatTensor<Self>, _output_size: [usize; 3]) -> FloatTensor<Self> {
+        unimplemented!("adaptive_avg_pool3d is not yet implemented for BackendRouter")
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        unimplemented!("adaptive_avg_pool3d_backward is not yet implemented for BackendRouter")
     }
 
     fn interpolate(

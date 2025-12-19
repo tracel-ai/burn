@@ -2,8 +2,8 @@ use burn_backend::{
     Shape,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-        InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
-        UnfoldOptions,
+        InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps, UnfoldOptions,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -282,6 +282,75 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         panic!("adaptive_avg_pool2d_backward is not supported by Candle")
+    }
+
+    fn avg_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        panic!("avg_pool3d is not supported by Candle")
+    }
+
+    fn avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        panic!("avg_pool3d_backward is not supported by Candle")
+    }
+
+    fn max_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        panic!("max_pool3d is not supported by Candle")
+    }
+
+    fn max_pool3d_with_indices(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> MaxPool3dWithIndices<Self> {
+        panic!("max_pool3d_with_indices is not supported by Candle")
+    }
+
+    fn max_pool3d_with_indices_backward(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        _output_grad: FloatTensor<Self>,
+        _indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        panic!("max_pool3d_with_indices_backward is not supported by Candle")
+    }
+
+    fn adaptive_avg_pool3d(_x: FloatTensor<Self>, _output_size: [usize; 3]) -> FloatTensor<Self> {
+        panic!("adaptive_avg_pool3d is not supported by Candle")
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        panic!("adaptive_avg_pool3d_backward is not supported by Candle")
     }
 
     fn interpolate(

@@ -7,7 +7,7 @@ use burn_backend::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
         InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps,
+        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -1085,6 +1085,75 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 AdaptiveAvgPool2dBackwardOps::<B>::new(desc),
             )
             .output()
+    }
+
+    fn avg_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("avg_pool3d is not yet implemented for Fusion backend")
+    }
+
+    fn avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("avg_pool3d_backward is not yet implemented for Fusion backend")
+    }
+
+    fn max_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("max_pool3d is not yet implemented for Fusion backend")
+    }
+
+    fn max_pool3d_with_indices(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> MaxPool3dWithIndices<Self> {
+        unimplemented!("max_pool3d_with_indices is not yet implemented for Fusion backend")
+    }
+
+    fn max_pool3d_with_indices_backward(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        _output_grad: FloatTensor<Self>,
+        _indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        unimplemented!("max_pool3d_with_indices_backward is not yet implemented for Fusion backend")
+    }
+
+    fn adaptive_avg_pool3d(_x: FloatTensor<Self>, _output_size: [usize; 3]) -> FloatTensor<Self> {
+        unimplemented!("adaptive_avg_pool3d is not yet implemented for Fusion backend")
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        unimplemented!("adaptive_avg_pool3d_backward is not yet implemented for Fusion backend")
     }
 
     fn interpolate(

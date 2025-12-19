@@ -323,6 +323,77 @@ where
         }
     }
 
+    fn avg_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("avg_pool3d is not yet implemented for NdArray backend")
+    }
+
+    fn avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("avg_pool3d_backward is not yet implemented for NdArray backend")
+    }
+
+    fn max_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        unimplemented!("max_pool3d is not yet implemented for NdArray backend")
+    }
+
+    fn max_pool3d_with_indices(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> MaxPool3dWithIndices<Self> {
+        unimplemented!("max_pool3d_with_indices is not yet implemented for NdArray backend")
+    }
+
+    fn max_pool3d_with_indices_backward(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        _output_grad: FloatTensor<Self>,
+        _indices: NdArrayTensor,
+    ) -> MaxPool3dBackward<Self> {
+        unimplemented!(
+            "max_pool3d_with_indices_backward is not yet implemented for NdArray backend"
+        )
+    }
+
+    fn adaptive_avg_pool3d(_x: FloatTensor<Self>, _output_size: [usize; 3]) -> FloatTensor<Self> {
+        unimplemented!("adaptive_avg_pool3d is not yet implemented for NdArray backend")
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        unimplemented!("adaptive_avg_pool3d_backward is not yet implemented for NdArray backend")
+    }
+
     fn conv3d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

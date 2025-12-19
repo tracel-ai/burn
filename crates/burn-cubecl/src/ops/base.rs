@@ -171,6 +171,22 @@ pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor
     permute(tensor, &dims)
 }
 
+/// Convenience wrapper to permute a 5D tensor's dimensions from NCDHW to NDHWC.
+/// Internally this delegates to [`permute_nchw_to_nhwc`], which handles the
+/// corresponding N-dimensional permutation pattern.
+pub fn permute_ncdhw_to_ndhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+    // This is the same as permute_nchw_to_nhwc but more explicit for 5D
+    permute_nchw_to_nhwc(tensor)
+}
+
+/// Convenience wrapper to permute a 5D tensor's dimensions from NDHWC to NCDHW
+/// Internally this delegates to [`permute_nhwc_to_nchw`], which handles the corresponding
+/// N-dimensional permutation pattern and supports arbitrary ranks, including 5D.
+pub fn permute_ndhwc_to_ncdhw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+    // This is the same as permute_nhwc_to_nchw but more explicit for 5D
+    permute_nhwc_to_nchw(tensor)
+}
+
 pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
     let ndims_in = tensor.shape.num_dims();
     let ndims_out = target_shape.num_dims();
