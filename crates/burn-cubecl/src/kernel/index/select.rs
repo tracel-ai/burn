@@ -50,8 +50,9 @@ pub(crate) fn select<R: CubeRuntime>(
     );
 
     let dummy_array = vec![1; ndims];
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+    let working_units = total_elem;
+    let cube_dim = CubeDim::new(&indices.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
     unsafe {
         select_kernel::launch_unchecked(

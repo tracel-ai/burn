@@ -19,7 +19,7 @@ metal = ["burn/metal"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-burn = { path = "../../crates/burn", version = "=0.20.0-pre.5", features = [
+burn = { path = "../../crates/burn", version = "=0.20.0-pre.6", features = [
     "collective"
 ] }
 

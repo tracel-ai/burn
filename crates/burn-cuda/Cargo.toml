@@ -23,9 +23,9 @@ fusion = ["burn-fusion", "burn-cubecl/fusion"]
 std = ["burn-cubecl/std", "cubecl/std"]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.5", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.5", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.5", default-features = false, features = [
+burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.6", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.6", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false, features = [
     "cubecl-cuda",
 ] }
 cubecl = { workspace = true, features = ["cuda"] }

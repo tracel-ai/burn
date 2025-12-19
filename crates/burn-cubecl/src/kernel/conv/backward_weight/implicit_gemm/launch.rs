@@ -1,10 +1,13 @@
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubek::{
-    convolution::{ConvolutionArgs, Strategy, backward_weight, components::ConvSetupError},
+    convolution::{
+        AcceleratedTileKind, ConvolutionArgs, ReadingStrategy, Strategy, backward_weight,
+        components::ConvSetupError,
+    },
     matmul::{
-        definition::{MatmulElemType, MatmulElems},
-        launch::{AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy},
+        definition::{MatmulElemType, MatmulElems, MatmulGlobalElems},
+        launch::MatmulInputHandleRef,
     },
 };
 
@@ -103,20 +106,20 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
     );
 
     let client = input.client.clone();
-    let dtypes = MatmulElems::from_globals(
-        MatmulElemType {
+    let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: MatmulElemType {
             dtype: input.dtype.into(),
             quantized: false,
         },
-        MatmulElemType {
+        rhs: MatmulElemType {
             dtype: out_grad.dtype.into(),
             quantized: false,
         },
-        MatmulElemType {
+        out: MatmulElemType {
             dtype: out_dtype.into(),
             quantized: false,
         },
-    );
+    });
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let out_grad = MatmulInputHandleRef::new(out_grad.as_handle_ref(), out_grad.dtype.into());
 

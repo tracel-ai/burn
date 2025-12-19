@@ -232,12 +232,15 @@ impl Display for LearnerSummary {
     }
 }
 
-pub(crate) struct LearnerSummaryConfig {
+#[derive(Clone)]
+/// Learning summary config.
+pub struct LearnerSummaryConfig {
     pub(crate) directory: PathBuf,
     pub(crate) metrics: Vec<String>,
 }
 
 impl LearnerSummaryConfig {
+    /// Create the learning summary.
     pub fn init(&self) -> Result<LearnerSummary, String> {
         LearnerSummary::new(&self.directory, &self.metrics[..])
     }

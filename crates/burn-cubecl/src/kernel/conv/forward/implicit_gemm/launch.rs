@@ -1,10 +1,13 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
-    convolution::{ConvolutionArgs, Strategy, components::ConvSetupError, forward},
+    convolution::{
+        AcceleratedTileKind, ConvolutionArgs, ReadingStrategy, Strategy,
+        components::ConvSetupError, forward,
+    },
     matmul::{
-        definition::{MatmulElemType, MatmulElems},
-        launch::{AcceleratedTileKind, MatmulInputHandleRef, ReadingStrategy},
+        definition::{MatmulElemType, MatmulElems, MatmulGlobalElems},
+        launch::MatmulInputHandleRef,
     },
 };
 
@@ -137,20 +140,20 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
         .map(|bias| MatmulInputHandleRef::Normal(bias.as_handle_ref(), bias.dtype.into()));
 
     let client = input.client.clone();
-    let dtypes = MatmulElems::from_globals(
-        MatmulElemType {
+    let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: MatmulElemType {
             dtype: input.dtype.into(),
             quantized: false,
         },
-        MatmulElemType {
+        rhs: MatmulElemType {
             dtype: weight.dtype.into(),
             quantized: false,
         },
-        MatmulElemType {
+        out: MatmulElemType {
             dtype: out_dtype.into(),
             quantized: false,
         },
-    );
+    });
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());
 

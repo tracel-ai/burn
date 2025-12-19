@@ -80,8 +80,9 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             current *= val;
             num_elems *= tensor.shape[index];
         });
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    let working_units = num_elems;
+    let cube_dim = CubeDim::new(&indices.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
     let launch = match is_bool {
         true => select_assign_kernel::launch_unchecked::<OrOp, R>,

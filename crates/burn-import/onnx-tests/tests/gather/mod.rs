@@ -9,7 +9,8 @@ include_models!(
     gather_scalar_out,
     gather_shape,
     gather_with_shape_indices,
-    gather_scalar_input
+    gather_scalar_input,
+    gather_negative_idx
 );
 
 #[cfg(test)]
@@ -179,8 +180,23 @@ mod tests {
         // The shape should be [1, 5, 7] regardless of the input method
     }
 
-    // TODO: Add test for negative indices on tensors once Burn tensor operations support them
-    // Currently negative indices are only handled for Shape gathering at code generation time
+    #[test]
+    fn gather_negative_idx() {
+        let device = Default::default();
+        let model: gather_negative_idx::Model<TestBackend> =
+            gather_negative_idx::Model::new(&device);
+
+        // Input shape: [4, 3]
+        let input = Tensor::<TestBackend, 2>::from_floats(
+            [[1., 2., 3.], [4., 5., 6.], [7., 8., 9.], [10., 11., 12.]],
+            &device,
+        );
+
+        let output = model.forward(input);
+
+        let expected = TensorData::from([10f32, 11., 12.]);
+        output.to_data().assert_eq(&expected, true);
+    }
 
     #[test]
     fn gather_scalar_input() {

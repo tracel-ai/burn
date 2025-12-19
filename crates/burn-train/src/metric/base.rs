@@ -56,8 +56,6 @@ pub enum MetricAttributes {
 }
 
 /// Definition of a metric.
-///
-/// This is used to register a metric with the [learner builder](crate::learner::LearnerBuilder).
 #[derive(Clone, Debug)]
 pub struct MetricDefinition {
     /// The metric's id.
@@ -126,7 +124,7 @@ pub type MetricName = Arc<String>;
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
 /// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registered with the [learner builder](crate::learner::LearnerBuilder) .
+/// registered with the specific [learning paradigm](crate::LearningParadigm).
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;

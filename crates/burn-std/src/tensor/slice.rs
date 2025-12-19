@@ -3,7 +3,6 @@
 use crate::Shape;
 use crate::indexing::AsIndex;
 use alloc::format;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
@@ -622,6 +621,12 @@ impl From<i32> for Slice {
     }
 }
 
+impl From<i64> for Slice {
+    fn from(i: i64) -> Self {
+        Slice::index(i as isize)
+    }
+}
+
 impl Display for Slice {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         if self.step == 1
@@ -646,14 +651,17 @@ impl Display for Slice {
 }
 
 impl FromStr for Slice {
-    type Err = SliceExpressionError;
+    type Err = crate::ExpressionError;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let mut s = source.trim();
 
         let parse_int = |v: &str| -> Result<isize, Self::Err> {
             v.parse::<isize>().map_err(|e| {
-                SliceExpressionError::parse_error(format!("Invalid integer: '{v}': {}", e), source)
+                crate::ExpressionError::parse_error(
+                    format!("Invalid integer: '{v}': {}", e),
+                    source,
+                )
             })
         };
 
@@ -667,7 +675,7 @@ impl FromStr for Slice {
         }
 
         if s.is_empty() {
-            return Err(SliceExpressionError::parse_error(
+            return Err(crate::ExpressionError::parse_error(
                 "Empty expression",
                 source,
             ));
@@ -690,7 +698,7 @@ impl FromStr for Slice {
         }
 
         if step == 0 {
-            return Err(SliceExpressionError::invalid_expression(
+            return Err(crate::ExpressionError::invalid_expression(
                 "Step cannot be zero",
                 source,
             ));
@@ -700,83 +708,11 @@ impl FromStr for Slice {
     }
 }
 
-/// Common Parse Error.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SliceExpressionError {
-    /// Parse Error.
-    ParseError {
-        /// The error message.
-        message: String,
-        /// The source expression.
-        source: String,
-    },
-
-    /// Invalid Expression.
-    InvalidExpression {
-        /// The error message.
-        message: String,
-        /// The source expression.
-        source: String,
-    },
-}
-
-impl SliceExpressionError {
-    /// Constructs a new `ParseError`.
-    ///
-    /// This function is a utility for creating instances where a parsing error needs to be represented,
-    /// encapsulating a descriptive error message and the source of the error.
-    ///
-    /// # Parameters
-    ///
-    /// - `message`: A value that can be converted into a `String`, representing a human-readable description
-    ///   of the parsing error.
-    /// - `source`: A value that can be converted into a `String`, typically identifying the origin or
-    ///   input that caused the parsing error.
-    pub fn parse_error(message: impl Into<String>, source: impl Into<String>) -> Self {
-        Self::ParseError {
-            message: message.into(),
-            source: source.into(),
-        }
-    }
-
-    /// Creates a new `InvalidExpression`.
-    ///
-    /// # Parameters
-    /// - `message`: A detailed message describing the nature of the invalid expression.
-    ///   Accepts any type that can be converted into a `String`.
-    /// - `source`: The source or context in which the invalid expression occurred.
-    ///   Accepts any type that can be converted into a `String`.
-    pub fn invalid_expression(message: impl Into<String>, source: impl Into<String>) -> Self {
-        Self::InvalidExpression {
-            message: message.into(),
-            source: source.into(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloc::string::ToString;
     use alloc::vec;
-
-    #[test]
-    fn test_parse_error() {
-        let err = SliceExpressionError::parse_error("test", "source");
-        assert_eq!(
-            format!("{:?}", err),
-            "ParseError { message: \"test\", source: \"source\" }"
-        );
-    }
-
-    #[test]
-    fn test_invalid_expression() {
-        let err = SliceExpressionError::invalid_expression("test", "source");
-        assert_eq!(
-            format!("{:?}", err),
-            "InvalidExpression { message: \"test\", source: \"source\" }"
-        );
-    }
 
     #[test]
     fn test_slice_to_str() {
@@ -804,7 +740,7 @@ mod tests {
 
         assert_eq!(
             "..;0".parse::<Slice>(),
-            Err(SliceExpressionError::invalid_expression(
+            Err(crate::ExpressionError::invalid_expression(
                 "Step cannot be zero",
                 "..;0"
             ))
@@ -812,25 +748,25 @@ mod tests {
 
         assert_eq!(
             "".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error("Empty expression", ""))
+            Err(crate::ExpressionError::parse_error("Empty expression", ""))
         );
         assert_eq!(
             "a".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error(
+            Err(crate::ExpressionError::parse_error(
                 "Invalid integer: 'a': invalid digit found in string",
                 "a"
             ))
         );
         assert_eq!(
             "..a".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error(
+            Err(crate::ExpressionError::parse_error(
                 "Invalid integer: 'a': invalid digit found in string",
                 "..a"
             ))
         );
         assert_eq!(
             "a:b:c".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error(
+            Err(crate::ExpressionError::parse_error(
                 "Invalid integer: 'a:b:c': invalid digit found in string",
                 "a:b:c"
             ))

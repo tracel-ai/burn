@@ -97,3 +97,12 @@ fn should_support_float_repeat_repeating_on_many_dimensions() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn should_repeat_0_times_empty() {
+    let tensor = TestTensor::<3>::ones([2, 3, 4], &Default::default());
+
+    let output = tensor.repeat(&[1, 0, 2]);
+
+    assert_eq!(output.shape(), [2, 0, 8].into());
+}

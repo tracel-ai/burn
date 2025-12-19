@@ -63,8 +63,9 @@ pub fn full_device_dtype<R: CubeRuntime>(
     let num_elems = empty.shape.num_elements();
     let line_size = max_line_size(&empty);
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&empty.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&empty.client, working_units, cube_dim);
 
     unsafe {
         full_kernel::launch_unchecked(
@@ -415,8 +416,9 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
     let output = empty_device_dtype(client.clone(), device, input.shape.clone(), input.dtype);
 
     let num_elems = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    let working_units = num_elems;
+    let cube_dim = CubeDim::new(&client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
 
     unsafe {
         cumulative_kernel::launch_unchecked::<O, R>(

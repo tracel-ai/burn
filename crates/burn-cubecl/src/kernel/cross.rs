@@ -78,8 +78,8 @@ pub(crate) fn cross<R: CubeRuntime>(
     // Number of vectors to process
     let num_vectors = output_shape.num_elements() / 3;
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_vectors, cube_dim);
+    let cube_dim = CubeDim::new(&lhs.client, num_vectors);
+    let cube_count = calculate_cube_count_elemwise(&lhs.client, num_vectors, cube_dim);
 
     unsafe {
         cross_kernel::launch_unchecked(

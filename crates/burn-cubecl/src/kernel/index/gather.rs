@@ -60,8 +60,9 @@ pub(crate) fn gather<R: CubeRuntime>(
         tensor.dtype,
     );
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+    let cube_dim = CubeDim::new(&tensor.client, total_elem);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, total_elem, cube_dim);
+
     unsafe {
         gather_kernel::launch_unchecked(
             &tensor.client,

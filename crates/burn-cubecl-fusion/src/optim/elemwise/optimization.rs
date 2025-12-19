@@ -92,9 +92,9 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
             },
             RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
         };
-        let total_elem = shape.iter().product::<usize>() / config.width as usize;
-        let cube_dim = CubeDim::default();
-        let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+        let working_units = shape.iter().product::<usize>() / config.width as usize;
+        let cube_dim = CubeDim::new(client, working_units);
+        let cube_count = calculate_cube_count_elemwise(client, working_units, cube_dim);
 
         unsafe {
             elemwise_fuse::launch_unchecked(
