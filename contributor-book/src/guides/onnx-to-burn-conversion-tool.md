@@ -78,9 +78,9 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
 6. **Inspect Generated Files**: The `my-model.graph.txt` contains IR details, `my-model.rs` holds
    the Burn model in Rust code, and `my-model.burnpack` contains the model weights.
 
-7. **Add End-to-End Test**: Include the test in
-   [crates/burn-import/onnx-tests/tests/test_onnx.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/test_onnx.rs).
-   Further details can be found in the
+7. **Add End-to-End Test**: Include the test in the `tests/<op_name>/mod.rs` file in the
+   [crates/burn-import/onnx-tests/tests/](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/) 
+   directory. Further details can be found in the
    [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
 
 ## Implementing a New Operator
