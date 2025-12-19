@@ -158,9 +158,9 @@ pub(crate) fn max_pool3d<R: CubeRuntime>(
     let shape_out = Shape::new([batch_size, size_0, size_1, size_2, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
-    let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+    let working_units = output.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&x.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     pool3d_direct::launch::<MaxPool3dStrategy, R>(
         &x.client,
@@ -241,9 +241,9 @@ pub(crate) fn max_pool3d_with_indices<R: CubeRuntime>(
     );
     let indices = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, dtype_indices);
 
-    let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+    let working_units = output.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&x.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     pool3d_direct::launch::<MaxPool3dWithIndicesStrategy, R>(
         &x.client,

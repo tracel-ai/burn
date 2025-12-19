@@ -125,8 +125,9 @@ pub(crate) fn adaptive_avg_pool3d_backward<R: CubeRuntime>(
 
     let num_elems = output.shape.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&x.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     adaptive_avg_pool3d_backward_direct::launch(
         &x.client,
