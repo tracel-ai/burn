@@ -51,6 +51,8 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     let w_in = tensor.shape().dims[3];
     let h_out = grid.shape().dims[1];
     let w_out = grid.shape().dims[2];
+    let spatial_in = h_in * w_in;
+    let spatial_out = h_out * w_out;
 
     // Separate x and y coordinates from grid
     // shape: (N, H_out, W_out, 1)
@@ -174,33 +176,43 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     let y0_clamped = B::int_clamp(y0, 0.elem(), ((h_in - 1) as i32).elem());
     let y1_clamped = B::int_clamp(y1, 0.elem(), ((h_in - 1) as i32).elem());
 
-    // Reshape indices for gather operation
-    let y0_idx = B::int_reshape(y0_clamped.clone(), Shape::new([n, 1, h_out, w_out, 1]));
-    let y0_idx = B::int_expand(y0_idx, Shape::new([n, c, h_out, w_out, w_in]));
-    let y1_idx = B::int_reshape(y1_clamped.clone(), Shape::new([n, 1, h_out, w_out, 1]));
-    let y1_idx = B::int_expand(y1_idx, Shape::new([n, c, h_out, w_out, w_in]));
+    // Linear indices: idx = y * W_in + x
+    let w_in_scalar: i32 = w_in as i32;
+    let idx_00 = B::int_add(
+        B::int_mul_scalar(y0_clamped.clone(), w_in_scalar.elem()),
+        x0_clamped.clone(),
+    );
+    let idx_01 = B::int_add(
+        B::int_mul_scalar(y1_clamped.clone(), w_in_scalar.elem()),
+        x0_clamped,
+    );
+    let idx_10 = B::int_add(
+        B::int_mul_scalar(y0_clamped, w_in_scalar.elem()),
+        x1_clamped.clone(),
+    );
+    let idx_11 = B::int_add(
+        B::int_mul_scalar(y1_clamped, w_in_scalar.elem()),
+        x1_clamped,
+    );
 
-    let x0_idx = B::int_reshape(x0_clamped, Shape::new([n, 1, h_out, w_out, 1]));
-    let x0_idx = B::int_expand(x0_idx, Shape::new([n, c, h_out, w_out, 1]));
-    let x1_idx = B::int_reshape(x1_clamped, Shape::new([n, 1, h_out, w_out, 1]));
-    let x1_idx = B::int_expand(x1_idx, Shape::new([n, c, h_out, w_out, 1]));
+    // [N, 1, H_out, W_out] -> [N, 1, H_out * W_out]
+    let idx_00 = B::int_reshape(idx_00, Shape::new([n, 1, spatial_out]));
+    let idx_01 = B::int_reshape(idx_01, Shape::new([n, 1, spatial_out]));
+    let idx_10 = B::int_reshape(idx_10, Shape::new([n, 1, spatial_out]));
+    let idx_11 = B::int_reshape(idx_11, Shape::new([n, 1, spatial_out]));
 
-    // Reshape tensor for gather operation
-    let tensor = B::float_reshape(tensor, Shape::new([n, c, h_in, 1, w_in]));
-    let tensor = B::float_expand(tensor, Shape::new([n, c, h_in, w_out, w_in]));
+    // [N, 1, spatial] -> [N, C, spatial]
+    let idx_00 = B::int_expand(idx_00, Shape::new([n, c, spatial_out]));
+    let idx_01 = B::int_expand(idx_01, Shape::new([n, c, spatial_out]));
+    let idx_10 = B::int_expand(idx_10, Shape::new([n, c, spatial_out]));
+    let idx_11 = B::int_expand(idx_11, Shape::new([n, c, spatial_out]));
 
-    // Gather samples from the four corners
-    let sample_00 = B::float_gather(2, tensor.clone(), y0_idx.clone());
-    let sample_00 = B::float_gather(4, sample_00, x0_idx.clone());
+    let tensor_flat = B::float_reshape(tensor, Shape::new([n, c, spatial_in]));
 
-    let sample_01 = B::float_gather(2, tensor.clone(), y1_idx.clone());
-    let sample_01 = B::float_gather(4, sample_01, x0_idx.clone());
-
-    let sample_10 = B::float_gather(2, tensor.clone(), y0_idx);
-    let sample_10 = B::float_gather(4, sample_10, x1_idx.clone());
-
-    let sample_11 = B::float_gather(2, tensor, y1_idx);
-    let sample_11 = B::float_gather(4, sample_11, x1_idx);
+    let sample_00 = B::float_gather(2, tensor_flat.clone(), idx_00);
+    let sample_01 = B::float_gather(2, tensor_flat.clone(), idx_01);
+    let sample_10 = B::float_gather(2, tensor_flat.clone(), idx_10);
+    let sample_11 = B::float_gather(2, tensor_flat, idx_11);
 
     // Reshape samples to (N, C, H_out, W_out)
     let sample_00 = B::float_reshape(sample_00, Shape::new([n, c, h_out, w_out]));
