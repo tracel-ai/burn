@@ -417,7 +417,7 @@ When implementing a new operator, there are several levels of testing to conside
   generation. Each node file typically includes unit tests using `assert_tokens()` to validate
   generated code against expected output.
 
-### Integration and End-to-End Testing
+### Integration Testing
 
 - **Test Path**: Write integration and end-to-end tests in `crates/burn-import/onnx-tests/tests/<op_name>/mod.rs` where `<op_name>` is the name of the new operator. 
 
