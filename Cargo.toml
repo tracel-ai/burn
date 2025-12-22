@@ -180,9 +180,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "84cc0e3fc2f4b615150c588c355bc97fbae4c2e3" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "84cc0e3fc2f4b615150c588c355bc97fbae4c2e3" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "947ceb5f944f4f3bb22fdad5cba93f7b659d7264" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5e78873469dc4b83448b8f3cb879f67b1768ee1a" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5e78873469dc4b83448b8f3cb879f67b1768ee1a" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "1b26e140a4a9d0dcd74a3b14eb0d57c28ea3a49d" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -197,3 +197,7 @@ tracel-xtask = { version = "=2.2.1" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
+
+# TODO: remove once sysinfo release includes windows 0.62 (required for wgpu)
+[patch.crates-io]
+sysinfo = { git = "https://github.com/GuillaumeGomez/sysinfo", rev = "b0ae22bfb2064d74e9561fb71890ad68763c7aff" }
