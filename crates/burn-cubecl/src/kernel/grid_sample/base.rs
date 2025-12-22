@@ -5,9 +5,7 @@ use burn_backend::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMod
 
 use super::bilinear::grid_sample_bilinear_launch;
 
-/// Grid sample operation
-///
-/// Supports bilinear and bicubic interpolation modes
+/// Grid sample operation supporting bilinear interpolation
 pub fn grid_sample<R: CubeRuntime>(
     input: CubeTensor<R>,
     grid: CubeTensor<R>,
