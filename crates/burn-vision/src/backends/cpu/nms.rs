@@ -88,6 +88,8 @@ fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Ve
             continue;
         }
 
+        // Optimization to reduce inner loop comparisons
+        suppressed[i] = true;
         // Store original index, not filtered index
         keep.push(original_indices[i] as i32);
 
@@ -152,12 +154,13 @@ fn suppress_overlapping<'a, S: Simd>(
 
     let mut i = 0;
 
+    let mut mask_buf = core::mem::MaybeUninit::<[bool; 16]>::uninit();
     // Process lanes boxes at a time with SIMD
     while i + lanes <= n_boxes {
         // Skip if all boxes in this chunk are already suppressed
         let mut any_active = false;
         for k in 0..lanes {
-            if !suppressed[i + k] && (i + k) != ref_idx {
+            if !suppressed[i + k] {
                 any_active = true;
                 break;
             }
@@ -191,12 +194,11 @@ fn suppress_overlapping<'a, S: Simd>(
 
             // Extract mask to bool array and apply to suppressed
             // SAFETY: mask_store_as_bool writes exactly `lanes` bools, we only read 0..lanes
-            let mut mask_buf = core::mem::MaybeUninit::<[bool; 16]>::uninit();
             unsafe { f32::mask_store_as_bool::<S>(mask_buf.as_mut_ptr().cast(), suppress_mask) };
             let mask_buf = unsafe { mask_buf.assume_init() };
 
             for k in 0..lanes {
-                if mask_buf[k] && (i + k) != ref_idx {
+                if mask_buf[k] {
                     suppressed[i + k] = true;
                 }
             }
