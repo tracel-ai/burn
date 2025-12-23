@@ -6,6 +6,7 @@
 //! Currently implemented are:
 //! - `connected_components`
 //! - `connected_components_with_stats`
+//! - `nms` (Non-Maximum Suppression)
 //!
 
 #![warn(missing_docs)]
