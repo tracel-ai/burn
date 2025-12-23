@@ -16,6 +16,13 @@ workspace = true
 
 [features]
 default = ["fusion", "burn-cubecl/default", "cubecl/default"]
+tracing = [
+    "cubecl/tracing",
+    "burn-cubecl/tracing",
+    "burn-backend/tracing",
+    "burn-fusion?/tracing",
+]
+
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]

@@ -41,7 +41,10 @@ pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
-#[cfg_attr(feature = "tracing", tracing::instrument(skip(tensor, device)))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor, device))
+)]
 pub(crate) fn to_device<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     device: &R::Device,

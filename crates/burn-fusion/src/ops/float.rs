@@ -15,6 +15,7 @@ use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(data),
         fields(?data.shape, ?data.dtype)
     ))]
@@ -162,6 +163,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(
             from = ?tensor.client.device(),
@@ -178,6 +180,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(
             from = ?tensor.client.device(),
