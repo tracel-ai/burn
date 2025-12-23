@@ -13,6 +13,8 @@ use core::{
 };
 use serde::{Deserialize, Serialize};
 
+pub use crate::tensor::index_conversion::AsSize;
+
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Shape {
@@ -594,70 +596,32 @@ impl DerefMut for Shape {
     }
 }
 
-// Conversion sugar
-impl<const D: usize> From<[usize; D]> for Shape {
-    fn from(dims: [usize; D]) -> Self {
-        Shape::new(dims)
-    }
-}
-
-impl<const D: usize> From<[i64; D]> for Shape {
-    fn from(dims: [i64; D]) -> Self {
-        Shape {
-            dims: dims.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl<const D: usize> From<[i32; D]> for Shape {
-    fn from(dims: [i32; D]) -> Self {
-        Shape {
-            dims: dims.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<&[usize]> for Shape {
-    fn from(dims: &[usize]) -> Self {
-        Shape { dims: dims.into() }
-    }
-}
-
-impl From<Vec<i64>> for Shape {
-    fn from(shape: Vec<i64>) -> Self {
-        Self {
-            dims: shape.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<Vec<u64>> for Shape {
-    fn from(shape: Vec<u64>) -> Self {
-        Self {
-            dims: shape.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<Vec<usize>> for Shape {
-    fn from(shape: Vec<usize>) -> Self {
-        Self { dims: shape }
-    }
-}
-
-impl From<&Vec<usize>> for Shape {
-    fn from(shape: &Vec<usize>) -> Self {
-        Self {
-            dims: shape.clone(),
-        }
-    }
-}
-
 impl From<Shape> for Vec<usize> {
     fn from(shape: Shape) -> Self {
         shape.dims
     }
 }
+
+/// Marker trait for types that can be converted into a shape.
+pub trait ShapeSource {}
+
+impl<T> From<T> for Shape
+where
+    T: ShapeSource + IntoIterator,
+    T::Item: AsSize,
+{
+    fn from(dims: T) -> Self {
+        Shape {
+            dims: dims.into_iter().map(|d| d.as_size()).collect(),
+        }
+    }
+}
+
+impl<I> ShapeSource for &[I] {}
+impl<I> ShapeSource for &Vec<I> {}
+impl<I> ShapeSource for Vec<I> {}
+impl<I, const D: usize> ShapeSource for [I; D] {}
+impl<I, const D: usize> ShapeSource for &[I; D] {}
 
 #[cfg(test)]
 #[allow(clippy::identity_op, reason = "useful for clarity")]
