@@ -20,6 +20,12 @@ std = ["dep:parking_lot"]
 export_tests = []         # check checkpointer is_empty in tests
 tracing = ["dep:tracing"]
 
+tracing = [
+    "dep:tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+]
+
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false }

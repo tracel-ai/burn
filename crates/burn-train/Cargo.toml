@@ -17,6 +17,13 @@ workspace = true
 [features]
 default = ["sys-metrics", "tui"]
 doc = ["default"]
+tracing = [
+    "burn-core/tracing",
+    "burn-optim/tracing",
+    "burn-collective?/tracing",
+]
+
+
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 # Distributed Data Parallel

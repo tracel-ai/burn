@@ -18,6 +18,9 @@ workspace = true
 default = ["std"]
 std = ["burn-backend/std"]
 doc = ["default"]
+tracing = [
+    "burn-backend/tracing",
+]
 
 [dependencies]
 serde = { workspace = true }

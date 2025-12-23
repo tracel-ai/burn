@@ -27,6 +27,7 @@ where
     BT: BoolElement,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(data),
         fields(?data.shape, ?data.dtype)
     ))]
@@ -56,6 +57,7 @@ where
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
     ))]
@@ -68,6 +70,7 @@ where
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
     ))]

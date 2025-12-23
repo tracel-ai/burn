@@ -21,6 +21,13 @@ autotune = []
 autotune-checks = ["cubecl/autotune-checks", "burn-backend", "half"]
 doc = ["default"]
 std = ["cubecl/std", "burn-backend?/std", "burn-fusion/std"]
+tracing = [
+    "cubecl/tracing",
+    "cubek/tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+    "burn-fusion/tracing",
+]
 
 [dependencies]
 burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.6", default-features = false }
