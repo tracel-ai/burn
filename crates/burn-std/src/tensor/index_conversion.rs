@@ -89,7 +89,11 @@ macro_rules! gen_as_index {
 gen_as_index!(usize, isize, i64, u64, i32, u32, i16, u16, i8, u8);
 
 /// Marker trait for sources of reshape arguments.
-pub trait RankedReshapeArgsSource<const R: usize>: IntoIterator where Self::Item: AsIndex {}
+pub trait RankedReshapeArgsSource<const R: usize>: IntoIterator
+where
+    Self::Item: AsIndex,
+{
+}
 
 impl<const R: usize> RankedReshapeArgsSource<R> for Shape {}
 
