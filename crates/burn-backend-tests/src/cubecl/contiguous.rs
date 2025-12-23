@@ -22,8 +22,9 @@ pub fn into_contiguous_match_reference_backend_1() {
             println!("{view_ref}");
             let data = view.into_data();
             let data_ref = view_ref.into_data();
-            println!("{data}");
-            println!("{data_ref}");
+            let tensor_pp =
+                Tensor::<ReferenceBackend, 4>::from_data(data.clone(), &Default::default());
+            println!("{tensor_pp}");
 
             data_ref.assert_approx_eq::<FloatElem>(&data, Tolerance::default());
         }
