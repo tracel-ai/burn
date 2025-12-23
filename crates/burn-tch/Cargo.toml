@@ -28,7 +28,7 @@ tch = { workspace = true, features = ["download-libtorch"] }
 torch-sys = { workspace = true }                             # for build script lib dir detection
 
 [build-dependencies]
-cc = "1.2.47"
+cc = "1.2.50"
 
 [package.metadata.docs.rs]
 features = ["doc"]

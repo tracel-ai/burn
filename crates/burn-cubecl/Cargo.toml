@@ -22,6 +22,7 @@ default = [
     "cubecl/default",
     "burn-fusion?/default",
     "burn-cubecl-fusion?/default",
+    "tracing",
 ]
 
 autotune = ["burn-cubecl-fusion?/autotune"]
@@ -40,8 +41,9 @@ std = [
     "burn-backend/std",
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
-    "tracing/std",
+    "tracing?/std",
 ]
+tracing = ["dep:tracing"]
 
 template = []
 
@@ -64,7 +66,9 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
 ] }
-tracing = { workspace = true, features = ["attributes"] }
+tracing = { workspace = true, optional = true, features = [
+    "attributes",
+] }
 
 derive-new = { workspace = true }
 log = { workspace = true }

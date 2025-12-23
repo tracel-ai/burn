@@ -186,7 +186,7 @@ define_node_enum! {
     Softplus => elementwise::ElementwiseUnaryNode,
     Softsign => elementwise::ElementwiseUnaryNode,
     ThresholdedRelu => elementwise::ElementwiseUnaryNode,
-    HardSwish => elementwise::ElementwiseUnaryNode,
+    HardSwish => hard_swish::HardSwishNode,
     PRelu => prelu::PReluNode,
 
     // COMPARISON & LOGICAL OPERATIONS

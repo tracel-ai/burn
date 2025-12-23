@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use crate::activation::{
-    Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu,
-    Sigmoid, Softplus, SoftplusConfig, SwiGlu, SwiGluConfig, Tanh,
+    Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig, PRelu,
+    PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, SwiGlu, SwiGluConfig, Tanh,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -36,6 +36,9 @@ pub enum ActivationConfig {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoidConfig),
+
+    /// [`HardSwish`] activation layer.
+    HardSwish,
 
     /// [`Softplus`] activation layer.
     Softplus(SoftplusConfig),
@@ -81,6 +84,7 @@ impl ActivationConfig {
             ActivationConfig::PRelu(conf) => conf.init(device).into(),
             ActivationConfig::SwiGlu(conf) => conf.init(device).into(),
             ActivationConfig::HardSigmoid(conf) => conf.init().into(),
+            ActivationConfig::HardSwish => HardSwish.into(),
             ActivationConfig::Softplus(conf) => conf.init().into(),
             ActivationConfig::Sigmoid => Sigmoid.into(),
             ActivationConfig::Tanh => Tanh.into(),
@@ -118,6 +122,9 @@ pub enum Activation<B: Backend> {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoid),
+
+    /// [`HardSwish`] activation layer.
+    HardSwish(HardSwish),
 
     /// [`Softplus`] activation layer.
     Softplus(Softplus),
@@ -171,6 +178,12 @@ impl<B: Backend> From<HardSigmoid> for Activation<B> {
     }
 }
 
+impl<B: Backend> From<HardSwish> for Activation<B> {
+    fn from(layer: HardSwish) -> Self {
+        Self::HardSwish(layer)
+    }
+}
+
 impl<B: Backend> From<Softplus> for Activation<B> {
     fn from(layer: Softplus) -> Self {
         Self::Softplus(layer)
@@ -187,6 +200,7 @@ impl<B: Backend> Activation<B> {
             Activation::PRelu(layer) => layer.forward(input),
             Activation::SwiGlu(layer) => layer.forward(input),
             Activation::HardSigmoid(layer) => layer.forward(input),
+            Activation::HardSwish(layer) => layer.forward(input),
             Activation::Softplus(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
