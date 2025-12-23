@@ -57,13 +57,9 @@ impl<
         &self,
         args: &mut Self::LoadArgs,
     ) -> Result<I, RecorderError> {
-        let state = bincode::borrow_decode_from_slice::<'_, bincode::serde::BorrowCompat<I>, _>(
-            args.as_ref(),
-            bin_config(),
-        )
-        .unwrap()
-        .0;
-        Ok(state.0)
+        let (state, _) = bincode::serde::decode_from_slice(args.as_ref(), bin_config())
+            .map_err(|err| RecorderError::DeserializeError(err.to_string()))?;
+        Ok(state)
     }
 }
 
