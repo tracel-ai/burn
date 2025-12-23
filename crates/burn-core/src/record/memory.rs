@@ -1,5 +1,5 @@
 use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use burn_tensor::backend::Backend;
 use serde::{Serialize, de::DeserializeOwned};
 
