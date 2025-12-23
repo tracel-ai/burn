@@ -13,7 +13,7 @@ use crate::{FloatNdArrayElement, UnsafeSharedRef, iter_range_par, run_par};
 ///
 /// # Arguments
 ///
-/// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+/// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, H_in, W_in)
 /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
 ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
 /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
