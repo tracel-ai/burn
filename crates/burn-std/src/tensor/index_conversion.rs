@@ -5,6 +5,7 @@
 
 use super::indexing::IndexWrap;
 use crate::Shape;
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 /// Types which can be converted to a `usize` Size.
@@ -88,7 +89,7 @@ macro_rules! gen_as_index {
 gen_as_index!(usize, isize, i64, u64, i32, u32, i16, u16, i8, u8);
 
 /// Marker trait for sources of reshape arguments.
-pub trait RankedReshapeArgsSource<const R: usize> {}
+pub trait RankedReshapeArgsSource<const R: usize>: IntoIterator where Self::Item: AsIndex {}
 
 impl<const R: usize> RankedReshapeArgsSource<R> for Shape {}
 
@@ -121,7 +122,7 @@ pub trait RankedReshapeArgs<const TARGET_RANK: usize> {
 
 impl<const TARGET_RANK: usize, T> RankedReshapeArgs<TARGET_RANK> for T
 where
-    T: RankedReshapeArgsSource<TARGET_RANK> + IntoIterator,
+    T: RankedReshapeArgsSource<TARGET_RANK>,
     T::Item: AsIndex,
 {
     fn eval_shape<const SOURCE_RANK: usize>(self, source: Shape) -> Shape {
