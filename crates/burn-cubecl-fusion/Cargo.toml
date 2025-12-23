@@ -23,7 +23,6 @@ doc = ["default"]
 std = ["cubecl/std", "burn-backend?/std", "burn-fusion/std"]
 tracing = [
     "cubecl/tracing",
-    "cubek/tracing",
     "burn-std/tracing",
     "burn-backend/tracing",
     "burn-fusion/tracing",

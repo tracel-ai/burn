@@ -19,9 +19,9 @@ default = ["std", "tracing"]
 std = ["serde/std", "tracing?/std"]
 doc = ["default"]
 memory-checks = ["std"]
-tracing = ["dep:tracing"]
 
 tracing = [
+    "dep:tracing",
     "burn-backend/tracing",
     "burn-ir/tracing",
 ]

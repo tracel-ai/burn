@@ -18,7 +18,6 @@ workspace = true
 default = ["std", "tracing"]
 std = ["dep:parking_lot"]
 export_tests = []         # check checkpointer is_empty in tests
-tracing = ["dep:tracing"]
 
 tracing = [
     "dep:tracing",

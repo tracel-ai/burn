@@ -34,7 +34,6 @@ memory-checks = ["burn-fusion?/memory-checks"]
 tracing = [
     "dep:tracing",
     "cubecl/tracing",
-    "cubek/tracing",
     "burn-std/tracing",
     "burn-backend/tracing",
     "burn-fusion?/tracing",
