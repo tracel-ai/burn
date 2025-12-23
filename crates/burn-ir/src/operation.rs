@@ -9,7 +9,8 @@ use alloc::{string::String, vec::Vec};
 use burn_backend::{
     DType, Distribution, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
+        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
+        GridSamplePaddingMode, InterpolateMode, InterpolateOptions,
     },
     quantization::QuantScheme,
 };
@@ -136,6 +137,8 @@ pub enum FloatOperationIr {
     Quantize(QuantizeOpIr),
     /// Operation corresponding to [dequantize](burn_backend::ops::QTensorOps::dequantize).
     Dequantize(DequantizeOpIr),
+    /// Operation corresponding to [grid_sample_2d](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
+    GridSample2d(GridSample2dOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -1493,6 +1496,71 @@ pub struct InterpolateBackwardOpIr {
     pub out: TensorIr,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum GridSamplePaddingModeIr {
+    Zeros,
+    Border,
+    Reflection,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSampleOptionsIr {
+    pub mode: InterpolateModeIr,
+    pub padding_mode: GridSamplePaddingModeIr,
+    pub align_corners: bool,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSample2dOpIr {
+    pub tensor: TensorIr,
+    pub grid: TensorIr,
+    pub options: GridSampleOptionsIr,
+    pub out: TensorIr,
+}
+
+impl From<GridSamplePaddingModeIr> for GridSamplePaddingMode {
+    fn from(val: GridSamplePaddingModeIr) -> Self {
+        match val {
+            GridSamplePaddingModeIr::Zeros => Self::Zeros,
+            GridSamplePaddingModeIr::Border => Self::Border,
+            GridSamplePaddingModeIr::Reflection => Self::Reflection,
+        }
+    }
+}
+
+impl From<GridSamplePaddingMode> for GridSamplePaddingModeIr {
+    fn from(val: GridSamplePaddingMode) -> Self {
+        match val {
+            GridSamplePaddingMode::Zeros => Self::Zeros,
+            GridSamplePaddingMode::Border => Self::Border,
+            GridSamplePaddingMode::Reflection => Self::Reflection,
+        }
+    }
+}
+
+impl From<GridSampleOptionsIr> for GridSampleOptions {
+    fn from(val: GridSampleOptionsIr) -> Self {
+        Self {
+            mode: val.mode.into(),
+            padding_mode: val.padding_mode.into(),
+            align_corners: val.align_corners,
+        }
+    }
+}
+
+impl From<GridSampleOptions> for GridSampleOptionsIr {
+    fn from(val: GridSampleOptions) -> Self {
+        Self {
+            mode: val.mode.into(),
+            padding_mode: val.padding_mode.into(),
+            align_corners: val.align_corners,
+        }
+    }
+}
+
 impl OperationIr {
     /// Get all input [tensors](TensorIr) involved with the current operation.
     pub fn inputs(&self) -> impl Iterator<Item = &TensorIr> {
@@ -1987,6 +2055,9 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::GridSample2d(repr) => {
+                Box::new([&repr.tensor, &repr.grid].into_iter())
+            }
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -2013,6 +2084,7 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::GridSample2d(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -2086,6 +2158,10 @@ impl FloatOperationIr {
             }
             FloatOperationIr::IsInf(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::GridSample2d(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.grid.mark_read_only(nodes, &mut output);
             }
         };
 
