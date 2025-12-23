@@ -22,6 +22,7 @@ use crate::{
 };
 use crate::{DType, Element};
 use crate::{cast::ToElement, check::TensorCheck};
+use burn_std::tensor::index_conversion::RankedReshapeArgs;
 use serde::{Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
@@ -367,9 +368,9 @@ where
     ///    println!("{reshaped}");
     /// }
     /// ```
-    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn reshape<const D2: usize, S: RankedReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
         // Convert reshape args to shape
-        let shape = shape.into_shape(&self);
+        let shape = shape.eval_shape::<D>(self.shape());
         Tensor::new(K::reshape(self.primitive, shape))
     }
 
@@ -1156,7 +1157,7 @@ where
         let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
         for i in 0..item_count {
             let dim = dims[i].expect_dim_index(D);
-            accumulated_shifts[dim] += shifts[i].index();
+            accumulated_shifts[dim] += shifts[i].as_index();
         }
 
         // Do this after we've checked the validity of `dims` and `shifts`.
@@ -3071,109 +3072,6 @@ impl MovedimArgs for i32 {
     }
 }
 
-/// Trait used for reshape arguments.
-pub trait ReshapeArgs<const D2: usize> {
-    /// Converts to a shape.
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
-        self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape;
-}
-
-impl<const D2: usize> ReshapeArgs<D2> for Shape {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
-        self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape {
-        check!(TensorCheck::reshape_args_usize::<D, D2>(
-            &tensor.shape(),
-            &self
-        ));
-
-        self
-    }
-}
-impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
-        self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape {
-        let shape = Shape::from(self);
-
-        check!(TensorCheck::reshape_args_usize::<D, D2>(
-            &tensor.shape(),
-            &shape
-        ));
-
-        shape
-    }
-}
-
-impl<const D2: usize> ReshapeArgs<D2> for [i64; D2] {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
-        self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape {
-        // Validate the reshape arguments
-        check!(TensorCheck::reshape_args_i64(&self));
-
-        // Temporary shape
-        let mut new_shape: [i64; D2] = [1; D2];
-
-        // We need to find the index of the 0 dimension and
-        // replace it with the actual dimension value.
-        for (i, &s) in self.iter().enumerate() {
-            if s != 0 {
-                new_shape[i] = s;
-            } else {
-                new_shape[i] = tensor.dims()[i] as i64;
-            }
-        }
-
-        // Find the index of the inferred dimension (-1)
-        let infer_index = new_shape.iter().position(|x| x == &-1);
-
-        // Handle the case where the dimension is inferred (via -1)
-        if let Some(index) = infer_index {
-            // Handle the case where the dimension is inferred
-            let mut product = 1;
-            for (i, &s) in new_shape.iter().enumerate() {
-                if i != index {
-                    product *= s;
-                }
-            }
-            let product_current = tensor.shape().num_elements() as i64;
-
-            new_shape[index] = product_current / product;
-
-            // Check if the reshape is valid
-            if product_current % product != 0 {
-                panic!(
-                    "Cannot reshape tensor of shape {:?} to shape {:?}",
-                    tensor.shape(),
-                    new_shape
-                );
-            }
-        };
-
-        // Convert each element to usize
-        let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
-
-        Shape::from(new_shape)
-    }
-}
-
-impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
-        self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape {
-        // Convert i32 array to i64 array and use existing implementation
-        let i64_array: [i64; D2] = self.map(|x| x as i64);
-        ReshapeArgs::into_shape(i64_array, tensor)
-    }
-}
-
 /// Trait used for broadcast arguments.
 pub trait BroadcastArgs<const D1: usize, const D2: usize> {
     /// Converts to a shape.
@@ -3198,7 +3096,7 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
             .iter()
             .rev()
             .map(|x| {
-                let primitive = x.index();
+                let primitive = x.as_index();
                 if primitive < -1 || primitive == 0 {
                     panic!("Broadcast arguments must be positive or -1");
                 }
