@@ -78,9 +78,9 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
 6. **Inspect Generated Files**: The `my-model.graph.txt` contains IR details, `my-model.rs` holds
    the Burn model in Rust code, and `my-model.burnpack` contains the model weights.
 
-7. **Add End-to-End Test**: Include the test in
-   [crates/burn-import/onnx-tests/tests/test_onnx.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/test_onnx.rs).
-   Further details can be found in the
+7. **Integration Test**: Include the test in the `tests/<op_name>/mod.rs` file in the
+   [crates/burn-import/onnx-tests/tests/](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/) 
+   directory. Further details can be found in the
    [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
 
 ## Implementing a New Operator
@@ -419,15 +419,16 @@ When implementing a new operator, there are several levels of testing to conside
 
 ### Integration Testing
 
-- Create small ONNX models that use your operator and test the end-to-end conversion process
-- Ensure the generated Rust code compiles and produces the expected outputs
-- Add these tests to `crates/burn-import/onnx-tests/tests/test_onnx.rs`
+- **Test Path**: Write integration tests in `crates/burn-import/onnx-tests/tests/<op_name>/mod.rs` where `<op_name>` is the name of the new operator. 
 
-### End-to-End Testing
-
-- Test with realistic ONNX models that use your operator in conjunction with others
-- Verify that inputs and outputs match between the original ONNX model and the converted Burn model
-- Include models that test edge cases (e.g., different input shapes, parameter combinations)
+- **What to Test**: 
+    - Create ONNX models that use your operator and test the end-to-end conversion process
+    - Ensure the generated Rust code compiles
+    - Test with realistic ONNX models that use your operator in conjunction with others
+    - Include models that test edge cases (e.g., different input shapes, parameter combinations)
+    - Verify that inputs and outputs match between the original ONNX model and the converted Burn model
+- Further details can be found in the
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
 
 Testing the processor implementation is particularly important as it directly affects the
 correctness of the conversion process. Incorrect type inference can lead to mismatched tensor shapes
