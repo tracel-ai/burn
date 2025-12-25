@@ -3,7 +3,7 @@ use crate::tensor::Shape;
 use crate::config::Config;
 use crate::module::{Param, ParamId};
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, Tensor, s};
+use crate::tensor::{Distribution, Tensor};
 
 use crate as burn;
 
@@ -176,7 +176,7 @@ impl Initializer {
                     t = t.transpose();
                 }
 
-                let (q, r) = qr_decomposition(t, device);
+                let (q, r) = crate::tensor::linalg::qr_decomposition(t);
                 let [r_rows, r_cols] = r.clone().dims();
 
                 let diag_r = Tensor::<B, 2>::ones([1, r_rows], device)
@@ -240,51 +240,6 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape>>(
 ) -> Tensor<B, D> {
     let distribution = Distribution::Normal(mean, std);
     Tensor::<B, D>::random(shape, distribution, device)
-}
-
-fn qr_decomposition<B: Backend>(
-    a: Tensor<B, 2>,
-    device: &B::Device,
-) -> (Tensor<B, 2>, Tensor<B, 2>) {
-    // Calculate the QR decomposition using Gram-Schmidt-process: https://en.wikipedia.org/wiki/Gram%E2%80%93Schmidt_process
-
-    let [m, n] = a.clone().dims();
-    let mut q = Tensor::<B, 2>::zeros([m, n], device);
-    let mut r = Tensor::<B, 2>::zeros([n, n], device);
-
-    for j in 0..n {
-        let mut v: Tensor<B, 1> = a.clone().slice(s![.., j..=j]).squeeze_dim(1);
-
-        for i in 0..j {
-            let q_i: Tensor<B, 1> = q.clone().slice(s![.., i..=i]).squeeze_dim(1);
-            let r_ij = q_i.clone().mul(v.clone()).sum();
-
-            r = r
-                .clone()
-                .slice_assign([i..i + 1, j..j + 1], r_ij.clone().unsqueeze());
-
-            v = v - q_i.mul(r_ij);
-        }
-
-        // norm of v
-        let r_jj = v
-            .clone()
-            .powf(Tensor::from_floats([2.0], device))
-            .sum()
-            .sqrt();
-
-        r = r
-            .clone()
-            .slice_assign([j..j + 1, j..j + 1], r_jj.clone().unsqueeze());
-
-        let q_j = v / r_jj;
-
-        q = q
-            .clone()
-            .slice_assign([0..m, j..j + 1], q_j.unsqueeze_dim(1));
-    }
-
-    (q, r)
 }
 
 #[cfg(test)]
@@ -547,7 +502,7 @@ mod tests {
             [[12., -51., 4.], [6., 167., -68.], [-4., 24., -41.]],
             &Default::default(),
         );
-        let qr = qr_decomposition(a.clone(), &Default::default());
+        let qr = crate::tensor::linalg::qr_decomposition(a.clone());
 
         // Q @ R should reconstruct input `a`
         let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
