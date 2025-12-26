@@ -91,6 +91,10 @@ macro_rules! constant {
         fn valid(&self) -> Self::InnerModule {
             self.clone()
         }
+
+        fn from_inner(module: Self::InnerModule) -> Self {
+            module
+        }
     };
 
     ($type:ty) => {
@@ -197,6 +201,10 @@ impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> AutodiffModule<
     fn valid(&self) -> Self::InnerModule {
         self.clone().inner()
     }
+
+    fn from_inner(tensor: Self::InnerModule) -> Self {
+        Tensor::from_inner(tensor)
+    }
 }
 
 impl<B: Backend> Module<B> for PhantomData<B> {
@@ -243,6 +251,10 @@ impl<B: AutodiffBackend> AutodiffModule<B> for PhantomData<B> {
     type InnerModule = PhantomData<B::InnerBackend>;
 
     fn valid(&self) -> Self::InnerModule {
+        PhantomData
+    }
+
+    fn from_inner(_module: Self::InnerModule) -> Self {
         PhantomData
     }
 }
@@ -317,6 +329,10 @@ where
 
     fn valid(&self) -> Self::InnerModule {
         self.clone()
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        module
     }
 }
 
