@@ -659,8 +659,6 @@ where
         Self::new(K::cumprod(self.primitive, dim))
     }
 
-    
-
     /// Apply element wise absolute value operation.
     ///
     /// # Example
@@ -1200,8 +1198,6 @@ where
             indices.select(dim, k_indices),
         )
     }
-
-    
 
     /// Applies the matrix multiplication operation.
     ///

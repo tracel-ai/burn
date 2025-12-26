@@ -1,9 +1,7 @@
-use burn_std::Shape;
 
 use crate::{
-    Backend, Distribution, ElementComparison,
-    element::{Element, ElementConversion},
-    tensor::{BasicOps, IntTensor, Numeric},
+    Backend, ElementComparison,
+    tensor::{IntTensor, Numeric},
 };
 
 /// Trait that list all operations that can be applied on all numerical tensors.

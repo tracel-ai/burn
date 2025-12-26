@@ -471,8 +471,10 @@ impl TensorCheck {
     pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Orderable<B>>(
         index_tensor: Tensor<B, D, K>,
         num_classes: usize,
-    ) -> Self 
-    where <K as burn_backend::tensor::BasicOps<B>>::Elem: ElementComparison {
+    ) -> Self
+    where
+        <K as burn_backend::tensor::BasicOps<B>>::Elem: ElementComparison,
+    {
         let mut check = Self::Ok;
         if index_tensor
             .clone()

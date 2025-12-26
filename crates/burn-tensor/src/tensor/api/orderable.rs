@@ -1,8 +1,11 @@
-use burn_backend::{Backend, ElementComparison, ElementConversion, tensor::{Bool, IndexingUpdateOp, Int, Orderable}};
+use burn_backend::{
+    Backend, ElementComparison, ElementConversion,
+    tensor::{Bool, IndexingUpdateOp, Int, Orderable},
+};
 use burn_std::AsIndex;
 
-use crate::{Tensor, check::{ TensorCheck}};
 use crate::check;
+use crate::{Tensor, check::TensorCheck};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -10,7 +13,6 @@ where
     K: Orderable<B>,
     K::Elem: ElementComparison,
 {
-
     /// Create a one hot tensor.
     ///
     /// # Example
@@ -112,7 +114,7 @@ where
             scatter_on_values,
             IndexingUpdateOp::Add,
         )
-    }    
+    }
     /// Applies element wise greater comparison and returns a boolean tensor.
     ///
     /// # Panics
