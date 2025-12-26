@@ -2,9 +2,7 @@ use std::cmp::Ordering;
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    Bool, Element, ElementConversion, Int, Shape, Tensor, TensorData,
-    backend::Backend,
-    ops::{BoolTensor, IntTensor},
+    Bool, Element, ElementComparison, ElementConversion, Int, Shape, Tensor, TensorData, backend::Backend, ops::{BoolTensor, IntTensor}
 };
 use ndarray::Array2;
 
@@ -75,7 +73,7 @@ pub(crate) struct UnionFind<I: Element> {
     labels: Vec<I>,
 }
 
-impl<I: Element> Solver<I> for UnionFind<I> {
+impl<I: Element + ElementComparison> Solver<I> for UnionFind<I> {
     fn init(max_labels: usize) -> Self {
         let mut labels = Vec::with_capacity(max_labels);
         labels.push(0.elem());
