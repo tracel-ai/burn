@@ -1,3 +1,6 @@
+use burn_backend::ElementComparison;
+use burn_backend::tensor::Orderable;
+
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{ElementConversion, Numeric};
@@ -200,7 +203,7 @@ pub fn max_abs_norm<B: Backend, const D: usize, K>(
     dim: usize,
 ) -> Tensor<B, D, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: BasicOps<B> + Orderable<B>, <K as burn_backend::tensor::BasicOps<B>>::Elem: ElementComparison
 {
     x.max_abs_dim(dim)
 }
@@ -220,7 +223,7 @@ pub fn min_abs_norm<B: Backend, const D: usize, K>(
     dim: usize,
 ) -> Tensor<B, D, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: BasicOps<B> + Orderable<B>, <K as burn_backend::tensor::BasicOps<B>>::Elem: ElementComparison,
 {
     x.abs().min_dim(dim)
 }

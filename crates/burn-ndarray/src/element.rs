@@ -1,4 +1,4 @@
-use burn_backend::Element;
+use burn_backend::{Element, ElementComparison};
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -10,14 +10,14 @@ use num_traits::Pow;
 use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + Signed
+pub trait FloatNdArrayElement: NdArrayElement + Signed + ElementComparison
 where
     Self: Sized,
 {
 }
 
 /// An int element for ndarray backend.
-pub trait IntNdArrayElement: NdArrayElement {}
+pub trait IntNdArrayElement: NdArrayElement + ElementComparison {}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:

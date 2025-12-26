@@ -8,6 +8,7 @@ mod float;
 mod fmod;
 mod int;
 mod numeric;
+mod orderable;
 mod pad;
 mod take;
 mod transaction;

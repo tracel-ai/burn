@@ -1,4 +1,5 @@
 use alloc::string::String;
+use burn_backend::ElementComparison;
 use burn_backend::{DType, Element, Shape, backend::DeviceOps};
 use burn_ir::TensorIr;
 
@@ -16,9 +17,9 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     /// Client type.
     type Client: RunnerClient<Device = Self::Device>;
     /// Float element type.
-    type FloatElem: Element;
+    type FloatElem: Element + ElementComparison;
     /// Int element type.
-    type IntElem: Element;
+    type IntElem: Element + ElementComparison;
     /// Bool element type.
     type BoolElem: Element;
 

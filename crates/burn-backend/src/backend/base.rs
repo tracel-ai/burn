@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::element::Element;
-use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
+use crate::{ElementComparison, ops::*};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
 
 use super::DeviceOps;
@@ -83,12 +83,12 @@ pub trait Backend:
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive: TensorMetadata + 'static;
     /// Default float element type.
-    type FloatElem: Element;
+    type FloatElem: Element + ElementComparison;
 
     /// Tensor primitive to be used for all int operations.
     type IntTensorPrimitive: TensorMetadata + 'static;
     /// Int element type.
-    type IntElem: Element;
+    type IntElem: Element + ElementComparison;
 
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive: TensorMetadata + 'static;

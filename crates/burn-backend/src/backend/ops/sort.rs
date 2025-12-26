@@ -34,7 +34,7 @@ pub fn sort<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     descending: bool,
 ) -> K::Primitive
 where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: ElementComparison,
 {
     let device = K::device(&tensor);
     let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
@@ -51,7 +51,7 @@ pub fn sort_data<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     descending: bool,
 ) -> K::Primitive
 where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: ElementComparison,
 {
     let dims = data.shape.clone();
     let data_slice = data.as_mut_slice().unwrap();
@@ -92,7 +92,7 @@ pub fn sort_with_indices<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     descending: bool,
 ) -> (K::Primitive, IntTensor<B>)
 where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: ElementComparison,
 {
     let device = K::device(&tensor);
     let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
@@ -109,7 +109,7 @@ fn sort_data_with_indices<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     descending: bool,
 ) -> (K::Primitive, IntTensor<B>)
 where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: Element + ElementComparison,
 {
     let dims = data.shape.clone();
     let mut indices_data = dim_indices::<B>(&dims, dim);
@@ -191,7 +191,7 @@ pub fn argsort<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     descending: bool,
 ) -> IntTensor<B>
 where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: ElementComparison,
 {
     let device = K::device(&tensor);
     let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
@@ -209,7 +209,7 @@ fn argsort_data<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     descending: bool,
 ) -> IntTensor<B>
 where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: ElementComparison,
 {
     let dims = data.shape.clone();
     let mut indices_data = dim_indices::<B>(&dims, dim);
@@ -252,7 +252,7 @@ fn sort_slice<B: Backend, K: BasicOps<B>>(
     permute_both: bool,
     descending: bool,
 ) where
-    <K as BasicOps<B>>::Elem: Element,
+    <K as BasicOps<B>>::Elem: ElementComparison,
 {
     let ndims = dims.len();
     let strides = compute_strides(dims);
