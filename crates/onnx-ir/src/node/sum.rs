@@ -320,7 +320,7 @@ mod tests {
                     value_store: None,
                 },
                 Argument {
-                    name: "a".to_string(),
+                    name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
                         dtype: DType::Bool,
                         rank: 1,
@@ -351,7 +351,7 @@ mod tests {
                 assert_eq!(expected, "Numeric (Float, Int, or UInt)");
                 assert_eq!(actual, "Bool");
             }
-            err => panic!("Expected Custom error for non-numeric type, got {:?}", err),
+            err => panic!("Expected TypeMismatch error for non-numeric type, got {:?}", err),
         }
     }
 
@@ -374,7 +374,7 @@ mod tests {
                     value_store: None,
                 },
                 Argument {
-                    name: "a".to_string(),
+                    name: "b".to_string(),
                     ty: ArgType::Tensor(TensorType {
                         dtype: DType::F32,
                         rank: 3,
