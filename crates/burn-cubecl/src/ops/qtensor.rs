@@ -13,7 +13,7 @@ use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
-    kernel::{self, matmul::MatmulStrategy},
+    kernel::{self, into_contiguous, matmul::MatmulStrategy},
     tensor::{CubeTensor, QParams},
 };
 
@@ -293,6 +293,10 @@ where
             TensorPrimitive::Float(rhs) => (rhs.dtype, rhs),
             TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
         };
+
+        // Ensure tensors are contiguous for matmul kernel compatibility
+        let lhs = into_contiguous(lhs);
+        let rhs = into_contiguous(rhs);
 
         let out =
             kernel::matmul::matmul(lhs, rhs, None, MatmulStrategy::default(), out_dtype).unwrap();

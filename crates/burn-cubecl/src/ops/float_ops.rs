@@ -157,6 +157,9 @@ where
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
+        // Ensure tensors are contiguous for matmul kernel compatibility
+        let lhs = into_contiguous(lhs);
+        let rhs = into_contiguous(rhs);
         matmul(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 

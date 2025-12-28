@@ -8,7 +8,7 @@ use crate::kernel::{
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     kernel::{
-        self,
+        self, into_contiguous,
         matmul::{MatmulStrategy, matmul},
     },
 };
@@ -96,6 +96,9 @@ where
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let dtype = lhs.dtype;
+        // Ensure tensors are contiguous for matmul kernel compatibility
+        let lhs = into_contiguous(lhs);
+        let rhs = into_contiguous(rhs);
         matmul(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 
