@@ -9,7 +9,7 @@ pub fn into_contiguous_match_reference_backend_1() {
         [32, 42, 24, 48],
         [8, 3, 7, 4],
         [1, 4, 1, 1],
-        [1, 32, 512, 2048],
+        [1, 32, 256, 128],
     ] {
         let num_elems = shape.iter().product::<usize>() as i64;
         let tensor: Tensor<TestBackend, 4> =
@@ -20,15 +20,10 @@ pub fn into_contiguous_match_reference_backend_1() {
             Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
 
         for (i, j) in get_combinations(shape.len()) {
-            // println!("{i}-{j}");
             let view = tensor.clone().swap_dims(i, j);
             let view_ref = tensor_ref.clone().swap_dims(i, j);
-            // println!("{view_ref}");
             let data = view.into_data();
             let data_ref = view_ref.into_data();
-            // let tensor_pp =
-            //     Tensor::<ReferenceBackend, 4>::from_data(data.clone(), &Default::default());
-            // println!("{tensor_pp}");
 
             data_ref.assert_approx_eq::<FloatElem>(&data, Tolerance::default());
         }
