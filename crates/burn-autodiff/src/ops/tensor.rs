@@ -47,6 +47,7 @@ fn unsqueeze_like<B: Backend>(
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(data),
         fields(?data.shape, ?data.dtype)
     ))]
@@ -71,6 +72,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(
             from = ?tensor.node,
@@ -87,6 +89,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(
             from = ?tensor.node,

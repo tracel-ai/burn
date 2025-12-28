@@ -19,7 +19,12 @@ default = ["std", "tracing"]
 std = ["serde/std", "tracing?/std"]
 doc = ["default"]
 memory-checks = ["std"]
-tracing = ["dep:tracing"]
+
+tracing = [
+    "dep:tracing",
+    "burn-backend/tracing",
+    "burn-ir/tracing",
+]
 
 [dependencies]
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6" }

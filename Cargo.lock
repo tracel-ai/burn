@@ -2035,6 +2035,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "spin",
+ "tracing",
  "wasm-bindgen-futures",
  "web-time",
 ]
@@ -2060,6 +2061,7 @@ dependencies = [
  "paste",
  "serde",
  "serde_json",
+ "tracing",
  "variadics_please",
 ]
 
@@ -2115,6 +2117,7 @@ dependencies = [
  "half",
  "log",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -2133,6 +2136,7 @@ dependencies = [
  "log",
  "paste",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -2231,6 +2235,7 @@ dependencies = [
  "spin",
  "thiserror 2.0.17",
  "toml",
+ "tracing",
  "variadics_please",
  "wasm-bindgen-futures",
  "web-time",
@@ -2290,6 +2295,7 @@ dependencies = [
  "log",
  "sanitize-filename",
  "tracel-ash",
+ "tracing",
  "wgpu",
 ]
 

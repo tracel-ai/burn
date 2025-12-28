@@ -17,6 +17,15 @@ workspace = true
 [features]
 default = []
 doc = []
+tracing = [
+    "dep:tracing",
+    "burn-std/tracing",
+    "burn-tensor/tracing",
+    "burn-communication/tracing",
+    "burn-ndarray?/tracing",
+    "burn-wgpu?/tracing",
+    "burn-cuda?/tracing",
+]
 orchestrator = ["burn-communication/websocket"]
 
 # Backends for testing
@@ -48,7 +57,7 @@ rmp-serde = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 tokio-util = { workspace = true }
-tracing = { workspace = true }
+tracing = { workspace = true, optional = true }
 
 # Tests
 burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.6", optional = true }

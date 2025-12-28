@@ -4,10 +4,11 @@ use crate::PeerId;
 use crate::local::tensor_map::{CollectiveTensorMap, get_common_shape};
 
 /// Sums the tensors on one device and returns the result
-#[tracing::instrument(
+#[cfg_attr(feature = "tracing", tracing::instrument(
+    level="trace",
     skip(tensors),
     fields(shape = ?get_common_shape::<B>(&tensors).unwrap().dims)
-)]
+))]
 pub(crate) fn reduce_sum_centralized<B: Backend>(
     mut tensors: CollectiveTensorMap<B>,
     central: &PeerId,
