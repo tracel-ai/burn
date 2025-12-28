@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(config.stride, 2);
         assert_eq!(config.dilation, 1);
         assert!(!config.count_include_pad);
-        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2)));
+        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2, 2)));
     }
 
     #[test]
@@ -261,7 +261,7 @@ mod tests {
         assert_eq!(config.stride, 1);
         assert_eq!(config.dilation, 1);
         assert!(config.count_include_pad);
-        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2)));
+        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2, 2)));
     }
 
     #[test]

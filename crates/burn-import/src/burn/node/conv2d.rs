@@ -17,8 +17,9 @@ impl NodeCodegen for onnx_ir::conv2d::Conv2dNode {
         let stride = self.config.stride.to_tokens();
         let dilation = self.config.dilation.to_tokens();
         let groups = self.config.groups.to_tokens();
-        let padding = self.config.padding.to_tokens();
         let bias = self.config.bias;
+
+        let padding = self.config.padding.to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -93,7 +94,26 @@ mod tests {
             [3, 64],
             [3, 3],
             [1, 1],
-            PaddingConfig2d::Explicit(1, 1),
+            PaddingConfig2d::Explicit(1, 1, 1, 1),
+            [1, 1],
+            1,
+            true,
+        );
+
+        Conv2dNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    fn create_conv2d_node_asymmetric(name: &str) -> Conv2dNode {
+        // Asymmetric padding: top=1, left=2, bottom=3, right=4
+        let config = Conv2dConfig::new(
+            [3, 64],
+            [3, 3],
+            [1, 1],
+            PaddingConfig2d::Explicit(1, 2, 3, 4),
             [1, 1],
             1,
             true,
@@ -127,6 +147,22 @@ mod tests {
             let output = self.conv1.forward(input.clone());
             output
         }
+        ");
+    }
+
+    #[test]
+    fn test_conv2d_field_init_asymmetric_padding() {
+        let node = create_conv2d_node_asymmetric("conv1");
+        let code = codegen_field_init(&node);
+        // Asymmetric padding is passed directly to the module
+        assert_snapshot!(code, @r"
+        let conv1 = Conv2dConfig::new([3, 64], [3, 3])
+            .with_stride([1, 1])
+            .with_padding(PaddingConfig2d::Explicit(1, 2, 3, 4))
+            .with_dilation([1, 1])
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
         ");
     }
 }

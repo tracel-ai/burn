@@ -1,4 +1,5 @@
 use super::prelude::*;
+
 impl NodeCodegen for onnx_ir::max_pool1d::MaxPool1dNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
@@ -12,9 +13,10 @@ impl NodeCodegen for onnx_ir::max_pool1d::MaxPool1dNode {
         let name = Ident::new(&self.name, Span::call_site());
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.stride.to_tokens();
-        let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
         let ceil_mode = self.config.ceil_mode;
+
+        let padding = self.config.padding.to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -59,6 +61,17 @@ mod tests {
 
     fn create_max_pool1d_node(name: &str, ceil_mode: bool) -> MaxPool1dNode {
         let config = MaxPool1dConfig::new(3, 1, 1, PaddingConfig1d::Valid, ceil_mode);
+
+        MaxPool1dNodeBuilder::new(name)
+            .input_tensor("input", 3, DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    fn create_max_pool1d_node_asymmetric(name: &str) -> MaxPool1dNode {
+        // Asymmetric padding: left=1, right=2
+        let config = MaxPool1dConfig::new(3, 1, 1, PaddingConfig1d::Explicit(1, 2), false);
 
         MaxPool1dNodeBuilder::new(name)
             .input_tensor("input", 3, DType::F32)
@@ -117,5 +130,33 @@ mod tests {
             .with_ceil_mode(true)
             .init();
         "#);
+    }
+
+    #[test]
+    fn test_max_pool1d_forward_asymmetric_padding() {
+        let node = create_max_pool1d_node_asymmetric("pool1");
+        let code = codegen_forward_default(&node);
+        // Asymmetric padding is now handled by the burn-nn module
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+            let output = self.pool1.forward(input);
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_max_pool1d_field_init_asymmetric_padding() {
+        let node = create_max_pool1d_node_asymmetric("pool1");
+        let code = codegen_field_init(&node);
+        // Asymmetric padding is passed directly to the module
+        assert_snapshot!(code, @r"
+        let pool1 = MaxPool1dConfig::new(3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 2))
+            .with_dilation(1)
+            .with_ceil_mode(false)
+            .init();
+        ");
     }
 }

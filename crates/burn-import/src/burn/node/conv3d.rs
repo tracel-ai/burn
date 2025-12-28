@@ -18,8 +18,10 @@ impl NodeCodegen for onnx_ir::conv3d::Conv3dNode {
         let stride = self.config.stride.to_tokens();
         let dilation = self.config.dilation.to_tokens();
         let groups = self.config.groups.to_tokens();
-        let padding = self.config.padding.to_tokens();
         let bias = self.config.bias;
+
+        // Asymmetric 3D padding is handled by the burn-nn module (will panic if attempted)
+        let padding = self.config.padding.to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -43,10 +45,12 @@ impl NodeCodegen for onnx_ir::conv3d::Conv3dNode {
         let output = arg_to_ident(self.outputs.first().unwrap());
         let field = Ident::new(&self.name, Span::call_site());
 
+        // Asymmetric 3D padding will panic at runtime in the burn-nn module
         quote! {
             let #output = self.#field.forward(#input);
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::PaddingConfig3d");
         imports.register("burn::nn::conv::Conv3d");
@@ -93,7 +97,26 @@ mod tests {
             [1, 1, 1],
             1,
             true,
-            PaddingConfig3d::Explicit(1, 1, 1),
+            PaddingConfig3d::Explicit(1, 1, 1, 1, 1, 1),
+        );
+
+        Conv3dNodeBuilder::new(name)
+            .input_tensor("input", 5, DType::F32)
+            .output_tensor("output", 5, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    fn create_conv3d_node_asymmetric(name: &str) -> Conv3dNode {
+        // Asymmetric padding: front=1, top=2, left=3, back=4, bottom=5, right=6
+        let config = Conv3dConfig::new(
+            [3, 64],
+            [3, 3, 3],
+            [1, 1, 1],
+            [1, 1, 1],
+            1,
+            true,
+            PaddingConfig3d::Explicit(1, 2, 3, 4, 5, 6),
         );
 
         Conv3dNodeBuilder::new(name)
@@ -124,6 +147,22 @@ mod tests {
             let output = self.conv1.forward(input.clone());
             output
         }
+        ");
+    }
+
+    #[test]
+    fn test_conv3d_field_init_asymmetric_padding() {
+        let node = create_conv3d_node_asymmetric("conv1");
+        let code = codegen_field_init(&node);
+        // Asymmetric padding is passed directly to the module (will panic at runtime)
+        assert_snapshot!(code, @r"
+        let conv1 = Conv3dConfig::new([3, 64], [3, 3, 3])
+            .with_stride([1, 1, 1])
+            .with_padding(PaddingConfig3d::Explicit(1, 2, 3, 4, 5, 6))
+            .with_dilation([1, 1, 1])
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
         ");
     }
 }
