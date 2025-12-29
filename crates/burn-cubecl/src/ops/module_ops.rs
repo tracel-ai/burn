@@ -5,7 +5,7 @@ use crate::{
 };
 use burn_backend::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
-    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention,
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 
@@ -300,7 +300,27 @@ where
         mask: Option<BoolTensor<Self>>,
     ) -> FloatTensor<Self> {
         let out_dtype = query.dtype;
-        kernel::attention::flash_attention(query, key, value, mask, out_dtype)
-            .expect("Kernel to never fail")
+
+        // Use catch_unwind to handle panics from kernel launch (e.g., TMA tile validation
+        // failures with "Tile shape must be non-zero and <= 256" on large tensor shapes).
+        // Fall back to naive attention if flash attention fails or panics.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            kernel::attention::flash_attention(
+                query.clone(),
+                key.clone(),
+                value.clone(),
+                mask.clone(),
+                out_dtype,
+            )
+        }));
+
+        match result {
+            Ok(Ok(output)) => output,
+            Ok(Err(_)) | Err(_) => {
+                // Fall back to naive attention if flash attention fails or panics
+                // (e.g., due to unsupported tensor shapes or TMA tile constraints)
+                attention::naive_attention::<Self>(query, key, value, mask)
+            }
+        }
     }
 }
