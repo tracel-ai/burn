@@ -23,7 +23,7 @@ impl<B: Backend> Net<B> {
     pub fn new(device: &B::Device) -> Self {
         Self {
             conv1: Conv2dConfig::new([3, 4], [3, 3])
-                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .init(device),
             norm1: BatchNormConfig::new(4).init(device),
             fc1: LinearConfig::new(4 * 8 * 8, 16).init(device),
