@@ -55,7 +55,7 @@ flate2 = "1.1.4"
 float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
-gix-tempfile = { version = "19.0.1", features = ["signals"] }
+gix-tempfile = { version = "20.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.16"
 hound = "3.5.1"
