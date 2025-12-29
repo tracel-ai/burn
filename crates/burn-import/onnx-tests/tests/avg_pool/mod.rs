@@ -2,8 +2,10 @@
 use crate::include_models;
 include_models!(
     avg_pool1d,
+    avg_pool1d_asymmetric_padding,
     avg_pool1d_ceil_mode,
     avg_pool2d,
+    avg_pool2d_asymmetric_padding,
     avg_pool2d_ceil_mode
 );
 
@@ -180,5 +182,59 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
+    }
+
+    #[test]
+    fn avg_pool1d_asymmetric_padding() {
+        // Test asymmetric padding (left=1, right=2) for AvgPool1d
+        let device = Default::default();
+        let model: avg_pool1d_asymmetric_padding::Model<TestBackend> =
+            avg_pool1d_asymmetric_padding::Model::new(&device);
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<TestBackend, 3>::ones([2, 4, 10], &device);
+        let output = model.forward(input);
+
+        // With asymmetric padding (1, 2), input length 10 becomes 10+1+2=13
+        // After pool with kernel 3, stride 1, output length is 13-3+1=11
+        let expected_shape = Shape::from([2, 4, 11]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // Verify the sum matches PyTorch output
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 77.333_33; // from pytorch
+        assert!(
+            (output_sum - expected_sum).abs() < 0.1,
+            "Expected sum ~{}, got {}",
+            expected_sum,
+            output_sum
+        );
+    }
+
+    #[test]
+    fn avg_pool2d_asymmetric_padding() {
+        // Test asymmetric padding (left=1, right=2, top=1, bottom=2) for AvgPool2d
+        let device = Default::default();
+        let model: avg_pool2d_asymmetric_padding::Model<TestBackend> =
+            avg_pool2d_asymmetric_padding::Model::new(&device);
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 10, 15], &device);
+        let output = model.forward(input);
+
+        // With asymmetric padding (1, 1, 2, 2), input (10, 15) becomes (13, 18)
+        // After pool with kernel (3, 3), stride (1, 1), output is (11, 16)
+        let expected_shape = Shape::from([2, 4, 11, 16]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // Verify the sum matches ReferenceEvaluator output
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 1134.222; // from ReferenceEvaluator
+        assert!(
+            (output_sum - expected_sum).abs() < 1.0,
+            "Expected sum ~{}, got {}",
+            expected_sum,
+            output_sum
+        );
     }
 }
