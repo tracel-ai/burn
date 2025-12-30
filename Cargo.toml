@@ -55,7 +55,7 @@ flate2 = "1.1.4"
 float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
-gix-tempfile = { version = "19.0.1", features = ["signals"] }
+gix-tempfile = { version = "20.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.16"
 hound = "3.5.1"
@@ -74,7 +74,7 @@ paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.51.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
-proc-macro2 = "1.0.101"
+proc-macro2 = "1.0.104"
 protobuf = "3.7.2"
 protobuf-codegen = "3.7.2"
 quote = "1.0.42"
@@ -88,7 +88,7 @@ regex = { version = "1.12.1", default-features = false, features = [
 reqwest = { version = "0.12.23", default-features = false, features = [
     "rustls-tls",
 ] }
-rmp-serde = { version = "1.3.0", default-features = false }
+rmp-serde = { version = "1.3.1", default-features = false }
 rstest = "0.26.1"
 rusqlite = "0.37.0"
 rust-format = "0.3.4"
@@ -106,7 +106,7 @@ spin = { version = "0.10.0", features = [
 strum = { version = "0.27.2", features = ["derive"] }
 syn = { version = "2.0.111", features = ["full", "extra-traits"] }
 tar = "0.4.44"
-tempfile = "3.20.0"
+tempfile = "3.24.0"
 textdistance = { version = "1.1.1", default-features = false }
 thiserror = { version = "2", default-features = false }
 tokio = { version = "1.47.1", features = ["rt", "macros"] }
@@ -164,7 +164,7 @@ serde = { version = "1.0.228", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.145", default-features = false }
+serde_json = { version = "1.0.148", default-features = false }
 uuid = { version = "1.19.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
