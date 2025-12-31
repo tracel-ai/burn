@@ -125,10 +125,10 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
             .expect("Distributed data parallel main worker failed");
 
         if interrupter.should_stop() {
-            interrupter.get_message().map_or_else(
-                || log::info!("Training interrupted."),
-                |msg| log::info!("Training interrupted with message: {msg}"),
-            );
+            let reason = interrupter
+                .get_message()
+                .unwrap_or(String::from("Reason unknown"));
+            log::info!("Training interrupted: {reason}");
         }
         let Ok(event_processor) = Arc::try_unwrap(event_processor) else {
             panic!("Event processor still held!");

@@ -52,7 +52,6 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpoch<SC> {
             processor.process_valid(LearnerEvent::ProcessedItem(item));
 
             if interrupter.should_stop() {
-                log::info!("Training interrupted.");
                 break;
             }
         }
