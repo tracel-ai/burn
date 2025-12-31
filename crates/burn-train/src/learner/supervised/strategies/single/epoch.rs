@@ -127,7 +127,6 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
             processor.process_train(LearnerEvent::ProcessedItem(item));
 
             if interrupter.should_stop() {
-                log::info!("Training interrupted.");
                 break;
             }
         }

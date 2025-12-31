@@ -56,6 +56,10 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
             );
 
             if training_components.interrupter.should_stop() {
+                training_components.interrupter.get_message().map_or_else(
+                    || log::info!("Training interrupted."),
+                    |msg| log::info!("Training interrupted with message: {msg}"),
+                );
                 break;
             }
 

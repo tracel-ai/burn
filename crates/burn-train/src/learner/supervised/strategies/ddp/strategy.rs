@@ -63,10 +63,11 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
         let peer_count = self.devices.len();
         let event_processor = Arc::new(Mutex::new(training_components.event_processor));
 
+        let interrupter = training_components.interrupter;
         let worker_components = WorkerComponents {
             num_epochs: training_components.num_epochs,
             grad_accumulation: training_components.grad_accumulation,
-            interrupter: training_components.interrupter,
+            interrupter: interrupter.clone(),
             early_stopping: training_components.early_stopping,
             event_store: training_components.event_store,
         };
@@ -123,6 +124,12 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
             .join()
             .expect("Distributed data parallel main worker failed");
 
+        if interrupter.should_stop() {
+            interrupter.get_message().map_or_else(
+                || log::info!("Training interrupted."),
+                |msg| log::info!("Training interrupted with message: {msg}"),
+            );
+        }
         let Ok(event_processor) = Arc::try_unwrap(event_processor) else {
             panic!("Event processor still held!");
         };
