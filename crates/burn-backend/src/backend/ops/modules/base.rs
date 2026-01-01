@@ -85,6 +85,23 @@ pub struct MaxPool2dWithIndices<B: Backend> {
     pub indices: IntTensor<B>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [max_pool3d](ModuleOps::max_pool3d).
+#[derive(new)]
+pub struct MaxPool3dBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B>,
+}
+
+/// Results from [max_pool3d](ModuleOps::max_pool3d_with_indices).
+#[derive(new)]
+pub struct MaxPool3dWithIndices<B: Backend> {
+    /// The output tensor.
+    pub output: FloatTensor<B>,
+
+    /// The indices tensor.
+    pub indices: IntTensor<B>,
+}
+
 /// Check that the parameter value is non-zero.
 // NOTE: for now we keep usize but we could refactor the parameters to hold `NonZeroUsize`.
 pub(crate) fn check_nonzero(value: usize, msg: &str) -> usize {
@@ -900,6 +917,78 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         indices: IntTensor<B>,
     ) -> MaxPool2dBackward<B>;
+
+    /// Three dimensional avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn avg_pool3d(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+    /// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
+    fn avg_pool3d_backward(
+        x: FloatTensor<B>,
+        grad: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+    /// Three dimensional adaptive avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn adaptive_avg_pool3d(x: FloatTensor<B>, output_size: [usize; 3]) -> FloatTensor<B>;
+    /// Backward pass for the [adaptive avg pooling 3d](ModuleOps::adaptive_avg_pool3d) operation.
+    fn adaptive_avg_pool3d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Three dimensional max pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn max_pool3d(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+
+    /// Three dimensional max pooling with indices.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn max_pool3d_with_indices(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> MaxPool3dWithIndices<B>;
+    /// Backward pass for the [max pooling 3d](ModuleOps::max_pool3d_with_indices) operation.
+    #[allow(clippy::too_many_arguments)]
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<B>,
+        indices: IntTensor<B>,
+    ) -> MaxPool3dBackward<B>;
 
     /// Down/up samples the input.
     ///

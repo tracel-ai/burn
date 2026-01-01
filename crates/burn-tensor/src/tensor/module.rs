@@ -364,6 +364,88 @@ where
     )))
 }
 
+/// Applies a [3D max pooling](crate::ops::ModuleOps::max_pool3d).
+pub fn max_pool3d<B>(
+    x: Tensor<B, 5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    dilation: [usize; 3],
+    ceil_mode: bool,
+) -> Tensor<B, 5>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::max_pool3d(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+    )))
+}
+
+/// Applies a [3D max pooling with indices](crate::ops::ModuleOps::max_pool3d_with_indices).
+pub fn max_pool3d_with_indices<B>(
+    x: Tensor<B, 5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    dilation: [usize; 3],
+    ceil_mode: bool,
+) -> (Tensor<B, 5>, Tensor<B, 5, Int>)
+where
+    B: Backend,
+{
+    let output = B::max_pool3d_with_indices(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+    );
+
+    (
+        Tensor::new(TensorPrimitive::Float(output.output)),
+        Tensor::new(output.indices),
+    )
+}
+
+/// Applies a [3D avg pooling](crate::ops::ModuleOps::avg_pool3d).
+pub fn avg_pool3d<B>(
+    x: Tensor<B, 5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    count_include_pad: bool,
+    ceil_mode: bool,
+) -> Tensor<B, 5>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::avg_pool3d(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+        ceil_mode,
+    )))
+}
+
+/// Applies a [3D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool3d).
+pub fn adaptive_avg_pool3d<B>(x: Tensor<B, 5>, output_size: [usize; 3]) -> Tensor<B, 5>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::adaptive_avg_pool3d(
+        x.primitive.tensor(),
+        output_size,
+    )))
+}
+
 /// Applies a [2D interpolation](crate::ops::ModuleOps::interpolate).
 pub fn interpolate<B>(
     x: Tensor<B, 4>,
