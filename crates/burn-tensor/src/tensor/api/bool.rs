@@ -44,15 +44,9 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, false, true],
-    ///          [false, true, false]].into(),
-    ///         &device,
-    ///     );
+    ///     let tensor = Tensor::<B, 2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
     ///     let inverted = tensor.bool_not();
-    ///     println!("{inverted}");
-    ///     // [[false, true, false],
-    ///     //  [true, false, true]]
+    ///     println!("{inverted}"); // [[false, true], [true, false]]
     /// }
     /// ```
     pub fn bool_not(self) -> Self {
