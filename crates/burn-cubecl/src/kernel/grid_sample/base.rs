@@ -76,7 +76,9 @@ pub(crate) fn fetch_with_zeros<F: Float>(
     w: i32,
 ) -> F {
     let in_bounds = x >= 0 && x < w && y >= 0 && y < h;
-    let idx = base + (y as u32) * stride_h + (x as u32) * stride_w;
+    let x_clamped = Min::min(Max::max(x, 0), w - 1) as u32;
+    let y_clamped = Min::min(Max::max(y, 0), h - 1) as u32;
+    let idx = base + y_clamped * stride_h + x_clamped * stride_w;
     select(in_bounds, input[idx], F::new(0.0))
 }
 
