@@ -351,7 +351,10 @@ mod tests {
                 assert_eq!(expected, "Numeric (Float, Int, or UInt)");
                 assert_eq!(actual, "Bool");
             }
-            err => panic!("Expected TypeMismatch error for non-numeric type, got {:?}", err),
+            err => panic!(
+                "Expected TypeMismatch error for non-numeric type, got {:?}",
+                err
+            ),
         }
     }
 
