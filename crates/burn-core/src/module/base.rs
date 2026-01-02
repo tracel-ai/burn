@@ -241,6 +241,7 @@ pub trait ModuleVisitor<B: Backend> {
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
     ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
     /// Note: Option containers do not call enter_module/exit_module to preserve
@@ -256,6 +257,7 @@ pub trait ModuleVisitor<B: Backend> {
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
     ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
     /// Note: Option containers do not call enter_module/exit_module to preserve
@@ -325,6 +327,7 @@ pub trait ModuleMapper<B: Backend> {
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
     ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
     /// Note: Option containers do not call enter_module/exit_module to preserve
@@ -340,6 +343,7 @@ pub trait ModuleMapper<B: Backend> {
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
     ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
     /// Note: Option containers do not call enter_module/exit_module to preserve

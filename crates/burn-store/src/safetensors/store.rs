@@ -579,6 +579,7 @@ impl MemoryStore {
 }
 
 // Adapter to use TensorSnapshot directly with safetensors
+#[derive(Debug)]
 struct TensorSnapshotAdapter(TensorSnapshot);
 
 impl safetensors::View for TensorSnapshotAdapter {
