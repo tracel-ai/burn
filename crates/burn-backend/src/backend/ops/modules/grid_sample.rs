@@ -112,9 +112,8 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
         }
         GridSamplePaddingMode::Reflection => {
             // Reflect coordinates at boundaries
-            // For now, use a simplified reflection that works for common cases
-            let grid_x = reflect_coordinates::<B>(grid_x, w_in_f);
-            let grid_y = reflect_coordinates::<B>(grid_y, h_in_f);
+            let grid_x = reflect_coordinates::<B>(grid_x, w_in_f, align_corners);
+            let grid_y = reflect_coordinates::<B>(grid_y, h_in_f, align_corners);
             (grid_x, grid_y)
         }
         GridSamplePaddingMode::Zeros => {
@@ -271,22 +270,44 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     B::float_add(result, B::float_mul(sample_11, weight_11))
 }
 
-/// Reflect coordinates at boundaries for reflection padding.
+/// Reflect coordinates at boundaries using a triangle wave pattern.
 ///
-/// Uses the formula: reflected = 2 * bound - x for out-of-bounds coordinates.
-fn reflect_coordinates<B: Backend>(coords: FloatTensor<B>, size: f64) -> FloatTensor<B> {
-    // Simple reflection: clamp to [0, size-1] after reflecting
-    // For values < 0: reflect at 0 -> -x
-    // For values >= size: reflect at size-1 -> 2*(size-1) - x
-    // This is a simplified implementation - full reflection would handle multiple reflections
+/// For align_corners=true: reflects within [0, size-1]
+/// For align_corners=false: reflects within [-0.5, size-0.5]
+fn reflect_coordinates<B: Backend>(
+    coords: FloatTensor<B>,
+    size: f64,
+    align_corners: bool,
+) -> FloatTensor<B> {
+    let (min_val, max_val) = if align_corners {
+        (0.0f32, (size - 1.0) as f32)
+    } else {
+        (-0.5f32, (size - 0.5) as f32)
+    };
 
-    let max_val = (size - 1.0) as f32;
+    let span = max_val - min_val;
+    if span <= 0.0 {
+        // Edge case: size is 1, just return min_val everywhere
+        let zeros = B::float_mul_scalar(coords, 0.0f32.elem());
+        return B::float_add_scalar(zeros, min_val.elem());
+    }
 
-    // First handle negative values by taking absolute value
-    let coords = B::float_abs(coords);
+    // Triangle wave formula: span - |((x mod 2*span) - span)| + min_val
+    let period = 2.0 * span;
 
-    // Then handle values > max by reflecting: 2*max - x
-    // But we need to detect which values need this
-    // Simplified: just clamp for now, proper reflection is complex
-    B::float_clamp(coords, 0.0f32.elem(), max_val.elem())
+    // x = abs(coord - min_val)
+    let x = B::float_sub_scalar(coords, min_val.elem());
+    let x = B::float_abs(x);
+
+    // x_mod = x - floor(x / period) * period
+    let x_div = B::float_div_scalar(x.clone(), period.elem());
+    let x_div_floor = B::float_floor(x_div);
+    let x_mod = B::float_sub(x, B::float_mul_scalar(x_div_floor, period.elem()));
+
+    // result = span - abs(x_mod - span) + min_val
+    let diff = B::float_sub_scalar(x_mod, span.elem());
+    let abs_diff = B::float_abs(diff);
+    let reflected = B::float_sub_scalar(abs_diff, span.elem());
+    let reflected = B::float_neg(reflected);
+    B::float_add_scalar(reflected, min_val.elem())
 }
