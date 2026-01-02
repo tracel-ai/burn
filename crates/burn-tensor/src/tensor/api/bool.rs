@@ -35,21 +35,105 @@ where
     }
 
     /// Inverses boolean values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     let inverted = tensor.bool_not();
+    ///     println!("{inverted}"); // [[false, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_not(self) -> Self {
         Tensor::new(B::bool_not(self.primitive))
     }
 
-    /// Performs logical and (`&&`) on two boolean tensors
+    /// Performs logical and (`&&`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the AND operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] && rhs[i]`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let result = a.bool_and(b);
+    ///     println!("{result}"); // [[true, false], [false, false]]
+    /// }
+    /// ```
     pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_and(self.primitive, rhs.primitive))
     }
 
-    /// Performs logical or (`||`) on two boolean tensors
+    /// Performs logical or (`||`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the OR operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] || rhs[i]`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let result = a.bool_or(b);
+    ///     println!("{result}"); // [[true, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_or(self.primitive, rhs.primitive))
     }
 
-    /// Performs logical xor (`^`) on two boolean tensors
+    /// Performs logical xor (`^`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the XOR operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] ^ rhs[i]`.
+    /// Returns `true` when exactly one of the operands is `true`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let result = a.bool_xor(b);
+    ///     println!("{result}"); // [[false, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_xor(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_xor(self.primitive, rhs.primitive))
     }
