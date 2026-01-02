@@ -2,7 +2,9 @@ use std::cmp::Ordering;
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    Bool, Element, ElementComparison, ElementConversion, Int, Shape, Tensor, TensorData, backend::Backend, ops::{BoolTensor, IntTensor}
+    Bool, Element, ElementComparison, ElementConversion, Int, Shape, Tensor, TensorData,
+    backend::Backend,
+    ops::{BoolTensor, IntTensor},
 };
 use ndarray::Array2;
 

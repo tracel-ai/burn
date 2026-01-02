@@ -18,7 +18,7 @@
 
 use std::cmp::Ordering;
 
-use burn_tensor::{Element, ElementConversion, ElementComparison};
+use burn_tensor::{Element, ElementComparison, ElementConversion};
 use ndarray::{Array2, Axis, s};
 
 #[allow(non_snake_case)]

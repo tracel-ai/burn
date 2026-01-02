@@ -1,4 +1,4 @@
-use burn_backend::Element;
+use burn_backend::{Element, ElementComparison};
 use burn_backend::{bf16, f16};
 
 /// The element type for the tch backend.
@@ -9,9 +9,18 @@ pub trait TchElement: Element + tch::kind::Element {
     }
 }
 
+/// The float element type for the tch backend.
+pub trait TchFloatElement: TchElement + ElementComparison {}
+
+/// The int element type for the tch backend.
+pub trait TchIntElement: TchElement + ElementComparison {}
+
 impl TchElement for f64 {}
+impl TchFloatElement for f64 {}
 impl TchElement for f32 {}
+impl TchFloatElement for f32 {}
 impl TchElement for f16 {}
+impl TchFloatElement for f16 {}
 impl TchElement for bf16 {
     fn kind() -> tch::Kind {
         let mut kind = <Self as tch::kind::Element>::KIND;
@@ -24,9 +33,14 @@ impl TchElement for bf16 {
 }
 
 impl TchElement for i64 {}
+
+impl TchIntElement for i64 {}
 impl TchElement for i32 {}
+impl TchIntElement for i32 {}
 impl TchElement for i16 {}
+impl TchIntElement for i16 {}
 impl TchElement for i8 {}
+impl TchIntElement for i8 {}
 
 impl TchElement for u8 {}
 
