@@ -77,20 +77,10 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let a = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, true],
-    ///          [false, false]].into(),
-    ///         &device,
-    ///     );
-    ///     let b = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, false],
-    ///          [true, false]].into(),
-    ///         &device,
-    ///     );
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
     ///     let result = a.bool_and(b);
-    ///     println!("{result}");
-    ///     // [[true, false],
-    ///     //  [false, false]]
+    ///     println!("{result}"); // [[true, false], [false, false]]
     /// }
     /// ```
     pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
@@ -115,20 +105,10 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let a = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, true],
-    ///          [false, false]].into(),
-    ///         &device,
-    ///     );
-    ///     let b = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, false],
-    ///          [true, false]].into(),
-    ///         &device,
-    ///     );
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
     ///     let result = a.bool_or(b);
-    ///     println!("{result}");
-    ///     // [[true, true],
-    ///     //  [true, false]]
+    ///     println!("{result}"); // [[true, true], [true, false]]
     /// }
     /// ```
     pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
@@ -154,20 +134,10 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let a = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, true],
-    ///          [false, false]].into(),
-    ///         &device,
-    ///     );
-    ///     let b = Tensor::<B, 2, Bool>::from_bool(
-    ///         [[true, false],
-    ///          [true, false]].into(),
-    ///         &device,
-    ///     );
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
     ///     let result = a.bool_xor(b);
-    ///     println!("{result}");
-    ///     // [[false, true],
-    ///     //  [true, false]]
+    ///     println!("{result}"); // [[false, true], [true, false]]
     /// }
     /// ```
     pub fn bool_xor(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
