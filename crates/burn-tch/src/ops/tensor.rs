@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use crate::{TchFloatElement, TchIntElement};
 use burn_backend::backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
@@ -8,7 +9,9 @@ use burn_backend::{
 };
 use burn_backend::{bf16, f16};
 
-impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, F: TchFloatElement, I: TchIntElement> FloatTensorOps<Self>
+    for LibTorch<E, F, I>
+{
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),
@@ -100,7 +103,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
 
     fn float_empty(
         shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
+        device: &<LibTorch<E, F, I> as Backend>::Device,
         dtype: FloatDType,
     ) -> TchTensor {
         let tensor = tch::Tensor::empty(
@@ -115,7 +118,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::add(lhs, rhs)
     }
 
-    fn float_add_scalar(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_add_scalar(lhs: TchTensor, rhs: F) -> TchTensor {
         let rhs: f64 = rhs.elem();
 
         lhs.unary_ops(
@@ -128,7 +131,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::sub(lhs, rhs)
     }
 
-    fn float_sub_scalar(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_sub_scalar(lhs: TchTensor, rhs: F) -> TchTensor {
         let rhs: f64 = rhs.elem();
 
         lhs.unary_ops(
@@ -141,7 +144,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::mul(lhs, rhs)
     }
 
-    fn float_mul_scalar(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_mul_scalar(lhs: TchTensor, rhs: F) -> TchTensor {
         let rhs: f64 = rhs.elem();
 
         lhs.unary_ops(
@@ -154,7 +157,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::div(lhs, rhs)
     }
 
-    fn float_div_scalar(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_div_scalar(lhs: TchTensor, rhs: F) -> TchTensor {
         let rhs: f64 = rhs.elem();
 
         lhs.unary_ops(
@@ -167,7 +170,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::remainder(lhs, rhs)
     }
 
-    fn float_remainder_scalar(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_remainder_scalar(lhs: TchTensor, rhs: F) -> TchTensor {
         let rhs: f64 = rhs.elem();
 
         lhs.unary_ops(
@@ -187,7 +190,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     }
 
     fn float_neg(tensor: TchTensor) -> TchTensor {
-        Self::float_mul_scalar(tensor, (-1f32).elem::<E>())
+        Self::float_mul_scalar(tensor, (-1f32).elem::<F>())
     }
 
     fn float_recip(tensor: TchTensor) -> TchTensor {
@@ -246,7 +249,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchTensor::new(output)
     }
 
-    fn float_mask_fill(tensor: TchTensor, mask: TchTensor, value: E) -> TchTensor {
+    fn float_mask_fill(tensor: TchTensor, mask: TchTensor, value: F) -> TchTensor {
         let value: f64 = value.elem();
 
         tensor.unary_ops(
@@ -259,7 +262,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::equal(lhs, rhs)
     }
 
-    fn float_equal_elem(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_equal_elem(lhs: TchTensor, rhs: F) -> TchTensor {
         TchOps::equal_elem(lhs, rhs.elem::<f64>())
     }
 
@@ -267,7 +270,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::greater(lhs, rhs)
     }
 
-    fn float_greater_elem(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_greater_elem(lhs: TchTensor, rhs: F) -> TchTensor {
         TchOps::greater_elem(lhs, rhs.elem::<f64>())
     }
 
@@ -275,7 +278,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::greater_equal(lhs, rhs)
     }
 
-    fn float_greater_equal_elem(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_greater_equal_elem(lhs: TchTensor, rhs: F) -> TchTensor {
         TchOps::greater_equal_elem(lhs, rhs.elem::<f64>())
     }
 
@@ -283,7 +286,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::lower(lhs, rhs)
     }
 
-    fn float_lower_elem(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_lower_elem(lhs: TchTensor, rhs: F) -> TchTensor {
         TchOps::lower_elem(lhs, rhs.elem::<f64>())
     }
 
@@ -291,7 +294,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::lower_equal(lhs, rhs)
     }
 
-    fn float_lower_equal_elem(lhs: TchTensor, rhs: E) -> TchTensor {
+    fn float_lower_equal_elem(lhs: TchTensor, rhs: F) -> TchTensor {
         TchOps::lower_equal_elem(lhs, rhs.elem::<f64>())
     }
 
@@ -422,18 +425,21 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::cat(tensors, dim)
     }
 
-    fn float_clamp_min(tensor: TchTensor, min: E) -> TchTensor {
+    fn float_clamp_min(tensor: TchTensor, min: F) -> TchTensor {
         TchOps::clamp_min(tensor, min.elem::<f64>())
     }
 
-    fn float_clamp_max(tensor: TchTensor, max: <LibTorch<E> as Backend>::FloatElem) -> TchTensor {
+    fn float_clamp_max(
+        tensor: TchTensor,
+        max: <LibTorch<E, F, I> as Backend>::FloatElem,
+    ) -> TchTensor {
         TchOps::clamp_max(tensor, max.elem::<f64>())
     }
 
     fn float_clamp(
         tensor: TchTensor,
-        min: <LibTorch<E> as Backend>::FloatElem,
-        max: <LibTorch<E> as Backend>::FloatElem,
+        min: <LibTorch<E, F, I> as Backend>::FloatElem,
+        max: <LibTorch<E, F, I> as Backend>::FloatElem,
     ) -> TchTensor {
         TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
     }

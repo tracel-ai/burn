@@ -6,7 +6,8 @@ use crate::{
     element::ElementConversion,
     ops::TransactionPrimitive,
     tensor::{
-        BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, TensorKind,
+        BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Orderable,
+        TensorKind,
     },
 };
 
@@ -440,6 +441,102 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_abs(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_abs(tensor)),
+        }
+    }
+
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
+    }
+
+    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs.elem()),
+        }
+    }
+
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
+    }
+
+    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => B::q_powi_scalar(lhs, rhs.elem()),
+        }
+    }
+
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_random(shape, distribution, device))
+    }
+
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_sign(tensor.tensor()))
+    }
+
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_sort(tensor, dim, descending))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_sort(tensor, dim, descending))
+            }
+        }
+    }
+
+    fn sort_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+        descending: bool,
+    ) -> (Self::Primitive, IntTensor<B>) {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                let (values, indices) = B::float_sort_with_indices(tensor, dim, descending);
+                (TensorPrimitive::Float(values), indices)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let (values, indices) = B::q_sort_with_indices(tensor, dim, descending);
+                (TensorPrimitive::QFloat(values), indices)
+            }
+        }
+    }
+
+    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
+            TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
+        }
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+            }
+            (lhs, rhs) => B::q_matmul(lhs, rhs),
+        }
+    }
+}
+impl<B: Backend> Orderable<B> for Float
+where
+    <B as crate::backend::Backend>::FloatElem: crate::element::ElementComparison,
+{
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),
@@ -560,6 +657,24 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
+    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_abs(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_abs(tensor)),
+        }
+    }
+
+    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_max_abs_dim(tensor, dim))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
+            }
+        }
+    }
+
     fn clamp(tensor: Self::Primitive, min: B::FloatElem, max: B::FloatElem) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
@@ -584,116 +699,6 @@ impl<B: Backend> Numeric<B> for Float {
                 TensorPrimitive::Float(B::float_clamp_max(tensor, max))
             }
             TensorPrimitive::QFloat(tensor) => B::q_clamp_max(tensor, max),
-        }
-    }
-
-    fn abs(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_abs(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_abs(tensor)),
-        }
-    }
-
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        q_bin_ops!(lhs, rhs, float_powf, q_powf)
-    }
-
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs.elem()),
-        }
-    }
-
-    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        q_bin_ops!(lhs, rhs, float_powf, q_powf)
-    }
-
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_powi_scalar(lhs, rhs.elem()),
-        }
-    }
-
-    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_random(shape, distribution, device))
-    }
-
-    fn sign(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_sign(tensor.tensor()))
-    }
-
-    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_sort(tensor, dim, descending))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_sort(tensor, dim, descending))
-            }
-        }
-    }
-
-    fn sort_with_indices(
-        tensor: Self::Primitive,
-        dim: usize,
-        descending: bool,
-    ) -> (Self::Primitive, IntTensor<B>) {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let (values, indices) = B::float_sort_with_indices(tensor, dim, descending);
-                (TensorPrimitive::Float(values), indices)
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                let (values, indices) = B::q_sort_with_indices(tensor, dim, descending);
-                (TensorPrimitive::QFloat(values), indices)
-            }
-        }
-    }
-
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
-            TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
-        }
-    }
-
-    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_abs(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_abs(tensor)),
-        }
-    }
-
-    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_max_abs_dim(tensor, dim))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
-            }
-        }
-    }
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
-            }
-            (lhs, rhs) => B::q_matmul(lhs, rhs),
         }
     }
 }

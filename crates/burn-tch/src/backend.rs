@@ -1,4 +1,6 @@
-use crate::IntoKind;
+use std::marker::PhantomData;
+
+use crate::{IntoKind, TchFloatElement, TchIntElement};
 
 use super::TchTensor;
 use super::element::TchElement;
@@ -105,19 +107,20 @@ impl DeviceOps for LibTorchDevice {}
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32> {
-    _e: E,
+pub struct LibTorch<E, F = f32, I = i64> {
+    _e: PhantomData<E>,
+    _i: PhantomData<I>,
+    _f: PhantomData<F>,
 }
 
-impl<E: TchElement> Backend for LibTorch<E> {
+impl<E: TchElement, F: TchFloatElement, I: TchIntElement> Backend for LibTorch<E, F, I> {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
-    type FloatElem = E;
+    type FloatElem = F;
 
     type IntTensorPrimitive = TchTensor;
-    type IntElem = i64;
-
+    type IntElem = I;
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 

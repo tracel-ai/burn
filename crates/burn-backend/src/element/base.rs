@@ -14,7 +14,7 @@ pub trait Element:
     ToElement
     + ElementRandom
     + ElementConversion
-    + ElementComparison
+    + ElementEquality
     + ElementLimits
     + bytemuck::CheckedBitPattern
     + bytemuck::NoUninit
@@ -63,6 +63,12 @@ pub trait ElementRandom {
     fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self;
 }
 
+/// Element trait for equality of a tensor.
+pub trait ElementEquality {
+    /// Returns whether `self` and `other` are equal.
+    fn eq(&self, other: &Self) -> bool;
+}
+
 /// Element ordering trait.
 pub trait ElementComparison {
     /// Returns and [Ordering] between `self` and `other`.
@@ -102,6 +108,11 @@ macro_rules! make_element {
             #[inline(always)]
             fn dtype() -> burn_std::DType {
                 $dtype
+            }
+        }
+        impl ElementEquality for $type {
+            fn eq(&self, other: &Self) -> bool {
+                self == other
             }
         }
 
