@@ -75,43 +75,54 @@ impl ToTokens for f32 {
     }
 }
 
-/// Padding configuration
+/// Padding configuration for 1D operations.
+///
+/// Converts PaddingConfig1d to Rust code tokens.
+/// Format: Explicit(left, right)
 impl ToTokens for PaddingConfig1d {
     fn to_tokens(&self) -> TokenStream {
         match self {
             Self::Valid => quote! { PaddingConfig1d::Valid },
-            Self::Explicit(padding) => {
-                let padding = padding.to_tokens();
-                quote! { PaddingConfig1d::Explicit(#padding) }
+            Self::Explicit(left, right) => {
+                let left = left.to_tokens();
+                let right = right.to_tokens();
+                quote! { PaddingConfig1d::Explicit(#left, #right) }
             }
         }
     }
 }
 
-/// Padding configuration
+/// Converts PaddingConfig2d to Rust code tokens.
+/// Format: Explicit(top, left, bottom, right)
 impl ToTokens for PaddingConfig2d {
     fn to_tokens(&self) -> TokenStream {
         match self {
             Self::Valid => quote! { PaddingConfig2d::Valid },
-            Self::Explicit(padding1, padding2) => {
-                let padding1 = padding1.to_tokens();
-                let padding2 = padding2.to_tokens();
-                quote! { PaddingConfig2d::Explicit(#padding1, #padding2) }
+            Self::Explicit(top, left, bottom, right) => {
+                let top = top.to_tokens();
+                let left = left.to_tokens();
+                let bottom = bottom.to_tokens();
+                let right = right.to_tokens();
+                quote! { PaddingConfig2d::Explicit(#top, #left, #bottom, #right) }
             }
         }
     }
 }
 
-/// Padding configuration
+/// Converts PaddingConfig3d to Rust code tokens.
+/// Format: Explicit(front, top, left, back, bottom, right)
 impl ToTokens for PaddingConfig3d {
     fn to_tokens(&self) -> TokenStream {
         match self {
             Self::Valid => quote! { PaddingConfig3d::Valid },
-            Self::Explicit(padding1, padding2, padding3) => {
-                let padding1 = padding1.to_tokens();
-                let padding2 = padding2.to_tokens();
-                let padding3 = padding3.to_tokens();
-                quote! { PaddingConfig3d::Explicit(#padding1, #padding2, #padding3) }
+            Self::Explicit(front, top, left, back, bottom, right) => {
+                let front = front.to_tokens();
+                let top = top.to_tokens();
+                let left = left.to_tokens();
+                let back = back.to_tokens();
+                let bottom = bottom.to_tokens();
+                let right = right.to_tokens();
+                quote! { PaddingConfig3d::Explicit(#front, #top, #left, #back, #bottom, #right) }
             }
         }
     }

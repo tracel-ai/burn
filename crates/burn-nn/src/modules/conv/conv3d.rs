@@ -154,6 +154,15 @@ impl<B: Backend> Conv3d<B> {
     /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
+        // Asymmetric 3D padding is not currently supported because burn's pad API
+        // only supports padding the last 2 dimensions
+        if self.padding.is_asymmetric() {
+            panic!(
+                "Asymmetric 3D padding is not currently supported. \
+                burn's pad API only supports 2D padding (last two dimensions)."
+            );
+        }
+
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let padding = self.padding.calculate_padding_3d(
             depth_in,

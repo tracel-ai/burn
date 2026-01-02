@@ -271,7 +271,10 @@ mod tests {
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
         assert_eq!(config.dilation, [1, 1]);
-        assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
+        assert!(matches!(
+            config.padding,
+            PaddingConfig2d::Explicit(1, 1, 1, 1)
+        ));
     }
 
     #[test]
