@@ -408,6 +408,7 @@ strategies.
 | `linalg::trace(tensor)`               | `torch.trace(tensor)`                           |
 | `linalg::outer(x, y)`                 | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)` |
 | `linalg::lu_decomposition(tensor)`    | `torch.linalg.lu(tensor)`                       |
+| `linalg::qr_decomposition(tensor)`    | `torch.linalg.qr(tensor)`                       |
 | `linalg::matvec(matrix, vector)`      | `torch.matmul(matrix, vector)` / `@` operator   |
 
 ## Displaying Tensor Details
