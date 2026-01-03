@@ -240,7 +240,7 @@ define_node_enum! {
     Pad => pad::PadNode,
     Reshape => reshape::ReshapeNode,
     Resize => resize::ResizeNode,
-    Scatter => unsupported::ScatterNode,
+    Scatter => scatter::ScatterNode,
     ScatterElements => unsupported::ScatterElementsNode,
     ScatterND => unsupported::ScatterNDNode,
     Shape => shape::ShapeNode,
