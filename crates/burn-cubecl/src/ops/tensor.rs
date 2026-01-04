@@ -10,6 +10,7 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
+use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_backend::{Backend, ExecutionError};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
@@ -568,5 +569,13 @@ where
 
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::is_inf(tensor, BT::dtype())
+    }
+
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        kernel::grid_sample::grid_sample(tensor, grid, options)
     }
 }

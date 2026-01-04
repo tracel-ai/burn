@@ -27,6 +27,8 @@ pub use crate::cubecl::prelude::KernelMetadata;
 pub mod attention;
 /// Convolution kernels
 pub mod conv;
+/// Grid sampling kernels
+pub mod grid_sample;
 /// Interpolation kernels
 pub mod interpolate;
 /// Matmul kernels

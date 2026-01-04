@@ -6,6 +6,7 @@ mod bernoulli;
 mod cast;
 mod cat;
 mod clamp;
+mod contiguous;
 mod conv2d;
 mod conv3d;
 mod conv_transpose2d;
