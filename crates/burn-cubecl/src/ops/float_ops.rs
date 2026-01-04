@@ -15,7 +15,6 @@ use burn_backend::{Backend, ExecutionError};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
-use cubecl::std::scalar::InputScalar;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 

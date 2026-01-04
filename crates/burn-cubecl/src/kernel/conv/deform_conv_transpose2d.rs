@@ -16,7 +16,6 @@ use crate::{
 use burn_backend::{DType, Shape, ops::DeformConvOptions};
 use cubecl::{
     CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube, features::TypeUsage, prelude::*,
-    std::scalar::InputScalar,
 };
 use cubek::{
     convolution::components::ConvSetupError,
@@ -273,15 +272,15 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             grad_offset.as_handle_ref().as_tensor_arg(1),
             grad_mask.as_handle_ref().as_tensor_arg(1),
             DeformConv2dCol2ImgCoordArgsLaunch::new(
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(options.stride[0]),
+                ScalarArg::new(options.stride[1]),
+                ScalarArg::new(options.dilation[0]),
+                ScalarArg::new(options.dilation[1]),
                 InputScalar::new(options.padding[0] as f32, dtype.elem_type()),
                 InputScalar::new(options.padding[1] as f32, dtype.elem_type()),
-                ScalarArg::new(options.offset_groups as u32),
-                ScalarArg::new(kernel_height as u32),
-                ScalarArg::new(kernel_width as u32),
+                ScalarArg::new(options.offset_groups),
+                ScalarArg::new(kernel_height),
+                ScalarArg::new(kernel_width),
             ),
             use_mask,
             dtype,
@@ -294,15 +293,15 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
 
 #[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgCoordArgs {
-    stride_h: u32,
-    stride_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
+    stride_h: usize,
+    stride_w: usize,
+    dilation_h: usize,
+    dilation_w: usize,
     pad_h: InputScalar,
     pad_w: InputScalar,
-    offset_groups: u32,
-    kernel_height: u32,
-    kernel_width: u32,
+    offset_groups: usize,
+    kernel_height: usize,
+    kernel_width: usize,
 }
 
 #[expect(clippy::collapsible_if)]
@@ -365,7 +364,7 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let c_bound = channels_per_offset_group * kernel_h * kernel_w;
 
-    for col_c in range_stepped(offset_c / 2, c_bound, col_step) {
+    for col_c in range_stepped(offset_c / 2, c_bound, col_step as u32) {
         let col_pos = (((col_c * batch_size + b) * out_h) + h) * out_w + w;
 
         let out_x = col_pos % out_w;
@@ -431,8 +430,8 @@ fn deform_col2img_coord_kernel<F: Float>(
 #[cube]
 fn get_coordinate_weight<F: Float>(
     input: &Slice<F>,
-    height: u32,
-    width: u32,
+    height: usize,
+    width: usize,
     y: F,
     x: F,
     is_y_direction: bool,
@@ -453,22 +452,22 @@ fn get_coordinate_weight<F: Float>(
     let valid_x_high = x_high >= 0. && x_high < width as f32;
 
     let bottom_left = if valid_y_low && valid_x_low {
-        input[y_low as u32 * stride_y + x_low as u32]
+        input[y_low as usize * stride_y + x_low as usize]
     } else {
         F::new(0.0)
     };
     let bottom_right = if valid_y_low && valid_x_high {
-        input[y_low as u32 * stride_y + x_high as u32]
+        input[y_low as usize * stride_y + x_high as usize]
     } else {
         F::new(0.0)
     };
     let top_left = if valid_y_high && valid_x_low {
-        input[y_high as u32 * stride_y + x_low as u32]
+        input[y_high as usize * stride_y + x_low as usize]
     } else {
         F::new(0.0)
     };
     let top_right = if valid_y_high && valid_x_high {
-        input[y_high as u32 * stride_y + x_high as u32]
+        input[y_high as usize * stride_y + x_high as usize]
     } else {
         F::new(0.0)
     };
@@ -549,19 +548,19 @@ fn compute_input_grad<R: CubeRuntime>(
             columns.as_tensor_arg(1),
             grad_arg,
             DeformConv2dCol2ImgArgsLaunch::new(
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(options.stride[0]),
+                ScalarArg::new(options.stride[1]),
+                ScalarArg::new(options.dilation[0]),
+                ScalarArg::new(options.dilation[1]),
                 InputScalar::new(options.padding[0] as f32, dtypes[0].elem_type()),
                 InputScalar::new(options.padding[1] as f32, dtypes[0].elem_type()),
-                ScalarArg::new(options.offset_groups as u32),
-                ScalarArg::new(batch_size as u32),
-                ScalarArg::new(in_channels as u32),
-                ScalarArg::new(height as u32),
-                ScalarArg::new(width as u32),
-                ScalarArg::new(kernel_height as u32),
-                ScalarArg::new(kernel_width as u32),
+                ScalarArg::new(options.offset_groups),
+                ScalarArg::new(batch_size),
+                ScalarArg::new(in_channels),
+                ScalarArg::new(height),
+                ScalarArg::new(width),
+                ScalarArg::new(kernel_height),
+                ScalarArg::new(kernel_width),
             ),
             use_mask,
             dtypes,
@@ -577,19 +576,19 @@ fn compute_input_grad<R: CubeRuntime>(
 
 #[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgArgs {
-    stride_h: u32,
-    stride_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
+    stride_h: usize,
+    stride_w: usize,
+    dilation_h: usize,
+    dilation_w: usize,
     pad_h: InputScalar,
     pad_w: InputScalar,
-    offset_groups: u32,
-    batch_size: u32,
-    in_channels: u32,
-    height: u32,
-    width: u32,
-    kernel_height: u32,
-    kernel_width: u32,
+    offset_groups: usize,
+    batch_size: usize,
+    in_channels: usize,
+    height: usize,
+    width: usize,
+    kernel_height: usize,
+    kernel_width: usize,
 }
 
 #[cube(launch_unchecked)]
@@ -669,8 +668,8 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
                 && F::abs(x - xp) < F::new(1.0)
             {
                 let gradient_pos =
-                    ((batch * n_in_channels + in_channel) * height + u32::cast_from(yp)) * width
-                        + u32::cast_from(xp);
+                    ((batch * n_in_channels + in_channel) * height + usize::cast_from(yp)) * width
+                        + usize::cast_from(xp);
 
                 let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
 

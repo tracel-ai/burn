@@ -411,7 +411,7 @@ impl FusedMatmulLaunch<'_> {
     ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(self.matmul.lhs.data());
         let rhs_shape = inputs.shape(self.matmul.rhs.data());
-        let out_shape = outputs.shape_ref(&config.ref_layout, config.rank as usize);
+        let out_shape = outputs.shape_ref(&config.ref_layout, config.rank);
 
         let lhs_strides = inputs.strides(self.matmul.lhs.data());
         let rhs_strides = inputs.strides(self.matmul.rhs.data());
@@ -447,10 +447,10 @@ impl FusedMatmulLaunch<'_> {
         }
 
         if let MatmulArg::Quantized { scheme, .. } = self.matmul.lhs {
-            line_sizes.lhs *= scheme.num_quants() as u8;
+            line_sizes.lhs *= scheme.num_quants();
         }
         if let MatmulArg::Quantized { scheme, .. } = self.matmul.rhs {
-            line_sizes.rhs *= scheme.num_quants() as u8;
+            line_sizes.rhs *= scheme.num_quants();
         }
 
         let out_strides = MatrixLayout::RowMajor.to_strides(&out_shape);

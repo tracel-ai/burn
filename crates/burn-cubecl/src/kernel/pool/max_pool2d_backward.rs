@@ -38,8 +38,8 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
     let (oh_start, oh_end, ow_start, ow_end) = loop_ranges(
         ih as i32,
         iw as i32,
-        grad.shape(1),
-        grad.shape(2),
+        grad.shape(1) as u32,
+        grad.shape(2) as u32,
         args,
         kernel_size_0,
         kernel_size_1,
@@ -51,7 +51,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
 
     for oh in oh_start..oh_end {
         for ow in ow_start..ow_end {
-            let index = index_base + oh * grad.stride(1) + ow * grad.stride(2);
+            let index = index_base + oh as usize * grad.stride(1) + ow as usize * grad.stride(2);
             let index_max = Line::<u32>::cast_from(indices[index / line_size]);
 
             grad_acc += select_many(

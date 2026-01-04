@@ -20,8 +20,8 @@ use burn_backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
 use burn_backend::{Distribution, ElementConversion, Shape, TensorData};
+use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
-use cubecl::{frontend::Numeric, std::scalar::InputScalar};
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 

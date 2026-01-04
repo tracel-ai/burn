@@ -11,18 +11,18 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     input: &mut Tensor<T>,
     indices: &Tensor<I>,
     value: &Tensor<T>,
-    dim: &u32,
+    dim: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
-    let stride_input = input.stride(*dim);
-    let shape_value = value.shape(*dim);
+    let stride_input = input.stride(dim);
+    let shape_value = value.shape(dim);
 
     let mut offset_input = 0;
     let mut offset_value = 0;
     let mut num_elems = 1;
 
     for i in 0..value.rank() {
-        let shouldnt_skip = i != *dim;
+        let shouldnt_skip = i != dim;
         if shouldnt_skip {
             let shape_input_loop = input.shape(i);
             let shape_value_loop = value.shape(i);
@@ -54,7 +54,7 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         idx += offset_value;
 
         let result_value = value[idx];
-        let result_indices = u32::cast_from(indices[idx]);
+        let result_indices = usize::cast_from(indices[idx]);
 
         let mut index_input = stride_input * result_indices;
         index_input += offset_input;
@@ -121,7 +121,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
             tensor.as_tensor_arg(1),
             indices.as_tensor_arg(1),
             value.as_tensor_arg(1),
-            ScalarArg::new(dim as u32),
+            ScalarArg::new(dim),
             [tensor.dtype.into(), indices.dtype.into()],
         )
         .expect("Kernel to never fail");

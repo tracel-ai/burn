@@ -5,7 +5,7 @@ use burn_backend::{
 use core::iter;
 use cubecl::{
     prelude::*,
-    std::tensor::{TensorHandle, into_contiguous_pitched},
+    std::tensor::{TensorHandle, into_contiguous_pitched_ref},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -30,7 +30,7 @@ pub(crate) fn batches_per_run(
 
     let cube_count_per_batch = out_shape.div_ceil(plane_size);
     let max_cube_count = u16::MAX as usize;
-    let max_simultaneous = (max_cube_count / cube_count_per_batch).min(batch_size);
+    let max_simultaneous = Ord::min(max_cube_count / cube_count_per_batch, batch_size);
     if max_simultaneous == 0 {
         return Err(MatmulAvailabilityError::CubeCountTooBig(CubeCount::Static(
             cube_count_per_batch as u32,
@@ -141,7 +141,7 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
 
     if !is_spatial_contiguous(&input.shape, &input.strides) {
         let contiguous =
-            into_contiguous_pitched(&input.client, &input.as_handle_ref(), dtype.into())
+            into_contiguous_pitched_ref(&input.client, &input.as_handle_ref(), dtype.into())
                 .expect("Kernel to never fail");
         input = from_handle(&input.client, &input.device, contiguous, dtype);
     }

@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use burn_ir::{TensorId, TensorIr};
-use cubecl::Runtime;
+use cubecl::{Runtime, ir::LineSize};
 use std::collections::BTreeMap;
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
@@ -30,7 +30,7 @@ pub struct BlockPlan<'a> {
     pub reference: ReferenceSelection,
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     pub writes: BTreeMap<TensorId, FuseOp>,
-    pub width: u8,
+    pub width: LineSize,
 }
 
 #[derive(Debug)]
@@ -40,7 +40,7 @@ pub enum InputReference {
     },
     SwapDims {
         original_pos: usize,
-        dims: (u32, u32),
+        dims: (usize, usize),
     },
     Reshaped {
         reshape_pos: usize,
@@ -59,7 +59,7 @@ pub enum ReferenceSelection {
     },
     SwapDims {
         original: FuseArg,
-        dims: (u32, u32),
+        dims: (usize, usize),
     },
     Reshaped {
         reshape_pos: usize,
@@ -137,7 +137,7 @@ pub enum HandleOutput<R: Runtime> {
         precision: FuseType,
         handle: CubeFusionHandle<R>,
         global_shape: Vec<usize>,
-        vectorization: u8,
+        vectorization: LineSize,
     },
 }
 
@@ -147,7 +147,7 @@ pub struct NormalHandleInput<R: Runtime> {
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub vectorization: u8,
+    pub line_size: LineSize,
     pub broadcated: bool,
     // Strides can be modified during plan execution, but need to be restored on rollback
     pub orig_strides: Vec<usize>,
@@ -159,7 +159,7 @@ pub struct QuantValuesHandleInput<R: Runtime> {
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub vectorization: u8,
+    pub line_size: LineSize,
 }
 
 #[derive(Debug)]
@@ -200,7 +200,7 @@ impl<R: Runtime> NormalHandleInput<R> {
             handle,
             relative_id: tensor_relative.id,
             global_ir: tensor_global,
-            vectorization: 1,
+            line_size: 1,
             broadcated: false,
             orig_strides: strides,
         }

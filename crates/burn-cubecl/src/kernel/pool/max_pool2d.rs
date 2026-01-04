@@ -33,7 +33,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
 
     fn initialize(
         #[comptime] _config: &Self::Config,
-        #[comptime] line_size: u32,
+        #[comptime] line_size: LineSize,
     ) -> Self::Accumulator {
         Line::empty(line_size).fill(N::min_value())
     }
@@ -41,7 +41,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
     fn accumulate(
         #[comptime] _config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        _index: u32,
+        _index: LineSize,
         result: Line<N>,
     ) {
         *accumulator = Max::max(*accumulator, result);
@@ -57,7 +57,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: u32,
+        position: usize,
         output: &mut Tensor<Line<N>>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
@@ -74,7 +74,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
 
     fn initialize(
         #[comptime] _config: &Self::Config,
-        #[comptime] line_size: u32,
+        #[comptime] line_size: LineSize,
     ) -> Self::Accumulator {
         let val = Line::empty(line_size).fill(N::min_value());
         let idx = Line::empty(line_size).fill(0i32);
@@ -84,7 +84,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     fn accumulate(
         #[comptime] _config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        index: u32,
+        index: usize,
         result: Line<N>,
     ) {
         let indices = Line::cast_from(index);
@@ -102,7 +102,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: u32,
+        position: usize,
         output: &mut Tensor<Line<N>>,
         output_indices: &mut Tensor<Line<i32>>,
         accumulator: Self::Accumulator,
