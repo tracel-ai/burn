@@ -29,6 +29,7 @@ pub(crate) struct RemainderOp;
 pub(crate) struct AndOp;
 pub(crate) struct OrOp;
 pub(crate) struct PowOp;
+pub(crate) struct ArcTan2Op;
 
 impl BinaryOpFamily for AddOp {
     type BinaryOp<C: Numeric> = Self;
@@ -59,6 +60,10 @@ impl BinaryOpFamily for AndOp {
 }
 
 impl BinaryOpFamily for OrOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for ArcTan2Op {
     type BinaryOp<C: Numeric> = Self;
 }
 
@@ -94,6 +99,13 @@ impl<N: Numeric> BinaryOp<N> for DivOp {
 impl<N: Numeric> BinaryOp<N> for RemainderOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         Line::rem(lhs, rhs)
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for ArcTan2Op {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        Line::atan2(lhs, rhs)
     }
 }
 

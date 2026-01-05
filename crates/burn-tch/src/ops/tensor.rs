@@ -390,12 +390,52 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor.unary_ops(|mut tensor| tensor.cos_(), |tensor| tensor.cos())
     }
 
+    fn float_cosh(tensor: TchTensor) -> TchTensor {
+        tensor.unary_ops(|mut tensor| tensor.cosh_(), |tensor| tensor.cos())
+    }
+
     fn float_sin(tensor: TchTensor) -> TchTensor {
         tensor.unary_ops(|mut tensor| tensor.sin_(), |tensor| tensor.sin())
     }
 
+    fn float_sinh(tensor: TchTensor) -> TchTensor {
+        tensor.unary_ops(|mut tensor| tensor.sinh_(), |tensor| tensor.sin())
+    }
+
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.tan_(), |tensor| tensor.tanh())
+    }
+
     fn float_tanh(tensor: TchTensor) -> TchTensor {
         tensor.unary_ops(|mut tensor| tensor.tanh_(), |tensor| tensor.tanh())
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.acos_(), |tensor| tensor.tanh())
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.acosh_(), |tensor| tensor.tanh())
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.asin_(), |tensor| tensor.tanh())
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.asinh_(), |tensor| tensor.tanh())
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.atan_(), |tensor| tensor.tanh())
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor.unary_ops(|mut tensor| tensor.atanh_(), |tensor| tensor.tanh())
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        TchOps::atan2(lhs, rhs)
     }
 
     fn float_round(tensor: TchTensor) -> TchTensor {
