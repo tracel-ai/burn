@@ -109,7 +109,7 @@ tar = "0.4.44"
 tempfile = "3.24.0"
 textdistance = { version = "1.1.1", default-features = false }
 thiserror = { version = "2", default-features = false }
-tokio = { version = "1.47.1", features = ["rt", "macros"] }
+tokio = { version = "1.49.0", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
 tracing = { version = "0.1.44", default-features = false }
