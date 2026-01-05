@@ -871,6 +871,24 @@ mod tests {
         }
     }
 
+    // Test tuple of modules
+    #[derive(Module, Debug)]
+    struct TupleModule<B: Backend> {
+        layers: (Linear<B>, Linear<B>, Linear<B>),
+    }
+
+    impl<B: Backend> TupleModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                layers: (
+                    LinearConfig::new(10, 10).init(device),
+                    LinearConfig::new(10, 10).init(device),
+                    LinearConfig::new(10, 10).init(device),
+                ),
+            }
+        }
+    }
+
     #[test]
     fn vec_module_collect() {
         let device = Default::default();
@@ -886,6 +904,27 @@ mod tests {
         assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
 
         // Check that all indexed paths exist
+        assert!(views.contains_key("layers.0.weight"));
+        assert!(views.contains_key("layers.0.bias"));
+        assert!(views.contains_key("layers.1.weight"));
+        assert!(views.contains_key("layers.1.bias"));
+        assert!(views.contains_key("layers.2.weight"));
+        assert!(views.contains_key("layers.2.bias"));
+    }
+
+    #[test]
+    fn tuple_module_collect() {
+        let device = Default::default();
+        let module = TupleModule::<TestBackend>::new(&device);
+
+        let snapshots = module.collect(None, None, false);
+        assert_eq!(snapshots.len(), 6);
+
+        let views: HashMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|v| (v.full_path(), v)).collect();
+
+        assert_eq!(views.len(), 6);
+
         assert!(views.contains_key("layers.0.weight"));
         assert!(views.contains_key("layers.0.bias"));
         assert!(views.contains_key("layers.1.weight"));
