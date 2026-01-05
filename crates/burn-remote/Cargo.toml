@@ -17,6 +17,15 @@ workspace = true
 [features]
 default = ["client", "server"]
 doc = []
+tracing = [
+    "burn-communication/tracing",
+    "burn-communication/tracing",
+    "burn-ir/tracing",
+    "burn-router/tracing",
+    "burn-std/tracing",
+    "burn-tensor/tracing",
+]
+
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
 server = [
     "tokio-tungstenite",

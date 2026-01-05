@@ -30,6 +30,14 @@ doc = [
     "burn-dataset/doc",
     "burn-tensor/doc",
 ]
+tracing = [
+    "burn-std/tracing",
+    "burn-tensor/tracing",
+    "burn-dataset?/tracing",
+    "burn-vision?/tracing",
+]
+
+
 dataset = ["burn-dataset"]
 
 network = ["burn-std/network"]

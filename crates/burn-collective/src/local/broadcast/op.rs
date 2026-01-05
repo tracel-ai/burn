@@ -88,14 +88,15 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     /// Runs the broadcast if the operation is ready. Otherwise, do nothing
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(self, config, global_client),
         fields(
             self.peers = ?self.peers(),
             self.shape = ?self.tensor.as_ref().map(|t| t.shape()),
             self.dtype = ?self.tensor.as_ref().map(|t| t.dtype()),
         )
-    )]
+    ))]
     pub async fn execute<P: Protocol>(
         mut self,
         config: &CollectiveConfig,
@@ -120,7 +121,10 @@ impl<B: Backend> BroadcastOp<B> {
         }
     }
 
-    #[tracing::instrument(skip(self, config, global_client))]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, config, global_client))
+    )]
     async fn broadcast<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,

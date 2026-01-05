@@ -1035,6 +1035,13 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_is_inf(tensor);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
+                FloatOperationIr::GridSample2d(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let grid = handles.get_float_tensor::<B>(&desc.grid);
+
+                    let output = B::float_grid_sample_2d(tensor, grid, desc.options.clone().into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::Module(op) => match op {
                 ModuleOperationIr::Embedding(desc) => {

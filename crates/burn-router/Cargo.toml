@@ -21,6 +21,11 @@ workspace = true
 default = ["std"]
 std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
 doc = ["default"]
+tracing = [
+    "burn-backend/tracing",
+    "burn-ir/tracing",
+    "burn-std/tracing",
+]
 
 [dependencies]
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6", default-features = false }
