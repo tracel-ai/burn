@@ -1,0 +1,15 @@
+[package]
+name = "burn-rl"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version.workspace = true
+
+[dependencies]
+burn-core = { path = "../burn-core", version = "=0.20.0-pre.6", features = [
+    "dataset",
+    "std",
+], default-features = false }
+
+[lints]
+workspace = true

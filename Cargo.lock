@@ -1070,6 +1070,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-rl"
+version = "0.20.0-pre.6"
+dependencies = [
+ "burn-core",
+]
+
+[[package]]
 name = "burn-rocm"
 version = "0.20.0-pre.6"
 dependencies = [
@@ -2844,6 +2851,10 @@ name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
+name = "dqn-agent"
+version = "0.20.0-pre.6"
 
 [[package]]
 name = "drawille"
