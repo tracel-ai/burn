@@ -33,8 +33,8 @@ fn direct_conv2d_kernel<E: Numeric>(
     bias: CubeOption<Tensor<Line<E>>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
     args: Conv2dArgs,
-    shape_out: Sequence<FastDivmod>,
-    shape_out_c: FastDivmod,
+    shape_out: Sequence<FastDivmod<u32>>,
+    shape_out_c: FastDivmod<u32>,
     #[comptime] has_padding: bool,
     #[define(E)] _dtype: StorageType,
 ) {
@@ -317,7 +317,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 }
 
 #[cube]
-pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod>) -> (u32, Sequence<u32>) {
+pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod<u32>>) -> (u32, Sequence<u32>) {
     let rank = comptime![shape.len()];
     let mut offs = pos;
     let mut out = Sequence::new();

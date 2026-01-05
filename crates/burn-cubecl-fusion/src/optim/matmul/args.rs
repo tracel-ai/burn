@@ -225,7 +225,7 @@ impl MatmulArgs for FusedMatmulArgs {
 fn global_view<E: Numeric>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
-    batch_shape: &Sequence<FastDivmod>,
+    batch_shape: &Sequence<FastDivmod<u32>>,
     #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
     #[comptime] layout_config: GlobalLayoutConfig,
@@ -316,7 +316,7 @@ fn global_view<E: Numeric>(
 #[cube]
 fn input_batch_layout(
     inputs: &GlobalArgs,
-    batch_shape: &Sequence<FastDivmod>,
+    batch_shape: &Sequence<FastDivmod<u32>>,
     #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
 ) -> VirtualLayout<usize, usize> {
@@ -464,7 +464,7 @@ pub struct FusedMatmulState {
     rhs_layout_config: GlobalLayoutConfig,
     #[cube(comptime)]
     out_layout_config: GlobalLayoutConfig,
-    batch_shape: Sequence<FastDivmod>,
+    batch_shape: Sequence<FastDivmod<u32>>,
 }
 
 #[cube]
@@ -478,7 +478,7 @@ impl FusedMatmulState {
         b_batch: VirtualLayout<usize, usize>,
         c_batch: CubeOption<VirtualLayout<usize, usize>>,
         out_batch: VirtualLayout<usize, usize>,
-        batch_shape: Sequence<FastDivmod>,
+        batch_shape: Sequence<FastDivmod<u32>>,
         #[comptime] config: &FuseBlockConfig,
         #[comptime] lhs_layout_config: GlobalLayoutConfig,
         #[comptime] rhs_layout_config: GlobalLayoutConfig,

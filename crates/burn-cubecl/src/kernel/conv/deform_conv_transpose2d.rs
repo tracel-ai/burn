@@ -364,7 +364,7 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let c_bound = channels_per_offset_group * kernel_h * kernel_w;
 
-    for col_c in range_stepped(offset_c / 2, c_bound, col_step as u32) {
+    for col_c in range_stepped(offset_c / 2, c_bound, col_step) {
         let col_pos = (((col_c * batch_size + b) * out_h) + h) * out_w + w;
 
         let out_x = col_pos % out_w;

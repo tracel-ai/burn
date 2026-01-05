@@ -45,9 +45,9 @@ impl From<GridSamplePaddingMode> for PaddingMode {
 #[cube]
 pub(crate) fn fetch_value<F: Float>(
     input: &Tensor<F>,
-    base: u32,
-    stride_h: u32,
-    stride_w: u32,
+    base: usize,
+    stride_h: usize,
+    stride_w: usize,
     y: i32,
     x: i32,
     h: i32,
@@ -67,17 +67,17 @@ pub(crate) fn fetch_value<F: Float>(
 #[cube]
 pub(crate) fn fetch_with_zeros<F: Float>(
     input: &Tensor<F>,
-    base: u32,
-    stride_h: u32,
-    stride_w: u32,
+    base: usize,
+    stride_h: usize,
+    stride_w: usize,
     y: i32,
     x: i32,
     h: i32,
     w: i32,
 ) -> F {
     let in_bounds = x >= 0 && x < w && y >= 0 && y < h;
-    let x_clamped = Min::min(Max::max(x, 0), w - 1) as u32;
-    let y_clamped = Min::min(Max::max(y, 0), h - 1) as u32;
+    let x_clamped = Min::min(Max::max(x, 0), w - 1) as usize;
+    let y_clamped = Min::min(Max::max(y, 0), h - 1) as usize;
     let idx = base + y_clamped * stride_h + x_clamped * stride_w;
     select(in_bounds, input[idx], F::new(0.0))
 }
@@ -86,16 +86,16 @@ pub(crate) fn fetch_with_zeros<F: Float>(
 #[cube]
 pub(crate) fn fetch_with_border<F: Float>(
     input: &Tensor<F>,
-    base: u32,
-    stride_h: u32,
-    stride_w: u32,
+    base: usize,
+    stride_h: usize,
+    stride_w: usize,
     y: i32,
     x: i32,
     h: i32,
     w: i32,
 ) -> F {
-    let x_clamped = Min::min(Max::max(x, 0), w - 1) as u32;
-    let y_clamped = Min::min(Max::max(y, 0), h - 1) as u32;
+    let x_clamped = Min::min(Max::max(x, 0), w - 1) as usize;
+    let y_clamped = Min::min(Max::max(y, 0), h - 1) as usize;
     let idx = base + y_clamped * stride_h + x_clamped * stride_w;
     input[idx]
 }
@@ -105,9 +105,9 @@ pub(crate) fn fetch_with_border<F: Float>(
 #[cube]
 pub(crate) fn fetch_with_reflection<F: Float>(
     input: &Tensor<F>,
-    base: u32,
-    stride_h: u32,
-    stride_w: u32,
+    base: usize,
+    stride_h: usize,
+    stride_w: usize,
     y: i32,
     x: i32,
     h: i32,
@@ -122,7 +122,7 @@ pub(crate) fn fetch_with_reflection<F: Float>(
 /// Reflect an integer index that may be out of bounds.
 /// After float reflection, indices can be up to 2 steps out for bicubic (1 step for bilinear).
 #[cube]
-fn reflect_coord_bounded(idx: i32, size: i32) -> u32 {
+fn reflect_coord_bounded(idx: i32, size: i32) -> usize {
     let max_idx = size - 1;
     let neg_reflected = -idx - 1;
     let pos_reflected = 2 * max_idx + 1 - idx;
@@ -131,7 +131,7 @@ fn reflect_coord_bounded(idx: i32, size: i32) -> u32 {
         neg_reflected,
         select(idx > max_idx, pos_reflected, idx),
     );
-    Min::min(Max::max(result, 0), max_idx) as u32
+    Min::min(Max::max(result, 0), max_idx) as usize
 }
 
 /// Reflect a float coordinate into the valid sampling range.
