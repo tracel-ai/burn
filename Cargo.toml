@@ -34,7 +34,7 @@ invalid_html_tags = "deny"
 
 [workspace.dependencies]
 atomic_float = "1"
-axum = "0.8.5"
+axum = "0.8.8"
 bytemuck = "1.24.0"
 bytes = { version = "1.10", default-features = false }
 candle-core = { version = "0.9.1" }
@@ -109,7 +109,7 @@ tar = "0.4.44"
 tempfile = "3.24.0"
 textdistance = { version = "1.1.1", default-features = false }
 thiserror = { version = "2", default-features = false }
-tokio = { version = "1.47.1", features = ["rt", "macros"] }
+tokio = { version = "1.49.0", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
 tracing = { version = "0.1.44", default-features = false }
@@ -168,7 +168,7 @@ serde_json = { version = "1.0.148", default-features = false }
 uuid = { version = "1.19.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
-libc = "0.2.178"
+libc = "0.2.179"
 nvml-wrapper = "0.11.0"
 sysinfo = "0.37.2"
 systemstat = "0.2.5"
@@ -176,7 +176,7 @@ tch = "0.22.0"
 torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
-portable-atomic = { version = "1.11.1" }
+portable-atomic = { version = "1.13.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
