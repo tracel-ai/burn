@@ -1,8 +1,8 @@
 use burn_collective::{PeerId, ReduceOperation};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_optim::GradientsAccumulator;
 use burn_optim::GradientsParams;
-use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
@@ -10,21 +10,21 @@ use std::sync::{Arc, Mutex};
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
-    Learner, LearningComponentsTypes, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
-    TrainBackend, TrainLoader, TrainStep, ValidLoader, ValidStep,
+    Learner, LearnerBackend, LearningComponentsTypes, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, TrainLoader, ValidLoader, ValidStep,
 };
 
 /// A validation epoch.
 #[derive(new)]
 pub struct DdpValidEpoch<SC: SupervisedLearningComponentsTypes> {
-    dataloader: ValidLoader<SC::LC, SC::LD>,
+    dataloader: ValidLoader<SC::LC>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
 pub struct DdpTrainEpoch<SC: SupervisedLearningComponentsTypes> {
-    dataloader: TrainLoader<SC::LC, SC::LD>,
+    dataloader: TrainLoader<SC::LC>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
@@ -99,19 +99,14 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
         let mut accumulation_current = 0;
 
         let grads_syncer = GradsSyncer::<
-            TrainBackend<SC::LC>,
+            LearnerBackend<SC::LC>,
             <SC::LC as LearningComponentsTypes>::Model,
         >::new(false, peer_id);
 
-        let mut model = learner.model.clone();
-        let mut optim = learner.optim.clone();
-        let mut lr_scheduler = learner.lr_scheduler.clone();
-
         while let Some(item) = iterator.next() {
-            let mut lr = 0.;
             for _ in 0..peer_count {
                 iteration += 1;
-                lr = lr_scheduler.step();
+                learner.lr_step();
             }
             log::info!("Iteration {iteration}");
 
@@ -119,11 +114,11 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
             progress.items_processed *= peer_count;
             progress.items_total *= peer_count;
 
-            let item = model.step(item);
+            let item = learner.step(item);
 
             match self.grad_accumulation {
                 Some(accumulation) => {
-                    accumulator.accumulate(&model, item.grads);
+                    accumulator.accumulate(&learner.model(), item.grads);
                     accumulation_current += 1;
 
                     if accumulation <= accumulation_current {
@@ -132,7 +127,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
                         // With double buffering, these are the previous iteration's gradients
                         let grads = grads_syncer.sync(grads);
                         if let Some(grads) = grads {
-                            model = model.optimize(&mut optim, lr, grads);
+                            learner.optimize(grads);
                         }
 
                         accumulation_current = 0;
@@ -143,7 +138,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
                     let grads = grads_syncer.sync(item.grads);
 
                     if let Some(grads) = grads {
-                        model = model.optimize(&mut optim, lr, grads);
+                        learner.optimize(grads);
                     }
                 }
             }
@@ -154,7 +149,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
                 epoch,
                 self.epoch_total,
                 iteration,
-                Some(lr),
+                Some(learner.lr_current()),
             );
 
             {
@@ -172,10 +167,6 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
             let mut processor = processor.lock().unwrap();
             processor.process_train(LearnerEvent::EndEpoch(epoch));
         }
-
-        learner.model = model;
-        learner.optim = optim;
-        learner.lr_scheduler = lr_scheduler;
     }
 }
 

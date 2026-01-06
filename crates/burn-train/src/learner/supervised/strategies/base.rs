@@ -5,9 +5,10 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerSummaryConfig, LearningCheckpointer,
-    ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainingResult,
-    components::{LearningComponentsTypes, TrainLoader, ValidLoader},
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerModel, LearnerSummaryConfig,
+    LearningCheckpointer, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainLoader,
+    LearningResult, ValidLoader, ValidModel,
+    components::LearningComponentsTypes,
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
@@ -74,7 +75,7 @@ pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
     /// The epoch number from which to continue the training.
     pub checkpoint: Option<usize>,
     /// A checkpointer used to load and save learner checkpoints.
-    pub checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
+    pub checkpointer: Option<LearningCheckpointer<SC::LC>>,
     /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
@@ -95,10 +96,10 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
     fn train(
         &self,
         mut learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+        dataloader_train: TrainLoader<SC::LC>,
+        dataloader_valid: ValidLoader<SC::LC>,
         mut training_components: TrainingComponents<SC>,
-    ) -> TrainingResult<SC::InnerModel> {
+    ) -> LearningResult<ValidModel<SC::LC>> {
         let starting_epoch = match training_components.checkpoint {
             Some(checkpoint) => {
                 if let Some(checkpointer) = &mut training_components.checkpointer {
@@ -138,7 +139,7 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        TrainingResult::<SC::InnerModel> { model, renderer }
+        LearningResult::<ValidModel<SC::LC>> { model, renderer }
     }
 
     /// Training loop for this strategy
@@ -146,11 +147,11 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
         &self,
         training_components: TrainingComponents<SC>,
         learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+        dataloader_train: TrainLoader<SC::LC>,
+        dataloader_valid: ValidLoader<SC::LC>,
         starting_epoch: usize,
     ) -> (
-        SC::Model,
+        LearnerModel<SC::LC>,
         <SC::PC as ParadigmComponentsTypes>::EventProcessor,
     );
 }

@@ -1,7 +1,7 @@
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
-    SupervisedLearningStrategy, TrainBackend, TrainingComponents,
-    components::{TrainLoader, ValidLoader},
+    Learner, LearnerBackend, LearnerModel, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, SupervisedLearningStrategy, TrainLoader, TrainingComponents,
+    ValidLoader,
     single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::tensor::Device;
@@ -9,10 +9,10 @@ use burn_core::tensor::Device;
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
 pub struct SingleDevicetrainingStrategy<SC: SupervisedLearningComponentsTypes> {
-    device: Device<TrainBackend<SC::LC>>,
+    device: Device<LearnerBackend<SC::LC>>,
 }
 impl<SC: SupervisedLearningComponentsTypes> SingleDevicetrainingStrategy<SC> {
-    pub fn new(device: Device<TrainBackend<SC::LC>>) -> Self {
+    pub fn new(device: Device<LearnerBackend<SC::LC>>) -> Self {
         Self { device }
     }
 }
@@ -23,17 +23,17 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+        mut learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC>,
+        dataloader_valid: ValidLoader<SC::LC>,
         starting_epoch: usize,
     ) -> (
-        SC::Model,
+        LearnerModel<SC::LC>,
         <SC::PC as ParadigmComponentsTypes>::EventProcessor,
     ) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let dataloader_valid = dataloader_valid.to_device(&self.device);
-        let mut learner = learner.fork(&self.device);
+        learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
@@ -82,6 +82,6 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
             }
         }
 
-        (learner.model, event_processor)
+        (learner.model(), event_processor)
     }
 }

@@ -5,7 +5,6 @@ use crate::{
     model::Model,
 };
 
-use burn::train::LearningParadigm;
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -109,7 +108,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary();
 
-    let result = training.run(Learner::new(
+    let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
         lr_scheduler.init().unwrap(),

@@ -8,7 +8,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
+    train::{ClassificationOutput, TrainOutput, LearningStep, ValidStep},
 };
 
 #[derive(Config, Debug)]
@@ -94,7 +94,7 @@ impl<B: Backend> TextGenerationModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
+impl<B: AutodiffBackend> LearningStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
     for TextGenerationModel<B>
 {
     fn step(&self, item: TrainingTextGenerationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {

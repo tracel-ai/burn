@@ -1,6 +1,7 @@
+use crate::LearnerModel;
 use crate::{
-    InputTrain, OutputTrain, SupervisedLearningComponentsTypes, TrainBackend, TrainOutput,
-    TrainStep,
+    LearnerInput, LearnerOutput, SupervisedLearningComponentsTypes, LearnerBackend, TrainOutput,
+    LearningStep,
 };
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
@@ -14,7 +15,7 @@ use std::thread::spawn;
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<SC: SupervisedLearningComponentsTypes> {
     workers: Vec<Worker<SC>>,
-    receiver: Receiver<MultiTrainOutput<OutputTrain<SC::LD>>>,
+    receiver: Receiver<MultiTrainOutput<LearnerOutput<SC::LC>>>,
 }
 
 struct Message<M, TI> {
@@ -23,12 +24,12 @@ struct Message<M, TI> {
 }
 
 struct Worker<SC: SupervisedLearningComponentsTypes> {
-    sender_input: Sender<Message<SC::Model, InputTrain<SC::LD>>>,
-    device: Device<TrainBackend<SC::LC>>,
+    sender_input: Sender<Message<LearnerModel<SC::LC>, LearnerInput<SC::LC>>>,
+    device: Device<LearnerBackend<SC::LC>>,
 }
 
 impl<SC: SupervisedLearningComponentsTypes> Worker<SC> {
-    fn register(&self, item: InputTrain<SC::LD>, model: &SC::Model) {
+    fn register(&self, item: LearnerInput<SC::LC>, model: &LearnerModel<SC::LC>) {
         let message = Message {
             item,
             model: model.clone(),
@@ -38,8 +39,8 @@ impl<SC: SupervisedLearningComponentsTypes> Worker<SC> {
 
     fn start(
         &self,
-        sender_output: Sender<MultiTrainOutput<OutputTrain<SC::LD>>>,
-        receiver_input: Receiver<Message<SC::Model, InputTrain<SC::LD>>>,
+        sender_output: Sender<MultiTrainOutput<LearnerOutput<SC::LC>>>,
+        receiver_input: Receiver<Message<LearnerModel<SC::LC>, LearnerInput<SC::LC>>>,
     ) {
         let device = self.device.clone();
 
@@ -84,7 +85,7 @@ impl<SC: SupervisedLearningComponentsTypes> MultiDevicesTrainStep<SC> {
     /// # Returns
     ///
     /// MultiDevicesTrainStep instance.
-    pub fn new(devices: &[Device<TrainBackend<SC::LC>>]) -> Self {
+    pub fn new(devices: &[Device<LearnerBackend<SC::LC>>]) -> Self {
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices
             .iter()
@@ -118,9 +119,9 @@ impl<SC: SupervisedLearningComponentsTypes> MultiDevicesTrainStep<SC> {
     /// Outputs.
     pub fn step<'a>(
         &self,
-        dataloaders: &mut [Box<dyn DataLoaderIterator<InputTrain<SC::LD>> + 'a>],
-        model: &SC::Model,
-    ) -> (Vec<MultiTrainOutput<OutputTrain<SC::LD>>>, Progress) {
+        dataloaders: &mut [Box<dyn DataLoaderIterator<LearnerInput<SC::LC>> + 'a>],
+        model: &LearnerModel<SC::LC>,
+    ) -> (Vec<MultiTrainOutput<LearnerOutput<SC::LC>>>, Progress) {
         let mut num_send = 0;
 
         let mut items_total = 0;

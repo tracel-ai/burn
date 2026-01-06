@@ -2,7 +2,7 @@ use crate::ddp::epoch::{DdpTrainEpoch, DdpValidEpoch};
 use crate::ddp::strategy::WorkerComponents;
 use crate::{
     Learner, LearningCheckpointer, LearningComponentsTypes, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, TrainBackend, TrainLoader, ValidLoader,
+    SupervisedLearningComponentsTypes, LearnerBackend, TrainLoader, ValidLoader,
 };
 use burn_collective::{self, CollectiveConfig, PeerId};
 use burn_core::tensor::Device;
@@ -17,13 +17,13 @@ where
     SC: SupervisedLearningComponentsTypes + Send + 'static,
 {
     peer_id: PeerId,
-    device: Device<TrainBackend<SC::LC>>,
+    device: Device<LearnerBackend<SC::LC>>,
     learner: Learner<SC::LC>,
     event_processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
     components: WorkerComponents,
-    checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
-    dataloader_train: TrainLoader<SC::LC, SC::LD>,
-    dataloader_valid: Option<ValidLoader<SC::LC, SC::LD>>,
+    checkpointer: Option<LearningCheckpointer<SC::LC>>,
+    dataloader_train: TrainLoader<SC::LC>,
+    dataloader_valid: Option<ValidLoader<SC::LC>>,
     collective_config: CollectiveConfig,
     starting_epoch: usize,
     peer_count: usize,
@@ -38,13 +38,13 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         peer_id: PeerId,
-        device: Device<TrainBackend<SC::LC>>,
+        device: Device<LearnerBackend<SC::LC>>,
         learner: Learner<SC::LC>,
         event_processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
         components: WorkerComponents,
-        checkpointer: Option<LearningCheckpointer<SC::LC, SC::PC>>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: Option<ValidLoader<SC::LC, SC::LD>>,
+        checkpointer: Option<LearningCheckpointer<SC::LC>>,
+        dataloader_train: TrainLoader<SC::LC>,
+        dataloader_valid: Option<ValidLoader<SC::LC>>,
         collective_config: CollectiveConfig,
         starting_epoch: usize,
         peer_count: usize,
@@ -70,7 +70,7 @@ where
 
     /// Fits the model,
     pub fn fit(mut self) -> <SC::LC as LearningComponentsTypes>::Model {
-        burn_collective::register::<<TrainBackend<SC::LC> as AutodiffBackend>::InnerBackend>(
+        burn_collective::register::<<LearnerBackend<SC::LC> as AutodiffBackend>::InnerBackend>(
             self.peer_id,
             self.device.clone(),
             self.collective_config.clone(),
@@ -89,7 +89,7 @@ where
         let epoch_valid = self
             .dataloader_valid
             .map(|dataloader| DdpValidEpoch::<SC>::new(dataloader, num_epochs));
-        self.learner = self.learner.fork(&self.device);
+        self.learner.fork(&self.device);
 
         for epoch in self.starting_epoch..num_epochs + 1 {
             epoch_train.run(
@@ -110,7 +110,7 @@ where
             if let Some(runner) = &epoch_valid {
                 let mut event_processor = self.event_processor.lock().unwrap();
                 runner.run(
-                    &self.learner.model,
+                    &self.learner.model(),
                     epoch,
                     &mut event_processor,
                     &interrupter,
@@ -128,6 +128,6 @@ where
             }
         }
 
-        self.learner.model
+        self.learner.model()
     }
 }

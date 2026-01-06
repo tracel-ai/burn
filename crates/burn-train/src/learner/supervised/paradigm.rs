@@ -2,7 +2,7 @@ use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::components::{OutputTrain, OutputValid, TrainLoader, ValidLoader};
+use crate::components::{LearnerOutput, ValidOutput};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
@@ -16,85 +16,91 @@ use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDevicetrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    LearnerSummaryConfig, LearningCheckpointer, LearningComponentsTypes, LearningDataMarker,
-    LearningParadigm, ParadigmComponentsMarker, ParadigmComponentsTypes,
-    SupervisedLearningComponentsMarker, SupervisedLearningComponentsTypes, TrainBackend, TrainStep,
-    TrainingComponents, TrainingResult, TrainingStrategy, ValidStep,
+    LearnerBackend, LearnerSummaryConfig, LearningCheckpointer, LearningComponentsMarker,
+    LearningComponentsTypes, LearningDataMarker, LearningResult, LearningStep,
+    ParadigmComponentsMarker, ParadigmDataMarker, SupervisedLearningComponentsMarker,
+    SupervisedLearningComponentsTypes, TrainLoader, TrainingComponents, TrainingStrategy,
+    ValidLoader, ValidModel, ValidStep,
 };
 use crate::{Learner, SupervisedLearningStrategy};
-use burn_core::module::Module;
+use burn_core::data::dataloader::DataLoader;
+use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::Optimizer;
 use burn_optim::lr_scheduler::LrScheduler;
-use burn_optim::lr_scheduler::composed::ComposedLrScheduler;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Structure to configure and launch supervised learning trainings.
-pub struct SupervisedTraining<SC: SupervisedLearningComponentsTypes> {
+pub struct SupervisedTraining<SC>
+where
+    SC: SupervisedLearningComponentsTypes,
+{
     // Not that complex and very convenient when the traits are
     // already constrained correctly. Extracting in another type
     // would be more complex.
     #[allow(clippy::type_complexity)]
-    checkpointers: Option<(
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::Model as Module<TrainBackend<SC::LC>>>::Record,
-            TrainBackend<SC::LC>,
+    checkpointers:
+        Option<
+            (
+                AsyncCheckpointer<
+                    <<SC::LC as LearningComponentsTypes>::Model as Module<
+                        LearnerBackend<SC::LC>,
+                    >>::Record,
+                    LearnerBackend<SC::LC>,
+                >,
+                AsyncCheckpointer<
+                    <<SC::LC as LearningComponentsTypes>::Optimizer as Optimizer<
+                        <SC::LC as LearningComponentsTypes>::Model,
+                        LearnerBackend<SC::LC>,
+                    >>::Record,
+                    LearnerBackend<SC::LC>,
+                >,
+                AsyncCheckpointer<
+                    <<SC::LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<
+                        LearnerBackend<SC::LC>,
+                    >,
+                    LearnerBackend<SC::LC>,
+                >,
+            ),
         >,
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::Optimizer as Optimizer<
-                SC::Model,
-                TrainBackend<SC::LC>,
-            >>::Record,
-            TrainBackend<SC::LC>,
-        >,
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<
-                TrainBackend<SC::LC>,
-            >,
-            TrainBackend<SC::LC>,
-        >,
-    )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: MetricsTraining<OutputTrain<SC::LD>, OutputValid<SC::LD>>,
+    metrics: MetricsTraining<LearnerOutput<SC::LC>, ValidOutput<SC::LC>>,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<EarlyStoppingStrategyRef>,
     training_strategy: TrainingStrategy<SC>,
-    dataloader_train: TrainLoader<SC::LC, SC::LD>,
-    dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+    dataloader_train: TrainLoader<SC::LC>,
+    dataloader_valid: ValidLoader<SC::LC>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
 }
 
-impl<LC, TI, TO, VI, VO>
+impl<B, LR, M, O, TI, TO, VI, VO>
     SupervisedTraining<
         SupervisedLearningComponentsMarker<
             ParadigmComponentsMarker<
-                LearningDataMarker<TI, VI, TO, VO>,
+                ParadigmDataMarker<TO, VO>,
                 AsyncProcessorTraining<FullEventProcessorTraining<TO, VO>>,
-                Box<dyn CheckpointingStrategy>,
             >,
-            LC,
-            LearningDataMarker<TI, VI, TO, VO>,
-            LC::Model,
-            LC::Optimizer,
-            ComposedLrScheduler,
+            LearningComponentsMarker<B, LR, M, O, LearningDataMarker<TI, VI, TO, VO>>,
         >,
     >
 where
-    LC: LearningComponentsTypes,
-    LC::Model: TrainStep<TI, TO>,
-    LC::InnerModel: ValidStep<VI, VO>,
+    B: AutodiffBackend,
+    LR: LrScheduler + 'static,
+    M: LearningStep<TI, TO> + AutodiffModule<B> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
+    O: Optimizer<M, B> + 'static,
     TI: Send + 'static,
     VI: Send + 'static,
     TO: ItemLazy + 'static,
@@ -109,8 +115,8 @@ where
     /// * `dataloader_valid` - The dataloader for the validation split.
     pub fn new(
         directory: impl AsRef<Path>,
-        dataloader_train: TrainLoader<LC, LearningDataMarker<TI, VI, TO, VO>>,
-        dataloader_valid: ValidLoader<LC, LearningDataMarker<TI, VI, TO, VO>>,
+        dataloader_train: Arc<dyn DataLoader<B, TI>>,
+        dataloader_valid: Arc<dyn DataLoader<B::InnerBackend, VI>>,
     ) -> Self {
         let directory = directory.as_ref().to_path_buf();
         let experiment_log_file = directory.join("experiment.log");
@@ -131,7 +137,7 @@ where
                 ComposedCheckpointingStrategy::builder()
                     .add(KeepLastNCheckpoints::new(2))
                     .add(MetricCheckpointingStrategy::new(
-                        &LossMetric::<LC::Backend>::new(), // default to valid loss
+                        &LossMetric::<B>::new(), // default to valid loss
                         Aggregate::Mean,
                         Direction::Lowest,
                         Split::Valid,
@@ -173,13 +179,10 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     }
 
     /// Update the checkpointing_strategy.
-    pub fn with_checkpointing_strategy(
+    pub fn with_checkpointing_strategy<CS: CheckpointingStrategy + 'static>(
         mut self,
-        strategy: <SC::PC as ParadigmComponentsTypes>::CheckpointerStrategy,
-    ) -> Self
-    where
-        <SC::PC as ParadigmComponentsTypes>::CheckpointerStrategy: 'static,
-    {
+        strategy: CS,
+    ) -> Self {
         self.checkpointer_strategy = Box::new(strategy);
         self
     }
@@ -210,7 +213,7 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <LearnerOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -219,7 +222,7 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <ValidOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -244,7 +247,7 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <LearnerOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
@@ -254,7 +257,7 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
     pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
-        <OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <ValidOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
@@ -339,10 +342,9 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedTraining<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC::LC>
-    for SupervisedTraining<SC>
-{
-    fn run(mut self, learner: Learner<SC::LC>) -> TrainingResult<SC::InnerModel> {
+impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedTraining<SC> {
+    /// Launch this training with the given [Learner](Learner).
+    pub fn launch(mut self, learner: Learner<SC::LC>) -> LearningResult<ValidModel<SC::LC>> {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
@@ -452,8 +454,8 @@ macro_rules! gen_tuple {
     ($($M:ident),*) => {
         impl<$($M,)* SC: SupervisedLearningComponentsTypes> TextMetricRegistration<SC> for ($($M,)*)
         where
-            $(<OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<LearnerOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<ValidOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
@@ -470,8 +472,8 @@ macro_rules! gen_tuple {
 
         impl<$($M,)* SC: SupervisedLearningComponentsTypes> MetricRegistration<SC> for ($($M,)*)
         where
-            $(<OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<LearnerOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<ValidOutput<SC::LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
