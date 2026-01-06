@@ -34,7 +34,7 @@ impl<TO> TrainOutput<TO> {
     }
 }
 
-/// Trait to be implemented for models to learn.
+/// Trait to be implemented for models to be able to learn.
 ///
 /// The [step](LearningStep::step) method needs to be manually implemented for all structs.
 ///
@@ -48,7 +48,7 @@ impl<TO> TrainOutput<TO> {
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
 pub trait LearningStep<TI, TO> {
-    /// Runs a step for the learning, which executes the forward and backward passes.
+    /// Runs a step for learning, which executes the forward and backward passes.
     ///
     /// # Arguments
     ///
