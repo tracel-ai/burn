@@ -78,14 +78,15 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(self, config, global_client),
         fields(
             ?self.op,
             ?self.shape,
             self.peers = ?self.peers(),
         )
-    )]
+    ))]
     pub async fn execute<P: Protocol>(
         mut self,
         root: PeerId,
@@ -110,7 +111,10 @@ impl<B: Backend> ReduceOp<B> {
         }
     }
 
-    #[tracing::instrument(skip(self, config, global_client))]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, config, global_client))
+    )]
     async fn reduce<P: Protocol>(
         &mut self,
         config: &CollectiveConfig,

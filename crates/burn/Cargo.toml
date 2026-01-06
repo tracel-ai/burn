@@ -70,6 +70,23 @@ std = [
     "burn-nn/std",
     "burn-optim/std",
 ]
+tracing = [
+    "cubecl?/tracing",
+    "burn-core/tracing",
+    # Backends
+    "burn-candle?/tracing",
+    "burn-cpu?/tracing",
+    "burn-ndarray?/tracing",
+    "burn-wgpu?/tracing",
+    "burn-router?/tracing",
+    "burn-cuda?/tracing",
+    "burn-autodiff?/tracing",
+    "burn-rocm?/tracing",
+    "burn-store?/tracing",
+    "burn-nn/tracing",
+    "burn-optim/tracing",
+]
+
 
 network = ["burn-core/network"]
 

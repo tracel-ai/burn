@@ -35,10 +35,10 @@ The `SupervisedLearning` struct must be created with the training and validation
 | Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct          |
 
 When the training is configured to your liking, you can then move forward to running the training. The
-`run` method requires a learner object providing: the model, the optimizer and the learning rate scheduler. Note
+`launch` method requires a learner object providing: the model, the optimizer and the learning rate scheduler. Note
 that the latter can be a simple float if you want it to be constant during training.
 
-The `run` method will start the training and return the trained model once finished.
+The `launch` method will start the training and return the trained model once finished.
 
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.

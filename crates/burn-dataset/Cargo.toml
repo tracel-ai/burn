@@ -15,10 +15,14 @@ version.workspace = true
 workspace = true
 
 [features]
-audio = ["hound"]
-builtin-sources = ["vision", "dep:tar", "nlp"]
 default = ["sqlite-bundled"]
 doc = ["default"]
+tracing = [
+    "burn-std/tracing",
+]
+
+audio = ["hound"]
+builtin-sources = ["vision", "dep:tar", "nlp"]
 fake = ["dep:fake"]
 network = ["dep:burn-std"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]

@@ -1,9 +1,9 @@
 use crate::model::ModelConfig;
 use burn::record::NoStdTrainingRecorder;
 use burn::train::{
-    EventProcessorTraining, Learner, LearningParadigm, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, SupervisedLearningStrategy, SupervisedTraining,
-    TrainBackend, TrainLoader, TrainingComponents, ValidLoader,
+    EventProcessorTraining, Learner, LearnerBackend, LearnerModel, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, SupervisedLearningStrategy, SupervisedTraining, TrainLoader,
+    TrainingComponents, ValidLoader,
 };
 use burn::{
     data::{
@@ -11,7 +11,7 @@ use burn::{
         dataset::{transform::PartialDataset, vision::MnistDataset},
     },
     lr_scheduler::{
-        LrScheduler, composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
+        composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
         linear::LinearLrSchedulerConfig,
     },
     module::AutodiffModule,
@@ -20,8 +20,7 @@ use burn::{
     record::CompactRecorder,
     tensor::{Device, backend::AutodiffBackend},
     train::{
-        LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition, TrainStep,
-        ValidStep,
+        LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition, ValidStep,
         metric::{
             AccuracyMetric, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -105,7 +104,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             MyCustomLearningStrategy::new(device),
         )));
 
-    let result = training.run(Learner::new(
+    let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
         lr_scheduler.init().unwrap(),
@@ -121,12 +120,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 }
 
 struct MyCustomLearningStrategy<SC: SupervisedLearningComponentsTypes> {
-    device: Device<TrainBackend<SC::LC>>,
+    device: Device<LearnerBackend<SC::LC>>,
     _p: PhantomData<SC>,
 }
 
 impl<SC: SupervisedLearningComponentsTypes> MyCustomLearningStrategy<SC> {
-    pub fn new(device: Device<TrainBackend<SC::LC>>) -> Self {
+    pub fn new(device: Device<LearnerBackend<SC::LC>>) -> Self {
         Self {
             device,
             _p: PhantomData,
@@ -140,25 +139,21 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
     fn fit(
         &self,
         training_components: TrainingComponents<SC>,
-        learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+        mut learner: Learner<SC::LC>,
+        dataloader_train: TrainLoader<SC::LC>,
+        dataloader_valid: ValidLoader<SC::LC>,
         starting_epoch: usize,
     ) -> (
-        SC::Model,
+        LearnerModel<SC::LC>,
         <SC::PC as ParadigmComponentsTypes>::EventProcessor,
     ) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let dataloader_valid = dataloader_valid.to_device(&self.device);
-        let learner = learner.fork(&self.device);
+        learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let interrupter = training_components.interrupter;
         let num_epochs = training_components.num_epochs;
-
-        let mut model = learner.model;
-        let mut optim = learner.optim;
-        let mut lr_scheduler = learner.lr_scheduler;
 
         for epoch in starting_epoch..num_epochs + 1 {
             // Iterate over our training and validation loop for X epochs.
@@ -170,26 +165,35 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
 
             while let Some(item) = iterator.next() {
                 iteration += 1;
-                let lr = lr_scheduler.step();
+                learner.lr_step();
                 log::info!("Iteration {iteration} of my custom learning strategy");
 
                 let progress = iterator.progress();
-                let item = model.step(item);
-                model = model.optimize(&mut optim, lr, item.grads);
+                let item = learner.step(item);
+                learner.optimize(item.grads);
 
-                let item =
-                    LearnerItem::new(item.item, progress, epoch, num_epochs, iteration, Some(lr));
+                let item = LearnerItem::new(
+                    item.item,
+                    progress,
+                    epoch,
+                    num_epochs,
+                    iteration,
+                    Some(learner.lr_current()),
+                );
 
                 event_processor.process_train(LearnerEvent::ProcessedItem(item));
 
                 if interrupter.should_stop() {
-                    log::info!("Training interrupted.");
+                    let reason = interrupter
+                        .get_message()
+                        .unwrap_or(String::from("Reason unknown"));
+                    log::info!("Training interrupted: {reason}");
                     break;
                 }
             }
             event_processor.process_train(LearnerEvent::EndEpoch(epoch));
 
-            let model_valid = model.valid();
+            let model_valid = learner.model().valid();
 
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
@@ -206,18 +210,10 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
             event_processor.process_valid(LearnerEvent::EndEpoch(epoch));
 
             if let Some(checkpointer) = &mut checkpointer {
-                checkpointer.checkpoint(
-                    &Learner {
-                        model: model.clone(),
-                        optim: optim.clone(),
-                        lr_scheduler: lr_scheduler.clone(),
-                    },
-                    epoch,
-                    &training_components.event_store,
-                );
+                checkpointer.checkpoint(&learner, epoch, &training_components.event_store);
             }
         }
 
-        (model, event_processor)
+        (learner.model(), event_processor)
     }
 }

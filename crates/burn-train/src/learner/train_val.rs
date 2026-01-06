@@ -34,35 +34,35 @@ impl<TO> TrainOutput<TO> {
     }
 }
 
-/// Trait to be implemented for training models using supervised learning.
+/// Trait to be implemented for models to be able to learn.
 ///
-/// The [step](TrainStep::step) method needs to be manually implemented for all structs.
+/// The [step](LearningStep::step) method needs to be manually implemented for all structs.
 ///
-/// The [optimize](TrainStep::optimize) method can be overridden if you want to control how the
+/// The [optimize](LearningStep::optimize) method can be overridden if you want to control how the
 /// optimizer is used to update the model. This can be useful if you want to call custom mutable
 /// functions on your model (e.g., clipping the weights) before or after the optimizer is used.
 ///
 /// # Notes
 ///
-/// To be used with the [Learner](crate::SupervisedTraining) struct, the struct which implements this trait must
+/// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait TrainStep<TI, TO> {
-    /// Runs the training step, which executes the forward and backward passes.
+pub trait LearningStep<TI, TO> {
+    /// Runs a step for learning, which executes the forward and backward passes.
     ///
     /// # Arguments
     ///
-    /// * `item` - The training input for the model.
+    /// * `item` - The input for the model.
     ///
     /// # Returns
     ///
-    /// The training output containing the model output and the gradients.
+    /// The output containing the model output and the gradients.
     fn step(&self, item: TI) -> TrainOutput<TO>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
     ///
-    /// * `optim`: Optimizer used for training this model.
+    /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: The gradients of each parameter in the current model.
     ///
@@ -81,7 +81,7 @@ pub trait TrainStep<TI, TO> {
     ///
     /// # Arguments
     ///
-    /// * `optim`: Optimizer used for training this model.
+    /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: Multiple gradients associated to each parameter in the current model.
     ///
@@ -98,7 +98,7 @@ pub trait TrainStep<TI, TO> {
     }
 }
 
-/// Trait to be implemented for validating models using supervised learning.
+/// Trait to be implemented for validating models.
 pub trait ValidStep<VI, VO> {
     /// Runs a validation step.
     ///
@@ -113,8 +113,8 @@ pub trait ValidStep<VI, VO> {
 }
 
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
-pub struct TrainingResult<M> {
-    /// The model trained.
+pub struct LearningResult<M> {
+    /// The model with the learned weights.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,

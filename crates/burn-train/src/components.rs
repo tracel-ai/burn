@@ -1,78 +1,87 @@
-use crate::{EventProcessorTraining, checkpoint::CheckpointingStrategy, metric::ItemLazy};
-use burn_core::{
-    data::dataloader::DataLoader, module::AutodiffModule, tensor::backend::AutodiffBackend,
-};
+use crate::{EventProcessorTraining, LearningStep, ValidStep, metric::ItemLazy};
+use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 use burn_optim::{Optimizer, lr_scheduler::LrScheduler};
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 /// Components used for a model to learn, grouped in one trait.
-pub trait LearningComponentsTypes: Clone {
+pub trait LearningComponentsTypes {
     /// The backend used for learning.
     type Backend: AutodiffBackend;
     /// The learning rate scheduler used for learning.
     type LrScheduler: LrScheduler + 'static;
     /// The model that learns.
-    type Model: AutodiffModule<Self::Backend, InnerModule = Self::InnerModel>
+    type Model: LearningStep<LearnerInput<Self>, LearnerOutput<Self>>
+        + AutodiffModule<Self::Backend, InnerModule = Self::InnerModel>
         + core::fmt::Display
         + 'static;
     /// The non-autodiff type of the model.
-    type InnerModel;
+    type InnerModel: ValidStep<ValidInput<Self>, ValidOutput<Self>>;
     /// The optimizer used for learning.
     type Optimizer: Optimizer<Self::Model, Self::Backend> + 'static;
+    /// The [LearningData](crate::LearningData) types.
+    type LearningData: LearningData;
 }
 
-#[derive(Clone)]
 /// Concrete type that implements the [LearningComponentsTypes](LearningComponentsTypes) trait.
-pub struct LearningComponentsMarker<B, LR, M, O> {
+pub struct LearningComponentsMarker<B, LR, M, O, LD> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
     _model: PhantomData<M>,
     _optimizer: PhantomData<O>,
+    _learning_data: PhantomData<LD>,
 }
 
-impl<B, LR, M, O> LearningComponentsTypes for LearningComponentsMarker<B, LR, M, O>
+impl<B, LR, M, O, LD> LearningComponentsTypes for LearningComponentsMarker<B, LR, M, O, LD>
 where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: AutodiffModule<B> + core::fmt::Display + 'static,
+    M: LearningStep<LD::LearningInput, LD::LearningOutput>
+        + AutodiffModule<B>
+        + core::fmt::Display
+        + 'static,
+    M::InnerModule: ValidStep<LD::ValidInput, LD::ValidOutput>,
     O: Optimizer<M, B> + 'static,
+    LD: LearningData,
 {
     type Backend = B;
     type LrScheduler = LR;
     type Model = M;
     type InnerModel = M::InnerModule;
     type Optimizer = O;
+    type LearningData = LD;
 }
 
 /// The training backend.
-pub type TrainBackend<LC> = <LC as LearningComponentsTypes>::Backend;
+pub type LearnerBackend<LC> = <LC as LearningComponentsTypes>::Backend;
 /// The validation backend.
 pub type ValidBackend<LC> =
     <<LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend;
-/// The training model.
-pub(crate) type TrainModel<LC> = <LC as LearningComponentsTypes>::Model;
-/// Type for training input
-pub(crate) type InputTrain<LD> = <LD as LearningData>::TrainInput;
-/// Type for validation input
-pub(crate) type InputValid<LD> = <LD as LearningData>::ValidInput;
-/// Type for training output
-pub(crate) type OutputTrain<LD> = <LD as LearningData>::TrainOutput;
-/// Type for validation output
-pub(crate) type OutputValid<LD> = <LD as LearningData>::ValidOutput;
-/// A reference to the training split [DataLoader](DataLoader).
-pub type TrainLoader<LC, LD> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LD>>>;
-/// A reference to the validation split [DataLoader](DataLoader).
-pub type ValidLoader<LC, LD> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LD>>>;
+/// The model of the learner.
+pub type LearnerModel<LC> = <LC as LearningComponentsTypes>::Model;
+/// The non-autodiff model of the learner.
+pub type ValidModel<LC> = <LC as LearningComponentsTypes>::InnerModel;
+/// Type for training input.
+pub(crate) type LearnerInput<LC> =
+    <<LC as LearningComponentsTypes>::LearningData as LearningData>::LearningInput;
+/// Type for validation input.
+pub(crate) type ValidInput<LC> =
+    <<LC as LearningComponentsTypes>::LearningData as LearningData>::ValidInput;
+/// Type for training output.
+pub(crate) type LearnerOutput<LC> =
+    <<LC as LearningComponentsTypes>::LearningData as LearningData>::LearningOutput;
+/// Type for validation output.
+pub(crate) type ValidOutput<LC> =
+    <<LC as LearningComponentsTypes>::LearningData as LearningData>::ValidOutput;
 
-/// Regroups types of input and outputs for training and validation
+/// Regroups types of input and outputs for learning and validation.
 pub trait LearningData {
-    /// Type of input to the training stop
-    type TrainInput: Send + 'static;
-    /// Type of input to the validation step
+    /// Type of input for a step of the learning stage.
+    type LearningInput: Send + 'static;
+    /// Type of input for a step of the validation stage.
     type ValidInput: Send + 'static;
-    /// Type of output of the training step
-    type TrainOutput: ItemLazy + 'static;
-    /// Type of output of the validation step
+    /// Type of output for a step of the learning stage.
+    type LearningOutput: ItemLazy + 'static;
+    /// Type of output for a step of the validation stage.
     type ValidOutput: ItemLazy + 'static;
 }
 
@@ -88,42 +97,59 @@ where
     TO: ItemLazy + 'static,
     VO: ItemLazy + 'static,
 {
-    type TrainInput = TI;
+    type LearningInput = TI;
     type ValidInput = VI;
-    type TrainOutput = TO;
+    type LearningOutput = TO;
     type ValidOutput = VO;
 }
 
 /// All components used to execute a learning paradigm, grouped in one trait.
 pub trait ParadigmComponentsTypes {
     /// The data processed by the learning model during training and validation.
-    type LearningData: LearningData;
+    type ParadigmData: ParadigmData;
     /// Processes events happening during training and validation.
     type EventProcessor: EventProcessorTraining<
-            ItemTrain = <Self::LearningData as LearningData>::TrainOutput,
-            ItemValid = <Self::LearningData as LearningData>::ValidOutput,
+            ItemTrain = <Self::ParadigmData as ParadigmData>::LearningItem,
+            ItemValid = <Self::ParadigmData as ParadigmData>::ValidItem,
         > + 'static;
-    /// The strategy used to save and delete checkpoints.
-    type CheckpointerStrategy: CheckpointingStrategy;
 }
 
 /// Concrete type that implements the [ParadigmComponentsTypes](ParadigmComponentsTypes) trait.
-pub struct ParadigmComponentsMarker<LD, EP, CS> {
-    _learning_data: PhantomData<LD>,
+pub struct ParadigmComponentsMarker<PD, EP> {
+    _paradigm_data: PhantomData<PD>,
     _event_processor: PhantomData<EP>,
-    _strategy: PhantomData<CS>,
 }
 
-impl<LD, EP, CS> ParadigmComponentsTypes for ParadigmComponentsMarker<LD, EP, CS>
+impl<PD, EP> ParadigmComponentsTypes for ParadigmComponentsMarker<PD, EP>
 where
-    LD: LearningData,
+    PD: ParadigmData,
     EP: EventProcessorTraining<
-            ItemTrain = <LD as LearningData>::TrainOutput,
-            ItemValid = <LD as LearningData>::ValidOutput,
+            ItemTrain = <PD as ParadigmData>::LearningItem,
+            ItemValid = <PD as ParadigmData>::ValidItem,
         > + 'static,
-    CS: CheckpointingStrategy,
 {
-    type LearningData = LD;
+    type ParadigmData = PD;
     type EventProcessor = EP;
-    type CheckpointerStrategy = CS;
+}
+
+/// Types of items specific to the learning paradigm for learning and validation.
+pub trait ParadigmData {
+    /// Type of item for a step of the learning stage.
+    type LearningItem: ItemLazy + 'static;
+    /// Type of item for a step of the validation stage.
+    type ValidItem: ItemLazy + 'static;
+}
+
+/// Concrete type that implements [ParadigmData](ParadigmData) trait.
+pub struct ParadigmDataMarker<TI, VI> {
+    _phantom_data: PhantomData<(TI, VI)>,
+}
+
+impl<LI, VI> ParadigmData for ParadigmDataMarker<LI, VI>
+where
+    LI: ItemLazy + 'static,
+    VI: ItemLazy + 'static,
+{
+    type LearningItem = LI;
+    type ValidItem = VI;
 }

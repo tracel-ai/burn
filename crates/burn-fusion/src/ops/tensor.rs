@@ -7,17 +7,18 @@ use crate::{
 };
 use burn_backend::{
     Distribution, Element, ExecutionError, FloatDType, Shape, Slice, TensorData,
-    ops::FloatTensorOps,
+    ops::{FloatTensorOps, GridSampleOptions},
     tensor::{BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(data),
         fields(?data.shape, ?data.dtype)
-    )]
+    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(device);
         let dtype = data.dtype;
@@ -161,14 +162,15 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(
             from = ?tensor.client.device(),
             shape = ?tensor.shape,
             dtype = ?tensor.dtype
         )
-    )]
+    ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
     }
@@ -177,14 +179,15 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.client.device().clone()
     }
 
-    #[tracing::instrument(
+    #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
         skip(tensor),
         fields(
             from = ?tensor.client.device(),
             shape = ?tensor.shape,
             dtype = ?tensor.dtype,
         )
-    )]
+    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         let device_original: &B::Device = tensor.client.device();
 
@@ -2187,6 +2190,44 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.input.dtype, FloatOperationIr::IsInf(desc.clone())),
                 IsInfOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct GridSample2dOps<B: FusionBackend> {
+            desc: GridSample2dOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GridSample2dOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let grid = handles.get_float_tensor::<B>(&self.desc.grid);
+                let output =
+                    B::float_grid_sample_2d(tensor, grid, self.desc.options.clone().into());
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &grid]);
+
+        let client = tensor.client.clone();
+        let desc =
+            GridSample2dOpIr::create(tensor.into_ir(), grid.into_ir(), options.into(), || {
+                client.create_empty_handle()
+            });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::GridSample2d(desc.clone())),
+                GridSample2dOps::<B>::new(desc),
             )
             .output()
     }

@@ -2,7 +2,6 @@ use crate::{
     data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
-use burn::train::LearningParadigm;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     nn::loss::CrossEntropyLossConfig,
@@ -11,7 +10,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
+        ClassificationOutput, Learner, LearningStep, SupervisedTraining, TrainOutput, ValidStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -31,7 +30,7 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> LearningStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -96,7 +95,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .summary();
 
     let model = config.model.init::<B>(&device);
-    let result = training.run(Learner::new(
+    let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
         config.learning_rate,

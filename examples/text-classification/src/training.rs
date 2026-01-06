@@ -11,7 +11,7 @@ use crate::{
 };
 #[cfg(feature = "ddp")]
 use burn::collective::{AllReduceStrategy, CollectiveConfig};
-use burn::train::{Learner, LearningParadigm, SupervisedTraining};
+use burn::train::{Learner, SupervisedTraining};
 #[cfg(not(feature = "ddp"))]
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
@@ -124,7 +124,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .summary();
 
     // Train the model
-    let result = training.run(Learner::new(model, optim, lr_scheduler));
+    let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
     // Save the configuration and the trained model
     config.save(format!("{artifact_dir}/config.json")).unwrap();

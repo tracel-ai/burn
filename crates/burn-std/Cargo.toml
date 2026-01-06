@@ -18,8 +18,13 @@ workspace = true
 cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
 doc = ["default"]
-network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 std = ["cubecl-common/std", "num-traits/std"]
+tracing = [
+    "cubecl?/tracing",
+    "cubecl-common/tracing",
+]
+
+network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [dependencies]
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
