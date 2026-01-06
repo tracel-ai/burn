@@ -2229,6 +2229,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::UnTracked(prep) => prep.finish(B::float_tanh(tensor.primitive)),
         }
     }
+
     fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Cosh;
@@ -2246,9 +2247,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx cosh(x) = sinh(x)
-                    let value = B::float_sinh(input);
-                    B::float_mul(grad, value)
+                    B::float_mul(grad, B::float_sinh(input))
                 });
             }
         }
@@ -2285,9 +2284,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx sinh(x) = cosh(x)
-                    let value = B::float_cosh(input);
-                    B::float_mul(grad, value)
+                    B::float_mul(grad, B::float_cosh(input))
                 });
             }
         }
@@ -2323,11 +2320,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 checkpointer: &mut Checkpointer,
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
+                let tan_x = B::float_tan(input);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx tan(x) = sec²(x) = 1/cos²(x)
-                    let cos_x = B::float_cos(input);
-                    let sec_sq = B::float_recip(B::float_powi_scalar(cos_x, 2.elem()));
-                    B::float_mul(grad, sec_sq)
+                    // d/dx tan(x) = 1 + tan^2(x)
+                    let tan_sq = B::float_powi_scalar(tan_x, 2.elem());
+                    B::float_mul(grad, B::float_add_scalar(tan_sq, 1.elem()))
                 });
             }
         }
@@ -2364,11 +2361,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx asin(x) = 1/sqrt(1 - x²)
+                    // d/dx asin(x) = 1/sqrt(1 - x^2)
                     let x_sq = B::float_powi_scalar(input, 2.elem());
-                    let one_minus_x_sq = B::float_add_scalar(B::float_neg(x_sq), 1.elem());
-                    let value = B::float_recip(B::float_sqrt(one_minus_x_sq));
-                    B::float_mul(grad, value)
+                    let denom = B::float_sqrt(B::float_add_scalar(B::float_neg(x_sq), 1.elem()));
+                    B::float_mul(grad, B::float_recip(denom))
                 });
             }
         }
@@ -2405,10 +2401,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx acos(x) = -1/sqrt(1 - x²)
+                    // d/dx acos(x) = -1/sqrt(1 - x^2)
                     let x_sq = B::float_powi_scalar(input, 2.elem());
-                    let one_minus_x_sq = B::float_add_scalar(B::float_neg(x_sq), 1.elem());
-                    let value = B::float_neg(B::float_recip(B::float_sqrt(one_minus_x_sq)));
+                    let denom = B::float_sqrt(B::float_add_scalar(B::float_neg(x_sq), 1.elem()));
+                    let value = B::float_neg(B::float_recip(denom));
                     B::float_mul(grad, value)
                 });
             }
@@ -2446,10 +2442,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx atan(x) = 1/(1 + x²)
+                    // d/dx atan(x) = 1/(1 + x^2)
                     let x_sq = B::float_powi_scalar(input, 2.elem());
-                    let one_plus_x_sq = B::float_add_scalar(x_sq, 1.elem());
-                    let value = B::float_recip(one_plus_x_sq);
+                    let value = B::float_recip(B::float_add_scalar(x_sq, 1.elem()));
                     B::float_mul(grad, value)
                 });
             }
@@ -2487,10 +2482,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx asinh(x) = 1/sqrt(x² + 1)
+                    // d/dx asinh(x) = 1/sqrt(x^2 + 1)
                     let x_sq = B::float_powi_scalar(input, 2.elem());
-                    let x_sq_plus_one = B::float_add_scalar(x_sq, 1.elem());
-                    let value = B::float_recip(B::float_sqrt(x_sq_plus_one));
+                    let value = B::float_recip(B::float_sqrt(B::float_add_scalar(x_sq, 1.elem())));
                     B::float_mul(grad, value)
                 });
             }
@@ -2528,10 +2522,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx acosh(x) = 1/sqrt(x² - 1)
+                    // d/dx acosh(x) = 1/sqrt(x^2 - 1)
                     let x_sq = B::float_powi_scalar(input, 2.elem());
-                    let x_sq_minus_one = B::float_sub_scalar(x_sq, 1.elem());
-                    let value = B::float_recip(B::float_sqrt(x_sq_minus_one));
+                    let value = B::float_recip(B::float_sqrt(B::float_sub_scalar(x_sq, 1.elem())));
                     B::float_mul(grad, value)
                 });
             }
@@ -2569,10 +2562,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx atanh(x) = 1/(1 - x²)
+                    // d/dx atanh(x) = 1/(1 - x^2)
                     let x_sq = B::float_powi_scalar(input, 2.elem());
-                    let one_minus_x_sq = B::float_add_scalar(B::float_neg(x_sq), 1.elem());
-                    let value = B::float_recip(one_minus_x_sq);
+                    let value = B::float_recip(B::float_add_scalar(B::float_neg(x_sq), 1.elem()));
                     B::float_mul(grad, value)
                 });
             }
@@ -2619,7 +2611,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     ops.node,
                     grads,
                     |grad| {
-                        // d/dy atan2(y, x) = x/(x² + y²)
+                        // d/dy atan2(y, x) = x/(x^2 + y^2)
                         let y = y_4y.unwrap();
                         let x = x_4y.unwrap();
                         let x_sq = B::float_powi_scalar(x.clone(), 2.elem());
@@ -2631,7 +2623,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         broadcast.backward_lhs::<B>(grad)
                     },
                     |grad| {
-                        // d/dx atan2(y, x) = -y/(x² + y²)
+                        // d/dx atan2(y, x) = -y/(x^2 + y^2)
                         let y = y_4x.unwrap();
                         let x = x_4x.unwrap();
                         let x_sq = B::float_powi_scalar(x, 2.elem());
@@ -2658,8 +2650,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(mut prep) => {
-                let y_state = x_tracked.then(|| prep.checkpoint(&y));
-                let x_state = (y_tracked || x_tracked).then(|| prep.checkpoint(&x));
+                let is_tracked = y_tracked || x_tracked;
+                let y_state = is_tracked.then(|| prep.checkpoint(&y));
+                let x_state = is_tracked.then(|| prep.checkpoint(&x));
 
                 prep.finish(
                     (y_state, x_state, broadcast),
