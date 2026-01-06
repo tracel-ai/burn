@@ -1569,7 +1569,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float_ops!(CoshOps, B::float_cosh);
+        unary_float_ops!(SinhOps, B::float_sinh);
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
@@ -1580,7 +1580,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .register(
                 streams,
                 OperationIr::Float(desc.out.dtype, FloatOperationIr::Sinh(desc.clone())),
-                CoshOps::<B>::new(desc),
+                SinhOps::<B>::new(desc),
             )
             .output()
     }
