@@ -90,8 +90,6 @@ pub enum OperationIr {
     Drop(TensorIr),
 }
 
-// TODO: more trig ops (cosh, sinh, tan, atan, asin, acos, etc.)
-
 /// Operation intermediate representation specific to a float tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum FloatOperationIr {

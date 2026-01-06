@@ -406,13 +406,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // acos(x) = π/2 - asin(x)
+        // acos(x) = PI/2 - asin(x)
         let neg_asin_x = Self::float_neg(Self::float_asin(tensor));
         Self::float_add_scalar(neg_asin_x, core::f64::consts::FRAC_PI_2.elem())
     }
 
     fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // acosh(x) = ln(x + sqrt(x² - 1))
+        // acosh(x) = ln(x + sqrt(x^2 - 1))
         let x_squared = Self::float_powi_scalar(tensor.clone(), 2.elem());
         let x_sq_minus_one = Self::float_sub_scalar(x_squared, 1.elem());
         let sqrt_term = Self::float_sqrt(x_sq_minus_one);
@@ -420,7 +420,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // asin(x) = atan(x / sqrt(1 - x²))
+        // asin(x) = atan(x / sqrt(1 - x^2))
         let x_squared = Self::float_powi_scalar(tensor.clone(), 2.elem());
         let one_minus_x_sq = Self::float_add_scalar(Self::float_neg(x_squared), 1.elem());
         let sqrt_term = Self::float_sqrt(one_minus_x_sq);
@@ -428,7 +428,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // asinh(x) = ln(x + sqrt(x² + 1))
+        // asinh(x) = ln(x + sqrt(x^2 + 1))
         let x_squared = Self::float_powi_scalar(tensor.clone(), 2.elem());
         let x_sq_plus_one = Self::float_add_scalar(x_squared, 1.elem());
         let sqrt_term = Self::float_sqrt(x_sq_plus_one);
@@ -436,7 +436,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // atan(x) = asin(x / sqrt(1 + x²))
+        // atan(x) = asin(x / sqrt(1 + x^2))
         let x_squared = Self::float_powi_scalar(tensor.clone(), 2.elem());
         let one_plus_x_sq = Self::float_add_scalar(x_squared, 1.elem());
         let sqrt_term = Self::float_sqrt(one_plus_x_sq);
@@ -444,14 +444,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // atanh(x) = 0.5 * ln((1 + x) / (1 - x))
+        // atanh(x) = ln((1 + x) / (1 - x)) / 2
         let num = (1.0 + tensor.tensor.clone()).unwrap();
         let denom = (1.0 - tensor.tensor).unwrap();
         CandleTensor::new(((num / denom).unwrap().log().unwrap() / 2.0).unwrap())
     }
 
     fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        // atan2(y, x) = 2 * atan(y / (sqrt(x² + y²) + x))
+        // atan2(y, x) = 2 * atan(y / (sqrt(x^2 + y^2) + x))
         let x_squared = Self::float_powi_scalar(rhs.clone(), 2.elem());
         let y_squared = Self::float_powi_scalar(lhs.clone(), 2.elem());
         let r = Self::float_sqrt(Self::float_add(x_squared, y_squared));
