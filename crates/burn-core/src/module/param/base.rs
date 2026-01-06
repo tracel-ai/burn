@@ -1,5 +1,6 @@
 use super::ParamId;
 use alloc::{boxed::Box, format};
+use burn_std::DType;
 use burn_std::stub::RwLock;
 use burn_tensor::Shape;
 use core::cell::OnceCell;
@@ -144,10 +145,11 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 pub(crate) struct Uninitialized<P: Parameter> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
     /// This function is consumed during initialization via `FnOnce`.
-    init: Box<dyn FnOnce(&P::Device, bool) -> P + Send>,
+    init: Box<dyn FnOnce(&P::Device, Option<DType>, bool) -> P + Send>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
     pub(crate) device: P::Device,
+    pub(crate) dtype: Option<DType>,
     /// The gradient requirement for the parameter.
     /// Used by `lazy_is_require_grad()` to provide gradient settings without triggering initialization.
     pub(crate) is_require_grad: bool,
@@ -163,7 +165,7 @@ impl<P: Parameter> Uninitialized<P> {
     /// The function is given the stored device and gradient requirement, and returns the initialized parameter.
     fn initialize(self) -> P {
         let init = self.init;
-        init(&self.device, self.is_require_grad)
+        init(&self.device, self.dtype, self.is_require_grad)
     }
 }
 
@@ -187,7 +189,7 @@ impl<T: Parameter> Param<T> {
         shape: Shape,
     ) -> Self
     where
-        F: FnOnce(&T::Device, bool) -> T + Send + 'static,
+        F: FnOnce(&T::Device, Option<DType>, bool) -> T + Send + 'static,
     {
         Self {
             id,
@@ -195,6 +197,7 @@ impl<T: Parameter> Param<T> {
             initialization: Some(RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
+                dtype: None,
                 is_require_grad,
                 shape,
             }))),
@@ -298,12 +301,13 @@ impl<T: Parameter> Param<T> {
         match init.as_mut() {
             Some(value) => {
                 #[allow(clippy::type_complexity)]
-                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send> =
-                    Box::new(|_, _| panic!("Fake func to not have null ref."));
+                let mut prev: Box<
+                    dyn FnOnce(&T::Device, Option<DType>, bool) -> T + Send,
+                > = Box::new(|_, _, _| panic!("Fake func to not have null ref."));
                 core::mem::swap(&mut prev, &mut value.init);
 
-                value.init = Box::new(|a, b| {
-                    let tensor = prev(a, b);
+                value.init = Box::new(|a, b, c| {
+                    let tensor = prev(a, b, c);
                     func(tensor)
                 });
                 core::mem::drop(init);

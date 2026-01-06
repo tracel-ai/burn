@@ -5,6 +5,7 @@ use crate::{
 };
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
+use burn_std::DType;
 use burn_tensor::{Bool, Int, Tensor, ops::Device};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
@@ -30,6 +31,7 @@ macro_rules! module {
         let mut mapper = Mapper;
         $module.map(&mut mapper)
     }};
+
     (visit_float=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
         struct Visitor<'a, B: Backend> {
             state: &'a mut $state_ty,
@@ -111,6 +113,25 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     /// can't optimize it with gradient descent. If you want to optimize the output network on the
     /// target device, use [fork](Module::fork) instead.
     fn to_device(self, device: &B::Device) -> Self;
+
+    /// Cast the module to the given float precision.
+    fn cast(self, dtype: DType) -> Self {
+        struct Mapper {
+            dtype: DType,
+        }
+
+        impl<B: Backend> ModuleMapper<B> for Mapper {
+            fn map_float<const D: usize>(
+                &mut self,
+                param: Param<Tensor<B, D>>,
+            ) -> Param<Tensor<B, D>> {
+                param.cast(self.dtype)
+            }
+        }
+
+        let mut mapper = Mapper { dtype };
+        self.map(&mut mapper)
+    }
 
     /// Each tensor in the module tree will not require grad.
     ///

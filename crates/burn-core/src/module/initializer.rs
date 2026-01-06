@@ -7,6 +7,8 @@ use crate::tensor::{Distribution, Tensor, s};
 
 use crate as burn;
 
+use burn_std::DType;
+use burn_tensor::Element;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -111,9 +113,11 @@ impl Initializer {
 
         Param::uninitialized(
             ParamId::new(),
-            move |device, require_grad| {
+            move |device, dtype, require_grad| {
+                let dtype = dtype.unwrap_or_else(<B::FloatElem as Element>::dtype);
                 B::memory_persistent_allocations(device, (), move |_| {
-                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                    let mut tensor =
+                        config.init_tensor(shape.clone(), fan_in, fan_out, device, dtype);
 
                     if require_grad {
                         tensor = tensor.require_grad();
@@ -134,6 +138,7 @@ impl Initializer {
         fan_in: Option<usize>,
         fan_out: Option<usize>,
         device: &B::Device,
+        dtype: DType,
     ) -> Tensor<B, D> {
         let shape = shape.into();
         match self {

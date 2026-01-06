@@ -8,6 +8,7 @@ use crate::tensor::{
     backend::{AutodiffBackend, Backend},
 };
 use alloc::{format, string::ToString, vec::Vec};
+use burn_std::DType;
 use burn_tensor::{Bool, Float, Int, TensorData, ops::Device};
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
@@ -147,6 +148,24 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
         tensor = mapper.on_save(tensor);
 
         Self::initialized(self.id, tensor)
+    }
+
+    /// Converts a tensor to the specified data type.
+    pub fn cast(self, dtype: DType) -> Self {
+        match &self.initialization {
+            Some(init) => {
+                let mut init = init.write().unwrap();
+
+                if let Some(value) = init.as_mut() {
+                    value.dtype = Some(dtype);
+                }
+
+                core::mem::drop(init);
+
+                self
+            }
+            None => self.map(|tensor| tensor.cast(dtype)),
+        }
     }
 }
 
@@ -299,7 +318,20 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
-        self.map(|tensor| tensor.to_device(device))
+        match &self.initialization {
+            Some(init) => {
+                let mut init = init.write().unwrap();
+
+                if let Some(value) = init.as_mut() {
+                    value.device = device.clone();
+                }
+
+                core::mem::drop(init);
+
+                self
+            }
+            None => self.map(|tensor| tensor.to_device(device)),
+        }
     }
 
     fn fork(self, device: &Device<B>) -> Self {
