@@ -7,7 +7,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, TestStep, TrainOutput, LearningStep, ValidStep},
+    train::{ClassificationOutput, LearningStep, TestStep, TrainOutput, ValidStep},
 };
 
 #[derive(Module, Debug)]

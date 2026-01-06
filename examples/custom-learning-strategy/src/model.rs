@@ -7,7 +7,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, TrainOutput, LearningStep, ValidStep},
+    train::{ClassificationOutput, LearningStep, TrainOutput, ValidStep},
 };
 use guide::data::MnistBatch;
 

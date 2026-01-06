@@ -6,8 +6,8 @@ use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerModel, LearnerSummaryConfig,
-    LearningCheckpointer, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainLoader,
-    LearningResult, ValidLoader, ValidModel,
+    LearningCheckpointer, LearningResult, ParadigmComponentsTypes,
+    SupervisedLearningComponentsTypes, TrainLoader, ValidLoader, ValidModel,
     components::LearningComponentsTypes,
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},

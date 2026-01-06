@@ -13,7 +13,7 @@ use burn::{
     },
     prelude::*,
     tensor::{activation::softmax, backend::AutodiffBackend},
-    train::{ClassificationOutput, TrainOutput, LearningStep, ValidStep},
+    train::{ClassificationOutput, LearningStep, TrainOutput, ValidStep},
 };
 
 // Define the model configuration

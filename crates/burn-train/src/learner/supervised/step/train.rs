@@ -1,7 +1,7 @@
 use crate::LearnerModel;
 use crate::{
-    LearnerInput, LearnerOutput, SupervisedLearningComponentsTypes, LearnerBackend, TrainOutput,
-    LearningStep,
+    LearnerBackend, LearnerInput, LearnerOutput, LearningStep, SupervisedLearningComponentsTypes,
+    TrainOutput,
 };
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
@@ -24,6 +24,8 @@ struct Message<M, TI> {
 }
 
 struct Worker<SC: SupervisedLearningComponentsTypes> {
+    // Not that complex. Extracting into another type would only make it more confusing.
+    #[allow(clippy::type_complexity)]
     sender_input: Sender<Message<LearnerModel<SC::LC>, LearnerInput<SC::LC>>>,
     device: Device<LearnerBackend<SC::LC>>,
 }
@@ -37,6 +39,8 @@ impl<SC: SupervisedLearningComponentsTypes> Worker<SC> {
         self.sender_input.send(message).unwrap();
     }
 
+    // Not that complex. Extracting into another type would only make it more confusing.
+    #[allow(clippy::type_complexity)]
     fn start(
         &self,
         sender_output: Sender<MultiTrainOutput<LearnerOutput<SC::LC>>>,

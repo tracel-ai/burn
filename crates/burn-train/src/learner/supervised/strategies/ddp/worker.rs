@@ -1,8 +1,8 @@
 use crate::ddp::epoch::{DdpTrainEpoch, DdpValidEpoch};
 use crate::ddp::strategy::WorkerComponents;
 use crate::{
-    Learner, LearningCheckpointer, LearningComponentsTypes, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, LearnerBackend, TrainLoader, ValidLoader,
+    Learner, LearnerBackend, LearningCheckpointer, LearningComponentsTypes,
+    ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainLoader, ValidLoader,
 };
 use burn_collective::{self, CollectiveConfig, PeerId};
 use burn_core::tensor::Device;
