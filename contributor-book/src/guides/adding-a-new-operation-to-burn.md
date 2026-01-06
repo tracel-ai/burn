@@ -7,10 +7,13 @@ operator added in [this PR](https://github.com/tracel-ai/burn/pull/1133/files).
 
 `burn-tensor` is the crate that defines all tensor operations that need to be implemented by the
 various backends. The core of this lies in
-[crates/burn-tensor/src/tensor/api/numeric.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/api/numeric.rs),
-which is home to the numeric trait and its implementation for the different tensor types. The
-numeric trait is the home of all tensor operations that are numeric in nature and that are shared by
-`Int` and `Float` Tensor types. More information on the relationship between Tensor modules can be
+[crates/burn-backend/src/tensor/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/numeric.rs#L17),
+which is home to the numeric trait. The numeric trait is the home of all tensor operations that are numeric in nature and that are shared by
+`Int` and `Float` Tensor types. The numeric trait is implemented in 
+[crates/burn-backend/src/tensor/ops/int.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/int.rs) for the int type 
+and in [crates/burn-backend/src/tensor/ops/float.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/float.rs)
+for the float type. 
+More information on the relationship between Tensor modules can be
 found under the section for [Tensor Architecture](../project-architecture/tensor.md#tensor-operations).
 
 Here is where pow was added to `crates/burn-tensor/src/tensor/api/numeric.rs`:
@@ -30,15 +33,15 @@ that is defined by its
 [`Kind`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/api/kind.rs#L16):
 one of `Bool`, `Float`, or `Int` (those linked in 3). These call the ops for that data type defined
 in the
-[`Backend`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/backend/base.rs#L54)
+[`Backend`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/base.rs#L64)
 supertrait[^supertrait]. This is the trait that is then implemented by the different `burn-`
 backends (such as `burn-ndarray` and `burn-wgpu`) which must implement the functions if no default
 is provided.
 
 In this case, we don't need to worry about `Bool` Tensors. `Float` ops are implemented under
-[`crates/burn-tensor/src/tensor/ops/tensor.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/ops/tensor.rs#L991),
+[crates/burn-backend/src/backend/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/ops/tensor.rs),
 and `Int` ops under
-[`crates/burn-tensor/src/tensor/ops/int_tensor.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/ops/int_tensor.rs#L539).
+[crates/burn-backend/src/backend/ops/int_tensor.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/ops/int_tensor.rs).
 The current convention is ops of each type, if not unique to that type, are prefixed with the type.
 So `powf` and sundry would be defined as `int_powf` for `IntTensorOps` and `float_powf` for
 `FloatTensorOps`. If an op is unique to a type, then it should be implemented under
@@ -63,22 +66,12 @@ implementations when required/desired.
 
 ### Adding Tests
 
-Additional Tests should be added to `burn-tensor` under
-[`crates/burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tests/ops/powf.rs#L1),
-inserting the module name into `crates/burn-tensor/src/tests/ops/mod.rs`. Then add it to the
-`testgen_all` macro under `crates/burn-tensor/src/tests/mod.rs`. This macro is called from the
-`lib.rs` file in each backend, which autogenerates the tests for that specific backend. It isn't
-necessary to define tests in the backends directly, save for those that require specific testing
-such as `burn-autodiff`.
+Additional Tests should be added to `burn-backend-tests` under
+[`crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/ops/powf.rs),
+and the module name should be inserted into `crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/mod.rs`.
 
-For float tensor operations, the
-[`QTensorOps`](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tensor/ops/qtensor.rs#L45)
-counterpart is usually added at the same time with a default implementation (as mentioned in the
-previous section). Tests for `q_*` ops follow a similar procedure: the test is added under
-[`crates/burn-tensor/src/tests/quantization/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/tree/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/quantization/ops),
-the module name is inserted into `crates/burn-tensor/src/tests/quantization/ops/mod.rs` and finally
-the test is added to the
-[`testgen_quantization` macro](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/mod.rs#L67).
+For float tensor operations, the quantization tests should be added to
+[crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/{op_name}.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/powf.rs).
 If you take a look at any of the existing tests for an operation on a quantized tensor,
 you will see that the inputs and expected outputs are always defined with floating point values.
 While it assumes that the quantization and dequantization are correct, it makes the tests much more
@@ -182,22 +175,24 @@ copy/pasted/adjusted from other functions.
 Here's how powf was added to `burn-fusion`:
 
 1. Added powf to the float ops under
-   [`crates/burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/ops/float.rs#L1838)
+   [crates/burn-fusion/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-fusion/src/ops/tensor.rs#L2061)
 2. Added powf to the `NumericOperationIr` enum under
-   [crates/burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/operation.rs#L433)
+   [crates/burn-ir/src/operation.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-ir/src/operation.rs#L564)
 3. Added powf to the implementations of `NumericOperationIr` enum under
-   [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/context.rs#L771)
+   [crates/burn-ir/src/operation.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-ir/src/operation.rs#L1086)
+4. Added powf to the implemented of `NumericOperationIr` enum under
+   [burn/crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-fusion/src/stream/context.rs#883)
 
 The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of
 vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
-the existing implementation for the situation where both sides of the operation were tensors. The
-`cubecl` crate is primarily concerned with how the operation is compiled and executed by the gpu.
+the existing implementation for the situation where both sides of the operation were tensors. The `cubecl` crate is 
+primarily concerned with how the operation is compiled and executed by the gpu.
 The actual implementation is defined in `burn-cubecl`.
 
 Here is where code was added for powf in `burn-cubecl` and `cubecl`:
 
 1. to the implementation of
-   [`FloatTensorOps` under `crates/burn-cubecl/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/float_ops.rs#L410)
+   [`FloatTensorOps` under `crates/burn-cubecl/src/ops/tensor.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-cubecl/src/ops/tensor.rs#L578)
 2. the function being called was added to
    [crates/burn-cubecl/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/numeric.rs#L147)
 3. the operator was defined in
