@@ -8,7 +8,7 @@ license.workspace = true
 name = "burn-core"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-core"
-version.workspace = true
+version = "0.14.1"
 
 [features]
 default = [
