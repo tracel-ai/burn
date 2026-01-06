@@ -1181,7 +1181,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with the inverse hyperbolic tangent values.
     fn float_atanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
-    /// Returns a tensor with the four-quadrant inverse tangent tangent values of `y` and `x`.
+    /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
     ///
     /// # Arguments
     ///
@@ -1190,7 +1190,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tensor with the four-quadrant inverse tangent tangent values.
+    /// A tensor with the four-quadrant inverse tangent values.
     fn float_atan2(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with rounded values.

@@ -505,7 +505,7 @@ where
     }
 
     fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        crate::kernel::launch_binop::<R, crate::kernel::ArcTan2Op>(lhs, rhs)
+        crate::kernel::atan2::<R>(lhs, rhs)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
