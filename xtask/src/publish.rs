@@ -8,6 +8,7 @@ use std::{collections::HashMap, env, process::Command, str};
 
 use crate::{
     endgroup, group,
+    logging::init_logger,
     utils::{cargo::run_cargo, Params},
 };
 
@@ -85,6 +86,9 @@ fn publish(crate_name: String) {
 }
 
 pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
+    // Setup logger
+    init_logger().init();
+
     group!("Publishing {}...\n", crate_name);
 
     // Retrieve local version for crate
