@@ -85,6 +85,13 @@ fn publish(crate_name: String) {
     );
 }
 
+fn remote_has_version(crate_name: &str, version: &str) -> bool {
+    let url = format!("https://crates.io/api/v1/crates/{crate_name}/{version}");
+    let resp = ureq::get(&url).call();
+
+    resp.is_ok()
+}
+
 pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
     // Setup logger
     init_logger().init();
@@ -93,20 +100,24 @@ pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
 
     // Retrieve local version for crate
     let local_version = local_version(&crate_name);
-    info!("{crate_name} local version: {local_version}");
+    info!("Local version: {local_version}");
 
     // Retrieve remote version for crate if it exists
-    match remote_version(&crate_name) {
-        Some(remote_version) => {
-            info!("{crate_name} remote version: {remote_version}\n");
+    if let Some(remote_version) = remote_version(&crate_name) {
+        info!("Latest remote version: {remote_version}\n");
 
-            // Early return if we don't need to publish the crate
-            if local_version == remote_version {
-                info!("Remote version {remote_version} is up to date, skipping deployment");
-                return Ok(());
-            }
+        // Early return if we don't need to publish the crate
+        if local_version == remote_version {
+            info!("Remote version is up to date, skipping deployment");
+            return Ok(());
         }
-        None => info!("\nFirst time publishing {crate_name} on crates.io!\n"),
+    }
+
+    if remote_has_version(&crate_name, &local_version) {
+        info!("Remote version {local_version} exists, skipping deployment");
+        return Ok(());
+    } else {
+        info!("\nFirst time publishing {crate_name} on crates.io!\n");
     }
 
     // Publish the crate
