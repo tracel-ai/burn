@@ -5,7 +5,10 @@ use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
 use burn_tensor::backend::Backend;
 
 /// Broadcasts the tensor from one device in a map to all the others
-#[tracing::instrument(skip(devices, tensor))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(devices, tensor))
+)]
 pub(crate) fn broadcast_centralized<B: Backend>(
     mut devices: PeerDeviceMap<B>,
     central: PeerId,

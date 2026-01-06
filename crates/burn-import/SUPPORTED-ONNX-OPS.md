@@ -88,7 +88,7 @@ functionality.
 | [HannWindow][72]                 | ❌             | ❌           |
 | [Hardmax][73]                    | ❌             | ❌           |
 | [HardSigmoid][74]                | ✅             | ✅           |
-| [HardSwish][75]                  | ❌             | ❌           |
+| [HardSwish][75]                  | ✅             | ✅           |
 | [Identity][76]                   | ✅             | ✅           |
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |

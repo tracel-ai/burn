@@ -49,8 +49,6 @@ pub type TrainBackend<LC> = <LC as LearningComponentsTypes>::Backend;
 /// The validation backend.
 pub type ValidBackend<LC> =
     <<LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend;
-/// The training model.
-pub(crate) type TrainModel<LC> = <LC as LearningComponentsTypes>::Model;
 /// Type for training input
 pub(crate) type InputTrain<LD> = <LD as LearningData>::TrainInput;
 /// Type for validation input

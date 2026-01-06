@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainBackend, TrainLoader,
-    TrainModel, TrainStep, ValidLoader, ValidStep,
+    Learner, LearningComponentsTypes, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
+    TrainBackend, TrainLoader, TrainStep, ValidLoader, ValidStep,
 };
 
 /// A validation epoch.
@@ -38,7 +38,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpValidEpoch<SC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        model: &TrainModel<SC::LC>,
+        model: &<SC::LC as LearningComponentsTypes>::Model,
         epoch: usize,
         processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
         interrupter: &Interrupter,
@@ -98,8 +98,10 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        let grads_syncer =
-            GradsSyncer::<TrainBackend<SC::LC>, TrainModel<SC::LC>>::new(false, peer_id);
+        let grads_syncer = GradsSyncer::<
+            TrainBackend<SC::LC>,
+            <SC::LC as LearningComponentsTypes>::Model,
+        >::new(false, peer_id);
 
         let mut model = learner.model.clone();
         let mut optim = learner.optim.clone();

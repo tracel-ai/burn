@@ -46,6 +46,12 @@ std = [
     "num-traits/std",
     "macerator/std",
 ]
+tracing = [
+    "burn-autodiff?/tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+    "burn-ir/tracing",
+]
 
 # Serves as a ref impl for some burn-cubecl kernels
 export_tests = []

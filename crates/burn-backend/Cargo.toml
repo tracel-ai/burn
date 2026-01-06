@@ -23,6 +23,12 @@ std = [
     "burn-std/std",
     "cubecl?/std",
 ]
+
+tracing = [
+    "burn-std/tracing",
+    "cubecl/tracing",
+]
+
 cubecl = ["dep:cubecl", "burn-std/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]

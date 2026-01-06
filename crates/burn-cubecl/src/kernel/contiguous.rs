@@ -14,7 +14,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
         return into_contiguous_quantized(tensor, AllocationKind::Contiguous);
     }
 
-    let output = cubecl::std::tensor::into_contiguous(
+    let output = cubecl::std::tensor::into_contiguous_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
@@ -33,7 +33,10 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
 
 /// Make a jit tensor contiguous with an aligned last stride. Tensor is considered already contiguous
 /// if runtime can read it as is. This is equivalent in practice.
-#[tracing::instrument(skip(tensor))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor))
+)]
 pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     if R::can_read_tensor(&tensor.shape, &tensor.strides) {
         return tensor;
@@ -43,7 +46,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
         return into_contiguous_quantized(tensor, AllocationKind::Optimized);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_pitched(
+    let output = cubecl::std::tensor::into_contiguous_pitched_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
@@ -60,7 +63,10 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     )
 }
 
-#[tracing::instrument(skip(tensor))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor))
+)]
 fn into_contiguous_quantized<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     kind: AllocationKind,
@@ -96,7 +102,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
             .expect("Kernel to never fail");
         }
         QuantStore::Native => {
-            cubecl::std::tensor::into_contiguous_ref(
+            cubecl::std::tensor::copy_into(
                 &values.client,
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
@@ -106,7 +112,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         }
     }
 
-    cubecl::std::tensor::into_contiguous_ref(
+    cubecl::std::tensor::copy_into(
         &scales.client,
         &scales.as_handle_ref(),
         &out_scales.as_handle_ref(),

@@ -24,6 +24,17 @@ workspace = true
 default = ["std", "pytorch", "safetensors",  "burnpack", "memmap"]
 std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "byteorder/std"]
 memmap = ["std", "dep:memmap2"]
+tracing = [
+    "burn-candle?/tracing",
+    "burn-core/tracing",
+    "burn-cuda?/tracing",
+    "burn-nn/tracing",
+    "burn-tch?/tracing",
+    "burn-tensor/tracing",
+    "burn-wgpu?/tracing",
+]
+
+
 burnpack = ["serde", "ciborium"]
 wgpu = ["burn-wgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]

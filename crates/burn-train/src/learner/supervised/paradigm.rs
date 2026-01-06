@@ -365,7 +365,12 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> LearningParadigm<SC
         ));
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
-            LearningCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
+            LearningCheckpointer::new(
+                model.with_interrupter(self.interrupter.clone()),
+                optim.with_interrupter(self.interrupter.clone()),
+                scheduler.with_interrupter(self.interrupter.clone()),
+                self.checkpointer_strategy,
+            )
         });
 
         let summary = if self.summary {

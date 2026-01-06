@@ -2,17 +2,21 @@ use burn_core::{
     record::{Record, RecorderError},
     tensor::backend::Backend,
 };
+use thiserror::Error;
 
 /// The error type for checkpointer.
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum CheckpointerError {
     /// IO error.
+    #[error("I/O Error: `{0}`")]
     IOError(std::io::Error),
 
     /// Recorder error.
+    #[error("Recorder error: `{0}`")]
     RecorderError(RecorderError),
 
     /// Other errors.
+    #[error("Unknown error: `{0}`")]
     Unknown(String),
 }
 

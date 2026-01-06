@@ -12,6 +12,11 @@ version.workspace = true
 workspace = true
 
 [features]
+tracing = [
+    "burn-std/tracing",
+    "burn-tensor?/tracing",
+]
+
 data-service = ["burn-tensor"]
 websocket = ["axum", "tokio-tungstenite", "futures"]
 

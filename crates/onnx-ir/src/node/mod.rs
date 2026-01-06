@@ -75,6 +75,7 @@ pub mod global_avg_pool;
 pub mod grid_sample;
 pub mod group_norm;
 pub mod hard_sigmoid;
+pub mod hard_swish;
 pub mod identity;
 pub mod if_node;
 pub mod instance_norm;

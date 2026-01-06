@@ -183,7 +183,10 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
                 event_processor.process_train(LearnerEvent::ProcessedItem(item));
 
                 if interrupter.should_stop() {
-                    log::info!("Training interrupted.");
+                    let reason = interrupter
+                        .get_message()
+                        .unwrap_or(String::from("Reason unknown"));
+                    log::info!("Training interrupted: {reason}");
                     break;
                 }
             }

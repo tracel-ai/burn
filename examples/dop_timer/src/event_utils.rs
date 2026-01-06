@@ -1,5 +1,5 @@
 /// Simply instrumented event; to verify event reporting.
-#[tracing::instrument]
+#[tracing::instrument(level = "trace")]
 pub(crate) fn example_instrumented_event() {
     tracing::info!("test event");
 

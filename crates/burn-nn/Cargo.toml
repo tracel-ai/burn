@@ -28,6 +28,14 @@ std = [
     "burn-core/std",
     "num-traits/std",
 ]
+tracing = [
+    "burn-core/tracing",
+    "burn-cuda?/tracing",
+    "burn-rocm?/tracing",
+    "burn-tch?/tracing",
+    "burn-wgpu?/tracing",
+    "burn-fusion?/tracing",
+]
 
 test-cuda = [
     "burn-cuda/default",

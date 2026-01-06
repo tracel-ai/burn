@@ -40,6 +40,20 @@ std = [
     "burn-rocm?/std",
 ]
 
+tracing = [
+    "cubecl?/tracing",
+    "burn-tensor/tracing",
+    "burn-autodiff/tracing",
+    # Backends
+    "burn-candle?/tracing",
+    "burn-cpu?/tracing",
+    "burn-ndarray?/tracing",
+    "burn-wgpu?/tracing",
+    "burn-router?/tracing",
+    "burn-cuda?/tracing",
+    "burn-rocm?/tracing",
+]
+
 # Backends
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]

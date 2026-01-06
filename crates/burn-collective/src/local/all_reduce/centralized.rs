@@ -7,7 +7,10 @@ use crate::local::{broadcast_centralized, reduce_sum_centralized};
 /// result to all other devices
 ///
 /// Internally, this is just a call to `reduce` followed by a `broadcast`
-#[tracing::instrument(skip(tensors))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensors))
+)]
 pub(crate) fn all_reduce_sum_centralized<B: Backend>(
     tensors: CollectiveTensorMap<B>,
 ) -> CollectiveTensorMap<B> {

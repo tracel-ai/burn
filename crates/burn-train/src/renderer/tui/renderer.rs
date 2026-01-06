@@ -348,7 +348,7 @@ impl CallbackFn for KillPopupAccept {
 
 impl CallbackFn for QuitPopupAccept {
     fn call(&self) -> bool {
-        self.0.stop();
+        self.0.stop(Some("Stopping training from user input."));
         true
     }
 }

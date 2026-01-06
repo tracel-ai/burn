@@ -1,4 +1,3 @@
-#![cfg(target_os = "linux")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
@@ -27,7 +26,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::F64));
         assert!(B::supports_dtype(&device, DType::F32));
         assert!(B::supports_dtype(&device, DType::F16));
-        assert!(B::supports_dtype(&device, DType::BF16)); // does it actually work?
+        assert!(B::supports_dtype(&device, DType::BF16));
         assert!(B::supports_dtype(&device, DType::I64));
         assert!(B::supports_dtype(&device, DType::I32));
         assert!(B::supports_dtype(&device, DType::I16));

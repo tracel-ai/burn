@@ -1,9 +1,9 @@
+mod activation;
 mod binary;
-mod op_activation;
-mod op_bool;
-mod op_float;
-mod op_int;
-mod op_module;
-mod op_qfloat;
+mod bool_tensor;
+mod int_tensor;
+mod module;
+mod qtensor;
+mod tensor;
 mod transaction;
 mod unary;

@@ -599,6 +599,24 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    GridSample2dOpIr {
+        tensor: TensorIr,
+        grid: TensorIr,
+        options: GridSampleOptionsIr
+    },
+    // Input tensor: [N, C, H_in, W_in]
+    // Grid: [N, H_out, W_out, 2]
+    // Output: [N, C, H_out, W_out]
+    shape = Shape::new([
+        tensor.shape[0],
+        tensor.shape[1],
+        grid.shape[1],
+        grid.shape[2]
+    ]),
+    dtype = tensor.dtype
+);
+
+impl_ir_create!(
     Conv1dOpIr {
         x: TensorIr,
         weight: TensorIr,

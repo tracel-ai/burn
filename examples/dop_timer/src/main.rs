@@ -173,7 +173,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 }
 
 #[allow(unused)]
-#[tracing::instrument(skip(args))]
+#[tracing::instrument(level = "trace", skip(args))]
 fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let type_id = 0;
     let device_count = B::Device::device_count(type_id);

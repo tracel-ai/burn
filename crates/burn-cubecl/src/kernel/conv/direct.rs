@@ -268,7 +268,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     let mut grouped_out_shape = output.shape.clone();
     grouped_out_shape[dim_c] = channels_per_group;
     let line_size_out = tensor_line_size_parallel(
-        R::supported_line_sizes().iter().copied(),
+        input.client.io_optimized_line_sizes(&input.dtype.into()),
         &grouped_out_shape,
         &output.strides,
         dim_c,

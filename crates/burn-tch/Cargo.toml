@@ -18,6 +18,9 @@ workspace = true
 default = ["std"]
 std = ["burn-backend/std"]
 doc = ["tch/doc-only"]
+tracing = [
+    "burn-backend/tracing",
+]
 
 [dependencies]
 burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false }
@@ -28,7 +31,7 @@ tch = { workspace = true, features = ["download-libtorch"] }
 torch-sys = { workspace = true }                             # for build script lib dir detection
 
 [build-dependencies]
-cc = "1.2.47"
+cc = "1.2.51"
 
 [package.metadata.docs.rs]
 features = ["doc"]

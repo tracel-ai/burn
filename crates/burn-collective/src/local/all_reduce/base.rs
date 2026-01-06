@@ -12,7 +12,10 @@ use burn_tensor::{ElementConversion, backend::Backend};
 use tracing::Instrument;
 
 /// Perform an all-reduce with no multi-node operations (global ops)
-#[tracing::instrument(skip(tensors, config))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensors, config))
+)]
 pub(crate) async fn all_reduce_local_only<B: Backend>(
     tensors: CollectiveTensorMap<B>,
     op: ReduceOperation,
@@ -50,7 +53,10 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
 /// For the Ring strategy, this isn't possible, because it is more like a
 /// reduce-scatter plus an all-gather, so using a Ring strategy locally in a multi-node
 /// setup may be unadvantageous.
-#[tracing::instrument(skip(tensors, config, global_client))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensors, config, global_client))
+)]
 pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
     tensors: CollectiveTensorMap<B>,
     op: ReduceOperation,

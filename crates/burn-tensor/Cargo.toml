@@ -16,19 +16,24 @@ workspace = true
 
 [features]
 default = ["std"]
-cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
-cubecl-cuda = ["burn-backend/cubecl-cuda"]
-cubecl-hip = ["burn-backend/cubecl-hip"]
-cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
-cubecl-cpu = ["burn-backend/cubecl-cpu"]
 doc = ["default"]
-experimental-named-tensor = []
 std = [
     "num-traits/std",
     "burn-std/std",
     "burn-backend/std",
     "colored",
 ]
+tracing = [
+    "burn-std/tracing",
+    "burn-backend/tracing",
+]
+
+cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
+cubecl-cuda = ["burn-backend/cubecl-cuda"]
+cubecl-hip = ["burn-backend/cubecl-hip"]
+cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
+cubecl-cpu = ["burn-backend/cubecl-cpu"]
+experimental-named-tensor = []
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false }

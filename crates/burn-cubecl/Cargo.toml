@@ -23,6 +23,22 @@ default = [
     "burn-fusion?/default",
     "burn-cubecl-fusion?/default",
 ]
+std = [
+    "cubecl/std",
+    "burn-backend/std",
+    "burn-fusion?/std",
+    "burn-cubecl-fusion?/std",
+]
+doc = ["default"]
+memory-checks = ["burn-fusion?/memory-checks"]
+tracing = [
+    "dep:tracing",
+    "cubecl/tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+    "burn-fusion?/tracing",
+    "burn-cubecl-fusion?/tracing",
+]
 
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
@@ -30,18 +46,9 @@ autotune-checks = [
     "cubecl/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
-doc = ["default"]
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
-memory-checks = ["burn-fusion?/memory-checks"]
-std = [
-    "cubecl/std",
-    "burn-backend/std",
-    "burn-fusion?/std",
-    "burn-cubecl-fusion?/std",
-    "tracing/std",
-]
 
 template = []
 
@@ -64,7 +71,7 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
 ] }
-tracing = { workspace = true, features = ["attributes"] }
+tracing = { workspace = true, features = ["attributes"], optional = true }
 
 derive-new = { workspace = true }
 log = { workspace = true }

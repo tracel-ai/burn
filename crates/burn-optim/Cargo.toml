@@ -30,6 +30,17 @@ std = [
     "serde/std",
     "log",
 ]
+tracing = [
+    "burn-collective?/tracing",
+    "burn-core/tracing",
+    "burn-cuda?/tracing",
+    "burn-fusion?/tracing",
+    "burn-remote?/tracing",
+    "burn-rocm?/tracing",
+    "burn-router?/tracing",
+    "burn-tch?/tracing",
+    "burn-wgpu?/tracing",
+]
 
 collective = ["burn-collective"]
 

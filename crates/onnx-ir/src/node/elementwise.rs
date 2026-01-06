@@ -119,7 +119,6 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             crate::ir::NodeType::Softplus => 1,
             crate::ir::NodeType::Softsign => 1,
             crate::ir::NodeType::ThresholdedRelu => 10,
-            crate::ir::NodeType::HardSwish => 14,
             _ => {
                 return Err(ProcessError::Custom(format!(
                     "Unexpected node type for ElementwiseUnaryProcessor: {:?}",
@@ -160,7 +159,6 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             NodeType::Softplus => Node::Softplus(node),
             NodeType::Softsign => Node::Softsign(node),
             NodeType::ThresholdedRelu => Node::ThresholdedRelu(node),
-            NodeType::HardSwish => Node::HardSwish(node),
             _ => panic!(
                 "Unsupported node type for ElementwiseUnaryProcessor: {:?}",
                 builder.node_type

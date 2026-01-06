@@ -126,7 +126,6 @@ impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpoch<SC> {
             }
 
             if interrupter.should_stop() {
-                log::info!("Training interrupted.");
                 break;
             }
         }
@@ -216,7 +215,6 @@ impl<SC: SupervisedLearningComponentsTypes> MultiDeviceTrainEpoch<SC> {
             }
 
             if interrupter.should_stop() {
-                log::info!("Training interrupted.");
                 break;
             }
         }

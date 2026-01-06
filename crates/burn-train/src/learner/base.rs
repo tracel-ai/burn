@@ -11,8 +11,8 @@ use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::Optimizer;
 use burn_optim::lr_scheduler::LrScheduler;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// The record of the learning model.
 pub type LearnerModelRecord<LC> =
@@ -171,6 +171,7 @@ pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 /// A handle that allows aborting the training/evaluation process early.
 pub struct Interrupter {
     state: Arc<AtomicBool>,
+    message: Arc<Mutex<Option<String>>>,
 }
 
 impl Interrupter {
@@ -180,8 +181,14 @@ impl Interrupter {
     }
 
     /// Notify the learner that it should stop.
-    pub fn stop(&self) {
+    /// # Arguments
+    /// * `reason` - A string describing the reason the training was stopped.
+    pub fn stop(&self, reason: Option<&str>) {
         self.state.store(true, Ordering::Relaxed);
+        reason.inspect(|r| {
+            let mut message = self.message.lock().unwrap();
+            *message = Some(String::from(*r));
+        });
     }
 
     /// Reset the interrupter.
@@ -192,5 +199,11 @@ impl Interrupter {
     /// True if .stop() has been called.
     pub fn should_stop(&self) -> bool {
         self.state.load(Ordering::Relaxed)
+    }
+
+    /// Get the message associated with the interrupt.
+    pub fn get_message(&self) -> Option<String> {
+        let message = self.message.lock().unwrap();
+        message.clone()
     }
 }

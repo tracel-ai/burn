@@ -577,6 +577,10 @@ impl ProcessorRegistry {
             Box::new(crate::node::hard_sigmoid::HardSigmoidProcessor),
         );
         registry.register(
+            NodeType::HardSwish,
+            Box::new(crate::node::hard_swish::HardSwishProcessor),
+        );
+        registry.register(
             NodeType::Softmax,
             Box::new(crate::node::softmax::SoftmaxProcessor),
         );

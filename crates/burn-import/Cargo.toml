@@ -19,6 +19,14 @@ workspace = true
 
 [features]
 default = ["onnx", "onnx-mmap", "pytorch", "safetensors"]
+
+tracing = [
+    "burn/tracing",
+    "burn-ndarray?/tracing",
+    "burn-store/tracing",
+]
+
+
 onnx = ["burn-ndarray", "onnx-ir"]
 onnx-mmap = ["onnx-ir?/mmap"]
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]

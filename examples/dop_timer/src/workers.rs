@@ -35,7 +35,7 @@ impl<B: Backend> Worker<B> {
         }
     }
 
-    #[tracing::instrument(skip(self, tensor))]
+    #[tracing::instrument(level = "trace", skip(self, tensor))]
     pub fn dispatch_all_reduce<const R: usize>(
         &mut self,
         tensor: Tensor<B, R>,
@@ -75,7 +75,7 @@ pub struct WorkerHandle<B: Backend> {
 }
 
 impl<B: Backend> WorkerHandle<B> {
-    #[tracing::instrument(skip(config))]
+    #[tracing::instrument(level = "trace", skip(config))]
     pub fn new(index: usize, device: &B::Device, config: CollectiveConfig) -> Self {
         let mut worker: Worker<B> = Worker::new(index, device.clone(), config.clone());
 
