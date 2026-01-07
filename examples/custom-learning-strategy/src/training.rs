@@ -20,7 +20,7 @@ use burn::{
     record::CompactRecorder,
     tensor::{Device, backend::AutodiffBackend},
     train::{
-        LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition, ValidStep,
+        InferenceStep, LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
             AccuracyMetric, LossMetric,
             store::{Aggregate, Direction, Split},

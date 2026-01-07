@@ -5,8 +5,8 @@ use crate::checkpoint::{
 use crate::components::{LearningComponentsTypes, TrainingBackend};
 use crate::metric::store::EventStoreClient;
 use crate::{
-    CloneEarlyStoppingStrategy, ModelDataTypes, TrainOutput, TrainStep, TrainingModelInput,
-    TrainingModelOutput, ValidStep,
+    CloneEarlyStoppingStrategy, InferenceStep, TrainOutput, TrainStep, TrainingModelInput,
+    TrainingModelOutput,
 };
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
@@ -48,17 +48,13 @@ impl<LC: LearningComponentsTypes> Clone for Learner<LC> {
     }
 }
 
-impl<B, LR, M, O, MD> Learner<LearningComponentsMarker<B, LR, M, O, MD>>
+impl<B, LR, M, O> Learner<LearningComponentsMarker<B, LR, M, O>>
 where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: TrainStep<MD::TrainInput, MD::TrainOutput>
-        + AutodiffModule<B>
-        + core::fmt::Display
-        + 'static,
-    M::InnerModule: ValidStep<MD::InferenceInput, MD::InferenceOutput>,
+    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
+    M::InnerModule: InferenceStep,
     O: Optimizer<M, B> + 'static,
-    MD: ModelDataTypes,
 {
     /// Create a learner.
     pub fn new(model: M, optim: O, lr_scheduler: LR) -> Self {

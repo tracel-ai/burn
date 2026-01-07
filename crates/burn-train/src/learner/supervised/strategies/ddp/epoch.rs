@@ -11,7 +11,7 @@ use crate::SupervisedTrainingEventProcessor;
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
-    Learner, LearningComponentsTypes, TrainLoader, TrainingBackend, ValidLoader, ValidStep,
+    InferenceStep, Learner, LearningComponentsTypes, TrainLoader, TrainingBackend, ValidLoader,
 };
 
 /// A validation epoch.
