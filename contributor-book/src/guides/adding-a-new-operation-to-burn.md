@@ -181,7 +181,7 @@ Here's how powf was added to `burn-fusion`:
 3. Added powf to the implementations of `NumericOperationIr` enum under
    [crates/burn-ir/src/operation.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-ir/src/operation.rs#L1086)
 4. Added powf to the implemented of `NumericOperationIr` enum under
-   [burn/crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-fusion/src/stream/context.rs#883)
+   [burn/crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-fusion/src/stream/context.rs#L883)
 
 The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of
 vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
