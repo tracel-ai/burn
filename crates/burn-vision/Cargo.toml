@@ -20,7 +20,7 @@ workspace = true
 
 [features]
 default = ["ndarray", "cubecl-backend", "fusion", "std"]
-std = []
+std = ["aligned-vec/std"]
 tracing = [
     "burn-candle?/tracing",
     "burn-cubecl?/tracing",
@@ -36,7 +36,6 @@ candle = ["burn-candle"]
 cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
-std = ["aligned-vec/std"]
 tch = ["burn-tch"]
 
 # Test features
