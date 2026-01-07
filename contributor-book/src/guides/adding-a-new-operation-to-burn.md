@@ -66,7 +66,7 @@ implementations when required/desired.
 
 ### Adding Tests
 
-Additional Tests should be added to `burn-backend-tests` under
+Additional tests should be added to `burn-backend-tests` under
 [`crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/ops/powf.rs),
 and the module name should be inserted into `crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/mod.rs`.
 
