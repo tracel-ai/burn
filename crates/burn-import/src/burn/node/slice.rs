@@ -519,7 +519,7 @@ fn generate_shape_slice(
                 }
             } else {
                 // For other step values, we need to collect with step
-                let step_abs = step_val.abs() as usize;
+                let step_abs = step_val.unsigned_abs() as usize;
                 if step_val > 0 {
                     quote! {
                         let #output: [i64; #output_rank_lit] = {
