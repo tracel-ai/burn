@@ -52,6 +52,10 @@ pub struct Args {
     #[arg(long, value_enum)]
     pub tracing: Option<TracingMode>,
 
+    /// Number of timing runs to perform.
+    #[arg(long, default_value = "3")]
+    pub timing_runs: usize,
+
     /// Output format for console tracing.
     #[arg(long, value_enum, default_value = "text")]
     pub console_tracing_format: ConsoleFormat,
@@ -139,28 +143,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 
     example_instrumented_event();
 
-    let count = [
-        cfg!(feature = "cuda"),
-        cfg!(feature = "metal"),
-        cfg!(feature = "wgpu"),
-        cfg!(feature = "ndarray"),
-    ]
-    .iter()
-    .filter(|x| **x)
-    .count();
-    assert_eq!(count, 1, "exactly one backend must be enabled");
-
-    #[cfg(feature = "cuda")]
-    run::<burn::backend::Cuda>(&args)?;
-
-    #[cfg(feature = "metal")]
-    run::<burn::backend::Metal>(&args)?;
-
-    #[cfg(feature = "wgpu")]
-    run::<burn::backend::Wgpu>(&args)?;
-
-    #[cfg(feature = "ndarray")]
-    run::<burn::backend::NdArray>(&args)?;
+    run(&args)?;
 
     if let Some(provider) = tracing_provider {
         if args.verbose() {
@@ -172,9 +155,28 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     Ok(())
 }
 
-#[allow(unused)]
+#[cfg(feature = "cuda")]
+fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    run_backend::<burn::backend::Cuda>(args)
+}
+
+#[cfg(feature = "metal")]
+fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    run_backend::<burn::backend::Metal>(args)
+}
+
+#[cfg(feature = "wgpu")]
+fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    run_backend::<burn::backend::Wgpu>(args)
+}
+
+#[cfg(feature = "ndarray")]
+fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    run_backend::<burn::backend::ndarray>(args)
+}
+
 #[tracing::instrument(level = "trace", skip(args))]
-fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+fn run_backend<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let type_id = 0;
     let device_count = B::Device::device_count(type_id);
 
@@ -182,7 +184,7 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
         .map(|idx| B::Device::from_id(DeviceId::new(type_id, idx as u32)))
         .collect::<Vec<_>>();
 
-    /// Duplicate the devices to force a heterogeneous setup.
+    // Duplicate the devices to force a heterogeneous setup.
     let devices = devices
         .iter()
         .flat_map(|x| repeat_with(|| x.clone()).take(args.workers_per_device))
@@ -227,37 +229,41 @@ fn run<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'sta
     let expected =
         Tensor::<B, 4>::full(shape.clone(), expected_cell, &B::Device::default()).to_data();
 
-    if args.verbose() {
-        println!("> run: setting up device tensors: {:?}", shape);
-    }
-    let tensors = handles
-        .iter()
-        .enumerate()
-        .map(|(idx, h)| {
-            let full_value = idx as f32 + 1.0;
-            Tensor::<B, 4>::full(shape.clone(), full_value, h.device())
-        })
-        .collect::<Vec<_>>();
+    for r in 0..args.timing_runs {
+        println!("Run {}/{}", r + 1, args.timing_runs);
+        if args.verbose() {
+            println!("> run: setting up device tensors: {:?}", shape);
+        }
 
-    if args.verbose() {
-        println!("> run: running all_reduce");
-    }
-    let reduced: Vec<Tensor<B, 4>> = handles
-        .iter()
-        .zip(tensors.into_iter())
-        .map(|(h, t)| h.all_reduce(args.op, t))
-        // Introduce a sequence point.
-        .collect::<Vec<_>>()
-        // Wait on all results.
-        .into_iter()
-        .map(|rx| rx.recv())
-        .collect::<Result<Vec<_>, _>>()?;
+        let tensors = handles
+            .iter()
+            .enumerate()
+            .map(|(idx, h)| {
+                let full_value = idx as f32 + 1.0;
+                Tensor::<B, 4>::full(shape.clone(), full_value, h.device())
+            })
+            .collect::<Vec<_>>();
 
-    if args.verbose() {
-        println!("> run: verifying result");
-    }
-    for t in reduced {
-        t.into_data().assert_eq(&expected, true);
+        if args.verbose() {
+            println!("> run: running all_reduce");
+        }
+        let reduced: Vec<Tensor<B, 4>> = handles
+            .iter()
+            .zip(tensors.into_iter())
+            .map(|(h, t)| h.all_reduce(args.op, t))
+            // Introduce a sequence point.
+            .collect::<Vec<_>>()
+            // Wait on all results.
+            .into_iter()
+            .map(|rx| rx.recv())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if args.verbose() {
+            println!("> run: verifying result");
+        }
+        for t in reduced {
+            t.into_data().assert_eq(&expected, true);
+        }
     }
 
     Ok(())
