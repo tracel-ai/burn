@@ -77,16 +77,13 @@ impl<R: Runtime> ReduceFuser<R> {
     }
 
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        println!("On reduce");
         if self.fuser.current_output_shape != op.input.shape.dims {
-            println!("Wrond shape");
             self.fuser.close();
             self.fuser_read_fallback.close();
             return;
         }
 
         let Some([input]) = self.fuser.next_block([&op.input], self.settings_write) else {
-            println!("Next block");
             self.fuser.close();
             self.fuser_read_fallback.close();
             return;
@@ -106,7 +103,6 @@ impl<R: Runtime> ReduceFuser<R> {
         };
 
         if !fuse_on_write_activated {
-            println!("Here");
             self.fuser.close();
         }
 
@@ -132,7 +128,6 @@ impl<R: Runtime> ReduceFuser<R> {
             shared: false,
             inst,
         });
-        println!("It worked {:?}", self.status());
 
         self.fuser_read_fallback.close();
     }

@@ -66,11 +66,9 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
             }
             OperationIr::BaseFloat(ops) => {
                 if !self.fuse_base(ops) {
-                    println!("Can't fused base op");
                     self.status = FuserStatus::Closed;
                     return;
                 }
-                println!("Fused base op");
             }
             OperationIr::BaseInt(ops) => {
                 if !self.fuse_base(ops) {
@@ -87,10 +85,8 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
             OperationIr::NumericFloat(_dtype, ops) => {
                 if !self.fuse_numeric(ops) {
                     self.status = FuserStatus::Closed;
-                    println!("Can't Fused numeric op");
                     return;
                 }
-                println!("Fused numeric op");
             }
             OperationIr::NumericInt(_dtype, ops) => {
                 if !self.fuse_numeric(ops) {

@@ -83,7 +83,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
 #[cfg(test)]
 mod tests {
-    use burn_ir::{BaseOperationIr, CreationOpIr, TensorId, TensorIr, TensorStatus};
+    use burn_ir::{BaseOperationIr, BinaryOpIr, CreationOpIr, TensorId, TensorIr, TensorStatus};
     use burn_std::{DType, Shape};
 
     use super::*;
@@ -111,6 +111,40 @@ mod tests {
 
         let status = fuser.status();
         assert_eq!(2, fuser.len());
+        assert_eq!(status, FuserStatus::Open);
+
+        // An existing tensor
+        let (_tensor3_out, tensor3) = tensor(2, vec![1, 0], TensorStatus::ReadWrite);
+        // A new tensor
+        let (tensor4_out, tensor4) = tensor(3, vec![1, 0], TensorStatus::ReadWrite);
+        fuser.fuse(&OperationIr::NumericFloat(
+            DType::F32,
+            burn_ir::NumericOperationIr::Add(BinaryOpIr {
+                lhs: tensor2,
+                rhs: tensor3,
+                out: tensor4_out,
+            }),
+        ));
+
+        let status = fuser.status();
+        assert_eq!(3, fuser.len());
+        assert_eq!(status, FuserStatus::Open);
+
+        // An existing tensor
+        let (_tensor5_out, tensor5) = tensor(4, vec![1, 2], TensorStatus::ReadWrite);
+        // A new tensor
+        let (tensor6_out, tensor6) = tensor(5, vec![1, 2], TensorStatus::ReadWrite);
+        fuser.fuse(&OperationIr::NumericFloat(
+            DType::F32,
+            burn_ir::NumericOperationIr::Add(BinaryOpIr {
+                lhs: tensor4,
+                rhs: tensor5,
+                out: tensor6_out,
+            }),
+        ));
+
+        let status = fuser.status();
+        assert_eq!(4, fuser.len());
         assert_eq!(status, FuserStatus::Open);
     }
 
