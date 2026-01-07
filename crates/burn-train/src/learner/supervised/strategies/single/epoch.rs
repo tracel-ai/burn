@@ -2,7 +2,7 @@ use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
     Learner, LearningComponentsTypes, SupervisedTrainingEventProcessor, TrainLoader, ValidLoader,
-    ValidStep,
+    InferenceStep,
 };
 use burn_core::module::AutodiffModule;
 use burn_optim::GradientsAccumulator;

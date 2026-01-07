@@ -13,7 +13,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
+        ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, InferenceStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -37,8 +37,8 @@ impl<B: Backend> Cnn<B> {
 }
 
 impl<B: AutodiffBackend> TrainStep for Cnn<B> {
-    type TrainInput = ClassificationBatch<B>;
-    type TrainOutput = ClassificationOutput<B>;
+    type Input = ClassificationBatch<B>;
+    type Output = ClassificationOutput<B>;
 
     fn step(&self, batch: ClassificationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
@@ -47,9 +47,9 @@ impl<B: AutodiffBackend> TrainStep for Cnn<B> {
     }
 }
 
-impl<B: Backend> ValidStep for Cnn<B> {
-    type InferenceInput = ClassificationBatch<B>;
-    type InferenceOutput = ClassificationOutput<B>;
+impl<B: Backend> InferenceStep for Cnn<B> {
+    type Input = ClassificationBatch<B>;
+    type Output = ClassificationOutput<B>;
 
     fn step(&self, batch: ClassificationBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)

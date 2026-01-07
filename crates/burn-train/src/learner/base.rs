@@ -6,7 +6,7 @@ use crate::components::{LearningComponentsTypes, TrainingBackend};
 use crate::metric::store::EventStoreClient;
 use crate::{
     CloneEarlyStoppingStrategy, TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput,
-    ValidStep,
+    InferenceStep,
 };
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
@@ -54,7 +54,7 @@ where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
     M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep,
+    M::InnerModule: InferenceStep,
     O: Optimizer<M, B> + 'static,
 {
     /// Create a learner.

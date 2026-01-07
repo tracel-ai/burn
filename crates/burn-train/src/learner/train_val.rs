@@ -49,9 +49,9 @@ impl<TO> TrainOutput<TO> {
 /// [Module](burn_core::module::Module) derive.
 pub trait TrainStep {
     /// Type of input for a step of the training stage.
-    type TrainInput: Send + 'static;
+    type Input: Send + 'static;
     /// Type of output for a step of the training stage.
-    type TrainOutput: ItemLazy + 'static;
+    type Output: ItemLazy + 'static;
     /// Runs a step for training, which executes the forward and backward passes.
     ///
     /// # Arguments
@@ -61,7 +61,7 @@ pub trait TrainStep {
     /// # Returns
     ///
     /// The output containing the model output and the gradients.
-    fn step(&self, item: Self::TrainInput) -> TrainOutput<Self::TrainOutput>;
+    fn step(&self, item: Self::Input) -> TrainOutput<Self::Output>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
@@ -103,11 +103,11 @@ pub trait TrainStep {
 }
 
 /// Trait to be implemented for validating models.
-pub trait ValidStep {
+pub trait InferenceStep {
     /// Type of input for an inference step.
-    type InferenceInput: Send + 'static;
+    type Input: Send + 'static;
     /// Type of output for an inference step.
-    type InferenceOutput: ItemLazy + 'static;
+    type Output: ItemLazy + 'static;
     /// Runs a validation step.
     ///
     /// # Arguments
@@ -117,7 +117,7 @@ pub trait ValidStep {
     /// # Returns
     ///
     /// The validation output.
-    fn step(&self, item: Self::InferenceInput) -> Self::InferenceOutput;
+    fn step(&self, item: Self::Input) -> Self::Output;
 }
 
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).

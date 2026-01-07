@@ -16,10 +16,10 @@ use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDevicetrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    InferenceBackend, InferenceModel, InferenceModelInput, LearnerModelRecord,
+    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerModelRecord,
     LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
     LearningComponentsMarker, LearningComponentsTypes, LearningResult, TrainStep, TrainingBackend,
-    TrainingComponents, TrainingModelInput, TrainingStrategy, ValidStep,
+    TrainingComponents, TrainingModelInput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
@@ -75,7 +75,7 @@ where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
     M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep,
+    M::InnerModule: InferenceStep,
     O: Optimizer<M, B> + 'static,
 {
     /// Creates a new runner for a supervised training.
@@ -87,9 +87,9 @@ where
     /// * `dataloader_valid` - The dataloader for the validation split.
     pub fn new(
         directory: impl AsRef<Path>,
-        dataloader_train: Arc<dyn DataLoader<B, M::TrainInput>>,
+        dataloader_train: Arc<dyn DataLoader<B, M::Input>>,
         dataloader_valid: Arc<
-            dyn DataLoader<B::InnerBackend, <M::InnerModule as ValidStep>::InferenceInput>,
+            dyn DataLoader<B::InnerBackend, <M::InnerModule as InferenceStep>::Input>,
         >,
     ) -> Self {
         let directory = directory.as_ref().to_path_buf();

@@ -7,7 +7,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, TestStep, TrainOutput, TrainStep, ValidStep},
+    train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
 #[derive(Module, Debug)]
@@ -135,8 +135,8 @@ impl<B: Backend> ConvBlock<B> {
 }
 
 impl<B: AutodiffBackend> TrainStep for Model<B> {
-    type TrainInput = MnistBatch<B>;
-    type TrainOutput = ClassificationOutput<B>;
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
 
     fn step(&self, item: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(item);
@@ -145,16 +145,10 @@ impl<B: AutodiffBackend> TrainStep for Model<B> {
     }
 }
 
-impl<B: Backend> ValidStep for Model<B> {
-    type InferenceInput = MnistBatch<B>;
-    type InferenceOutput = ClassificationOutput<B>;
+impl<B: Backend> InferenceStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
 
-    fn step(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
-        self.forward_classification(item)
-    }
-}
-
-impl<B: Backend> TestStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(item)
     }

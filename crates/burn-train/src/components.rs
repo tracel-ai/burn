@@ -1,4 +1,4 @@
-use crate::{TrainStep, ValidStep};
+use crate::{TrainStep, InferenceStep};
 use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 use burn_optim::{Optimizer, lr_scheduler::LrScheduler};
 use std::marker::PhantomData;
@@ -15,7 +15,7 @@ pub trait LearningComponentsTypes {
         + core::fmt::Display
         + 'static;
     /// The non-autodiff type of the model.
-    type InferenceModel: ValidStep;
+    type InferenceModel: InferenceStep;
     /// The optimizer used for training.
     type Optimizer: Optimizer<Self::TrainingModel, Self::Backend> + 'static;
 }
@@ -33,7 +33,7 @@ where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
     M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep,
+    M::InnerModule: InferenceStep,
     O: Optimizer<M, B> + 'static,
 {
     type Backend = B;
@@ -54,13 +54,13 @@ pub type TrainingModel<LC> = <LC as LearningComponentsTypes>::TrainingModel;
 pub(crate) type InferenceModel<LC> = <LC as LearningComponentsTypes>::InferenceModel;
 /// Type for training input.
 pub(crate) type TrainingModelInput<LC> =
-    <<LC as LearningComponentsTypes>::TrainingModel as TrainStep>::TrainInput;
+    <<LC as LearningComponentsTypes>::TrainingModel as TrainStep>::Input;
 /// Type for inference input.
 pub(crate) type InferenceModelInput<LC> =
-    <<LC as LearningComponentsTypes>::InferenceModel as ValidStep>::InferenceInput;
+    <<LC as LearningComponentsTypes>::InferenceModel as InferenceStep>::Input;
 /// Type for training output.
 pub(crate) type TrainingModelOutput<LC> =
-    <<LC as LearningComponentsTypes>::TrainingModel as TrainStep>::TrainOutput;
+    <<LC as LearningComponentsTypes>::TrainingModel as TrainStep>::Output;
 /// Type for inference output.
 pub(crate) type InferenceModelOutput<LC> =
-    <<LC as LearningComponentsTypes>::InferenceModel as ValidStep>::InferenceOutput;
+    <<LC as LearningComponentsTypes>::InferenceModel as InferenceStep>::Output;
