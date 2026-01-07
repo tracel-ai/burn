@@ -84,7 +84,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 }
 
 /// The status of a [fuser](OperationFuser).
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum FuserStatus {
     /// No more operations can be fused.
     Closed,

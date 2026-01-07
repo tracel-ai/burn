@@ -2,6 +2,7 @@ use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
+use burn_cubecl_fusion::optim::reduce::ReduceSettings;
 use burn_cubecl_fusion::{
     CubeFusionHandle, FallbackOperation,
     optim::{
@@ -148,6 +149,7 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
             Box::new(ReduceFuser::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
+                ReduceSettings::OnlyParallel,
             )),
         ]
     }

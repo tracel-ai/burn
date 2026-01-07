@@ -48,6 +48,18 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) len: usize,
     pub(crate) len_read: usize,
     pub(crate) reduce: FusedReduce,
+    settings: ReduceSettings,
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone)]
+pub enum ReduceSettings {
+    Always,
+    /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
+    /// vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+    ///
+    /// We could still fuse some output operations, but it would probably lead to worse performance.
+    OnlyParallel,
+    Never,
 }
 
 pub(crate) struct ReduceOptimizationTuneArg<R: Runtime> {
@@ -79,6 +91,7 @@ pub struct ReduceOptimizationState {
     pub(crate) reduce: FusedReduce,
     len: usize,
     len_read: usize,
+    settings: ReduceSettings,
 }
 
 impl core::fmt::Debug for ReduceOptimizationState {
@@ -179,6 +192,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         len: usize,
         len_read: usize,
         reduce: FusedReduce,
+        settings: ReduceSettings,
     ) -> Self {
         let info = ReduceOptimizationInfo {
             trace,
@@ -189,6 +203,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             len,
             len_read,
             reduce,
+            settings,
         };
 
         Self {
@@ -235,6 +250,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce: self.info.reduce.clone(),
             len: self.info.len,
             len_read: self.info.len_read,
+            settings: self.info.settings,
         }
     }
 
@@ -250,6 +266,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             len_read: state.len_read,
             client,
             device: device.clone(),
+            settings: state.settings,
         };
 
         Self {
