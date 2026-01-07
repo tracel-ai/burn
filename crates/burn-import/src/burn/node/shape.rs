@@ -30,7 +30,7 @@ impl NodeCodegen for onnx_ir::shape::ShapeNode {
                 let input = scope.arg(input_arg);
                 quote! {
                     {
-                        let axes = #input.dims()[#start_dim_tok..#end_dim_tok];
+                        let axes = &#input.dims()[#start_dim_tok..#end_dim_tok];
                         let mut output = [0i64; #output_rank];
                         for i in 0..#output_rank {
                             output[i] = axes[i] as i64;
@@ -81,7 +81,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 3>) -> [i64; 3] {
             let output: [i64; 3] = {
-                let axes = input.dims()[0..3];
+                let axes = &input.dims()[0..3];
                 let mut output = [0i64; 3];
                 for i in 0..3 {
                     output[i] = axes[i] as i64;
@@ -111,7 +111,7 @@ mod tests {
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 4>) -> [i64; 2] {
             let output: [i64; 2] = {
-                let axes = input.dims()[1..3];
+                let axes = &input.dims()[1..3];
                 let mut output = [0i64; 2];
                 for i in 0..2 {
                     output[i] = axes[i] as i64;

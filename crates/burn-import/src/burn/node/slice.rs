@@ -519,27 +519,26 @@ fn generate_shape_slice(
                 }
             } else {
                 // For other step values, we need to collect with step
-                let step_abs = step_val.abs();
+                let step_abs = step_val.abs() as usize;
                 if step_val > 0 {
                     quote! {
-                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
-                            .iter()
-                            .step_by(#step_abs as usize)
-                            .copied()
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .unwrap();
+                        let #output: [i64; #output_rank_lit] = {
+                            let mut shape_out = [0i64; #output_rank_lit];
+                            for (i, &s) in #shape_name[#start_lit..#end_lit].iter().step_by(#step_abs).enumerate() {
+                                shape_out[i] = s;
+                            }
+                            shape_out
+                        };
                     }
                 } else {
                     quote! {
-                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit]
-                            .iter()
-                            .rev()
-                            .step_by(#step_abs as usize)
-                            .copied()
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .unwrap();
+                        let #output: [i64; #output_rank_lit] = {
+                            let mut shape_out = [0i64; #output_rank_lit];
+                            for (i, &s) in #shape_name[#start_lit..#end_lit].iter().rev().step_by(#step_abs).enumerate() {
+                                shape_out[i] = s;
+                            }
+                            shape_out
+                        };
                     }
                 }
             }
@@ -1013,13 +1012,13 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, shape_in: [i64; 1]) -> [i64; 1] {
-            let shape_out: [i64; 1] = shape_in[0..1]
-                .iter()
-                .step_by(2i64 as usize)
-                .copied()
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+            let shape_out: [i64; 1] = {
+                let mut shape_out = [0i64; 1];
+                for (i, &s) in shape_in[0..1].iter().step_by(2usize).enumerate() {
+                    shape_out[i] = s;
+                }
+                shape_out
+            };
             shape_out
         }
         ");
