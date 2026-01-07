@@ -76,6 +76,17 @@ impl<R: Runtime> ReduceFuser<R> {
         }
     }
 
+    pub fn reduce_info(&self) -> Option<(usize, usize)> {
+        match &self.reduce {
+            Some(reduce) => {
+                let shape_id = reduce.op.input.shape[reduce.axis];
+                let axis = reduce.axis;
+
+                Some((shape_id, axis))
+            }
+            None => None,
+        }
+    }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
         if self.fuser.current_output_shape != op.input.shape.dims {
             self.fuser.close();

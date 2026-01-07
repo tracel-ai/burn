@@ -12,14 +12,24 @@ use cubecl::Runtime;
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceBroadcastedFuser<R: Runtime> {
     fusers: Vec<ReduceFuser<R>>,
+    fuser_default: ReduceFuser<R>,
     num_ops: usize,
+    state: State,
+}
+
+enum State {
+    Starting,
+    Init { shape_id: usize, axis: usize },
+    Closed { num_ops: usize },
 }
 
 impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
     fn clone(&self) -> Self {
         Self {
             fusers: self.fusers.clone(),
+            fuser_default: self.fuser_default.clone(),
             num_ops: 0,
+            state: State::Starting,
         }
     }
 }
@@ -29,25 +39,63 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
         let fuser = ReduceFuser::new(device, bool_precision, ReduceSettings::Always);
 
         Self {
-            fusers: vec![fuser],
+            fusers: vec![fuser.clone()],
+            fuser_default: fuser,
             num_ops: 0,
+            state: State::Starting,
         }
     }
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
+        if let State::Closed { .. } = &self.state {
+            return;
+        }
+
         let fuser = self.fusers.last_mut().unwrap();
 
         if let FuserStatus::Closed = fuser.status() {
             return;
         }
 
-        let num_ops_before = fuser.len();
         println!("Fuse {operation:?}");
+
+        let num_ops_before = fuser.len();
         fuser.fuse(operation);
         let num_ops_after = fuser.len();
-        self.num_ops += num_ops_after - num_ops_before;
+        let added = num_ops_after - num_ops_before;
+        self.num_ops += added;
+
+        if added == 0 {
+            self.fusers.push(self.fuser_default.clone());
+            let fuser = self.fusers.last_mut().unwrap();
+            let num_ops_before = fuser.len();
+            fuser.fuse(operation);
+            let num_ops_after = fuser.len();
+            let added = num_ops_after - num_ops_before;
+            self.num_ops += added;
+            println!("New fusers: {}", self.fusers.len());
+        };
+
+        let fuser = self.fusers.last().unwrap();
+        match &self.state {
+            State::Starting => match fuser.reduce_info() {
+                Some((shape_id, axis)) => self.state = State::Init { shape_id, axis },
+                None => {}
+            },
+            State::Init { shape_id, axis } => match fuser.reduce_info() {
+                Some((shape_id_new, axis_new)) => {
+                    if shape_id_new != *shape_id || axis_new != *axis {
+                        let removed = self.fusers.pop().unwrap();
+                        let num_ops = self.num_ops - removed.len();
+                        self.state = State::Closed { num_ops };
+                    }
+                }
+                None => {}
+            },
+            State::Closed { .. } => {}
+        }
     }
 
     fn finish(&self) -> CubeOptimization<R> {
@@ -61,6 +109,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         fuser.reset();
         let fusers = vec![fuser];
         self.num_ops = 0;
+        self.state = State::Starting;
     }
 
     fn status(&self) -> FuserStatus {
@@ -83,7 +132,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
 #[cfg(test)]
 mod tests {
-    use burn_ir::{BaseOperationIr, BinaryOpIr, CreationOpIr, TensorId, TensorIr, TensorStatus};
+    use burn_ir::{
+        BaseOperationIr, BinaryOpIr, CreationOpIr, ReduceDimOpIr, TensorId, TensorIr, TensorStatus,
+    };
     use burn_std::{DType, Shape};
 
     use super::*;
@@ -102,7 +153,7 @@ mod tests {
         )));
         fuser.fuse(&OperationIr::NumericFloat(
             DType::F32,
-            burn_ir::NumericOperationIr::SumDim(burn_ir::ReduceDimOpIr {
+            burn_ir::NumericOperationIr::SumDim(ReduceDimOpIr {
                 input: tensor1,
                 out: tensor2_out,
                 axis: 1,
@@ -145,6 +196,18 @@ mod tests {
 
         let status = fuser.status();
         assert_eq!(4, fuser.len());
+        assert_eq!(status, FuserStatus::Open);
+
+        let (tensor7_out, tensor7) = tensor(6, vec![1, 0], TensorStatus::ReadWrite);
+        fuser.fuse(&OperationIr::NumericFloat(
+            DType::F32,
+            burn_ir::NumericOperationIr::SumDim(ReduceDimOpIr {
+                input: tensor6,
+                out: tensor7_out,
+                axis: 1,
+            }),
+        ));
+        assert_eq!(5, fuser.len());
         assert_eq!(status, FuserStatus::Open);
     }
 
