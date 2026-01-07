@@ -13,7 +13,7 @@ use burn::{
     },
     prelude::*,
     tensor::{activation::softmax, backend::AutodiffBackend},
-    train::{ClassificationOutput, LearningStep, TrainOutput, ValidStep},
+    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
 // Define the model configuration
@@ -137,7 +137,7 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 /// Define training step
-impl<B: AutodiffBackend> LearningStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
+impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
     fn step(

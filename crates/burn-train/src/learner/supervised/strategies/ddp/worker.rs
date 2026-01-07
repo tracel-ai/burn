@@ -1,8 +1,8 @@
 use crate::ddp::epoch::{DdpTrainEpoch, DdpValidEpoch};
 use crate::ddp::strategy::WorkerComponents;
 use crate::{
-    Learner, LearnerBackend, LearningCheckpointer, LearningComponentsTypes,
-    ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainLoader, ValidLoader,
+    Learner, LearningCheckpointer, LearningComponentsTypes, SupervisedTrainingEventProcessor,
+    TrainLoader, TrainingBackend, ValidLoader,
 };
 use burn_collective::{self, CollectiveConfig, PeerId};
 use burn_core::tensor::Device;
@@ -12,44 +12,44 @@ use std::thread::JoinHandle;
 
 /// A worker runs the model, syncing gradients using collective operations.
 /// Event processing and validation is optional too.
-pub(crate) struct DdpWorker<SC>
+pub(crate) struct DdpWorker<LC>
 where
-    SC: SupervisedLearningComponentsTypes + Send + 'static,
+    LC: LearningComponentsTypes + Send + 'static,
 {
     peer_id: PeerId,
-    device: Device<LearnerBackend<SC::LC>>,
-    learner: Learner<SC::LC>,
-    event_processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
+    device: Device<TrainingBackend<LC>>,
+    learner: Learner<LC>,
+    event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
     components: WorkerComponents,
-    checkpointer: Option<LearningCheckpointer<SC::LC>>,
-    dataloader_train: TrainLoader<SC::LC>,
-    dataloader_valid: Option<ValidLoader<SC::LC>>,
+    checkpointer: Option<LearningCheckpointer<LC>>,
+    dataloader_train: TrainLoader<LC>,
+    dataloader_valid: Option<ValidLoader<LC>>,
     collective_config: CollectiveConfig,
     starting_epoch: usize,
     peer_count: usize,
     is_main: bool,
 }
 
-impl<SC> DdpWorker<SC>
+impl<LC> DdpWorker<LC>
 where
-    SC: SupervisedLearningComponentsTypes + Send + 'static,
+    LC: LearningComponentsTypes + Send + 'static,
 {
     /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         peer_id: PeerId,
-        device: Device<LearnerBackend<SC::LC>>,
-        learner: Learner<SC::LC>,
-        event_processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
+        device: Device<TrainingBackend<LC>>,
+        learner: Learner<LC>,
+        event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
         components: WorkerComponents,
-        checkpointer: Option<LearningCheckpointer<SC::LC>>,
-        dataloader_train: TrainLoader<SC::LC>,
-        dataloader_valid: Option<ValidLoader<SC::LC>>,
+        checkpointer: Option<LearningCheckpointer<LC>>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: Option<ValidLoader<LC>>,
         collective_config: CollectiveConfig,
         starting_epoch: usize,
         peer_count: usize,
         is_main: bool,
-    ) -> JoinHandle<<SC::LC as LearningComponentsTypes>::Model> {
+    ) -> JoinHandle<<LC as LearningComponentsTypes>::TrainingModel> {
         let worker = Self {
             peer_id,
             device,
@@ -69,8 +69,8 @@ where
     }
 
     /// Fits the model,
-    pub fn fit(mut self) -> <SC::LC as LearningComponentsTypes>::Model {
-        burn_collective::register::<<LearnerBackend<SC::LC> as AutodiffBackend>::InnerBackend>(
+    pub fn fit(mut self) -> <LC as LearningComponentsTypes>::TrainingModel {
+        burn_collective::register::<<TrainingBackend<LC> as AutodiffBackend>::InnerBackend>(
             self.peer_id,
             self.device.clone(),
             self.collective_config.clone(),
@@ -81,14 +81,14 @@ where
         let interrupter = self.components.interrupter;
 
         // Changed the train epoch to keep the dataloaders
-        let epoch_train = DdpTrainEpoch::<SC>::new(
+        let epoch_train = DdpTrainEpoch::<LC>::new(
             self.dataloader_train.clone(),
             num_epochs,
             self.components.grad_accumulation,
         );
         let epoch_valid = self
             .dataloader_valid
-            .map(|dataloader| DdpValidEpoch::<SC>::new(dataloader, num_epochs));
+            .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader, num_epochs));
         self.learner.fork(&self.device);
 
         for epoch in self.starting_epoch..num_epochs + 1 {

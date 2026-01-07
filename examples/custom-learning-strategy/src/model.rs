@@ -7,7 +7,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, LearningStep, TrainOutput, ValidStep},
+    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 use guide::data::MnistBatch;
 
@@ -85,7 +85,7 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> LearningStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, item: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(item);
         TrainOutput::new(self, item.loss.backward(), item)

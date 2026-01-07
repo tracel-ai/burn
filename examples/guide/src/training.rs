@@ -10,7 +10,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, Learner, LearningStep, SupervisedTraining, TrainOutput, ValidStep,
+        ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -30,7 +30,7 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> LearningStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 

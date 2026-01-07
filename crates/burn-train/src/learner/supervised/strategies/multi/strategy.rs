@@ -1,34 +1,32 @@
 use crate::{
-    Learner, LearnerBackend, LearnerModel, MultiDeviceOptim, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, SupervisedLearningStrategy, TrainLoader, TrainingComponents,
-    ValidLoader, multi::epoch::MultiDeviceTrainEpoch, single::epoch::SingleDeviceValidEpoch,
+    Learner, LearningComponentsTypes, MultiDeviceOptim, SupervisedLearningStrategy,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend, TrainingComponents,
+    TrainingModel, ValidLoader, multi::epoch::MultiDeviceTrainEpoch,
+    single::epoch::SingleDeviceValidEpoch,
 };
 use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
 
-pub struct MultiDeviceLearningStrategy<SC: SupervisedLearningComponentsTypes> {
-    devices: Vec<Device<LearnerBackend<SC::LC>>>,
+pub struct MultiDeviceLearningStrategy<LC: LearningComponentsTypes> {
+    devices: Vec<Device<TrainingBackend<LC>>>,
     optim: MultiDeviceOptim,
 }
-impl<SC: SupervisedLearningComponentsTypes> MultiDeviceLearningStrategy<SC> {
-    pub fn new(devices: Vec<Device<LearnerBackend<SC::LC>>>, optim: MultiDeviceOptim) -> Self {
+impl<LC: LearningComponentsTypes> MultiDeviceLearningStrategy<LC> {
+    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, optim: MultiDeviceOptim) -> Self {
         Self { devices, optim }
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
-    for MultiDeviceLearningStrategy<SC>
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
+    for MultiDeviceLearningStrategy<LC>
 {
     fn fit(
         &self,
-        training_components: TrainingComponents<SC>,
-        mut learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC>,
-        dataloader_valid: ValidLoader<SC::LC>,
+        training_components: TrainingComponents<LC>,
+        mut learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (
-        LearnerModel<SC::LC>,
-        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
-    ) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let main_device = self.devices.first().unwrap();
 
         // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
@@ -43,12 +41,12 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
         let mut early_stopping = training_components.early_stopping;
         let num_epochs = training_components.num_epochs;
 
-        let epoch_train = MultiDeviceTrainEpoch::<SC>::new(
+        let epoch_train = MultiDeviceTrainEpoch::<LC>::new(
             dataloader_train.clone(),
             num_epochs,
             training_components.grad_accumulation,
         );
-        let epoch_valid: SingleDeviceValidEpoch<SC> =
+        let epoch_valid: SingleDeviceValidEpoch<LC> =
             SingleDeviceValidEpoch::new(dataloader_valid.clone(), num_epochs);
 
         for epoch in starting_epoch..training_components.num_epochs + 1 {

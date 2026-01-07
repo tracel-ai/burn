@@ -5,9 +5,9 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerModel, LearnerSummaryConfig,
-    LearningCheckpointer, LearningResult, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, TrainLoader, ValidLoader, ValidModel,
+    EarlyStoppingStrategyRef, InferenceModel, Interrupter, Learner, LearnerSummaryConfig,
+    LearningCheckpointer, LearningResult, SupervisedTrainingEventProcessor, TrainLoader,
+    TrainingModel, ValidLoader,
     components::LearningComponentsTypes,
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},
@@ -18,7 +18,7 @@ use crate::{
 type LearnerDevice<LC> = <<LC as LearningComponentsTypes>::Backend as Backend>::Device;
 
 /// A reference to an implementation of SupervisedLearningStrategy.
-pub type CustomLearningStrategy<SC> = Arc<dyn SupervisedLearningStrategy<SC>>;
+pub type CustomLearningStrategy<LC> = Arc<dyn SupervisedLearningStrategy<LC>>;
 
 #[derive(Clone, Copy, Debug)]
 /// Determine how the optimization is performed when training with multiple devices.
@@ -31,20 +31,20 @@ pub enum MultiDeviceOptim {
 
 /// How should the learner run the learning for the model
 #[derive(Clone)]
-pub enum TrainingStrategy<SC: SupervisedLearningComponentsTypes> {
+pub enum TrainingStrategy<LC: LearningComponentsTypes> {
     /// Training on one device
-    SingleDevice(LearnerDevice<SC::LC>),
+    SingleDevice(LearnerDevice<LC>),
     /// Performs data-parallel distributed training where the optimization is
     /// done on an elected master device.
-    MultiDevice(Vec<LearnerDevice<SC::LC>>, MultiDeviceOptim),
+    MultiDevice(Vec<LearnerDevice<LC>>, MultiDeviceOptim),
     /// Training using a custom learning strategy
-    Custom(CustomLearningStrategy<SC>),
+    Custom(CustomLearningStrategy<LC>),
     /// Training with input distributed across devices, each device has its own copy of the model.
     /// Collective ops are used to sync the gradients after each pass.
     #[cfg(feature = "ddp")]
     DistributedDataParallel {
         /// Devices on this node for the DDP
-        devices: Vec<LearnerDevice<SC::LC>>,
+        devices: Vec<LearnerDevice<LC>>,
 
         /// The configuration for collective operations
         /// num_devices is ignored
@@ -54,14 +54,14 @@ pub enum TrainingStrategy<SC: SupervisedLearningComponentsTypes> {
 
 /// Constructor for a distributed data parallel (DDP) learning strategy
 #[cfg(feature = "ddp")]
-pub fn ddp<SC: SupervisedLearningComponentsTypes>(
-    devices: Vec<LearnerDevice<SC::LC>>,
+pub fn ddp<LC: LearningComponentsTypes>(
+    devices: Vec<LearnerDevice<LC>>,
     config: CollectiveConfig,
-) -> TrainingStrategy<SC> {
+) -> TrainingStrategy<LC> {
     TrainingStrategy::DistributedDataParallel { devices, config }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> Default for TrainingStrategy<SC> {
+impl<LC: LearningComponentsTypes> Default for TrainingStrategy<LC> {
     fn default() -> Self {
         Self::SingleDevice(Default::default())
     }
@@ -69,13 +69,13 @@ impl<SC: SupervisedLearningComponentsTypes> Default for TrainingStrategy<SC> {
 
 /// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
 /// These components are used during training.
-pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
+pub struct TrainingComponents<LC: LearningComponentsTypes> {
     /// The total number of epochs
     pub num_epochs: usize,
     /// The epoch number from which to continue the training.
     pub checkpoint: Option<usize>,
     /// A checkpointer used to load and save learner checkpoints.
-    pub checkpointer: Option<LearningCheckpointer<SC::LC>>,
+    pub checkpointer: Option<LearningCheckpointer<LC>>,
     /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
@@ -83,7 +83,7 @@ pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     /// An [EventProcessor](ParadigmComponentsTypes::EventProcessor) that processes events happening during training and validation.
-    pub event_processor: <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+    pub event_processor: SupervisedTrainingEventProcessor<LC>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
@@ -91,15 +91,15 @@ pub struct TrainingComponents<SC: SupervisedLearningComponentsTypes> {
 }
 
 /// Provides the `fit` function for any learning strategy
-pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
+pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
     /// Train the learner's model with this strategy.
     fn train(
         &self,
-        mut learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC>,
-        dataloader_valid: ValidLoader<SC::LC>,
-        mut training_components: TrainingComponents<SC>,
-    ) -> LearningResult<ValidModel<SC::LC>> {
+        mut learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
+        mut training_components: TrainingComponents<LC>,
+    ) -> LearningResult<InferenceModel<LC>> {
         let starting_epoch = match training_components.checkpoint {
             Some(checkpoint) => {
                 if let Some(checkpointer) = &mut training_components.checkpointer {
@@ -139,19 +139,16 @@ pub trait SupervisedLearningStrategy<SC: SupervisedLearningComponentsTypes> {
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        LearningResult::<ValidModel<SC::LC>> { model, renderer }
+        LearningResult::<InferenceModel<LC>> { model, renderer }
     }
 
     /// Training loop for this strategy
     fn fit(
         &self,
-        training_components: TrainingComponents<SC>,
-        learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC>,
-        dataloader_valid: ValidLoader<SC::LC>,
+        training_components: TrainingComponents<LC>,
+        learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (
-        LearnerModel<SC::LC>,
-        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
-    );
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>);
 }

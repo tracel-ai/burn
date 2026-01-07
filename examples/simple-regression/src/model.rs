@@ -6,7 +6,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{LearningStep, RegressionOutput, TrainOutput, ValidStep},
+    train::{RegressionOutput, TrainOutput, TrainStep, ValidStep},
 };
 
 #[derive(Module, Debug)]
@@ -60,7 +60,7 @@ impl<B: Backend> RegressionModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> LearningStep<HousingBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
+impl<B: AutodiffBackend> TrainStep<HousingBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
     fn step(&self, item: HousingBatch<B>) -> TrainOutput<RegressionOutput<B>> {
         let item = self.forward_step(item);
 
