@@ -19,9 +19,21 @@ workspace = true
 
 
 [features]
+default = ["ndarray", "cubecl-backend", "fusion", "std"]
+std = []
+tracing = [
+    "burn-candle?/tracing",
+    "burn-cubecl?/tracing",
+    "burn-fusion?/tracing",
+    "burn-ir/tracing",
+    "burn-ndarray?/tracing",
+    "burn-tch?/tracing",
+    "burn-tensor/tracing",
+    "cubecl/tracing",
+]
+
 candle = ["burn-candle"]
 cubecl-backend = ["cubecl", "burn-cubecl"]
-default = ["ndarray", "cubecl-backend", "fusion", "std"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
 std = ["aligned-vec/std"]

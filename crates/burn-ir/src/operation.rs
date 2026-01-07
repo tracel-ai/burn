@@ -9,7 +9,8 @@ use alloc::{string::String, vec::Vec};
 use burn_backend::{
     DType, Distribution, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
+        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
+        GridSamplePaddingMode, InterpolateMode, InterpolateOptions,
     },
     quantization::QuantScheme,
 };
@@ -106,10 +107,30 @@ pub enum FloatOperationIr {
     Sqrt(UnaryOpIr),
     /// Operation corresponding to [cos](burn_backend::ops::FloatTensorOps::float_cos).
     Cos(UnaryOpIr),
+    /// Operation corresponding to [cosh](burn_backend::ops::FloatTensorOps::float_cosh).
+    Cosh(UnaryOpIr),
     /// Operation corresponding to [sin](burn_backend::ops::FloatTensorOps::float_sin).
     Sin(UnaryOpIr),
+    /// Operation corresponding to [sin](burn_backend::ops::FloatTensorOps::float_sinh).
+    Sinh(UnaryOpIr),
+    /// Operation corresponding to [tan](burn_backend::ops::FloatTensorOps::float_tan).
+    Tan(UnaryOpIr),
     /// Operation corresponding to [tanh](burn_backend::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOpIr),
+    /// Operation corresponding to [acos](burn_backend::ops::FloatTensorOps::float_acos).
+    ArcCos(UnaryOpIr),
+    /// Operation corresponding to [acosh](burn_backend::ops::FloatTensorOps::float_acosh).
+    ArcCosh(UnaryOpIr),
+    /// Operation corresponding to [asin](burn_backend::ops::FloatTensorOps::float_asin).
+    ArcSin(UnaryOpIr),
+    /// Operation corresponding to [asinh](burn_backend::ops::FloatTensorOps::float_asinh).
+    ArcSinh(UnaryOpIr),
+    /// Operation corresponding to [atan](burn_backend::ops::FloatTensorOps::float_atan).
+    ArcTan(UnaryOpIr),
+    /// Operation corresponding to [atanh](burn_backend::ops::FloatTensorOps::float_atanh).
+    ArcTanh(UnaryOpIr),
+    /// Operation corresponding to [atan2](burn_backend::ops::FloatTensorOps::float_atan2).
+    ArcTan2(BinaryOpIr),
     /// Operation corresponding to [round](burn_backend::ops::FloatTensorOps::float_round).
     Round(UnaryOpIr),
     /// Operation corresponding to [floor](burn_backend::ops::FloatTensorOps::float_floor).
@@ -136,6 +157,8 @@ pub enum FloatOperationIr {
     Quantize(QuantizeOpIr),
     /// Operation corresponding to [dequantize](burn_backend::ops::QTensorOps::dequantize).
     Dequantize(DequantizeOpIr),
+    /// Operation corresponding to [grid_sample_2d](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
+    GridSample2d(GridSample2dOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -1493,6 +1516,71 @@ pub struct InterpolateBackwardOpIr {
     pub out: TensorIr,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum GridSamplePaddingModeIr {
+    Zeros,
+    Border,
+    Reflection,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSampleOptionsIr {
+    pub mode: InterpolateModeIr,
+    pub padding_mode: GridSamplePaddingModeIr,
+    pub align_corners: bool,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSample2dOpIr {
+    pub tensor: TensorIr,
+    pub grid: TensorIr,
+    pub options: GridSampleOptionsIr,
+    pub out: TensorIr,
+}
+
+impl From<GridSamplePaddingModeIr> for GridSamplePaddingMode {
+    fn from(val: GridSamplePaddingModeIr) -> Self {
+        match val {
+            GridSamplePaddingModeIr::Zeros => Self::Zeros,
+            GridSamplePaddingModeIr::Border => Self::Border,
+            GridSamplePaddingModeIr::Reflection => Self::Reflection,
+        }
+    }
+}
+
+impl From<GridSamplePaddingMode> for GridSamplePaddingModeIr {
+    fn from(val: GridSamplePaddingMode) -> Self {
+        match val {
+            GridSamplePaddingMode::Zeros => Self::Zeros,
+            GridSamplePaddingMode::Border => Self::Border,
+            GridSamplePaddingMode::Reflection => Self::Reflection,
+        }
+    }
+}
+
+impl From<GridSampleOptionsIr> for GridSampleOptions {
+    fn from(val: GridSampleOptionsIr) -> Self {
+        Self {
+            mode: val.mode.into(),
+            padding_mode: val.padding_mode.into(),
+            align_corners: val.align_corners,
+        }
+    }
+}
+
+impl From<GridSampleOptions> for GridSampleOptionsIr {
+    fn from(val: GridSampleOptions) -> Self {
+        Self {
+            mode: val.mode.into(),
+            padding_mode: val.padding_mode.into(),
+            align_corners: val.align_corners,
+        }
+    }
+}
+
 impl OperationIr {
     /// Get all input [tensors](TensorIr) involved with the current operation.
     pub fn inputs(&self) -> impl Iterator<Item = &TensorIr> {
@@ -1987,6 +2075,19 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::GridSample2d(repr) => {
+                Box::new([&repr.tensor, &repr.grid].into_iter())
+            }
+            FloatOperationIr::Tan(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::Cosh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::Sinh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcCos(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcCosh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcSin(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcSinh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcTan(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcTanh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -2013,6 +2114,17 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::GridSample2d(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Tan(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Cosh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Sinh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcCos(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcCosh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcSin(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcSinh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcTan(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcTanh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -2086,6 +2198,23 @@ impl FloatOperationIr {
             }
             FloatOperationIr::IsInf(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::GridSample2d(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.grid.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Tan(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::Cosh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::Sinh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcCos(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcCosh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcSin(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcSinh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcTan(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcTanh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcTan2(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
             }
         };
 

@@ -1080,11 +1080,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
-    fn float_tan(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let sin = B::float_sin(tensor.clone());
-        let cos = B::float_cos(tensor);
-        B::float_div(sin, cos)
-    }
+    fn float_tan(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with hyperbolic cosine values.
     ///
@@ -1095,13 +1091,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
-    fn float_cosh(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        // cosh = ( e^x + e^(-x) ) / 2
-        let e_x = B::float_exp(tensor.clone());
-        let e_neg_x = B::float_exp(B::float_neg(tensor));
-        let num = B::float_add(e_x, e_neg_x); // e^x + e^(-x)
-        B::float_div_scalar(num, 2.0.elem())
-    }
+    fn float_cosh(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with hyperbolic sine values.
     ///
@@ -1112,13 +1102,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with hyperbolic sine values.
-    fn float_sinh(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        // sinh = ( e^x - e^(-x) ) / 2
-        let e_x = B::float_exp(tensor.clone());
-        let e_neg_x = B::float_exp(B::float_neg(tensor));
-        let num = B::float_sub(e_x, e_neg_x); // e^x - e^(-x)
-        B::float_div_scalar(num, 2.0.elem())
-    }
+    fn float_sinh(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with hyperbolic tangent values.
     ///
@@ -1129,11 +1113,85 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
-    fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let sinh = B::float_sinh(tensor.clone());
-        let cosh = B::float_cosh(tensor);
-        B::float_div(sinh, cosh)
-    }
+    fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse cosine values.
+    fn float_acos(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic cosine values.
+    fn float_acosh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse sine values.
+    fn float_asin(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic sine values.
+    fn float_asinh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with the inverse tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with the inverse tangent values.
+    fn float_atan(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with the inverse hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with the inverse hyperbolic tangent values.
+    fn float_atanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The tensor with y coordinates.
+    /// * `rhs` - The tensor with x coordinates.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the four-quadrant inverse tangent values.
+    fn float_atan2(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with rounded values.
     ///
@@ -1537,7 +1595,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+    /// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, H_in, W_in)
     /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
     /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
