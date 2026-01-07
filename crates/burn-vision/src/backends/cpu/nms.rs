@@ -153,7 +153,6 @@ fn suppress_overlapping<'a, S: Simd>(
     let ref_area_v: Vector<S, f32> = ref_area.splat();
     let thresh_v: Vector<S, f32> = threshold.splat();
     let zero_v: Vector<S, f32> = 0.0f32.splat();
-    let one_v: Vector<S, f32> = 1.0f32.splat();
 
     let mut i = 0;
 
@@ -183,8 +182,8 @@ fn suppress_overlapping<'a, S: Simd>(
             let yy2 = ref_y2_v.min(y2_v);
 
             // Compute intersection area (clamp to 0 for non-overlapping)
-            let w = (xx2 - xx1 + one_v).max(zero_v);
-            let h = (yy2 - yy1 + one_v).max(zero_v);
+            let w = (xx2 - xx1).max(zero_v);
+            let h = (yy2 - yy1).max(zero_v);
             let inter = w * h;
 
             // Compute IoU
