@@ -24,7 +24,7 @@ cubecl-backend = ["cubecl", "burn-cubecl"]
 default = ["ndarray", "cubecl-backend", "fusion", "std"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
-std = []
+std = ["aligned-vec/std"]
 tch = ["burn-tch"]
 
 # Test features
@@ -35,6 +35,7 @@ test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
 test-metal = ["burn-wgpu/metal", "test-wgpu"]
 
 [dependencies]
+aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
 burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.6", optional = true }
 burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.6", optional = true }
