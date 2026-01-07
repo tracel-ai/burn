@@ -60,7 +60,10 @@ impl<B: Backend> RegressionModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<HousingBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
+impl<B: AutodiffBackend> TrainStep for RegressionModel<B> {
+    type TrainInput = HousingBatch<B>;
+    type TrainOutput = RegressionOutput<B>;
+
     fn step(&self, item: HousingBatch<B>) -> TrainOutput<RegressionOutput<B>> {
         let item = self.forward_step(item);
 
@@ -68,7 +71,10 @@ impl<B: AutodiffBackend> TrainStep<HousingBatch<B>, RegressionOutput<B>> for Reg
     }
 }
 
-impl<B: Backend> ValidStep<HousingBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
+impl<B: Backend> ValidStep for RegressionModel<B> {
+    type InferenceInput = HousingBatch<B>;
+    type InferenceOutput = RegressionOutput<B>;
+
     fn step(&self, item: HousingBatch<B>) -> RegressionOutput<B> {
         self.forward_step(item)
     }

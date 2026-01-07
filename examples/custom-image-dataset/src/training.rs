@@ -36,7 +36,10 @@ impl<B: Backend> Cnn<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
+impl<B: AutodiffBackend> TrainStep for Cnn<B> {
+    type TrainInput = ClassificationBatch<B>;
+    type TrainOutput = ClassificationOutput<B>;
+
     fn step(&self, batch: ClassificationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -44,7 +47,10 @@ impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<
     }
 }
 
-impl<B: Backend> ValidStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
+impl<B: Backend> ValidStep for Cnn<B> {
+    type InferenceInput = ClassificationBatch<B>;
+    type InferenceOutput = ClassificationOutput<B>;
+
     fn step(&self, batch: ClassificationBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }

@@ -134,7 +134,10 @@ impl<B: Backend> ConvBlock<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep for Model<B> {
+    type TrainInput = MnistBatch<B>;
+    type TrainOutput = ClassificationOutput<B>;
+
     fn step(&self, item: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(item);
 
@@ -142,7 +145,10 @@ impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for M
     }
 }
 
-impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: Backend> ValidStep for Model<B> {
+    type InferenceInput = MnistBatch<B>;
+    type InferenceOutput = ClassificationOutput<B>;
+
     fn step(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(item)
     }

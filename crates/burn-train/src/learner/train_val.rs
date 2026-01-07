@@ -1,4 +1,4 @@
-use crate::renderer::MetricsRenderer;
+use crate::{ItemLazy, renderer::MetricsRenderer};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
@@ -47,7 +47,11 @@ impl<TO> TrainOutput<TO> {
 /// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait TrainStep<TI, TO> {
+pub trait TrainStep {
+    /// Type of input for a step of the training stage.
+    type TrainInput: Send + 'static;
+    /// Type of output for a step of the training stage.
+    type TrainOutput: ItemLazy + 'static;
     /// Runs a step for training, which executes the forward and backward passes.
     ///
     /// # Arguments
@@ -57,7 +61,7 @@ pub trait TrainStep<TI, TO> {
     /// # Returns
     ///
     /// The output containing the model output and the gradients.
-    fn step(&self, item: TI) -> TrainOutput<TO>;
+    fn step(&self, item: Self::TrainInput) -> TrainOutput<Self::TrainOutput>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
@@ -99,7 +103,11 @@ pub trait TrainStep<TI, TO> {
 }
 
 /// Trait to be implemented for validating models.
-pub trait ValidStep<VI, VO> {
+pub trait ValidStep {
+    /// Type of input for an inference step.
+    type InferenceInput: Send + 'static;
+    /// Type of output for an inference step.
+    type InferenceOutput: ItemLazy + 'static;
     /// Runs a validation step.
     ///
     /// # Arguments
@@ -109,7 +117,7 @@ pub trait ValidStep<VI, VO> {
     /// # Returns
     ///
     /// The validation output.
-    fn step(&self, item: VI) -> VO;
+    fn step(&self, item: Self::InferenceInput) -> Self::InferenceOutput;
 }
 
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
