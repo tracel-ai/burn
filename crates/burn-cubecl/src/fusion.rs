@@ -9,6 +9,7 @@ use burn_cubecl_fusion::{
         elemwise::{ElementWiseFuser, ElemwiseOptimization},
         matmul::{MatmulFuser, MatmulOptimization},
         reduce::{ReduceFuser, ReduceOptimization},
+        reduce_broadcasted::ReduceBroadcastedOptimization,
     },
 };
 use burn_fusion::{
@@ -42,6 +43,10 @@ where
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
             }),
+            Self::ReduceBroadcasted(op) => op.execute::<BT>(context, |index| {
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationWrapper::new(operation))
+            }),
         }
     }
 
@@ -59,6 +64,9 @@ where
             }
             CubeOptimizationState::Reduce(state) => {
                 Self::Reduce(ReduceOptimization::from_state(device, state))
+            }
+            CubeOptimizationState::ReduceBroadcasted(state) => {
+                Self::ReduceBroadcasted(ReduceBroadcastedOptimization::from_state(device, state))
             }
         }
     }
