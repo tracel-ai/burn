@@ -44,9 +44,7 @@ fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Ve
 
     // Filter by score threshold first
     let mut filtered_indices = Vec::with_capacity(n_boxes);
-
-    for i in 0..n_boxes {
-        let score = scores_vec[i];
+    for (i, &score) in scores_vec.iter().enumerate() {
         if score >= options.score_threshold {
             filtered_indices.push(i); // original index
         }
@@ -62,7 +60,7 @@ fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Ve
 
     const ALIGN: usize = 64;
     const FLOATS_PER_ALIGN: usize = ALIGN / size_of::<f32>(); // 16
-    let stride = (n_filtered + FLOATS_PER_ALIGN - 1) / FLOATS_PER_ALIGN * FLOATS_PER_ALIGN;
+    let stride = n_filtered.div_ceil(FLOATS_PER_ALIGN) * FLOATS_PER_ALIGN;
     let mut buf: AVec<f32, ConstAlign<64>> = AVec::with_capacity(ALIGN, stride * 5);
     buf.resize(stride * 5, 0.0);
 
@@ -108,10 +106,10 @@ fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Ve
             x2s[i],
             y2s[i],
             areas[i],
-            &x1s,
-            &y1s,
-            &x2s,
-            &y2s,
+            x1s,
+            y1s,
+            x2s,
+            y2s,
             &areas,
             &mut suppressed,
             stride,
