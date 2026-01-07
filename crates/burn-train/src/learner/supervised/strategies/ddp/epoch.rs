@@ -7,29 +7,29 @@ use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 
+use crate::SupervisedTrainingEventProcessor;
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
-    Learner, LearnerBackend, LearningComponentsTypes, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, TrainLoader, ValidLoader, ValidStep,
+    Learner, LearningComponentsTypes, TrainLoader, TrainingBackend, ValidLoader, ValidStep,
 };
 
 /// A validation epoch.
 #[derive(new)]
-pub struct DdpValidEpoch<SC: SupervisedLearningComponentsTypes> {
-    dataloader: ValidLoader<SC::LC>,
+pub struct DdpValidEpoch<LC: LearningComponentsTypes> {
+    dataloader: ValidLoader<LC>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct DdpTrainEpoch<SC: SupervisedLearningComponentsTypes> {
-    dataloader: TrainLoader<SC::LC>,
+pub struct DdpTrainEpoch<LC: LearningComponentsTypes> {
+    dataloader: TrainLoader<LC>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> DdpValidEpoch<SC> {
+impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -38,9 +38,9 @@ impl<SC: SupervisedLearningComponentsTypes> DdpValidEpoch<SC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        model: &<SC::LC as LearningComponentsTypes>::Model,
+        model: &<LC as LearningComponentsTypes>::TrainingModel,
         epoch: usize,
-        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+        processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
     ) {
         log::info!("Executing validation step for epoch {}", epoch);
@@ -67,7 +67,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpValidEpoch<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
+impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -83,9 +83,9 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
     #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
-        learner: &mut Learner<SC::LC>,
+        learner: &mut Learner<LC>,
         epoch: usize,
-        processor: Arc<Mutex<<SC::PC as ParadigmComponentsTypes>::EventProcessor>>,
+        processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
         interrupter: &Interrupter,
         peer_id: PeerId,
         peer_count: usize,
@@ -99,8 +99,8 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
         let mut accumulation_current = 0;
 
         let grads_syncer = GradsSyncer::<
-            LearnerBackend<SC::LC>,
-            <SC::LC as LearningComponentsTypes>::Model,
+            TrainingBackend<LC>,
+            <LC as LearningComponentsTypes>::TrainingModel,
         >::new(false, peer_id);
 
         while let Some(item) = iterator.next() {
@@ -114,7 +114,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
             progress.items_processed *= peer_count;
             progress.items_total *= peer_count;
 
-            let item = learner.step(item);
+            let item = learner.train_step(item);
 
             match self.grad_accumulation {
                 Some(accumulation) => {
@@ -127,7 +127,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
                         // With double buffering, these are the previous iteration's gradients
                         let grads = grads_syncer.sync(grads);
                         if let Some(grads) = grads {
-                            learner.optimize(grads);
+                            learner.optimizer_step(grads);
                         }
 
                         accumulation_current = 0;
@@ -138,7 +138,7 @@ impl<SC: SupervisedLearningComponentsTypes> DdpTrainEpoch<SC> {
                     let grads = grads_syncer.sync(item.grads);
 
                     if let Some(grads) = grads {
-                        learner.optimize(grads);
+                        learner.optimizer_step(grads);
                     }
                 }
             }

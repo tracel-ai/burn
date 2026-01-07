@@ -1534,6 +1534,57 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(TanOps, B::float_tan);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Tan(desc.clone())),
+                TanOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(CoshOps, B::float_cosh);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Cosh(desc.clone())),
+                CoshOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(SinhOps, B::float_sinh);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Sinh(desc.clone())),
+                SinhOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_float_ops!(TanhOps, B::float_tanh);
 
@@ -1547,6 +1598,127 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.out.dtype, FloatOperationIr::Tanh(desc.clone())),
                 TanhOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(ArcCosOps, B::float_acos);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcCos(desc.clone())),
+                ArcCosOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(ArcCoshOps, B::float_acosh);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcCosh(desc.clone())),
+                ArcCoshOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(ArcSinOps, B::float_asin);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcSin(desc.clone())),
+                ArcSinOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(ArcSinhOps, B::float_asinh);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcSinh(desc.clone())),
+                ArcSinhOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(ArcTanOps, B::float_atan);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcTan(desc.clone())),
+                ArcTanOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(ArcTanhOps, B::float_atanh);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcTanh(desc.clone())),
+                ArcTanhOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float_ops!(ArcTan2Ops, B::float_atan2);
+
+        let streams = OperationStreams::with_inputs([&lhs, &rhs]);
+
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::ArcTan2(desc.clone())),
+                ArcTan2Ops::<B>::new(desc),
             )
             .output()
     }

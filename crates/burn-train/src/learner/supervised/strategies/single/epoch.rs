@@ -1,7 +1,7 @@
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes, TrainLoader, ValidLoader,
+    Learner, LearningComponentsTypes, SupervisedTrainingEventProcessor, TrainLoader, ValidLoader,
     ValidStep,
 };
 use burn_core::module::AutodiffModule;
@@ -9,20 +9,20 @@ use burn_optim::GradientsAccumulator;
 
 /// A validation epoch.
 #[derive(new)]
-pub struct SingleDeviceValidEpoch<SC: SupervisedLearningComponentsTypes> {
-    dataloader: ValidLoader<SC::LC>,
+pub struct SingleDeviceValidEpoch<LC: LearningComponentsTypes> {
+    dataloader: ValidLoader<LC>,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct SingleDeviceTrainEpoch<SC: SupervisedLearningComponentsTypes> {
-    dataloader: TrainLoader<SC::LC>,
+pub struct SingleDeviceTrainEpoch<LC: LearningComponentsTypes> {
+    dataloader: TrainLoader<LC>,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpoch<SC> {
+impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -31,9 +31,9 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpoch<SC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        learner: &Learner<SC::LC>,
+        learner: &Learner<LC>,
         epoch: usize,
-        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+        processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
     ) {
         log::info!("Executing validation step for epoch {}", epoch);
@@ -59,7 +59,7 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceValidEpoch<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
+impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -74,9 +74,9 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
     /// The trained model and the optimizer.
     pub fn run(
         &self,
-        learner: &mut Learner<SC::LC>,
+        learner: &mut Learner<LC>,
         epoch: usize,
-        processor: &mut <SC::PC as ParadigmComponentsTypes>::EventProcessor,
+        processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
     ) {
         log::info!("Executing training step for epoch {}", epoch,);
@@ -93,7 +93,7 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
             log::info!("Iteration {iteration}");
 
             let progress = iterator.progress();
-            let item = learner.step(item);
+            let item = learner.train_step(item);
 
             match self.grad_accumulation {
                 Some(accumulation) => {
@@ -103,11 +103,11 @@ impl<SC: SupervisedLearningComponentsTypes> SingleDeviceTrainEpoch<SC> {
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
 
-                        learner.optimize(grads);
+                        learner.optimizer_step(grads);
                         accumulation_current = 0;
                     }
                 }
-                None => learner.optimize(item.grads),
+                None => learner.optimizer_step(item.grads),
             }
 
             let item = LearnerItem::new(

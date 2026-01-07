@@ -3,7 +3,7 @@ use crate::module::{
     ModuleVisitor,
 };
 
-use alloc::{format, vec::Vec};
+use alloc::{format, string::ToString, vec::Vec};
 
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
@@ -313,11 +313,24 @@ macro_rules! impl_module_tuple {
             }
 
             fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-                $(self.$i.visit(visitor);)*
+                $(
+                    let index_str = $i.to_string();
+                    visitor.enter_module(&index_str, "Tuple");
+                    self.$i.visit(visitor);
+                    visitor.exit_module(&index_str, "Tuple");
+                )*
             }
 
             fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-                ($(self.$i.map(mapper),)*)
+                ($(
+                    {
+                        let index_str = $i.to_string();
+                        mapper.enter_module(&index_str, "Tuple");
+                        let mapped = self.$i.map(mapper);
+                        mapper.exit_module(&index_str, "Tuple");
+                        mapped
+                    }
+                ,)*)
             }
 
             fn load_record(self, record: Self::Record) -> Self {

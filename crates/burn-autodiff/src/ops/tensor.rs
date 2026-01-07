@@ -2230,6 +2230,439 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Cosh;
+
+        retro_unary!(RetroCosh, B::float_cosh);
+
+        impl<B: Backend> Backward<B, 1> for Cosh {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_mul(grad, B::float_sinh(input))
+                });
+            }
+        }
+
+        match Cosh
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroCosh::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_cosh(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cosh(tensor.primitive)),
+        }
+    }
+
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Sinh;
+
+        retro_unary!(RetroSinh, B::float_sinh);
+
+        impl<B: Backend> Backward<B, 1> for Sinh {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_mul(grad, B::float_cosh(input))
+                });
+            }
+        }
+
+        match Sinh
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroSinh::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_sinh(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_sinh(tensor.primitive)),
+        }
+    }
+
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Tan;
+
+        retro_unary!(RetroTan, B::float_tan);
+
+        impl<B: Backend> Backward<B, 1> for Tan {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                let tan_x = B::float_tan(input);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx tan(x) = 1 + tan^2(x)
+                    let tan_sq = B::float_powi_scalar(tan_x, 2.elem());
+                    B::float_mul(grad, B::float_add_scalar(tan_sq, 1.elem()))
+                });
+            }
+        }
+
+        match Tan
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroTan::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_tan(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_tan(tensor.primitive)),
+        }
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Asin;
+
+        retro_unary!(RetroAsin, B::float_asin);
+
+        impl<B: Backend> Backward<B, 1> for Asin {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx asin(x) = 1/sqrt(1 - x^2)
+                    let x_sq = B::float_powi_scalar(input, 2.elem());
+                    let denom = B::float_sqrt(B::float_add_scalar(B::float_neg(x_sq), 1.elem()));
+                    B::float_mul(grad, B::float_recip(denom))
+                });
+            }
+        }
+
+        match Asin
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAsin::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_asin(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_asin(tensor.primitive)),
+        }
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Acos;
+
+        retro_unary!(RetroAcos, B::float_acos);
+
+        impl<B: Backend> Backward<B, 1> for Acos {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx acos(x) = -1/sqrt(1 - x^2)
+                    let x_sq = B::float_powi_scalar(input, 2.elem());
+                    let denom = B::float_sqrt(B::float_add_scalar(B::float_neg(x_sq), 1.elem()));
+                    let value = B::float_neg(B::float_recip(denom));
+                    B::float_mul(grad, value)
+                });
+            }
+        }
+
+        match Acos
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAcos::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_acos(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_acos(tensor.primitive)),
+        }
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Atan;
+
+        retro_unary!(RetroAtan, B::float_atan);
+
+        impl<B: Backend> Backward<B, 1> for Atan {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx atan(x) = 1/(1 + x^2)
+                    let x_sq = B::float_powi_scalar(input, 2.elem());
+                    let value = B::float_recip(B::float_add_scalar(x_sq, 1.elem()));
+                    B::float_mul(grad, value)
+                });
+            }
+        }
+
+        match Atan
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAtan::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_atan(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_atan(tensor.primitive)),
+        }
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Asinh;
+
+        retro_unary!(RetroAsinh, B::float_asinh);
+
+        impl<B: Backend> Backward<B, 1> for Asinh {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx asinh(x) = 1/sqrt(x^2 + 1)
+                    let x_sq = B::float_powi_scalar(input, 2.elem());
+                    let value = B::float_recip(B::float_sqrt(B::float_add_scalar(x_sq, 1.elem())));
+                    B::float_mul(grad, value)
+                });
+            }
+        }
+
+        match Asinh
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAsinh::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_asinh(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_asinh(tensor.primitive)),
+        }
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Acosh;
+
+        retro_unary!(RetroAcosh, B::float_acosh);
+
+        impl<B: Backend> Backward<B, 1> for Acosh {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx acosh(x) = 1/sqrt(x^2 - 1)
+                    let x_sq = B::float_powi_scalar(input, 2.elem());
+                    let value = B::float_recip(B::float_sqrt(B::float_sub_scalar(x_sq, 1.elem())));
+                    B::float_mul(grad, value)
+                });
+            }
+        }
+
+        match Acosh
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAcosh::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_acosh(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_acosh(tensor.primitive)),
+        }
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Atanh;
+
+        retro_unary!(RetroAtanh, B::float_atanh);
+
+        impl<B: Backend> Backward<B, 1> for Atanh {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx atanh(x) = 1/(1 - x^2)
+                    let x_sq = B::float_powi_scalar(input, 2.elem());
+                    let value = B::float_recip(B::float_add_scalar(B::float_neg(x_sq), 1.elem()));
+                    B::float_mul(grad, value)
+                });
+            }
+        }
+
+        match Atanh
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAtanh::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_atanh(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_atanh(tensor.primitive)),
+        }
+    }
+
+    fn float_atan2(y: FloatTensor<Self>, x: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Atan2;
+
+        retro_binary!(RetroAtan2, B::float_atan2);
+
+        impl<B: Backend> Backward<B, 2> for Atan2 {
+            type State = (Option<NodeId>, Option<NodeId>, BinaryOpsBroadcast);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let (y_id, x_id, broadcast) = ops.state;
+                let y = y_id.map(|id| checkpointer.retrieve_node_output(id));
+                let x = x_id.map(|id| checkpointer.retrieve_node_output(id));
+                let [y_4y, y_4x] = duplicate(&ops.parents, y);
+                let [x_4y, x_4x]: [Option<FloatTensor<B>>; 2] = duplicate(&ops.parents, x);
+
+                binary::<B, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        // d/dy atan2(y, x) = x/(x^2 + y^2)
+                        let y = y_4y.unwrap();
+                        let x = x_4y.unwrap();
+                        let x_sq = B::float_powi_scalar(x.clone(), 2.elem());
+                        let y_sq = B::float_powi_scalar(y, 2.elem());
+                        let denom = B::float_add(x_sq, y_sq);
+                        let value = B::float_div(x, denom);
+                        let grad = B::float_mul(grad, value);
+
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        // d/dx atan2(y, x) = -y/(x^2 + y^2)
+                        let y = y_4x.unwrap();
+                        let x = x_4x.unwrap();
+                        let x_sq = B::float_powi_scalar(x, 2.elem());
+                        let y_sq = B::float_powi_scalar(y.clone(), 2.elem());
+                        let denom = B::float_add(x_sq, y_sq);
+                        let value = B::float_neg(B::float_div(y, denom));
+                        let grad = B::float_mul(grad, value);
+
+                        broadcast.backward_rhs::<B>(grad)
+                    },
+                );
+            }
+        }
+
+        let y_tracked = y.is_tracked();
+        let x_tracked = x.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&y.primitive, &x.primitive);
+
+        match Atan2
+            .prepare::<C>([y.node.clone(), x.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroAtan2::<B>::new(y.node.id, x.node.id))
+            .parents([&y, &x])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let is_tracked = y_tracked || x_tracked;
+                let y_state = is_tracked.then(|| prep.checkpoint(&y));
+                let x_state = is_tracked.then(|| prep.checkpoint(&x));
+
+                prep.finish(
+                    (y_state, x_state, broadcast),
+                    B::float_atan2(y.primitive, x.primitive),
+                )
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_atan2(y.primitive, x.primitive)),
+        }
+    }
+
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Round;

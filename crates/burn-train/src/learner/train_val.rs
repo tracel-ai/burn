@@ -34,11 +34,11 @@ impl<TO> TrainOutput<TO> {
     }
 }
 
-/// Trait to be implemented for models to be able to learn.
+/// Trait to be implemented for models to be able to be trained.
 ///
-/// The [step](LearningStep::step) method needs to be manually implemented for all structs.
+/// The [step](TrainStep::step) method needs to be manually implemented for all structs.
 ///
-/// The [optimize](LearningStep::optimize) method can be overridden if you want to control how the
+/// The [optimize](TrainStep::optimize) method can be overridden if you want to control how the
 /// optimizer is used to update the model. This can be useful if you want to call custom mutable
 /// functions on your model (e.g., clipping the weights) before or after the optimizer is used.
 ///
@@ -47,8 +47,8 @@ impl<TO> TrainOutput<TO> {
 /// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait LearningStep<TI, TO> {
-    /// Runs a step for learning, which executes the forward and backward passes.
+pub trait TrainStep<TI, TO> {
+    /// Runs a step for training, which executes the forward and backward passes.
     ///
     /// # Arguments
     ///

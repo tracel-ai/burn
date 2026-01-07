@@ -1,9 +1,9 @@
 use crate::model::ModelConfig;
 use burn::record::NoStdTrainingRecorder;
 use burn::train::{
-    EventProcessorTraining, Learner, LearnerBackend, LearnerModel, ParadigmComponentsTypes,
-    SupervisedLearningComponentsTypes, SupervisedLearningStrategy, SupervisedTraining, TrainLoader,
-    TrainingComponents, ValidLoader,
+    EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
+    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
+    TrainingComponents, TrainingModel, ValidLoader,
 };
 use burn::{
     data::{
@@ -119,13 +119,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .expect("Failed to save trained model");
 }
 
-struct MyCustomLearningStrategy<SC: SupervisedLearningComponentsTypes> {
-    device: Device<LearnerBackend<SC::LC>>,
-    _p: PhantomData<SC>,
+struct MyCustomLearningStrategy<LC: LearningComponentsTypes> {
+    device: Device<TrainingBackend<LC>>,
+    _p: PhantomData<LC>,
 }
 
-impl<SC: SupervisedLearningComponentsTypes> MyCustomLearningStrategy<SC> {
-    pub fn new(device: Device<LearnerBackend<SC::LC>>) -> Self {
+impl<LC: LearningComponentsTypes> MyCustomLearningStrategy<LC> {
+    pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
         Self {
             device,
             _p: PhantomData,
@@ -133,20 +133,15 @@ impl<SC: SupervisedLearningComponentsTypes> MyCustomLearningStrategy<SC> {
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
-    for MyCustomLearningStrategy<SC>
-{
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLearningStrategy<LC> {
     fn fit(
         &self,
-        training_components: TrainingComponents<SC>,
-        mut learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC>,
-        dataloader_valid: ValidLoader<SC::LC>,
+        training_components: TrainingComponents<LC>,
+        mut learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (
-        LearnerModel<SC::LC>,
-        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
-    ) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let dataloader_valid = dataloader_valid.to_device(&self.device);
         learner.fork(&self.device);
@@ -169,8 +164,8 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
                 log::info!("Iteration {iteration} of my custom learning strategy");
 
                 let progress = iterator.progress();
-                let item = learner.step(item);
-                learner.optimize(item.grads);
+                let item = learner.train_step(item);
+                learner.optimizer_step(item.grads);
 
                 let item = LearnerItem::new(
                     item.item,

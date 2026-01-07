@@ -2,11 +2,11 @@ use crate::LearningComponentsMarker;
 use crate::checkpoint::{
     AsyncCheckpointer, Checkpointer, CheckpointingAction, CheckpointingStrategy,
 };
-use crate::components::{LearnerBackend, LearningComponentsTypes};
+use crate::components::{LearningComponentsTypes, TrainingBackend};
 use crate::metric::store::EventStoreClient;
 use crate::{
-    CloneEarlyStoppingStrategy, LearnerInput, LearnerOutput, LearningData, LearningStep,
-    TrainOutput, ValidStep,
+    CloneEarlyStoppingStrategy, ModelDataTypes, TrainOutput, TrainStep, TrainingModelInput,
+    TrainingModelOutput, ValidStep,
 };
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
@@ -17,21 +17,21 @@ use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-/// The record of the learning model.
+/// The record of the learner's model.
 pub type LearnerModelRecord<LC> =
-    <<LC as LearningComponentsTypes>::Model as Module<LearnerBackend<LC>>>::Record;
+    <<LC as LearningComponentsTypes>::TrainingModel as Module<TrainingBackend<LC>>>::Record;
 /// The record of the optimizer.
 pub type LearnerOptimizerRecord<LC> = <<LC as LearningComponentsTypes>::Optimizer as Optimizer<
-    <LC as LearningComponentsTypes>::Model,
-    LearnerBackend<LC>,
+    <LC as LearningComponentsTypes>::TrainingModel,
+    TrainingBackend<LC>,
 >>::Record;
 /// The record of the LR scheduler.
 pub type LearnerSchedulerRecord<LC> =
-    <<LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<LearnerBackend<LC>>;
+    <<LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<TrainingBackend<LC>>;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 pub struct Learner<LC: LearningComponentsTypes> {
-    model: LC::Model,
+    model: LC::TrainingModel,
     optim: LC::Optimizer,
     lr_scheduler: LC::LrScheduler,
     lr: f64,
@@ -48,17 +48,17 @@ impl<LC: LearningComponentsTypes> Clone for Learner<LC> {
     }
 }
 
-impl<B, LR, M, O, LD> Learner<LearningComponentsMarker<B, LR, M, O, LD>>
+impl<B, LR, M, O, MD> Learner<LearningComponentsMarker<B, LR, M, O, MD>>
 where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: LearningStep<LD::LearningInput, LD::LearningOutput>
+    M: TrainStep<MD::TrainInput, MD::TrainOutput>
         + AutodiffModule<B>
         + core::fmt::Display
         + 'static,
-    M::InnerModule: ValidStep<LD::ValidInput, LD::ValidOutput>,
+    M::InnerModule: ValidStep<MD::InferenceInput, MD::InferenceOutput>,
     O: Optimizer<M, B> + 'static,
-    LD: LearningData,
+    MD: ModelDataTypes,
 {
     /// Create a learner.
     pub fn new(model: M, optim: O, lr_scheduler: LR) -> Self {
@@ -72,6 +72,61 @@ where
 }
 
 impl<LC: LearningComponentsTypes> Learner<LC> {
+    /// Fork the learner's model to the given device.
+    pub fn fork(&mut self, device: &<TrainingBackend<LC> as Backend>::Device) {
+        self.model = self.model().fork(device);
+    }
+
+    /// Returns the current model.
+    pub fn model(&self) -> LC::TrainingModel {
+        self.model.clone()
+    }
+
+    /// Returns the current learning rate.
+    pub fn lr_current(&self) -> f64 {
+        self.lr
+    }
+
+    /// Executes a step of the learning rate scheduler.
+    pub fn lr_step(&mut self) {
+        self.lr = self.lr_scheduler.step();
+    }
+
+    /// Runs a step of the model for training, which executes the forward and backward passes.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The input for the model.
+    ///
+    /// # Returns
+    ///
+    /// The output containing the model output and the gradients.
+    pub fn train_step(&self, item: TrainingModelInput<LC>) -> TrainOutput<TrainingModelOutput<LC>> {
+        self.model.step(item)
+    }
+
+    /// Optimize the current module with the provided gradients and learning rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `optim`: Optimizer used for learning.
+    /// * `lr`: The learning rate used for this step.
+    /// * `grads`: The gradients of each parameter in the current model.
+    pub fn optimizer_step(&mut self, grads: GradientsParams) {
+        self.model = self.model().optimize(&mut self.optim, self.lr, grads);
+    }
+
+    /// Optimize the current module with the provided gradients and learning rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `optim`: Optimizer used for learning.
+    /// * `lr`: The learning rate used for this step.
+    /// * `grads`: Multiple gradients associated to each parameter in the current model.
+    pub fn optimizer_step_multi(&mut self, grads: MultiGradientsParams) {
+        self.model = self.model().optimize_multi(&mut self.optim, self.lr, grads);
+    }
+
     /// Load the module state from a [record](LearnerModelRecord<LC>).
     pub fn load_model(&mut self, record: LearnerModelRecord<LC>) {
         self.model = self.model.clone().load_record(record);
@@ -85,65 +140,6 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     /// Load the state of the learner's scheduler as a [record](LearnerSchedulerRecord<LC>).
     pub fn load_scheduler(&mut self, record: LearnerSchedulerRecord<LC>) {
         self.lr_scheduler = self.lr_scheduler.clone().load_record(record);
-    }
-
-    /// Fork the learner's model to the given device.
-    pub fn fork(&mut self, device: &<LearnerBackend<LC> as Backend>::Device) {
-        self.model = self.model().fork(device);
-    }
-
-    /// Executes a step of the learning rate scheduler.
-    pub fn lr_step(&mut self) {
-        self.lr = self.lr_scheduler.step();
-    }
-
-    /// Returns the current learning rate.
-    pub fn lr_current(&self) -> f64 {
-        self.lr
-    }
-
-    /// Runs a step for the learning, which executes the forward and backward passes.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The input for the model.
-    ///
-    /// # Returns
-    ///
-    /// The output containing the model output and the gradients.
-    pub fn step(&self, item: LearnerInput<LC>) -> TrainOutput<LearnerOutput<LC>> {
-        self.model.step(item)
-    }
-
-    /// Returns the current model.
-    pub fn model(&self) -> LC::Model {
-        self.model.clone()
-    }
-
-    /// Optimize the current module with the provided gradients and learning rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `optim`: Optimizer used for learning.
-    /// * `lr`: The learning rate used for this step.
-    /// * `grads`: The gradients of each parameter in the current model.
-    pub fn optimize(&mut self, grads: GradientsParams) {
-        self.model = self.model().optimize(&mut self.optim, self.lr, grads);
-    }
-
-    /// Optimize the current module with the provided gradients and learning rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `optim`: Optimizer used for learning.
-    /// * `lr`: The learning rate used for this step.
-    /// * `grads`: Multiple gradients associated to each parameter in the current model.
-    ///
-    /// # Returns
-    ///
-    /// The updated model.
-    pub fn optimize_multi(&mut self, grads: MultiGradientsParams) {
-        self.model = self.model().optimize_multi(&mut self.optim, self.lr, grads);
     }
 }
 

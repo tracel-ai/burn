@@ -27,7 +27,7 @@ Since the MNIST task is a classification problem, we will use the `Classificatio
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
-#         ClassificationOutput, Learner, LearningStep, SupervisedTraining, TrainOutput, ValidStep,
+#         ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
@@ -74,8 +74,8 @@ for our model.
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
+#         ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
 #         metric::{AccuracyMetric, LossMetric},
-#         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 #     },
 # };
 # 
@@ -94,7 +94,7 @@ for our model.
 #     }
 # }
 # 
-impl<B: AutodiffBackend> LearningStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -109,7 +109,7 @@ impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> 
 }
 ```
 
-Here we define the input and output types as generic arguments in the `LearningStep` and `ValidStep`.
+Here we define the input and output types as generic arguments in the `TrainStep` and `ValidStep`.
 We will call them `MnistBatch` and `ClassificationOutput`. In the training step, the computation of
 gradients is straightforward, necessitating a simple invocation of `backward()` on the loss. Note
 that contrary to PyTorch, gradients are not stored alongside each tensor parameter, but are rather
@@ -127,7 +127,7 @@ autodiff. We will see later how to create a backend with autodiff support.
 Although generic data types, trait and trait bounds were already introduced in previous sections of
 this guide, the previous code snippet might be a lot to take in at first.
 
-In the example above, we implement the `LearningStep` and `ValidStep` trait for our `Model` struct,
+In the example above, we implement the `TrainStep` and `ValidStep` trait for our `Model` struct,
 which is generic over the `Backend` trait as has been covered before. These traits are provided by
 `burn::train` and define a common `step` method that should be implemented for all structs. Since
 the trait is generic over the input and output types, the trait implementation must specify the
@@ -157,7 +157,7 @@ Let us move on to establishing the practical training configuration.
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
-#         ClassificationOutput, Learner, LearningStep, SupervisedTraining, TrainOutput, ValidStep,
+#         ClassificationOutput, Learner, TrainStep, SupervisedTraining, TrainOutput, ValidStep,
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
@@ -177,7 +177,7 @@ Let us move on to establishing the practical training configuration.
 #     }
 # }
 # 
-# impl<B: AutodiffBackend> LearningStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+# impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
 #     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
 #         let item = self.forward_classification(batch.images, batch.targets);
 # 
