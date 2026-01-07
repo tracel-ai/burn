@@ -463,8 +463,48 @@ where
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sin)
     }
 
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tan)
+    }
+
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cosh)
+    }
+
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sinh)
+    }
+
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tanh)
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcCos)
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcCosh)
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcSin)
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcSinh)
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcTan)
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcTanh)
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        crate::kernel::atan2::<R>(lhs, rhs)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

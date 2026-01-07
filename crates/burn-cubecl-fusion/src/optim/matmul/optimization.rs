@@ -26,8 +26,8 @@ use cubecl::{
 use cubek::matmul::{
     components::tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
     definition::{
-        MatmulElemType, MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem,
-        MatmulSetupError, MatrixLayout,
+        MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
+        MatrixLayout,
     },
     launch::launch_kernel_virtual,
     routines::{
@@ -359,18 +359,9 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let global_elems = MatmulGlobalElems {
-            lhs: MatmulElemType {
-                dtype: self.matmul.lhs.precision().into_type(),
-                quantized: false,
-            },
-            rhs: MatmulElemType {
-                dtype: self.matmul.rhs.precision().into_type(),
-                quantized: false,
-            },
-            out: MatmulElemType {
-                dtype: self.matmul.out.precision().into_type(),
-                quantized: false,
-            },
+            lhs: self.matmul.lhs.precision().into_type(),
+            rhs: self.matmul.rhs.precision().into_type(),
+            out: self.matmul.out.precision().into_type(),
         };
         let dtypes = MatmulElems::from_globals(&global_elems);
         self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)
@@ -485,7 +476,6 @@ impl FusedMatmulLaunch<'_> {
                 problem,
                 line_sizes,
                 &BlueprintStrategy::Inferred(SimpleArgs { multi_rows }),
-                dtypes,
             ) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -510,7 +500,6 @@ impl FusedMatmulLaunch<'_> {
                 problem,
                 line_sizes,
                 &BlueprintStrategy::Inferred(DoubleBufferingArgs { specialized }),
-                dtypes,
             ) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -542,7 +531,6 @@ impl FusedMatmulLaunch<'_> {
                         rows_per_plane: Some(2),
                         partition_k: Some(2),
                     }),
-                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -563,7 +551,6 @@ impl FusedMatmulLaunch<'_> {
                     problem,
                     line_sizes,
                     &Default::default(),
-                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -584,7 +571,6 @@ impl FusedMatmulLaunch<'_> {
                     problem,
                     line_sizes,
                     &Default::default(),
-                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -605,7 +591,6 @@ impl FusedMatmulLaunch<'_> {
                     problem,
                     line_sizes,
                     &Default::default(),
-                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -626,7 +611,6 @@ impl FusedMatmulLaunch<'_> {
                     problem,
                     line_sizes,
                     &Default::default(),
-                    dtypes,
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -643,27 +627,13 @@ fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine>(
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
     blueprint_strategy: &BlueprintStrategy<A>,
-    mut dtypes: MatmulElems,
 ) -> Result<(), MatmulSetupError> {
-    let fix_plane_dim = |plane_dim: u32| {
-        // Sometimes the GPU doesn't support plane instructions and doesn't report the
-        // plane size, but we can still execute algorithms that don't use plane instructions.
-        //
-        // In this case, we set a plane size for the selector to work, defaulting to 32 as it
-        // is a common plane size.
-        if plane_dim == 0 { 32 } else { plane_dim }
-    };
-
-    let plane_size = fix_plane_dim(A::select_plane_dim(client));
-
     launch_kernel_virtual::<FusedMatmulArgs, R, A>(
         client,
         input,
         output,
         problem,
         line_sizes,
-        plane_size,
         blueprint_strategy,
-        &mut dtypes,
     )
 }

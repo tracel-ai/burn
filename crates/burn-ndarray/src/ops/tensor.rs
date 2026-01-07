@@ -477,10 +477,34 @@ where
         })
     }
 
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).cosh().elem())
+                .into_shared()
+        })
+    }
+
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
             array
                 .mapv_into(|a: FloatElem| (a.to_f64()).sin().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).sinh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).tan().elem())
                 .into_shared()
         })
     }
@@ -490,6 +514,60 @@ where
             array
                 .mapv_into(|a: FloatElem| (a.to_f64()).tanh().elem())
                 .into_shared()
+        })
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).acos().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).acosh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).asin().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).asinh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).atan().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).atanh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!((lhs, rhs), FloatElem, |lhs, rhs| {
+            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &FloatElem, b: &FloatElem| a.atan2(*b))
         })
     }
 
