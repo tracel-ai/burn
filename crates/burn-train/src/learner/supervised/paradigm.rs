@@ -46,6 +46,8 @@ pub struct SupervisedTraining<LC>
 where
     LC: LearningComponentsTypes,
 {
+    // Not that complex. Extracting into another type would only make it more confusing.
+    #[allow(clippy::type_complexity)]
     checkpointers: Option<(
         AsyncCheckpointer<LearnerModelRecord<LC>, TrainingBackend<LC>>,
         AsyncCheckpointer<LearnerOptimizerRecord<LC>, TrainingBackend<LC>>,
