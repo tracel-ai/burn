@@ -162,7 +162,10 @@ fn suppress_overlapping<'a, S: Simd>(
             match lanes {
                 4 => *(suppressed.as_ptr().add(i) as *const u32) == 0x01010101,
                 8 => *(suppressed.as_ptr().add(i) as *const u64) == 0x0101010101010101,
-                16 => *(suppressed.as_ptr().add(i) as *const u128) == 0x01010101010101010101010101010101,
+                16 => {
+                    *(suppressed.as_ptr().add(i) as *const u128)
+                        == 0x01010101010101010101010101010101
+                }
                 _ => unreachable!(),
             }
         };
