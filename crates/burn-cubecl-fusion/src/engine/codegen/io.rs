@@ -763,7 +763,7 @@ fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
     intrinsic!(|scope| {
         let constant: ExpandElement = value.into();
         let constant_c = constant.as_const().unwrap().cast_to(C::as_type(scope));
-        ExpandElement::Plain(Variable::constant(constant_c)).into()
+        ExpandElement::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
     })
 }
 
