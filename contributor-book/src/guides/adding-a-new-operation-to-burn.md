@@ -76,8 +76,6 @@ counterpart is usually added at the same time with a default implementation (as 
 previous section). Tests for `q_*` ops follow a similar procedure: the test is added under
 [`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/{op_name}.rs`](https://github.com/tracel-ai/burn/tree/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended),
 the module name is inserted into [`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs).
-The quantization tests should be added to
-[crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/{op_name}.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/powf.rs).
 If you take a look at any of the existing tests for an operation on a quantized tensor,
 you will see that the inputs and expected outputs are always defined with floating point values.
 While it assumes that the quantization and dequantization are correct, it makes the tests much more
