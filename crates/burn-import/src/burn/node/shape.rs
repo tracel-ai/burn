@@ -23,17 +23,18 @@ impl NodeCodegen for onnx_ir::shape::ShapeNode {
 
         let start_dim_tok = self.config.start.to_tokens();
         let end_dim_tok = self.config.end.to_tokens();
+        let output_rank = (self.config.end - self.config.start).to_tokens();
 
         let function = match &input_arg.ty {
             ArgType::Tensor(_) => {
                 let input = scope.arg(input_arg);
                 quote! {
-                    #input.dims()[#start_dim_tok..#end_dim_tok]
-                        .iter()
-                        .map(|&x| x as i64)
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap()
+                    let axes = #input.dims()[#start_dim_tok..#end_dim_tok];
+                    let mut axes_i64 = [0i64; #output_rank];
+                    for i in 0..#output_rank {
+                        axes_i64[i] = axes[i] as i64;
+                    }
+                    axes_i64
                 }
             }
             ArgType::Shape(shape_rank) => {
@@ -48,13 +49,6 @@ impl NodeCodegen for onnx_ir::shape::ShapeNode {
 
         quote! {
             let #output: [i64;#dim] = #function;
-        }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Only register Vec if we're extracting shape from a tensor
-        if self.inputs.first().unwrap().ty.is_tensor() {
-            imports.register("alloc::vec::Vec");
         }
     }
 }
