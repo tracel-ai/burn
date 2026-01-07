@@ -82,7 +82,7 @@ pub struct TrainingComponents<LC: LearningComponentsTypes> {
     pub interrupter: Interrupter,
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// An [EventProcessor](ParadigmComponentsTypes::EventProcessor) that processes events happening during training and validation.
+    /// An [EventProcessor](crate::EventProcessorTraining) that processes events happening during training and validation.
     pub event_processor: SupervisedTrainingEventProcessor<LC>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,

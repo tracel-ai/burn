@@ -286,7 +286,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     }
 
     /// Register a checkpointer that will save the [optimizer](Optimizer), the
-    /// [model](Module) and the [scheduler](LrScheduler) to different files.
+    /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder<<LC as LearningComponentsTypes>::Backend> + 'static,

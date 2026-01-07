@@ -85,7 +85,7 @@ pub trait ModelDataTypes {
     type InferenceOutput: ItemLazy + 'static;
 }
 
-/// Concrete type that implements [LearningData](LearningData) trait.
+/// Concrete type that implements [ModelDataTypes](ModelDataTypes) trait.
 pub struct ModelDataMarker<TI, VI, TO, VO> {
     _phantom_data: PhantomData<(TI, VI, TO, VO)>,
 }

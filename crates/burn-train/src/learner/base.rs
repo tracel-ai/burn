@@ -18,16 +18,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// The record of the learner's model.
-pub(crate) type LearnerModelRecord<LC> =
+pub type LearnerModelRecord<LC> =
     <<LC as LearningComponentsTypes>::TrainingModel as Module<TrainingBackend<LC>>>::Record;
 /// The record of the optimizer.
-pub(crate) type LearnerOptimizerRecord<LC> =
-    <<LC as LearningComponentsTypes>::Optimizer as Optimizer<
-        <LC as LearningComponentsTypes>::TrainingModel,
-        TrainingBackend<LC>,
-    >>::Record;
+pub type LearnerOptimizerRecord<LC> = <<LC as LearningComponentsTypes>::Optimizer as Optimizer<
+    <LC as LearningComponentsTypes>::TrainingModel,
+    TrainingBackend<LC>,
+>>::Record;
 /// The record of the LR scheduler.
-pub(crate) type LearnerSchedulerRecord<LC> =
+pub type LearnerSchedulerRecord<LC> =
     <<LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<TrainingBackend<LC>>;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
