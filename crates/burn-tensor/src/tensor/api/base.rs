@@ -14,13 +14,13 @@ use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
-use crate::IndexingUpdateOp;
 use crate::{AsIndex, Slice, SliceArg, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, TensorMetadata,
     backend::Backend, check,
 };
 use crate::{DType, Element};
+use crate::{IndexingUpdateOp, TensorOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
@@ -156,10 +156,11 @@ where
     ///    let tensor = Tensor::<B, 3>::empty([2, 3, 4], &device);
     /// }
     /// ```
-    pub fn empty<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
+    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorOptions<B>>) -> Self {
+        let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
-        Self::new(K::empty(shape, device, K::Elem::dtype()))
+        Self::new(K::empty(shape, &opt.device, opt.dtype_or(K::Elem::dtype())))
     }
 
     /// Create a tensor of the given shape where each element is zero.
@@ -177,10 +178,11 @@ where
     ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
-    pub fn zeros<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
+    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorOptions<B>>) -> Self {
+        let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
-        Self::new(K::zeros(shape, device, K::Elem::dtype()))
+        Self::new(K::zeros(shape, &opt.device, opt.dtype_or(K::Elem::dtype())))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
@@ -218,10 +220,11 @@ where
     ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
-    pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
+    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorOptions<B>>) -> Self {
+        let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
-        Self::new(K::ones(shape, device, K::Elem::dtype()))
+        Self::new(K::ones(shape, &opt.device, opt.dtype_or(K::Elem::dtype())))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
@@ -262,11 +265,17 @@ where
     pub fn full<S: Into<Shape>, E: ElementConversion>(
         shape: S,
         fill_value: E,
-        device: &B::Device,
+        options: impl Into<TensorOptions<B>>,
     ) -> Self {
+        let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
-        Self::new(K::full(shape, fill_value, device, K::Elem::dtype()))
+        Self::new(K::full(
+            shape,
+            fill_value,
+            &opt.device,
+            opt.dtype_or(K::Elem::dtype()),
+        ))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor,

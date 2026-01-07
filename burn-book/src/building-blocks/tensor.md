@@ -134,7 +134,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | Burn                                                 | PyTorch Equivalent                                                        |
 | ---------------------------------------------------- | ------------------------------------------------------------------------- |
 | `Tensor::cat(tensors, dim)`                          | `torch.cat(tensors, dim)`                                                 |
-| `Tensor::empty(shape, device)`                       | `torch.empty(shape, device=device)`                                       |
+| `Tensor::empty(shape, options)`                      | `torch.empty(shape, device=device, dtype=dtype)`                          |
 | `Tensor::from_primitive(primitive)`                  | N/A                                                                       |
 | `Tensor::stack(tensors, dim)`                        | `torch.stack(tensors, dim)`                                               |
 | `tensor.all()`                                       | `tensor.all()`                                                            |
@@ -191,9 +191,9 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.unsqueeze_dim(dim)`                          | `tensor.unsqueeze(dim)`                                                   |
 | `tensor.unsqueeze_dims(dims)`                        | N/A                                                                       |
 | `tensor.zeros_like()`                                | `torch.zeros_like(tensor)`                                                |
-| `Tensor::full(shape, fill_value, device)`            | `torch.full(shape, fill_value, device=device)`                            |
-| `Tensor::ones(shape, device)`                        | `torch.ones(shape, device=device)`                                        |
-| `Tensor::zeros(shape, device)`                       | `torch.zeros(shape, device=device)`                                       |
+| `Tensor::full(shape, fill_value, options)`           | `torch.full(shape, fill_value, device=device, dtype=dtype)`               |
+| `Tensor::ones(shape, options)`                       | `torch.ones(shape, device=device, dtype=dtype)`                           |
+| `Tensor::zeros(shape, options)`                      | `torch.zeros(shape, device=device, dtype=dtype)`                          |
 
 ### Numeric Operations
 
@@ -374,7 +374,7 @@ strategies.
 ## Activation Functions
 
 | Burn API                                         | PyTorch Equivalent                                 |
-|--------------------------------------------------|----------------------------------------------------|
+| ------------------------------------------------ | -------------------------------------------------- |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |

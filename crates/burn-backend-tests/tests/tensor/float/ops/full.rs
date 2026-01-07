@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{DType, TensorData, TensorOptions};
 
 #[test]
 fn test_data_full() {
@@ -12,6 +12,20 @@ fn test_data_full() {
 fn test_tensor_full() {
     let device = Default::default();
     let tensor = TestTensor::<2>::full([2, 3], 2.1, &device);
+    tensor
+        .into_data()
+        .assert_eq(&TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]]), false);
+}
+
+#[test]
+fn test_tensor_full_options() {
+    let tensor = TestTensor::<2>::full(
+        [2, 3],
+        2.1,
+        TensorOptions::new(Default::default(), DType::F32),
+    );
+    assert_eq!(tensor.dtype(), DType::F32);
+
     tensor
         .into_data()
         .assert_eq(&TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]]), false);
