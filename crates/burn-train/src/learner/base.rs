@@ -123,7 +123,6 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: Multiple gradients associated to each parameter in the current model.
-    ///
     pub fn optimizer_step_multi(&mut self, grads: MultiGradientsParams) {
         self.model = self.model().optimize_multi(&mut self.optim, self.lr, grads);
     }
