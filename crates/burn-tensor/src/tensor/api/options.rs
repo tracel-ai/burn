@@ -77,7 +77,12 @@ impl<B: Backend> From<&Device<B>> for TensorOptions<B> {
     ///
     /// Example:
     /// ```rust
-    /// let options: TensorOptions<B> = (&my_device).into();
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::TensorOptions;
+    ///
+    /// fn example<B: Backend>(device: &B::Device) {
+    ///     let options: TensorOptions<B> = (&device).into();
+    /// }
     /// ```
     fn from(device: &Device<B>) -> Self {
         TensorOptions::device(device.clone())
