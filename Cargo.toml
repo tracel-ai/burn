@@ -180,12 +180,12 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "48ff83f19952d053b80ab5762baf387f451e5c63" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "48ff83f19952d053b80ab5762baf387f451e5c63" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7cd8e9c869d363edcbf989fd905eb4b28df938ab" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7cd8e9c869d363edcbf989fd905eb4b28df938ab" }
 # cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "0d9a635229d3cabfa8297ddc967ff4e783be348c" }
 ### For local development. ###
-cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
-cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "=0.9.0-pre.6", default-features = false }
