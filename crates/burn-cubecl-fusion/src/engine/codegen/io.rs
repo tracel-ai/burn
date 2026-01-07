@@ -1,13 +1,13 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
-use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
+use cubecl::{ir::ConstantValue, quant::scheme::QuantLevel};
 use cubek::quantization::layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout};
 use serde::{Deserialize, Serialize};
 
@@ -761,9 +761,8 @@ pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
     intrinsic!(|scope| {
-        let constant: ExpandElement = value.into();
-        let constant_c = constant.as_const().unwrap().cast_to(C::as_type(scope));
-        ExpandElement::Plain(Variable::constant(constant_c)).into()
+        let constant: ConstantValue = value.into();
+        ExpandElement::Plain(Variable::constant(constant, C::as_type(scope))).into()
     })
 }
 

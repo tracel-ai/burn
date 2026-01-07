@@ -48,12 +48,12 @@ fn merge<I: Int>(labels: &Tensor<Atomic<I>>, label_1: u32, label_2: u32) {
 
 #[cube]
 fn start_distance(pixels: u32, tx: u32) -> u32 {
-    u32::leading_zeros(u32::bitwise_not(pixels << (32 - tx)))
+    (!(pixels << (32 - tx))).leading_zeros()
 }
 
 #[cube]
 fn end_distance(pixels: u32, tx: u32) -> u32 {
-    u32::find_first_set(u32::bitwise_not(pixels >> (tx + 1)))
+    (!(pixels >> (tx + 1))).find_first_set()
 }
 
 #[cube]

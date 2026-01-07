@@ -31,13 +31,13 @@ fn interpolate_bilinear_kernel<F: Float>(
     let (b, y) = shape_out.index(1).div_mod(rem);
 
     let numerator = (input.shape(1) - 1) as f32;
-    let denominator = Max::max(output.shape(1) - 1, 1) as f32;
+    let denominator = clamp_min(output.shape(1) - 1, 1) as f32;
     let factor = f32::cast_from(y);
 
     let frac = factor * (numerator / denominator);
 
-    let v0 = Floor::floor(frac);
-    let v1: f32 = Ceil::ceil(frac);
+    let v0 = frac.floor();
+    let v1 = frac.ceil();
     let yw = F::cast_from(frac - v0);
     let yw_ = Line::empty(line_size).fill(F::new(1.0) - yw);
     let yw = Line::empty(line_size).fill(yw);
@@ -46,11 +46,11 @@ fn interpolate_bilinear_kernel<F: Float>(
     let y1 = v1 as u32;
 
     let numerator = f32::cast_from(input.shape(2) - 1);
-    let denominator = f32::cast_from(Max::max(output.shape(2) - 1, 1));
+    let denominator = clamp_min(output.shape(2) - 1, 1) as f32;
     let factor = f32::cast_from(x);
     let frac = factor * (numerator / denominator);
-    let v0 = Floor::floor(frac);
-    let v1: f32 = Ceil::ceil(frac);
+    let v0 = frac.floor();
+    let v1 = frac.ceil();
     let xw = F::cast_from(frac - v0);
     let xw_ = Line::empty(line_size).fill(F::new(1.0) - xw);
     let xw = Line::empty(line_size).fill(xw);

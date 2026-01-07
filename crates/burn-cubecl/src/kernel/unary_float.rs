@@ -134,7 +134,7 @@ pub(crate) mod unary_basic {
         fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
             match comptime![options.kind] {
                 BasicFloatUnaryKind::Exp => Line::exp(input),
-                BasicFloatUnaryKind::Log => Line::log(input),
+                BasicFloatUnaryKind::Log => Line::ln(input),
                 BasicFloatUnaryKind::Log1p => Line::log1p(input),
                 BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
                 BasicFloatUnaryKind::Abs => Line::abs(input),

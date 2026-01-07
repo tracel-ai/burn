@@ -25,7 +25,7 @@ pub(crate) fn clamp<R: CubeRuntime>(
 
         fn execute(input: Line<N>, options: &Self::Options) -> Line<N> {
             let line_size = input.size();
-            Line::clamp(
+            cubecl::prelude::clamp(
                 input,
                 Line::empty(line_size).fill(options.min_value.get::<N>()),
                 Line::empty(line_size).fill(options.max_value.get::<N>()),

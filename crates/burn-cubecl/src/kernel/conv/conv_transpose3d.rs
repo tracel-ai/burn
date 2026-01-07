@@ -68,13 +68,13 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let y_start = ((out_y + args.padding_1) as i32 - kernel_h) / stride_1_i;
     let x_start = ((out_x + args.padding_2) as i32 - kernel_w) / stride_2_i;
 
-    let z_end = Min::min(Max::max(kernel_d + z_start + 1, 0) as u32, input.shape(2));
-    let y_end = Min::min(Max::max(kernel_h + y_start + 1, 0) as u32, input.shape(3));
-    let x_end = Min::min(Max::max(kernel_w + x_start + 1, 0) as u32, input.shape(4));
+    let z_end = clamp(kernel_d + z_start + 1, 0, input.shape(2) as i32) as u32;
+    let y_end = clamp(kernel_h + y_start + 1, 0, input.shape(3) as i32) as u32;
+    let x_end = clamp(kernel_w + x_start + 1, 0, input.shape(4) as i32) as u32;
 
-    let z_start = Max::max(z_start, 0) as u32;
-    let y_start = Max::max(y_start, 0) as u32;
-    let x_start = Max::max(x_start, 0) as u32;
+    let z_start = clamp_min(z_start, 0) as u32;
+    let y_start = clamp_min(y_start, 0) as u32;
+    let x_start = clamp_min(x_start, 0) as u32;
 
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);

@@ -64,8 +64,8 @@ fn grid_sample_bilinear_kernel<F: Float>(
     };
 
     // Compute floor and ceil indices
-    let x0_f = Floor::floor(px);
-    let y0_f = Floor::floor(py);
+    let x0_f = px.floor();
+    let y0_f = py.floor();
     let x1_f = x0_f + F::new(1.0);
     let y1_f = y0_f + F::new(1.0);
 
