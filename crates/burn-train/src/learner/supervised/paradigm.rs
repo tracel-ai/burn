@@ -16,10 +16,10 @@ use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDevicetrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    InferenceBackend, InferenceModel, InferenceModelInput, LearnerModelRecord,
+    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerModelRecord,
     LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
-    LearningComponentsMarker, LearningComponentsTypes, LearningResult, ModelDataMarker, TrainStep,
-    TrainingBackend, TrainingComponents, TrainingModelInput, TrainingStrategy, ValidStep,
+    LearningComponentsMarker, LearningComponentsTypes, LearningResult, TrainStep, TrainingBackend,
+    TrainingComponents, TrainingModelInput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
@@ -72,18 +72,13 @@ where
     summary: bool,
 }
 
-impl<B, LR, M, O, TI, TO, VI, VO>
-    SupervisedTraining<LearningComponentsMarker<B, LR, M, O, ModelDataMarker<TI, VI, TO, VO>>>
+impl<B, LR, M, O> SupervisedTraining<LearningComponentsMarker<B, LR, M, O>>
 where
     B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: TrainStep<TI, TO> + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: ValidStep<VI, VO>,
+    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
+    M::InnerModule: InferenceStep,
     O: Optimizer<M, B> + 'static,
-    TI: Send + 'static,
-    VI: Send + 'static,
-    TO: ItemLazy + 'static,
-    VO: ItemLazy + 'static,
 {
     /// Creates a new runner for a supervised training.
     ///
@@ -94,8 +89,10 @@ where
     /// * `dataloader_valid` - The dataloader for the validation split.
     pub fn new(
         directory: impl AsRef<Path>,
-        dataloader_train: Arc<dyn DataLoader<B, TI>>,
-        dataloader_valid: Arc<dyn DataLoader<B::InnerBackend, VI>>,
+        dataloader_train: Arc<dyn DataLoader<B, M::Input>>,
+        dataloader_valid: Arc<
+            dyn DataLoader<B::InnerBackend, <M::InnerModule as InferenceStep>::Input>,
+        >,
     ) -> Self {
         let directory = directory.as_ref().to_path_buf();
         let experiment_log_file = directory.join("experiment.log");
