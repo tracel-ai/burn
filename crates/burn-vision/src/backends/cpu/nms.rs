@@ -110,7 +110,7 @@ fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Ve
             y1s,
             x2s,
             y2s,
-            &areas,
+            areas,
             &mut suppressed,
             stride,
             options.iou_threshold,
@@ -158,15 +158,16 @@ fn suppress_overlapping<'a, S: Simd>(
     // Process lanes boxes at a time with SIMD
     while i + lanes <= n_boxes {
         // Skip if all boxes in this chunk are already suppressed
-        let mut any_active = false;
-        for k in 0..lanes {
-            if !suppressed[i + k] {
-                any_active = true;
-                break;
+        let all_suppressed = unsafe {
+            match lanes {
+                4 => *(suppressed.as_ptr().add(i) as *const u32) == 0x01010101,
+                8 => *(suppressed.as_ptr().add(i) as *const u64) == 0x0101010101010101,
+                16 => *(suppressed.as_ptr().add(i) as *const u128) == 0x01010101010101010101010101010101,
+                _ => unreachable!(),
             }
-        }
+        };
 
-        if any_active {
+        if !all_suppressed {
             let x1_v: Vector<S, f32> = unsafe { vload(x1s.as_ptr().add(i)) };
             let y1_v: Vector<S, f32> = unsafe { vload(y1s.as_ptr().add(i)) };
             let x2_v: Vector<S, f32> = unsafe { vload(x2s.as_ptr().add(i)) };
