@@ -6,9 +6,7 @@ use crate::{
 };
 use burn_backend::{bf16, f16};
 use cubecl::{
-    calculate_cube_count_elemwise, intrinsic,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
+    calculate_cube_count_elemwise, intrinsic, prelude::*, std::tensor::layout::linear::LinearView,
 };
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
