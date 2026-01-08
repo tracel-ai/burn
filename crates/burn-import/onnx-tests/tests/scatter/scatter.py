@@ -27,10 +27,10 @@ def build_scatter_onnx_model():
     Note: Scatter was deprecated in opset 11 in favor of ScatterElements,
     but we include it here for backwards compatibility testing.
     
-    This model performs: output[indices[i]] = updates[i] along axis 1
+    This model performs: output[i][indices[i][j]] = updates[i][j] along axis 1
     Input data shape: [3, 5]
-    Indices shape: [1, 3]
-    Updates shape: [1, 3]
+    Indices shape: [3, 3]  (must match data shape on non-scatter dimensions for Burn compatibility)
+    Updates shape: [3, 3]  (must match indices shape)
     Output shape: [3, 5]
     """
     return onnx.helper.make_model(
@@ -57,13 +57,13 @@ def build_scatter_onnx_model():
                 onnx.helper.make_value_info(
                     name="indices",
                     type_proto=onnx.helper.make_tensor_type_proto(
-                        elem_type=onnx.TensorProto.INT64, shape=[1, 3]
+                        elem_type=onnx.TensorProto.INT64, shape=[3, 3]
                     ),
                 ),
                 onnx.helper.make_value_info(
                     name="updates",
                     type_proto=onnx.helper.make_tensor_type_proto(
-                        elem_type=onnx.TensorProto.FLOAT, shape=[1, 3]
+                        elem_type=onnx.TensorProto.FLOAT, shape=[3, 3]
                     ),
                 ),
             ],
@@ -129,7 +129,7 @@ def main():
     onnx.save(onnx_model, "scatter_onnx.onnx")
     
     print("Finished exporting manual ONNX model to scatter_onnx.onnx (uses Scatter)")
-    print("Scatter ONNX model inputs: data[3,5], indices[1,3], updates[1,3]")
+    print("Scatter ONNX model inputs: data[3,5], indices[3,3], updates[3,3]")
     print("Scatter ONNX model output: output[3,5]")
 
 
