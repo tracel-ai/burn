@@ -80,7 +80,7 @@ impl<B: Backend> From<&Device<B>> for TensorOptions<B> {
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::TensorOptions;
     ///
-    /// fn example<B: Backend>(device: &B::Device) {
+    /// fn example<B: Backend>(device: B::Device) {
     ///     let options: TensorOptions<B> = (&device).into();
     /// }
     /// ```
