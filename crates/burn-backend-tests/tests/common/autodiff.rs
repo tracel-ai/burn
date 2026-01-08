@@ -30,5 +30,5 @@ test_float_elem_variant!(
     bf16,
     burn_tensor::bf16,
     "../autodiff/mod.rs",
-    ["vulkan", "metal"] // ["cuda", "rocm"] TODO
+    ["metal"] // ["cuda", "rocm"] TODO, ["vulkan"] only supports bf16 for matmul
 );

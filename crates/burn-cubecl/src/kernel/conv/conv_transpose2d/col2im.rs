@@ -209,17 +209,17 @@ fn col2im<R: CubeRuntime>(
             bias.as_tensor_arg(vectorization),
             out.as_tensor_arg(vectorization),
             Col2ImArgsLaunch::new(
-                ScalarArg::new(out_h as u32),
-                ScalarArg::new(out_w as u32),
-                ScalarArg::new(kernel_h as u32),
-                ScalarArg::new(kernel_w as u32),
-                ScalarArg::new(options.padding[0] as u32),
-                ScalarArg::new(options.padding[1] as u32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(col_size_1 as u32),
+                ScalarArg::new(out_h),
+                ScalarArg::new(out_w),
+                ScalarArg::new(kernel_h),
+                ScalarArg::new(kernel_w),
+                ScalarArg::new(options.padding[0]),
+                ScalarArg::new(options.padding[1]),
+                ScalarArg::new(options.dilation[0]),
+                ScalarArg::new(options.dilation[1]),
+                ScalarArg::new(options.stride[0]),
+                ScalarArg::new(options.stride[1]),
+                ScalarArg::new(col_size_1),
             ),
             has_bias,
             dtype.into(),
@@ -229,20 +229,20 @@ fn col2im<R: CubeRuntime>(
 
 #[derive(CubeLaunch, CubeType)]
 struct Col2ImArgs {
-    out_h: u32,
-    out_w: u32,
+    out_h: usize,
+    out_w: usize,
 
-    kernel_h: u32,
-    kernel_w: u32,
+    kernel_h: usize,
+    kernel_w: usize,
 
-    pad_h: u32,
-    pad_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
-    stride_h: u32,
-    stride_w: u32,
+    pad_h: usize,
+    pad_w: usize,
+    dilation_h: usize,
+    dilation_w: usize,
+    stride_h: usize,
+    stride_w: usize,
 
-    col_size_1: u32,
+    col_size_1: usize,
 }
 
 #[cube(launch_unchecked)]
@@ -271,13 +271,13 @@ fn col2im_kernel<E: Numeric>(
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
     } else {
-        0u32.runtime()
+        0usize.runtime()
     };
     let x_col_end = clamp_max(im_x / args.stride_w + 1, args.out_w);
     let y_col_start = if im_y >= kernel_extent_h {
         (im_y - kernel_extent_h) / args.stride_h + 1
     } else {
-        0u32.runtime()
+        0usize.runtime()
     };
     let y_col_end = clamp_max(im_y / args.stride_h + 1, args.out_h);
 

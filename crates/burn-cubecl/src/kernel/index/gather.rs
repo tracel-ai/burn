@@ -21,7 +21,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     indices: &LinearView<Line<I>>,
     output: &mut Tensor<Line<T>>,
     out_layout: LinearLayout,
-    dim: &u32,
+    dim: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
     if !indices.is_in_bounds(ABSOLUTE_POS) {
@@ -31,17 +31,17 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     let index = indices[ABSOLUTE_POS];
     let out_pos = out_layout.to_source_pos(ABSOLUTE_POS);
 
-    let stride = input.stride(*dim);
-    let mut offset = u32::cast_from(index);
+    let stride = input.stride(dim);
+    let mut offset = usize::cast_from(index);
     offset *= stride;
 
-    if *dim > 0 {
-        let offset_before = index_offset_with_layout(input, output, out_pos, 0, *dim, false);
+    if dim > 0 {
+        let offset_before = index_offset_with_layout(input, output, out_pos, 0, dim, false);
         offset += offset_before;
     }
 
     let offset_after =
-        index_offset_with_layout(input, output, out_pos, *dim + 1, input.rank(), false);
+        index_offset_with_layout(input, output, out_pos, dim + 1, input.rank(), false);
     offset += offset_after;
     output[out_pos] = input[offset];
 }
@@ -72,7 +72,7 @@ pub(crate) fn gather<R: CubeRuntime>(
             linear_view(&indices, 1),
             output.as_tensor_arg(1),
             linear_layout(&output, 1),
-            ScalarArg::new(dim as u32),
+            ScalarArg::new(dim),
             [tensor.dtype.into(), indices.dtype.into()],
         )
         .expect("Kernel to never fail");

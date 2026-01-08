@@ -83,7 +83,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
                 &tensor.shape,
-                scheme.num_quants() as u32,
+                scheme.num_quants(),
                 DType::U32.into(),
             )
             .expect("Kernel to never fail");

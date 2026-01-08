@@ -2,7 +2,6 @@ use crate::{
     CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
 use burn_backend::DType;
-use cubecl::std::scalar::InputScalar;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
@@ -10,7 +9,7 @@ fn flip_kernel<E: Numeric, Bool: Int>(
     input: &Tensor<E>,
     output: &mut Tensor<E>,
     indices: Sequence<InputScalar>,
-    #[comptime] rank: u32,
+    #[comptime] rank: usize,
     #[define(E, Bool)] _dtypes: [StorageType; 2],
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -80,7 +79,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             tensor.as_tensor_arg(1),
             output.as_tensor_arg(1),
             indices_sequence,
-            ndims as u32,
+            ndims,
             [dtype_input.into(), dtype_bool.into()],
         )
         .expect("Kernel to never fail");

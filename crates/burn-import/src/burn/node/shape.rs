@@ -23,17 +23,20 @@ impl NodeCodegen for onnx_ir::shape::ShapeNode {
 
         let start_dim_tok = self.config.start.to_tokens();
         let end_dim_tok = self.config.end.to_tokens();
+        let output_rank = (self.config.end - self.config.start).to_tokens();
 
         let function = match &input_arg.ty {
             ArgType::Tensor(_) => {
                 let input = scope.arg(input_arg);
                 quote! {
-                    #input.dims()[#start_dim_tok..#end_dim_tok]
-                        .iter()
-                        .map(|&x| x as i64)
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap()
+                    {
+                        let axes = &#input.dims()[#start_dim_tok..#end_dim_tok];
+                        let mut output = [0i64; #output_rank];
+                        for i in 0..#output_rank {
+                            output[i] = axes[i] as i64;
+                        }
+                        output
+                    }
                 }
             }
             ArgType::Shape(shape_rank) => {
@@ -48,13 +51,6 @@ impl NodeCodegen for onnx_ir::shape::ShapeNode {
 
         quote! {
             let #output: [i64;#dim] = #function;
-        }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Only register Vec if we're extracting shape from a tensor
-        if self.inputs.first().unwrap().ty.is_tensor() {
-            imports.register("alloc::vec::Vec");
         }
     }
 }
@@ -84,13 +80,14 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 3>) -> [i64; 3] {
-            let output: [i64; 3] = input
-                .dims()[0..3]
-                .iter()
-                .map(|&x| x as i64)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+            let output: [i64; 3] = {
+                let axes = &input.dims()[0..3];
+                let mut output = [0i64; 3];
+                for i in 0..3 {
+                    output[i] = axes[i] as i64;
+                }
+                output
+            };
             output
         }
         ");
@@ -113,13 +110,14 @@ mod tests {
         let code = codegen_forward_default(&node);
         assert_snapshot!(code, @r"
         pub fn forward(&self, input: Tensor<B, 4>) -> [i64; 2] {
-            let output: [i64; 2] = input
-                .dims()[1..3]
-                .iter()
-                .map(|&x| x as i64)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+            let output: [i64; 2] = {
+                let axes = &input.dims()[1..3];
+                let mut output = [0i64; 2];
+                for i in 0..2 {
+                    output[i] = axes[i] as i64;
+                }
+                output
+            };
             output
         }
         ");
