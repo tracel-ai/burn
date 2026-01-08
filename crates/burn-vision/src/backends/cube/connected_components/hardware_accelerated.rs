@@ -37,7 +37,8 @@ fn merge<I: Int>(labels: &Tensor<Atomic<I>>, label_1: u32, label_2: u32) {
             label_1 = label_2;
             label_2 = tmp;
         }
-        let label_3 = u32::cast_from(labels[label_1 as usize].min(I::cast_from(label_2 + 1))) - 1;
+        let label_3 =
+            u32::cast_from(labels[label_1 as usize].fetch_min(I::cast_from(label_2 + 1))) - 1;
         if label_1 == label_3 {
             label_1 = label_2;
         } else {
@@ -377,16 +378,16 @@ fn analysis<I: Int, BT: CubePrimitive>(
             }
             label += 1;
 
-            area[label as usize].add(I::cast_from(count));
+            area[label as usize].fetch_add(I::cast_from(count));
 
             if opts.bounds_enabled {
-                left[label as usize].min(I::cast_from(x));
-                top[label as usize].min(I::cast_from(y));
-                right[label as usize].max(I::cast_from(max_x));
-                bottom[label as usize].max(I::cast_from(y));
+                left[label as usize].fetch_min(I::cast_from(x));
+                top[label as usize].fetch_min(I::cast_from(y));
+                right[label as usize].fetch_max(I::cast_from(max_x));
+                bottom[label as usize].fetch_max(I::cast_from(y));
             }
             if comptime!(opts.max_label_enabled || opts.compact_labels) {
-                max_label[0].max(I::cast_from(label));
+                max_label[0].fetch_max(I::cast_from(label));
             }
         }
 
@@ -417,7 +418,7 @@ fn compact_labels<I: Int>(
     if label != 0 {
         let new_label = remap[label as usize];
         labels[labels_pos as usize] = new_label;
-        max_label[0].max(new_label);
+        max_label[0].fetch_max(new_label);
     }
 }
 

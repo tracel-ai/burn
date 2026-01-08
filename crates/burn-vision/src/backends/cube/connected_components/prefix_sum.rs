@@ -33,7 +33,7 @@ fn prefix_sum_kernel<I: Int>(
 
     //acquire partition index
     if UNIT_POS_X == 0 {
-        broadcast[0] = scan_bump[batch].add(I::new(1));
+        broadcast[0] = scan_bump[batch].fetch_add(I::new(1));
     }
     sync_cube();
     let part_id = usize::cast_from(broadcast[0]);

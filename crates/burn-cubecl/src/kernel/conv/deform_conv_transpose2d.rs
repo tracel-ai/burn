@@ -720,7 +720,7 @@ impl<FAdd: Float> FloatAtomicAdd for IntrinsicFloatAtomicAdd<FAdd> {
 
     fn float_atomic_add<F: Float>(ptr: &mut Atomic<FAdd>, value: F) {
         let value = FAdd::cast_from(value);
-        ptr.add(value);
+        ptr.fetch_add(value);
     }
 }
 
@@ -736,7 +736,7 @@ impl FloatAtomicAdd for CASFloatAtomicAdd {
                 let prev = v;
                 let v_float = f32::from_bits(v);
                 let new = (v_float + value).to_bits();
-                v = ptr.compare_and_swap(v, new);
+                v = ptr.compare_exchange_weak(v, new);
                 if prev == v {
                     break;
                 }
