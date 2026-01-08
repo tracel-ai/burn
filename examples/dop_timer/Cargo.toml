@@ -11,7 +11,7 @@ publish = false
 workspace = true
 
 [features]
-default = []
+default = ["cuda"]
 ndarray = ["burn/ndarray"]
 cuda = ["burn/cuda"]
 wgpu = ["burn/wgpu"]
