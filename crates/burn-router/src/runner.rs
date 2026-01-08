@@ -34,6 +34,14 @@ pub struct Runner<B: BackendIr> {
     device: B::Device,
 }
 
+impl<B: BackendIr> core::fmt::Debug for Runner<B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Runner")
+            .field("device", &self.device)
+            .finish()
+    }
+}
+
 impl<B: BackendIr> Runner<B> {
     /// Create a new runner.
     pub fn new(device: B::Device) -> Self {
@@ -46,13 +54,13 @@ impl<B: BackendIr> Runner<B> {
     }
 
     /// Get the tensor handle for the given [tensor representation](TensorIr).
-    pub(crate) fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
+    pub fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.lock().unwrap().handles;
         handles.get_tensor_handle(tensor).handle
     }
 
     /// Create a tensor with the given handle and shape.
-    pub(crate) fn register_tensor<C: RunnerClient>(
+    pub fn register_tensor<C: RunnerClient>(
         &self,
         handle: B::Handle,
         shape: Shape,

@@ -1,0 +1,59 @@
+[package]
+authors = [
+    "laggui <lagrange.guillaume.1@gmail.com>",
+    "nathanielsimard <nathaniel.simard.42@gmail.com>",
+]
+categories = ["science"]
+description = "Backend engine for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data"]
+license.workspace = true
+name = "burn-engine"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-engine"
+documentation = "https://docs.rs/burn-engine"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std", "cuda", "cpu", "vulkan"]
+std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
+doc = ["default"]
+tracing = ["burn-router/tracing"]
+
+# Backends
+# TODO: implement BackendIr for candle + tch if we want to add them
+# candle = ["burn-candle"]
+# candle-cuda = ["candle", "burn-candle/cuda"]
+# candle-metal = ["burn-candle?/metal"]
+cuda = ["burn-cuda"]
+rocm = ["burn-rocm"]
+ndarray = ["burn-ndarray"]
+# tch = ["burn-tch"]
+vulkan = ["wgpu", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-wgpu/webgpu"]
+metal = ["wgpu", "burn-wgpu/metal"]
+wgpu = ["burn-wgpu"]
+cpu = ["burn-cpu"]
+
+[dependencies]
+burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false }
+burn-router = { path = "../burn-router", version = "=0.20.0-pre.6", default-features = false }
+
+# Backends
+burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.6", optional = true, default-features = false }
+# burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.6", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.6", optional = true, default-features = false }
+burn-cpu = { path = "../burn-cpu", version = "=0.20.0-pre.6", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "=0.20.0-pre.6", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.6", optional = true, default-features = false }
+# burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.6", default-features = false, optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.6", optional = true, default-features = false }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

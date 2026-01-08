@@ -914,6 +914,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-engine"
+version = "0.20.0-pre.6"
+dependencies = [
+ "burn-autodiff",
+ "burn-backend",
+ "burn-cpu",
+ "burn-cuda",
+ "burn-ir",
+ "burn-ndarray",
+ "burn-rocm",
+ "burn-router",
+ "burn-std",
+ "burn-wgpu",
+]
+
+[[package]]
 name = "burn-fusion"
 version = "0.20.0-pre.6"
 dependencies = [
