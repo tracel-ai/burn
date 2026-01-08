@@ -24,15 +24,11 @@ fn merge<I: Int>(labels: &Tensor<Atomic<I>>, label_1: u32, label_2: u32) {
     let mut label_1 = label_1;
     let mut label_2 = label_2;
 
-    while label_1 != label_2
-        && (label_1 != u32::cast_from(Atomic::load(&labels[label_1 as usize])) - 1)
-    {
-        label_1 = u32::cast_from(Atomic::load(&labels[label_1 as usize])) - 1;
+    while label_1 != label_2 && (label_1 != u32::cast_from(labels[label_1 as usize].load()) - 1) {
+        label_1 = u32::cast_from(labels[label_1 as usize].load()) - 1;
     }
-    while label_1 != label_2
-        && (label_2 != u32::cast_from(Atomic::load(&labels[label_2 as usize])) - 1)
-    {
-        label_2 = u32::cast_from(Atomic::load(&labels[label_2 as usize])) - 1;
+    while label_1 != label_2 && (label_2 != u32::cast_from(labels[label_2 as usize].load()) - 1) {
+        label_2 = u32::cast_from(labels[label_2 as usize].load()) - 1;
     }
     while label_1 != label_2 {
         #[allow(clippy::manual_swap)]
@@ -41,10 +37,7 @@ fn merge<I: Int>(labels: &Tensor<Atomic<I>>, label_1: u32, label_2: u32) {
             label_1 = label_2;
             label_2 = tmp;
         }
-        let label_3 = u32::cast_from(Atomic::min(
-            &labels[label_1 as usize],
-            I::cast_from(label_2 + 1),
-        )) - 1;
+        let label_3 = u32::cast_from(labels[label_1 as usize].min(I::cast_from(label_2 + 1))) - 1;
         if label_1 == label_3 {
             label_1 = label_2;
         } else {
@@ -114,10 +107,9 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
             let mut s_dist_y = start_distance(pixels_y, UNIT_POS_X);
 
             if p_y && s_dist_y == 0 {
-                Atomic::store(
-                    &labels[labels_index as usize],
-                    I::cast_from(labels_index - select(UNIT_POS_X == 0, distance_y, 0) + 1),
-                );
+                labels[labels_index as usize].store(I::cast_from(
+                    labels_index - select(UNIT_POS_X == 0, distance_y, 0) + 1,
+                ));
             }
 
             // Only needed pre-Volta, but we can't check that at present
@@ -385,16 +377,16 @@ fn analysis<I: Int, BT: CubePrimitive>(
             }
             label += 1;
 
-            Atomic::add(&area[label as usize], I::cast_from(count));
+            area[label as usize].add(I::cast_from(count));
 
             if opts.bounds_enabled {
-                Atomic::min(&left[label as usize], I::cast_from(x));
-                Atomic::min(&top[label as usize], I::cast_from(y));
-                Atomic::max(&right[label as usize], I::cast_from(max_x));
-                Atomic::max(&bottom[label as usize], I::cast_from(y));
+                left[label as usize].min(I::cast_from(x));
+                top[label as usize].min(I::cast_from(y));
+                right[label as usize].max(I::cast_from(max_x));
+                bottom[label as usize].max(I::cast_from(y));
             }
             if comptime!(opts.max_label_enabled || opts.compact_labels) {
-                Atomic::max(&max_label[0], I::cast_from(label));
+                max_label[0].max(I::cast_from(label));
             }
         }
 
@@ -425,7 +417,7 @@ fn compact_labels<I: Int>(
     if label != 0 {
         let new_label = remap[label as usize];
         labels[labels_pos as usize] = new_label;
-        Atomic::max(&max_label[0], new_label);
+        max_label[0].max(new_label);
     }
 }
 
