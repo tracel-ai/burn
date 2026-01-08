@@ -734,8 +734,8 @@ impl FloatAtomicAdd for CASFloatAtomicAdd {
             let mut v = ptr.load();
             loop {
                 let prev = v;
-                let v_float = f32::reinterpret(v);
-                let new = u32::reinterpret(v_float + value);
+                let v_float = f32::from_bits(v);
+                let new = (v_float + value).to_bits();
                 v = ptr.compare_and_swap(v, new);
                 if prev == v {
                     break;
