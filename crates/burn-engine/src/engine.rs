@@ -273,8 +273,23 @@ impl burn_std::device::Device for EngineDevice {
     }
 
     fn device_count(type_id: u16) -> usize {
-        // sum of all device counts for each backend device
-        todo!()
+        let (engine_id, backend_type_id) = Self::decode_type_id(type_id);
+        match engine_id {
+            #[cfg(feature = "cpu")]
+            EngineId::Cpu => CpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "cuda")]
+            EngineId::Cuda => CudaDevice::device_count(backend_type_id),
+            #[cfg(feature = "metal")]
+            EngineId::Metal => WgpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "rocm")]
+            EngineId::Rocm => RocmDevice::device_count(backend_type_id),
+            #[cfg(feature = "vulkan")]
+            EngineId::Vulkan => WgpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "webgpu")]
+            EngineId::WebGpu => WgpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "ndarray")]
+            EngineId::NdArray => NdArray::device_count(backend_type_id),
+        }
     }
 }
 
