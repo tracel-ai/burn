@@ -21,14 +21,14 @@ const BLOCK_H: usize = 4;
 
 #[cube]
 fn merge<I: Int>(labels: &Tensor<Atomic<I>>, label_1: u32, label_2: u32) {
-    let mut label_1 = label_1;
-    let mut label_2 = label_2;
+    let mut label_1 = label_1 as usize;
+    let mut label_2 = label_2 as usize;
 
-    while label_1 != label_2 && (label_1 != u32::cast_from(labels[label_1 as usize].load()) - 1) {
-        label_1 = u32::cast_from(labels[label_1 as usize].load()) - 1;
+    while label_1 != label_2 && (label_1 != usize::cast_from(labels[label_1].load()) - 1) {
+        label_1 = usize::cast_from(labels[label_1].load()) - 1;
     }
-    while label_1 != label_2 && (label_2 != u32::cast_from(labels[label_2 as usize].load()) - 1) {
-        label_2 = u32::cast_from(labels[label_2 as usize].load()) - 1;
+    while label_1 != label_2 && (label_2 != usize::cast_from(labels[label_2].load()) - 1) {
+        label_2 = usize::cast_from(labels[label_2].load()) - 1;
     }
     while label_1 != label_2 {
         #[allow(clippy::manual_swap)]
@@ -37,8 +37,7 @@ fn merge<I: Int>(labels: &Tensor<Atomic<I>>, label_1: u32, label_2: u32) {
             label_1 = label_2;
             label_2 = tmp;
         }
-        let label_3 =
-            u32::cast_from(labels[label_1 as usize].fetch_min(I::cast_from(label_2 + 1))) - 1;
+        let label_3 = usize::cast_from(labels[label_1].fetch_min(I::cast_from(label_2 + 1))) - 1;
         if label_1 == label_3 {
             label_1 = label_2;
         } else {

@@ -32,11 +32,11 @@ fn interpolate_bicubic_kernel<F: Float>(
 
     let input_height = input.shape(1) - 1;
     let output_height = clamp_min(output.shape(1) - 1, 1) as f32;
-    let numerator = f32::cast_from(y * input_height);
+    let numerator = (y * input_height) as f32;
 
-    let frac = f32::cast_from(numerator / output_height);
+    let frac = (numerator / output_height) as f32;
     let y_in_f = frac.floor();
-    let y_in = usize::cast_from(y_in_f);
+    let y_in = y_in_f as usize;
     let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
 
     let y0 = select(y_in != 0, y_in - 1, 0);
@@ -46,10 +46,10 @@ fn interpolate_bicubic_kernel<F: Float>(
 
     let input_width = input.shape(2) - 1;
     let output_width = clamp_min(output.shape(2) - 1, 1) as f32;
-    let numerator = f32::cast_from(x * input_width);
+    let numerator = (x * input_width) as f32;
     let frac = numerator / output_width;
     let x_in_f = frac.floor();
-    let x_in = usize::cast_from(x_in_f);
+    let x_in = x_in_f as usize;
     let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
 
     let x0 = select(x_in != 0, x_in - 1, 0);

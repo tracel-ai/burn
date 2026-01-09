@@ -657,8 +657,8 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     for dy in -1..=1i32 {
         #[unroll]
         for dx in -1..=1i32 {
-            let yp = F::floor(y) + F::cast_from(dy);
-            let xp = F::floor(x) + F::cast_from(dx);
+            let yp = y.floor() + F::cast_from(dy);
+            let xp = x.floor() + F::cast_from(dx);
 
             if yp >= F::new(0.0)
                 && yp < F::cast_from(height)
