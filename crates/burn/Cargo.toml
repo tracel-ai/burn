@@ -34,6 +34,7 @@ default = [
     "burn-rocm?/default",
     "burn-nn/default",
     "burn-optim/default",
+    "burn-engine?/default",
 ]
 doc = [
     "default",
@@ -54,6 +55,7 @@ doc = [
     "burn-rocm/doc",
     "burn-nn/doc",
     "burn-optim/doc",
+    "burn-engine?/doc",
 ]
 std = [
     "burn-core/std",
@@ -69,6 +71,7 @@ std = [
     "burn-store?/std",
     "burn-nn/std",
     "burn-optim/std",
+    "burn-engine?/std",
 ]
 tracing = [
     "cubecl?/tracing",
@@ -85,6 +88,7 @@ tracing = [
     "burn-store?/tracing",
     "burn-nn/tracing",
     "burn-optim/tracing",
+    "burn-engine?/tracing",
 ]
 
 
@@ -157,15 +161,18 @@ collective = ["burn-collective", "burn-optim/collective", "burn-train?/ddp"]
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda"]
-rocm = ["burn-rocm"]
-ndarray = ["burn-ndarray"]
+cuda = ["burn-cuda", "burn-engine?/cuda"]
+rocm = ["burn-rocm", "burn-engine?/rocm"]
+ndarray = ["burn-ndarray", "burn-engine?/ndarray"]
 tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu"]
-metal = ["wgpu", "burn-wgpu/metal"]
+vulkan = ["wgpu", "burn-wgpu/vulkan", "burn-engine?/vulkan"]
+webgpu = ["wgpu", "burn-wgpu/webgpu", "burn-engine?/webgpu"]
+metal = ["wgpu", "burn-wgpu/metal", "burn-engine?/metal"]
 wgpu = ["burn-wgpu"]
-cpu = ["burn-cpu"]
+cpu = ["burn-cpu", "burn-engine?/cpu"]
+
+# Backend engine, maybe renamed?
+engine = ["burn-engine"]
 
 [dependencies]
 
@@ -190,6 +197,7 @@ burn-router = { path = "../burn-router", version = "=0.20.0-pre.6", default-feat
 burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.6", default-features = false, optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.6", optional = true, default-features = false }
 burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6", optional = true, default-features = false }
+burn-engine = { path = "../burn-engine", version = "=0.20.0-pre.6", optional = true, default-features = false }
 
 cubecl = { workspace = true, default-features = false, optional = true }
 

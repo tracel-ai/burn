@@ -19,7 +19,6 @@ default = ["client", "server"]
 doc = []
 tracing = [
     "burn-communication/tracing",
-    "burn-communication/tracing",
     "burn-ir/tracing",
     "burn-router/tracing",
     "burn-std/tracing",

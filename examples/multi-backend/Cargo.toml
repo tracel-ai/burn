@@ -1,0 +1,19 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "multi-backend"
+publish = false
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+burn = { path = "../../crates/burn", default-features = false, features = [
+    "engine",
+    "cuda",
+    "vulkan",
+    "autotune",
+    "fusion",
+] }

@@ -631,6 +631,7 @@ dependencies = [
  "burn-core",
  "burn-cpu",
  "burn-cuda",
+ "burn-engine",
  "burn-ir",
  "burn-ndarray",
  "burn-nn",
@@ -5119,6 +5120,13 @@ checksum = "ac9557c559cd6fc9867e122e20d2cbefc9ca29d80d027a8e39310920ed2f0a97"
 dependencies = [
  "num-traits",
  "pxfm",
+]
+
+[[package]]
+name = "multi-backend"
+version = "0.20.0-pre.6"
+dependencies = [
+ "burn",
 ]
 
 [[package]]

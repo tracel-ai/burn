@@ -1,6 +1,9 @@
 // TODO:
 // -[ ] rename `RunnerChannel` -> `RouterChannel`, `RunnerClient` -> `RouterClient`, `Runner` -> `RouterEndpoint`
 
+use alloc::format;
+use alloc::string::String;
+
 use burn_backend::Backend;
 use burn_backend::TensorData;
 use burn_backend::{DeviceId, DeviceOps, ExecutionError};
@@ -50,7 +53,7 @@ use burn_router::{
 /// use burn::EngineDevice;
 ///
 /// // Select the device to execute operations on
-/// let device = EngineDevice::Cuda(0);
+/// let device = EngineDevice::Cuda(Default::default());
 ///
 /// // Create a tensor using the global engine
 /// let t = Tensor::<Engine, 2>::zeros([128, 128], &device);

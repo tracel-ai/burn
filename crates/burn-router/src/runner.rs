@@ -4,6 +4,7 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
+use alloc::boxed::Box;
 use alloc::sync::Arc;
 use burn_backend::{Backend, DType, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp};
 use burn_ir::{
@@ -35,7 +36,7 @@ pub struct Runner<B: BackendIr> {
 }
 
 impl<B: BackendIr> core::fmt::Debug for Runner<B> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Runner")
             .field("device", &self.device)
             .finish()
